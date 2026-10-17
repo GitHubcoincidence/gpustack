@@ -1,104 +1,79 @@
-# Rust Worker Protocol and HTTP Compatibility
+# Rust Worker 协议与 HTTP 兼容性
 
-## Compatibility baseline
+## 兼容基线
 
-R1 targets the exact GPUStack Server deployment already running on the 90 host.
-M1 records its version, container image tag and digest, and corresponding source
-commit. The Server is not upgraded during R1 implementation or verification.
+R1 以 90 服务器上已经运行的准确 GPUStack Server 部署为目标。M1 记录其版本、容器镜像 tag 和 digest，以及对应源码 commit。R1 实现和验证期间不升级 Server。
 
-The local source commit `76dc841916ff8fed4068a1ab99d178d2e27a4a06` was used
-for design inspection only. It is not the formal compatibility baseline until
-M1 proves that it matches the deployed Server.
+本地源码 commit `76dc841916ff8fed4068a1ab99d178d2e27a4a06` 只用于设计阶段的代码检查。在 M1 证明它与已部署 Server 匹配前，它不是正式兼容基线。
 
-## Worker-to-Server operations
+## Worker 到 Server 的操作
 
-The typed Rust client must support the deployed equivalents of:
+类型化 Rust client 必须支持已部署 Server 中与下列功能对应的接口：
 
-- Server version compatibility check;
-- `POST /workers` registration;
-- retrieval of the authenticated Worker identity;
-- `POST /worker-heartbeat`;
-- `POST /worker-status`;
-- model and ModelInstance list/watch operations;
-- authoritative unpaginated ModelInstance listing;
-- ModelInstance observed-state updates;
-- operator model CRUD and log APIs used by the R1 CLI;
-- OpenAI-compatible inference requests used by the R1 CLI.
+- Server 版本兼容性检查；
+- `POST /workers` 注册；
+- 获取已认证 Worker 身份；
+- `POST /worker-heartbeat`；
+- `POST /worker-status`；
+- model 与 ModelInstance 的 list/watch 操作；
+- 不分页的权威 ModelInstance 全量列表；
+- 更新 ModelInstance observed state；
+- R1 CLI 使用的运维侧 model CRUD 与日志 API；
+- R1 CLI 使用的 OpenAI-compatible 推理请求。
 
-Exact prefixes, schemas, authentication headers, null behavior, enum spelling,
-and error bodies are captured as contract fixtures from the frozen M1 Server.
+准确 prefix、schema、认证 header、null 行为、enum 拼写与错误响应体，都要从 M1 冻结的 Server 捕获为契约 fixture。
 
 ## Worker HTTP API
 
-### Public probes
+### 公开探针
 
-| Method | Path | Contract |
+| Method | Path | 契约 |
 |---|---|---|
-| GET | `/healthz` | Process is alive; does not imply Server readiness. |
-| GET | `/readyz` | Returns success only after prerequisites and initial authoritative reconciliation. |
-| GET | `/version` | Rust version, Git commit, build target, and protocol baseline. |
+| GET | `/healthz` | 进程存活；不代表已经具备 Server 工作就绪条件。 |
+| GET | `/readyz` | 只有先决条件满足且第一次权威协调完成后才返回成功。 |
+| GET | `/version` | 返回 Rust 版本、Git commit、build target 与协议基线。 |
 
-### Worker-authenticated endpoints
+### 需要 Worker 认证的 endpoint
 
-| Method | Path | Contract |
+| Method | Path | 契约 |
 |---|---|---|
-| GET | `/token-auth` | Validate Worker or registration credential without exposing it. |
-| GET | `/files/file-exists` | Report existence/type for a path under an allowed model root. |
-| GET | `/files/model-config` | Return parsed JSON only for an allowed model configuration filename. |
-| GET | `/files/model-weight-size` | Return weight bytes for an allowed local model directory. |
-| GET | `/serveLogOptions/{id}` | Return compatible current/previous restart and container log options. |
-| GET | `/serveLogs/{id}` | Stream compatible model logs and support the deployed query semantics. |
-| GET | `/v2/config` | Return the non-sensitive Worker configuration view. |
+| GET | `/token-auth` | 验证 Worker 或注册凭据，不暴露凭据值。 |
+| GET | `/files/file-exists` | 报告允许模型根目录下某路径是否存在及其类型。 |
+| GET | `/files/model-config` | 只针对允许的模型配置文件名返回解析后的 JSON。 |
+| GET | `/files/model-weight-size` | 返回允许的本地模型目录中的权重字节数。 |
+| GET | `/serveLogOptions/{id}` | 返回兼容的当前/上次重启以及容器日志选项。 |
+| GET | `/serveLogs/{id}` | 流式返回兼容模型日志，并支持已部署版本的查询语义。 |
+| GET | `/v2/config` | 返回非敏感的 Worker 配置视图。 |
 
-The compatibility baseline may require a different versioned config prefix; M1
-evidence takes precedence over this inspected default.
+兼容基线可能要求不同的带版本 config prefix；此时 M1 证据优先于这里通过源码检查得到的默认值。
 
-### Metrics
+### 指标
 
-`GET /metrics` exposes Prometheus metrics for Worker readiness, Server
-connectivity, heartbeat, status reporting, event reconnects, reconciliation,
-Docker calls, workload health, model counts, and GPU inventory. The exact port
-is frozen after M1.
+`GET /metrics` 暴露 Prometheus 指标，覆盖 Worker readiness、Server 连通性、heartbeat、状态上报、事件重连、协调、Docker 调用、工作负载健康、模型数量与 GPU 资源信息。准确端口在 M1 后冻结。
 
-### Deferred endpoints
+### 延后实现的 endpoint
 
-R1 intentionally omits dynamic config writes, inference proxy, cluster proxy,
-GGUF parsing, benchmark logs, cache-service logs, and the Python debug surface.
-Their absence must be reported as unsupported rather than silently emulated.
+R1 有意不实现动态写配置、推理代理、cluster proxy、GGUF 解析、benchmark 日志、cache-service 日志和 Python debug 界面。对于这些功能应明确返回不支持，而不是静默模拟。
 
-## Authentication and authorization
+## 认证与授权
 
-Probe endpoints are unauthenticated and return no sensitive data. Other Worker
-HTTP endpoints require the Worker credential or the registration credential
-according to the frozen Server contract. Credential comparison is constant-time
-where applicable, errors are generic, and logs contain only redacted
-identifiers.
+探针 endpoint 无需认证，且不返回敏感信息。其他 Worker HTTP endpoint 根据冻结的 Server 契约，要求 Worker 凭据或注册凭据。适用时使用 constant-time 凭据比较，错误信息保持通用，日志中只保留脱敏标识。
 
-Managed CLI requests use an operator credential against the Server. The Server
-performs existing tenant and authorization checks before proxying model log
-requests. Worker system credentials are never used to create user resources.
+Managed CLI 使用运维人员凭据请求 Server。Server 在代理模型日志请求前继续执行现有 tenant 与授权检查。Worker 系统凭据绝不用来创建用户资源。
 
-## Readiness definition
+## Readiness 定义
 
-Readiness is false until Docker and NVML are usable, registration succeeds,
-initial status is published, the authoritative model snapshot is obtained, and
-the first reconciliation completes. A sustained Server loss or unrecoverable
-runtime failure makes readiness false while liveness may remain true.
+只有 Docker 与 NVML 可用、注册成功、已发布初始状态、已获得权威模型快照且第一次协调完成，readiness 才为 true。持续的 Server 失联或不可恢复的 runtime 故障会使 readiness 变为 false，但 liveness 可以保持 true。
 
-## Event and reconciliation contract
+## 事件与协调契约
 
-Watch events mark a ModelInstance dirty and trigger keyed reconciliation.
-Reconnect always triggers an authoritative full list. A periodic authoritative
-sync is the final backstop. Cleanup never derives from a transient empty cache,
-a failed request, or an incomplete page.
+Watch event 把 ModelInstance 标记为 dirty，并触发按 key 协调。每次重连都触发一次权威全量 list，周期性权威 sync 作为最后兜底。清理决策绝不能来自临时空 cache、失败请求或不完整分页。
 
-The Worker handles only instances assigned to its Worker identity. R1 rejects
-cross-Worker distributed placement. A same-Worker assignment may contain one or
-two GPU indexes.
+Worker 只处理分配给自身 Worker identity 的实例。R1 拒绝跨 Worker 分布式放置；同一 Worker 的 assignment 可以包含一张或两张 GPU 的 index。
 
-## Model state reporting
+## 模型状态上报
 
-R1 reports the existing state vocabulary:
+R1 上报现有状态词汇：
 
 ```text
 SCHEDULED -> INITIALIZING -> STARTING -> RUNNING
@@ -106,14 +81,8 @@ SCHEDULED -> INITIALIZING -> STARTING -> RUNNING
                                 +-> ERROR <-+
 ```
 
-Local model deployments do not enter `DOWNLOADING`. State messages are concise,
-actionable, and redacted. The Server remains responsible for `PENDING`,
-`ANALYZING`, scheduling, and unreachable-worker interpretation.
+本地模型部署不进入 `DOWNLOADING`。状态消息必须简洁、可执行且已脱敏。Server 继续负责 `PENDING`、`ANALYZING`、调度和 unreachable Worker 的解释。
 
-## Filesystem security
+## 文件系统安全
 
-All requested paths are canonicalized with symlinks resolved and must remain
-under a configured model root. Configuration reads use a filename whitelist.
-The endpoints do not provide a general file-read primitive. Access failure,
-malformed JSON, wrong file type, and out-of-root paths have stable error
-categories captured by contract tests.
+所有请求路径都必须 canonicalize 并解析 symlink，结果必须仍位于配置的模型根目录之下。配置读取采用文件名白名单。这些 endpoint 不提供通用文件读取能力。访问失败、JSON 格式错误、文件类型错误与越界路径，都有由契约测试固定的稳定错误类别。

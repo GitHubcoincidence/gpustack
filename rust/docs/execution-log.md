@@ -1,68 +1,57 @@
-# Rust GPUStack Rewrite: Execution and Handoff Log
+# GPUStack Rust 重写：执行与交接记录
 
-## Document responsibility
+## 文档职责
 
-This document records accepted decisions, material execution evidence, current
-state, and the next permitted action. Chat remains the primary interaction
-channel. Large command outputs and runtime artifacts are referenced by identity
-and path rather than embedded here.
+本文记录已接受决策、关键执行证据、当前状态与下一项允许执行的工作。聊天仍是主要交互渠道。大段命令输出与运行时 artifact 只记录其 identity 和路径，不直接嵌入本文。
 
-## Frozen decisions
+## 已冻结决策
 
-- 2026-10-17: R1 scope, non-goals, CLI-first principle, Managed/Lab boundary,
-  Worker protocol surface, reconciliation model, Git strategy, deployment
-  topology, verification gates, and rollback approach were accepted.
-- 2026-10-17: Worker containerization was moved into the R1 release gate;
-  host-process execution remains a development stage.
-- 2026-10-17: the final public CLI is unified as `gpustack`; the migration
-  binary is `gpustack-rs`. The earlier idea of a final standalone
-  `gpustack-worker` public command is superseded.
-- 2026-10-17: the user selected account-level GitHub SSH access for the 90 host
-  instead of a repository-scoped deploy key.
+- 2026-10-17：接受 R1 范围、非目标、CLI-first 原则、Managed/Lab 边界、Worker 协议界面、协调模型、Git 策略、部署拓扑、验证门禁与回滚方法。
+- 2026-10-17：Worker 容器化被纳入 R1 发布门禁；宿主机进程运行仍保留为开发阶段。
+- 2026-10-17：最终公开 CLI 统一为 `gpustack`，迁移期二进制为 `gpustack-rs`。更早提出的最终独立 `gpustack-worker` 公开命令已被取代。
+- 2026-10-17：用户选择让 90 主机使用账号级 GitHub SSH 权限，而不是仓库级 deploy key。
+- 2026-10-17：用户选择以中文维护 `rust/docs/` 内部治理与实验文档；技术标识保留英文。顶层 MkDocs `docs/` 若发布相关内容，单独编写英文版。
 
-## Current state
+## 当前状态
 
-- Status: `ready`
-- Current stage: M0 design documentation checkpoint
-- Source baseline inspected locally:
-  `76dc841916ff8fed4068a1ab99d178d2e27a4a06`
-- Branch: `codex/rust-worker`
-- Existing unrelated working-tree state observed before the checkpoint:
-  untracked `output/`; it is not part of this project change.
-- Remote host state: unverified and unmodified.
-- Implementation state: no Rust source, build, remote deployment, or Server
-  mutation has begun.
-- Current stopping point: accepted design is recorded under `rust/docs/`.
-- Next permitted action: commit the exact documentation paths, establish fork
-  and 90-host Git connectivity, then perform the M1 read-only inventory.
+- 状态：`ready`
+- 当前阶段：M0 文档本地化检查点
+- 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
+- 分支：`codex/rust-worker`
+- 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
+- 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
+- 远程主机状态：尚未验证、尚未修改。
+- 实现状态：尚未创建 Rust 源码，尚未构建、远程部署或修改 Server。
+- 当前停止位置：已接受设计记录在 `rust/docs/`，本轮把内部权威文档转换为中文。
+- 下一项允许执行的工作：提交准确的中文文档路径，建立 fork 与 90 主机 Git 连通性，然后执行 M1 只读盘点。
 
-## Milestones
+## 里程碑
 
-### 2026-10-17: M0 design frozen and archived
+### 2026-10-17：M0 设计冻结并归档
 
-- Purpose: turn the accepted discussion into an auditable, resumable project
-  contract before implementation.
-- Outcome: charter, architecture, CLI, Worker protocol, implementation plan,
-  decisions, and handoff state were recorded. Status is `ready` for the M1
-  read-only baseline after the Git checkpoint.
-- Evidence: `rust/docs/`; local base commit
-  `76dc841916ff8fed4068a1ab99d178d2e27a4a06`; the Git commit created for these
-  exact paths is the durable checkpoint identity.
-- Interpretation: architecture and acceptance rules are frozen. This does not
-  prove any remote environment fact or implementation capability.
-- Invalid or non-formal artifacts: prior chat examples and unverified command
-  sketches are explanatory only; no Lab or Managed run exists yet.
-- New stopping point: no remote changes and no Rust implementation.
-- Next permitted action: M1 read-only inspection and Git authentication setup;
-  record verified identities before creating runtime code.
+- 目的：在实现前，把已接受讨论整理成可审计、可恢复的项目契约。
+- 结果：已记录 charter、架构、CLI、Worker 协议、实现计划、决策与交接状态。Git 检查点后状态为 `ready`，可以进入 M1 只读基线盘点。
+- 证据：`rust/docs/`；本地 base commit `76dc841916ff8fed4068a1ab99d178d2e27a4a06`；初始设计 commit `74ef8977`。
+- 解释：架构与验收规则已经冻结。这不证明任何远程环境事实或实现能力。
+- 无效或非正式 artifact：此前聊天中的示例和未验证命令草案只用于解释；当前没有 Lab 或 Managed 运行结果。
+- 新停止位置：没有远程修改，也没有 Rust 实现。
+- 下一项允许执行的工作：M1 只读检查和 Git 认证设置；创建 runtime 代码前必须先记录验证过的身份信息。
 
-## Open risks and decisions
+### 2026-10-17：治理文档切换为中文
 
-- The deployed Server version and source identity are unknown until M1.
-- The existing Server/Worker Compose, ports, paths, active workloads, and
-  maintenance mechanics are unknown until M1.
-- Direct Server-to-vLLM network reachability is unverified.
-- The validation model and Runner image digest are unverified.
-- GitHub reachability and account-level SSH authentication from the 90 host are
-  unverified.
-- Exact Worker-container user/group and Docker socket permissions depend on M1.
+- 目的：使长期内部治理与实验记录更适合当前协作语言，同时保持技术接口含义稳定。
+- 结果：`rust/docs/` 的八份文档转换为中文，命令、API、类型、状态和代码标识符保留英文；状态为 `ready`。
+- 证据：`rust/docs/`；包含本次准确路径的翻译 commit 是该检查点的持久身份。
+- 解释：这是文档表达方式变更，不改变已冻结的 R1 scope、架构、CLI 契约、协议或验收标准。若以后发布到顶层 MkDocs `docs/`，另行编写英文版本。
+- 无效或非正式 artifact：被翻译取代的英文工作副本不再是内部权威版本；初始 Git commit 仍用于审计历史。
+- 当前停止位置：M0 已完成，Rust 实现与远程部署均未开始。
+- 下一项允许执行的工作：建立可写 fork 和 90 主机 Git 连通性，然后执行 M1 只读盘点；任何部署变更仍需等到明确维护窗口。
+
+## 未解决风险与待确认事项
+
+- 已部署 Server 的版本和源码 identity 要到 M1 才能确认。
+- 现有 Server/Worker Compose、端口、路径、活动工作负载与维护操作方式要到 M1 才能确认。
+- Server 到 vLLM 的 direct network 连通性尚未验证。
+- 验证模型和 Runner image digest 尚未验证。
+- 90 主机到 GitHub 的连通性和账号级 SSH 认证尚未验证。
+- Worker 容器的准确 user/group 与 Docker socket 权限取决于 M1 结果。

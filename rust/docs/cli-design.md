@@ -1,16 +1,12 @@
-# Rust GPUStack CLI-First Design
+# Rust GPUStack CLI-first 设计
 
-## Contract
+## 契约
 
-Every user-facing or operator-facing capability supported by a release has a
-stable non-interactive CLI command. The CLI invokes typed Server or inference
-APIs for Managed operations and does not recreate Server business logic.
+一个版本支持的每项面向用户或运维人员的能力，都必须有稳定的非交互式 CLI 命令。对于 Managed 操作，CLI 调用类型化 Server API 或推理 API，不在客户端重复实现 Server 业务逻辑。
 
-The development binary is `gpustack-rs`; the intended final public binary is
-`gpustack`. This temporary name prevents collision with the Python command on
-the validation host.
+开发阶段二进制为 `gpustack-rs`，最终公开二进制为 `gpustack`。临时名称用于避免与验证主机上的 Python 命令冲突。
 
-## R1 command tree
+## R1 命令树
 
 ```text
 gpustack-rs
@@ -27,72 +23,52 @@ gpustack-rs
   version
 ```
 
-The final command tree retains these subcommands under `gpustack` and expands
-with later rewritten Server modules.
+最终命令树在 `gpustack` 下保留这些子命令，并随着后续 Server 模块的重写继续扩展。
 
-## Managed model commands
+## Managed 模型命令
 
-`model deploy` authenticates as an operator and creates a model through the
-Server API. It does not contact Docker or the Worker directly. R1 requires an
-explicit target Worker so a test cannot be scheduled onto the Python Worker.
+`model deploy` 使用运维人员身份认证，并通过 Server API 创建模型。它不直接访问 Docker 或 Worker。R1 强制显式指定目标 Worker，避免测试任务被调度到 Python Worker。
 
-The R1 deployment input includes:
+R1 部署输入包括：
 
-- model name;
-- target Worker name;
-- local model directory;
-- explicit Runner image or a configured default;
-- one or two local GPU indexes;
-- tensor parallel size when using two GPUs;
-- the supported structured vLLM options;
-- `--wait` to follow the ModelInstance to `RUNNING` or `ERROR`.
+- 模型名称；
+- 目标 Worker 名称；
+- 本地模型目录；
+- 显式 Runner 镜像或配置的默认镜像；
+- 一张或两张本地 GPU 的 index；
+- 使用两张 GPU 时的 tensor parallel size；
+- 已支持的结构化 vLLM 选项；
+- 使用 `--wait` 跟踪 ModelInstance，直至进入 `RUNNING` 或 `ERROR`。
 
-The CLI converts friendly GPU flags into the existing Server selector form such
-as `worker-name:cuda:0`. Port allocation remains a Worker/Server concern.
+CLI 把友好的 GPU 参数转换为现有 Server selector 形式，例如 `worker-name:cuda:0`。端口分配仍由 Worker/Server 负责。
 
-`model logs` calls the Server log API so that normal user authorization and
-tenant visibility checks apply before the Server requests logs from the Worker.
+`model logs` 调用 Server 日志 API；Server 在向 Worker 请求日志之前继续执行现有用户授权与 tenant 可见性检查。
 
-## Inference commands
+## 推理命令
 
-Managed `inference` commands call the Server or gateway OpenAI-compatible
-endpoint. Lab inference calls the isolated local vLLM endpoint and is visibly
-identified as Lab output. The two forms never silently switch endpoints.
+Managed `inference` 命令调用 Server 或 gateway 的 OpenAI-compatible endpoint。Lab 推理调用隔离的本地 vLLM endpoint，并在输出中明确标记为 Lab。两种形式绝不静默切换 endpoint。
 
-Streaming commands preserve incremental output and handle interruption without
-leaking authentication headers.
+流式命令保留增量输出，并在处理中断时确保认证 header 不会泄露。
 
-## Lab commands
+## Lab 命令
 
-Lab mode demonstrates the actual Worker runtime before Server integration is
-complete. It reuses the production workload planner, runtime, health checks,
-logging, and reconciler. It has no Server registration, Worker credential,
-Server database row, or gateway route.
+Lab 模式用于在完成 Server 集成前演示真实 Worker runtime。它复用生产路径中的 workload planner、runtime、health check、logging 和 reconciler，但不进行 Server 注册，不使用 Worker credential，不创建 Server 数据库记录或 gateway route。
 
-Lab deploy refuses to run when the Rust Managed data-directory lock is active,
-when the requested GPU is already in use, when its port is occupied, or when a
-same-name Lab workload conflicts. Formal testing also requires the Python
-Worker to be drained and stopped; Rust cannot prove exclusive ownership merely
-from its own lock.
+出现以下任一情况时，Lab deploy 拒绝执行：Rust Managed 数据目录锁处于活动状态、目标 GPU 已被占用、目标端口已占用或存在同名 Lab 工作负载。正式测试还要求先 drain 并停止 Python Worker；Rust 自身的锁无法证明它独占物理 GPU。
 
-Lab cleanup is label-scoped and defaults to `--dry-run`. There is no R1 flag to
-force GPU preemption or delete an unknown container.
+Lab cleanup 只处理标签匹配的资源，默认使用 `--dry-run`。R1 不提供强制抢占 GPU 或删除未知容器的参数。
 
-## Authentication
+## 认证
 
-- `worker run` uses a registration credential and the resulting Worker system
-  credential.
-- `model` and Managed `inference` commands use an operator/user API credential.
-- Lab commands use neither credential.
-- Credentials are read from restricted token files or approved environment
-  sources. A normal command-line argument must not contain the token value.
-- Context configuration may record a Server URL and token-file path, never the
-  token itself.
+- `worker run` 使用注册凭据以及注册后获得的 Worker 系统凭据。
+- `model` 和 Managed `inference` 命令使用运维人员或用户 API 凭据。
+- Lab 命令不使用上述任何凭据。
+- 凭据来自权限受限的 token 文件或获准的环境变量来源。普通命令行参数不得包含 token 值。
+- Context 配置可以记录 Server URL 与 token 文件路径，但绝不记录 token 本身。
 
-## Output and automation
+## 输出与自动化
 
-All applicable commands support stable machine-readable output and predictable
-process behavior:
+所有适用命令都支持稳定的机器可读输出与可预测的进程行为：
 
 ```text
 --output table|json
@@ -102,17 +78,10 @@ process behavior:
 --context
 ```
 
-Result data goes to stdout; diagnostics and progress go to stderr. Success is
-exit code zero. Configuration, authentication, compatibility, scheduling,
-runtime, health, and timeout failures have distinguishable nonzero exit codes.
-JSON field names are treated as a versioned compatibility surface.
+结果数据写入 stdout，诊断和进度写入 stderr。成功退出码为 0；配置、认证、兼容性、调度、运行时、健康与超时错误使用可区分的非零退出码。JSON 字段名作为带版本的兼容界面管理。
 
-Destructive user commands require confirmation in an interactive terminal and
-support an explicit `--yes` for automation. Dry-run output contains the
-normalized request or ownership-scoped cleanup plan without secrets.
+破坏性用户命令在交互式终端中要求确认，并为自动化提供显式 `--yes`。Dry-run 输出包含规范化请求或按所有权限定的清理计划，且不得包含敏感信息。
 
-## CLI parity gate
+## CLI 对等门禁
 
-A feature is not accepted for a release if its supported user or operator flow
-requires the Web UI or an undocumented raw request. Raw API escape hatches may
-exist for diagnostics, but they do not satisfy CLI parity.
+如果某项已支持的用户或运维流程必须依赖 Web UI 或未文档化的原始请求，该功能就不能通过对应版本的验收。可以为诊断保留原始 API escape hatch，但它不能满足 CLI 对等要求。
