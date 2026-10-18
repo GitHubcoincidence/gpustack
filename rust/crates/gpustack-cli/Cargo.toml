@@ -1,0 +1,21 @@
+[package]
+name = "gpustack-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "gpustack-rs"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+gpustack-worker = { path = "../gpustack-worker" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
