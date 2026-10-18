@@ -126,9 +126,19 @@ embedded CUDA_VERSION: 13.0.1
 ## 开发工具链
 
 - Git `2.43.0`、OpenSSH `9.6p1`。
-- `rustc`、`cargo`、`rustup` 均未安装。
+- M1 采集时 `rustc`、`cargo`、`rustup` 均未安装；这是当时的基线事实。
 - 已有 `pkg-config 1.8.1`、CMake `3.28.3`、GCC `13.3.0`、GNU Make `4.3`；`clang` 未安装。
-- M2 必须先安装并固定 Rust toolchain，再创建 workspace；工具链安装本身不是 M1 证据。
+- 工具链安装本身不是 M1 证据，其后续状态由下面的 M2 附录记录。
+
+### 2026-10-18 M2 工具链附录
+
+- rustup-init 来源：`https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init`；SHA-256 为 `dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71`，与同源 `.sha256` 文件一致。
+- rustup `1.29.1 (d95a37b6a 2026-08-13)`；默认 host 为 `x86_64-unknown-linux-gnu`。
+- 固定 toolchain：Rust `1.99.1-x86_64-unknown-linux-gnu`，rustc commit `58cf8f9c35b355199727627d07ae34a4e2846d67`，LLVM `23.1.1`，Cargo `1.99.1`。
+- 安装 profile 为 `minimal`，已安装 `cargo`、`clippy`、`rust-std`、`rustc` 与 `rustfmt`；`rustfmt` 为 `1.10.0-stable`，Clippy 为 `0.1.99`。
+- 下载使用临时 SSH 反向隧道，把 90 主机 `127.0.0.1:17897` 转发到开发机本地代理 `127.0.0.1:7897`。1 MiB HTTP range probe 返回 206，正式断点续传成功；安装完成后隧道已关闭，远端端口不再监听。
+- 安装后仓库仍位于 `1df210c1997e536fd4c1d610de3bd3c9cd7e3d03` 且工作树干净；Server、Worker health 与 metrics 均返回 HTTP 200，现有 `gpustack` 和 `gpustack-worker` 容器继续运行。
+- 安装使用 `--no-modify-path`；当前 shell 可通过 `source "$HOME/.cargo/env"` 启用工具链。仓库级 `rust-toolchain.toml` 属于下一项 M2 工作。
 
 ## 维护与回滚边界
 

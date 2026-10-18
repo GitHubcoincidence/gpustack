@@ -25,9 +25,9 @@
 ## 当前状态
 
 - 设计状态：`frozen`
-- 实现状态：`not started`
-- 环境基线：M1 已接受，详见 `environment-baseline.md`。
-- 当前停止位置：90 主机主工作树和兼容基线已经固定，尚未创建 Rust workspace。
-- 下一项允许执行的工作：M2 安装并固定 Rust toolchain，创建 workspace 与 CLI 骨架。
+- 实现状态：M2 `running`；工具链门禁已接受，Rust workspace 尚未创建。
+- 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
+- 当前停止位置：90 主机已安装并验证固定工具链，仓库仍位于 M1 文档检查点，现有 GPUStack 服务未受影响。
+- 下一项允许执行的工作：在仓库中固定 toolchain 文件，创建 workspace 与 `version`、`validate-config`、`doctor` CLI 骨架。
 
-当前检查点不包含 Rust 实现、远程部署变更或 Python Worker 变更。
+当前检查点不包含 Rust 源码、远程部署变更或 Python Worker 变更。
