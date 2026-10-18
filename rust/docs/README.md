@@ -11,6 +11,7 @@
 - [cli-design.md](cli-design.md)：CLI-first 产品契约，以及 Managed 和 Lab 两种命令界面。
 - [worker-protocol.md](worker-protocol.md)：Server/Worker 兼容协议、Worker HTTP API、认证与模型生命周期。
 - [implementation-plan.md](implementation-plan.md)：带门禁的里程碑、验证矩阵、证据要求与回滚约束。
+- [environment-baseline.md](environment-baseline.md)：M1 验证过的 90 主机、GPU、Docker、部署、镜像、模型与网络身份。
 - [decisions.md](decisions.md)：已接受的架构决策与被否决的替代方案。
 - [execution-log.md](execution-log.md)：关键检查点、当前停止位置与下一项允许执行的工作。
 
@@ -25,7 +26,8 @@
 
 - 设计状态：`frozen`
 - 实现状态：`not started`
-- 当前停止位置：已接受的设计已经记录在 `codex/rust-worker` 分支。
-- 下一项允许执行的工作：对 90 服务器现有部署执行 M1 只读盘点，建立 Git 连通性，并以验证结果替换这些文档中的环境占位信息。
+- 环境基线：M1 已接受，详见 `environment-baseline.md`。
+- 当前停止位置：90 主机主工作树和兼容基线已经固定，尚未创建 Rust workspace。
+- 下一项允许执行的工作：M2 安装并固定 Rust toolchain，创建 workspace 与 CLI 骨架。
 
-本轮文档检查点不包含 Rust 实现、远程部署变更或 Python Worker 变更。
+当前检查点不包含 Rust 实现、远程部署变更或 Python Worker 变更。

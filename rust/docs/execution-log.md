@@ -14,20 +14,20 @@
 
 ## 当前状态
 
-- 状态：`running`
-- 当前阶段：M1 环境基线盘点进行中；Git 与源码工作树门禁已通过，系统及部署只读盘点尚未开始
+- 状态：`ready`
+- 当前阶段：M1 环境基线已接受，准备进入 M2 Rust workspace 与 CLI 骨架
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：`codex/rust-worker` 位于 `d3623bfbc927c3ca0be677a6667600494d3821c6`，基线 commit 是其祖先，工作树干净且 `git push --dry-run` 成功。
+- 90 主机源码状态：`codex/rust-worker` 已快进到 `325e56441335a198ebdc954d1c3bc31aec4c7903`；工作树在 M1 盘点前保持干净。
 - 实现状态：尚未创建 Rust 源码，尚未构建、远程部署或修改 Server。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：90 主机 Git 工作树已建立并完成读写路径验证；尚未执行系统、GPU、Docker、现有部署或模型盘点，也未修改任何部署。
-- 下一项允许执行的工作：执行 M1 系统、GPU、Docker 与现有部署的只读盘点；在基线审阅完成前不创建 Rust 源码。
+- 当前停止位置：M1 只读盘点已完成；兼容版本、GPU、Docker、部署、端口、Runner、模型与 direct-network 证据已归档。没有停止或修改现有服务。
+- 下一项允许执行的工作：M2 安装并固定 Rust toolchain，创建 workspace 与 CLI 骨架；M2 不使用 GPU，也不停止 Python Worker。
 
 ## 里程碑
 
@@ -63,11 +63,25 @@
 - 当前停止位置：可信 Git 工作树已经就绪；Rust 实现、系统盘点和部署变更均未开始。
 - 下一项允许执行的工作：分批执行 M1 只读盘点，首先采集 OS、CPU、内存、磁盘、GPU、driver、Docker 与 NVIDIA Container Toolkit 身份。
 
+### 2026-10-18：M1 环境基线接受
+
+- 目的：以不修改现有部署的方式固定 Rust Worker 实现依赖的实际 Server、主机、GPU、Docker、网络、Runner 和模型身份。
+- 结果：M1 状态为 `accepted`，允许进入不使用 GPU 的 M2。完整基线见 `rust/docs/environment-baseline.md`。
+- 兼容证据：部署版本为 GPUStack `v2.2.3 (1cfcbbf)`，image digest 为 `sha256:55ecc762950a32641b6a4d96195c0662ef72998eaeeda31bba0e8e218d41afef`；上游 tag 与 image revision 均解析到 `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`。
+- 硬件证据：两张 NVIDIA A100 80GB PCIe，driver `580.178.04`，拓扑 `NV12`；采集时两卡均无进程和显存占用。
+- runtime 证据：Docker `29.1.3`、NVIDIA Container Toolkit `1.20.0`；`gpustack` 和 `gpustack-worker` 已运行三天且 restart count 为 0。Worker 使用 host network、NVIDIA runtime、privileged、共享数据 volume 和 Docker socket。
+- 网络证据：Server、Worker `/healthz` 与 Worker metrics 均返回 200；Server 容器访问宿主机 Worker API 返回 200，因此 direct-network 方向成立。
+- Runner 与模型证据：固定本地 Runner digest 为 `sha256:f9c58b163ec7eb537404c7d268f3d96e101cbf19e05acb8df6b7637f9e64c3af`；首选模型为当前用户拥有的完整 Qwen-7B 目录，identity hash 已归档。
+- 工具链证据：90 主机尚未安装 `rustc`、`cargo` 或 `rustup`；这是 M2 的第一个显式动作，不是隐含依赖。
+- 无效或诊断尝试：90 主机直接 fetch `v2.2.3` tag 因 GitHub 大对象链路过慢被主动中止。随后使用只含一个增量 commit 的 2217-byte bundle 导入，双端 SHA-256 一致并通过 `git bundle verify`。历史 vLLM 容器和旧 v0.2.2 smoke 只作为诊断信息，不作为固定 Runner 兼容证据。
+- 安全边界：没有读取 token 值，没有输出完整 container env，没有运行原始 `docker inspect`，也没有启动、停止、重启或删除容器。
+- 当前停止位置：M1 已接受，Rust workspace 尚未创建，现有 Python Server/Worker 未改变。
+- 下一项允许执行的工作：M2 安装 pinned Rust toolchain 并建立 CLI/workspace 骨架；实际 GPU smoke 仍需后续明确维护窗口。
+
 ## 未解决风险与待确认事项
 
-- 已部署 Server 的版本和源码 identity 要到 M1 才能确认。
-- 现有 Server/Worker Compose、端口、路径、活动工作负载与维护操作方式要到 M1 才能确认。
-- Server 到 vLLM 的 direct network 连通性尚未验证。
-- 验证模型和 Runner image digest 尚未验证。
-- 90 主机到 GitHub 的账号级 SSH 认证及小规模 fetch/push 已验证，但直接或经反向隧道的大仓库 clone 吞吐过低；Git bundle 是当前已接受的初始引导路径。
-- Worker 容器的准确 user/group 与 Docker socket 权限取决于 M1 结果。
+- 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
+- Rust Worker API、metrics 和 inference 的准确端口尚未冻结；必须避开现有 80、3000、10150、10151 和其他已监听端口，并在每次启动前检查冲突。
+- 真实 drain、停止 Python Worker 与回滚流程尚未执行；`docker stop/start gpustack-worker` 只作为已识别的容器级回滚路径，正式演练需维护窗口。
+- Rust 容器最终 user/group 仍需在 M8 根据 Docker socket、NVML 与持久化目录要求验证；宿主机开发用户已确认具备 `docker` group 权限。
+- 90 主机到 GitHub 的小规模 fetch/push 可用，但大对象传输吞吐过低；bootstrap 和发布 tag 增量 bundle 是当前已验证的补充路径。

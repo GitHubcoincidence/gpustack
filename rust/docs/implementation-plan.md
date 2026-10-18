@@ -97,4 +97,4 @@ R1 全程保留 Python Worker。测试使用全新的 Rust Worker name、UUID、
 
 ## 当前停止位置
 
-设计已经冻结，中文文档检查点已经保存，实现尚未开始。可写 fork、90 主机账号级 SSH 认证和 `/home/wujiaxing2/workspaces/gpustack` 工作树均已验证；初始大仓库传输使用经双端 SHA-256 校验的 Git bundle，日常小规模 fetch/push 仍使用 GitHub。M1 当前下一项是系统、GPU、Docker、NVIDIA Container Toolkit 与现有部署的分批只读盘点。在 M1 基线审阅完成前，不创建 Rust 源码，也不修改部署。
+设计已经冻结，M1 环境基线已经接受，实现尚未开始。兼容目标固定为已部署 GPUStack v2.2.3，90 主机、两张 A100、Docker/NVIDIA runtime、现有容器、direct-network 路径、Runner digest 与本地模型 identity 已记录在 `environment-baseline.md`。下一项允许执行的工作是 M2：在 90 主机安装并固定 Rust toolchain，创建 workspace、配置、context、输出、错误分类、signal 与 `version`、`validate-config`、`doctor` CLI 骨架。M2 不停止 Python Worker、不启动 vLLM，也不修改 Server。
