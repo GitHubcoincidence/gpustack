@@ -14,17 +14,20 @@
 
 ## 当前状态
 
-- 状态：`ready`
-- 当前阶段：M0 已完成，等待 M1 环境基线盘点
+- 状态：`running`
+- 当前阶段：M1 环境基线盘点进行中；Git 与源码工作树门禁已通过，系统及部署只读盘点尚未开始
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
-- 远程主机状态：尚未验证、尚未修改。
+- 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
+- 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
+- 90 主机源码状态：`codex/rust-worker` 位于 `d3623bfbc927c3ca0be677a6667600494d3821c6`，基线 commit 是其祖先，工作树干净且 `git push --dry-run` 成功。
 - 实现状态：尚未创建 Rust 源码，尚未构建、远程部署或修改 Server。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
-- 当前停止位置：已接受设计及其中文权威版本均已提交；尚未连接或修改 90 服务器。
-- 下一项允许执行的工作：建立 fork 与 90 主机 Git 连通性，然后执行 M1 只读盘点。
+- 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
+- 当前停止位置：90 主机 Git 工作树已建立并完成读写路径验证；尚未执行系统、GPU、Docker、现有部署或模型盘点，也未修改任何部署。
+- 下一项允许执行的工作：执行 M1 系统、GPU、Docker 与现有部署的只读盘点；在基线审阅完成前不创建 Rust 源码。
 
 ## 里程碑
 
@@ -48,11 +51,23 @@
 - 当前停止位置：M0 已完成，Rust 实现与远程部署均未开始。
 - 下一项允许执行的工作：建立可写 fork 和 90 主机 Git 连通性，然后执行 M1 只读盘点；任何部署变更仍需等到明确维护窗口。
 
+### 2026-10-18：90 主机 Git 工作树建立
+
+- 目的：在主要开发主机上建立可恢复、可推送且与冻结基线一致的源码工作树，为 M1 只读盘点提供可信起点。
+- 结果：90 主机已使用账号级 SSH 密钥认证 fork；工作树位于 `/home/wujiaxing2/workspaces/gpustack`，`origin` 指向 `GitHubcoincidence/gpustack`，`upstream` 指向上游 GPUStack 仓库。分支、HEAD、基线祖先关系、fetch 与 push dry-run 均通过验证。
+- 传输证据：bootstrap bundle 大小为 `220242551` 字节，SHA-256 为 `f700d34a01a817d23067ce848bb7d55e8b6cf050d88ef986a6eb24a4e0cc22ff`；Windows 与 90 主机哈希一致。`git bundle verify` 确认它包含完整历史，唯一分支头为 `d3623bfbc927c3ca0be677a6667600494d3821c6 refs/heads/codex/rust-worker`。
+- Git 证据：90 主机 `HEAD` 为 `d3623bfbc927c3ca0be677a6667600494d3821c6`；`76dc841916ff8fed4068a1ab99d178d2e27a4a06` 存在且是其祖先；`git fetch origin codex/rust-worker` 成功；`git push --dry-run origin HEAD:refs/heads/codex/rust-worker` 返回 `Everything up-to-date`。
+- 身份证据：90 主机为 `wujiaxing2@r760xa`；专用公钥指纹为 `SHA256:cK0QnBbtpAsV+HUOcY3kAjQgOI8+UNiNgxWYvAT9XiU`。记录只包含公钥指纹，不包含私钥或口令。
+- 无效或诊断尝试：90 主机直接通过 GitHub SSH clone，以及经本机 VPN 反向隧道进行的 SSH/HTTPS clone，吞吐均不足以作为初始大仓库传输路径；未完成的目标目录在 bundle clone 前已不存在。这些尝试只说明大流量链路性能不足，不说明 Git 身份或仓库内容异常，也不作为功能验收证据。
+- 解释：初始大仓库传输改用本地生成、哈希校验后复制到 90 主机的 Git bundle；日常小规模 fetch/push 仍使用 GitHub。该选择只改变源码引导方式，不改变架构、分支策略或发布流程。
+- 当前停止位置：可信 Git 工作树已经就绪；Rust 实现、系统盘点和部署变更均未开始。
+- 下一项允许执行的工作：分批执行 M1 只读盘点，首先采集 OS、CPU、内存、磁盘、GPU、driver、Docker 与 NVIDIA Container Toolkit 身份。
+
 ## 未解决风险与待确认事项
 
 - 已部署 Server 的版本和源码 identity 要到 M1 才能确认。
 - 现有 Server/Worker Compose、端口、路径、活动工作负载与维护操作方式要到 M1 才能确认。
 - Server 到 vLLM 的 direct network 连通性尚未验证。
 - 验证模型和 Runner image digest 尚未验证。
-- 90 主机到 GitHub 的连通性和账号级 SSH 认证尚未验证。
+- 90 主机到 GitHub 的账号级 SSH 认证及小规模 fetch/push 已验证，但直接或经反向隧道的大仓库 clone 吞吐过低；Git bundle 是当前已接受的初始引导路径。
 - Worker 容器的准确 user/group 与 Docker socket 权限取决于 M1 结果。

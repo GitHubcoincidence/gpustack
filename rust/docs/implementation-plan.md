@@ -97,4 +97,4 @@ R1 全程保留 Python Worker。测试使用全新的 Rust Worker name、UUID、
 
 ## 当前停止位置
 
-设计已经冻结，中文文档检查点已经保存，实现尚未开始。下一项允许执行的工作是配置可写 fork 和 90 服务器 Git 访问，然后执行只读 M1 盘点。在完成这些步骤前，不创建 Rust 源码，也不修改部署。
+设计已经冻结，中文文档检查点已经保存，实现尚未开始。可写 fork、90 主机账号级 SSH 认证和 `/home/wujiaxing2/workspaces/gpustack` 工作树均已验证；初始大仓库传输使用经双端 SHA-256 校验的 Git bundle，日常小规模 fetch/push 仍使用 GitHub。M1 当前下一项是系统、GPU、Docker、NVIDIA Container Toolkit 与现有部署的分批只读盘点。在 M1 基线审阅完成前，不创建 Rust 源码，也不修改部署。
