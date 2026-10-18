@@ -25,9 +25,9 @@
 ## 当前状态
 
 - 设计状态：`frozen`
-- 实现状态：M2 `running`；工具链门禁已接受，Rust workspace 尚未创建。
+- 实现状态：M2 `accepted`；Rust workspace 与 CLI 基础已建立，M3 尚未开始。
 - 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
-- 当前停止位置：90 主机已安装并验证固定工具链，仓库仍位于 M1 文档检查点，现有 GPUStack 服务未受影响。
-- 下一项允许执行的工作：在仓库中固定 toolchain 文件，创建 workspace 与 `version`、`validate-config`、`doctor` CLI 骨架。
+- 当前停止位置：实现提交 `c5bbd01e7ab5e113d90b88c46afcf074d57d52a2` 已通过 format、test、Clippy、Linux 离线构建和 CLI 冒烟，现有 GPUStack 服务未受影响。
+- 下一项允许执行的工作：M3-A 只读冻结已部署 Server 的版本、注册、heartbeat、状态、watch/full-sync 与最小 probe 契约 fixture，再实现 Server client。
 
-当前检查点不包含 Rust 源码、远程部署变更或 Python Worker 变更。
+当前检查点包含 Rust CLI/Worker 基础源码，但不包含 Worker 注册、真实 Server 写操作、Docker 工作负载变更、GPU 使用或 Python Worker 变更。

@@ -97,4 +97,4 @@ R1 全程保留 Python Worker。测试使用全新的 Rust Worker name、UUID、
 
 ## 当前停止位置
 
-设计已经冻结，M1 环境基线已经接受。M2-A 工具链门禁已通过：90 主机安装了 rustup `1.29.1` 和 Rust `1.99.1` minimal profile，并包含 `rustfmt` 与 `clippy`；仓库尚未创建 Rust workspace。兼容目标仍固定为已部署 GPUStack v2.2.3，90 主机、两张 A100、Docker/NVIDIA runtime、现有容器、direct-network 路径、Runner digest 与本地模型 identity 已记录在 `environment-baseline.md`。下一项允许执行的工作是 M2-B：在仓库中加入 toolchain pin，创建 workspace、配置、context、输出、错误分类、signal 与 `version`、`validate-config`、`doctor` CLI 骨架。M2 不停止 Python Worker、不启动 vLLM，也不修改 Server。
+设计已经冻结，M1 环境基线和 M2 Rust workspace/CLI 骨架均已接受。M2 实现提交为 `c5bbd01e7ab5e113d90b88c46afcf074d57d52a2`，固定 Rust `1.99.1`，建立四 crate workspace、`Cargo.lock`、配置优先级、context 类型、结构化输出、退出码、signal 辅助与 `version`、`worker validate-config`、`worker doctor` 命令，并通过既定自动化门禁。兼容目标仍为已部署 GPUStack v2.2.3；M2 没有停止 Python Worker、启动 vLLM、访问 GPU 或修改 Server。下一项允许执行的工作是 M3-A：以只读方式从已冻结源码和部署捕获 Server 协议 fixture；fixture 接受前不得执行 Worker 注册或其他真实 Server 写操作。
