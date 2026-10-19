@@ -4,6 +4,17 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::Url;
 
+mod auth;
+mod client;
+mod error;
+pub mod http;
+pub mod types;
+pub mod watch;
+
+pub use auth::{SecretToken, SecretTokenError};
+pub use client::ServerClient;
+pub use error::ClientError;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Context {

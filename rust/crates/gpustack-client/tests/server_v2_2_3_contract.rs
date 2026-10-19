@@ -1,3 +1,7 @@
+use gpustack_client::types::{
+    ModelInstancePublic, ModelInstanceUpdate, ModelPublic, Paginated, ServerVersion, WorkerCreate,
+    WorkerRegistrationPublic, WorkerStatusReport,
+};
 use serde_json::Value;
 
 const VERSION: &str = include_str!("../../../fixtures/server-v2.2.3/live-version.response.json");
@@ -109,4 +113,54 @@ fn watch_fixtures_use_numeric_event_types_and_id_only_deletes() {
     assert_eq!(instance_events[0]["type"], 1);
     assert_eq!(instance_events[1]["type"], 3);
     assert_eq!(instance_events[1]["data"], serde_json::json!({ "id": 301 }));
+}
+
+#[test]
+fn typed_requests_serialize_to_the_frozen_wire_shape() {
+    let worker: WorkerCreate =
+        serde_json::from_str(WORKER_REGISTER_REQUEST).expect("typed WorkerCreate");
+    assert_eq!(
+        serde_json::to_value(worker).expect("serialize WorkerCreate"),
+        parse_json("worker register request", WORKER_REGISTER_REQUEST)
+    );
+
+    let status: WorkerStatusReport =
+        serde_json::from_str(WORKER_STATUS).expect("typed WorkerStatusReport");
+    assert_eq!(
+        serde_json::to_value(status).expect("serialize WorkerStatusReport"),
+        parse_json("worker status request", WORKER_STATUS)
+    );
+
+    let update: ModelInstanceUpdate =
+        serde_json::from_str(MODEL_INSTANCE_UPDATE).expect("typed ModelInstanceUpdate");
+    assert_eq!(
+        serde_json::to_value(update).expect("serialize ModelInstanceUpdate"),
+        parse_json("model instance update", MODEL_INSTANCE_UPDATE)
+    );
+}
+
+#[test]
+fn typed_responses_are_tolerant_and_preserve_the_update_contract() {
+    let version: ServerVersion = serde_json::from_str(VERSION).expect("typed ServerVersion");
+    version.verify_baseline().expect("frozen Server identity");
+
+    let mut registration_value = parse_json("registration", WORKER_REGISTER_RESPONSE);
+    registration_value["future_server_field"] = serde_json::json!({ "enabled": true });
+    let registration: WorkerRegistrationPublic =
+        serde_json::from_value(registration_value).expect("tolerant registration response");
+    assert_eq!(registration.id, 101);
+    assert!(!format!("{registration:?}").contains("<redacted-worker-token>"));
+
+    let models: Paginated<ModelPublic> =
+        serde_json::from_str(MODELS_FULL_SYNC).expect("typed Models response");
+    assert_eq!(models.pagination.page, -1);
+    assert_eq!(models.items[0].backend.as_deref(), Some("vLLM"));
+
+    let instances: Paginated<ModelInstancePublic> =
+        serde_json::from_str(MODEL_INSTANCES_FULL_SYNC).expect("typed ModelInstances response");
+    let update = ModelInstanceUpdate::from(&instances.items[0]);
+    assert_eq!(
+        serde_json::to_value(update).expect("serialize update"),
+        parse_json("model instance update", MODEL_INSTANCE_UPDATE)
+    );
 }
