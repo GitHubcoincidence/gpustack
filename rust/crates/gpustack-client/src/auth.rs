@@ -7,12 +7,12 @@ use thiserror::Error;
 
 const REDACTED: &str = "<redacted-token>";
 
-/// Validated bearer token whose `Debug` and `Display` forms are always redacted.
 #[derive(Clone, PartialEq, Eq)]
+/// Bearer token whose debug and display representations never reveal its value.
 pub struct SecretToken(String);
 
 impl SecretToken {
-    /// Creates a token after rejecting empty values and header-breaking controls.
+    /// Rejects values that are empty or unsafe to place in an HTTP header.
     pub fn new(value: impl Into<String>) -> Result<Self, SecretTokenError> {
         let value = value.into();
         if value.trim().is_empty() {
@@ -57,13 +57,10 @@ impl<'de> Deserialize<'de> for SecretToken {
     }
 }
 
-/// Validation failures for secret bearer-token input.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum SecretTokenError {
-    /// The supplied token is empty or whitespace-only.
     #[error("token must not be empty")]
     Empty,
-    /// The token contains a control character unsafe for an HTTP header.
     #[error("token must not contain control characters")]
     ContainsControlCharacter,
 }

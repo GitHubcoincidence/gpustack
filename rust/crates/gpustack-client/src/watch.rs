@@ -11,18 +11,12 @@ use crate::{ClientError, http::ByteStream};
 const DEFAULT_MAX_WATCH_LINE_BYTES: usize = 1024 * 1024;
 const WATCH_IDLE_TIMEOUT: Duration = Duration::from_secs(45);
 
-/// Numeric event kinds emitted by the GPUStack v2.2.3 event bus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WatchEventType {
-    /// A resource entered the watched collection.
     Created,
-    /// A watched resource changed.
     Updated,
-    /// A resource left the watched collection.
     Deleted,
-    /// The Server could not classify a resource event.
     Unknown,
-    /// Explicit protocol heartbeat event.
     Heartbeat,
 }
 
@@ -49,24 +43,13 @@ struct RawWatchEvent {
     id: i64,
 }
 
-/// Decoded event consumed by the Worker control loop.
 #[derive(Debug, Clone, PartialEq)]
+/// Resource event decoded from GPUStack's JSON-line watch protocol.
 pub enum WatchEvent<T> {
-    /// Full resource body for a create event.
     Created(T),
-    /// Full resource body for an update event.
     Updated(T),
-    /// Delete event whose body may contain only an identifier.
-    Deleted {
-        /// Identifier removed from the local authoritative snapshot.
-        id: i64,
-    },
-    /// Identifier for a Server event with unknown semantics.
-    Unknown {
-        /// Resource identifier supplied by the event envelope.
-        id: i64,
-    },
-    /// Liveness marker that does not change resources.
+    Deleted { id: i64 },
+    Unknown { id: i64 },
     Heartbeat,
 }
 
@@ -167,7 +150,6 @@ impl WatchLineDecoder {
     }
 }
 
-/// Stateful watch reader that preserves records split across network chunks.
 pub struct WatchConnection<T> {
     chunks: ByteStream,
     decoder: WatchLineDecoder,
@@ -187,10 +169,7 @@ impl<T: DeserializeOwned> WatchConnection<T> {
         }
     }
 
-    /// Returns the next decoded event, `None` at clean end-of-stream, or an error.
-    ///
-    /// A 45-second idle deadline covers the Server's 15-second blank keepalive
-    /// cadence while still allowing the control loop to detect dead connections.
+    /// Returns the next event and fails idle streams after three keepalive periods.
     pub async fn next_event(&mut self) -> Result<Option<WatchEvent<T>>, ClientError> {
         loop {
             if let Some(event) = self.pending.pop_front() {

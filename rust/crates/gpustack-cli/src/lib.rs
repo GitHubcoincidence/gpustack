@@ -10,87 +10,60 @@ use gpustack_worker::{
 use serde::Serialize;
 use thiserror::Error;
 
-/// Successful command exit status.
 pub const EXIT_SUCCESS: u8 = 0;
-/// Unexpected internal or serialization failure exit status.
 pub const EXIT_INTERNAL: u8 = 1;
-/// Invalid or unusable configuration exit status.
 pub const EXIT_CONFIG: u8 = 10;
-/// Local runtime prerequisite failure exit status.
 pub const EXIT_RUNTIME: u8 = 50;
 
-/// Top-level command-line arguments shared by every subcommand.
 #[derive(Debug, Parser)]
 #[command(name = "gpustack-rs", version, about = "GPUStack Rust migration CLI")]
 pub struct Cli {
-    /// Optional YAML configuration path.
     #[arg(long, global = true)]
     pub config: Option<PathBuf>,
-    /// Stable human-readable or JSON output format.
     #[arg(long, global = true, value_enum, default_value_t = OutputFormat::Table)]
     pub output: OutputFormat,
-    /// Suppresses successful output while retaining errors and exit status.
     #[arg(long, global = true)]
     pub quiet: bool,
-    /// Disables colored output for automation compatibility.
     #[arg(long, global = true)]
     pub no_color: bool,
-    /// Default operation timeout in seconds.
     #[arg(long, global = true, default_value_t = 30)]
     pub timeout: u64,
-    /// Named Server context selected by the caller.
     #[arg(long, global = true)]
     pub context: Option<String>,
-    /// Operation selected by the caller.
     #[command(subcommand)]
     pub command: Command,
 }
 
-/// Top-level CLI command families.
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Prints binary and toolchain identity.
     Version,
-    /// Runs Worker-specific commands.
     Worker(WorkerArgs),
 }
 
-/// Worker configuration overrides and selected operation.
 #[derive(Debug, Args)]
 pub struct WorkerArgs {
-    /// Configuration values supplied directly on the command line.
     #[command(flatten)]
     pub overrides: WorkerConfigArgs,
-    /// Worker operation to execute.
     #[command(subcommand)]
     pub command: WorkerCommand,
 }
 
-/// CLI configuration values that override environment, YAML, and defaults.
 #[derive(Debug, Args, Default)]
 pub struct WorkerConfigArgs {
-    /// GPUStack Server base URL.
     #[arg(long, global = true)]
     pub server_url: Option<String>,
-    /// Worker identity name presented to Server.
     #[arg(long, global = true)]
     pub worker_name: Option<String>,
-    /// Worker address presented to Server.
     #[arg(long, global = true)]
     pub worker_ip: Option<String>,
-    /// Absolute path to the Worker credential file.
     #[arg(long, global = true)]
     pub token_file: Option<PathBuf>,
-    /// Persistent Worker state directory.
     #[arg(long, global = true)]
     pub data_dir: Option<PathBuf>,
-    /// Worker log directory.
     #[arg(long, global = true)]
     pub log_dir: Option<PathBuf>,
-    /// Local model directories visible to inference containers.
     #[arg(long = "model-root", global = true)]
     pub model_roots: Vec<PathBuf>,
-    /// Docker Engine Unix socket path.
     #[arg(long, global = true)]
     pub docker_socket: Option<PathBuf>,
 }
@@ -110,46 +83,33 @@ impl From<WorkerConfigArgs> for ConfigOverrides {
     }
 }
 
-/// Worker commands implemented by the migration CLI.
 #[derive(Debug, Subcommand)]
 pub enum WorkerCommand {
-    /// Performs read-only local prerequisite checks.
     Doctor,
-    /// Loads, merges, and validates configuration.
     ValidateConfig,
 }
 
-/// Output encoding selected for a command result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum OutputFormat {
-    /// Human-readable key/value or row output.
     Table,
-    /// Machine-readable JSON output.
     Json,
 }
 
-/// Rendered command output paired with its stable process exit code.
 #[derive(Debug)]
 pub struct Execution {
-    /// Complete standard-output payload.
     pub output: String,
-    /// Process exit status defined by this crate's public constants.
     pub exit_code: u8,
 }
 
-/// Failures that occur before a command can produce an `Execution`.
 #[derive(Debug, Error)]
 pub enum CliError {
-    /// Configuration loading or validation failed.
     #[error("{0}")]
     Config(#[from] ConfigError),
-    /// A structured command result could not be serialized.
     #[error("failed to serialize command output")]
     Serialization(#[from] serde_json::Error),
 }
 
 impl CliError {
-    /// Maps a CLI failure to the stable process exit-code contract.
     #[must_use]
     pub const fn exit_code(&self) -> u8 {
         match self {
@@ -159,7 +119,7 @@ impl CliError {
     }
 }
 
-/// Executes a parsed command without directly reading or writing process streams.
+/// Executes an already parsed command without directly accessing process streams.
 pub fn execute(cli: Cli) -> Result<Execution, CliError> {
     let quiet = cli.quiet;
     let output_format = cli.output;

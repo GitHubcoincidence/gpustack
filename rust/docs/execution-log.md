@@ -12,11 +12,12 @@
 - 2026-10-17：用户选择让 90 主机使用账号级 GitHub SSH 权限，而不是仓库级 deploy key。
 - 2026-10-17：用户选择以中文维护 `rust/docs/` 内部治理与实验文档；技术标识保留英文。顶层 MkDocs `docs/` 若发布相关内容，单独编写英文版。
 - 2026-10-19：用户把代码注释设为硬门禁，并要求每个实现阶段在请求验收前直接在聊天中交付详细实现报告；两项要求追溯应用于尚未接受的 M3-B。
+- 2026-10-19：用户澄清代码门禁要求的是关键必要注释而非逐项公开文档；取消 `missing_docs = "deny"`，并把注释过量同样列为门禁失败。阶段直接汇报要求不变。
 
 ## 当前状态
 
 - 状态：`ready_for_review`
-- 当前阶段：M3-B Rust Server client 已完成离线实现并通过注释/文档构建硬门禁，直接实现报告随本次聊天交接提供
+- 当前阶段：M3-B Rust Server client 已完成离线实现和直接实现报告，并按修订后的注释密度规则完成校正
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
@@ -27,7 +28,7 @@
 - 实现状态：四 crate Rust workspace、三个首批 CLI 命令和类型化 Server client 已建立；尚未实现身份持久化、Worker 控制循环、Docker 工作负载或 GPU 路径，也未远程部署 Rust Worker。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-B 类型化 client 已通过 fixture/mock 功能门禁、公开 API 文档、关键逻辑注释和 `cargo doc`；直接实现报告随本次聊天交接提供。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接 Server。
+- 当前停止位置：M3-B 类型化 client 已通过 fixture/mock 功能门禁并交付直接实现报告；模板化字段注释已移除，关键协议和安全说明保留。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接 Server。
 - 下一项允许执行的工作：共同审阅 M3-B 的直接实现报告、代码与依赖选择；不得执行真实注册、heartbeat、状态更新等 Server 写请求。
 
 ## 里程碑
@@ -156,6 +157,16 @@
 - 验证证据：`cargo fmt --all -- --check`、workspace Clippy `-D warnings`、17 项 workspace test、离线 locked build 和 `cargo doc --workspace --no-deps --locked --offline` 全部通过。公开 API 漏写 Rustdoc 现在会在编译阶段失败。
 - 当前停止位置：注释与文档构建门禁已补齐；等待本次聊天交付 M3-B 详细实现报告后由用户共同审阅，M3-C 尚未开始。
 - 下一项允许执行的工作：交付 M3-B 详细实现报告并等待审阅；未收到接受结论前不得把 M3-B 标记为 `accepted` 或开始 M3-C。
+
+### 2026-10-19：注释门禁密度校正
+
+- 目的：纠正把“关键必要注释”扩大为“每个公开项都写 Rustdoc”的过度实现，恢复代码本身作为主要表达媒介。
+- 决策：D034 修订 D032。取消 workspace 的 `missing_docs = "deny"`；保留模块职责以及安全、协议、状态、所有权、恢复和非直观逻辑的说明，删除简单字段、枚举值、CLI 参数和显然方法上的模板化注释。
+- 验收方式：注释门禁改为人工双向审阅——关键位置缺少原因说明不通过，注释数量过多、逐行复述、过期或遮挡代码同样不通过。fmt、Clippy、test 和 locked offline build 自动门禁保持不变。
+- 影响：只改变注释密度与门禁实现方式，不改变 M3-B 功能、Server v2.2.3 契约、依赖、测试 fixture、R1 范围或安全边界。D033 阶段直接实现报告继续有效。
+- 验证证据：精简后 `cargo fmt --all -- --check`、workspace Clippy `-D warnings`、17 项 workspace test、离线 locked build 和按需 `cargo doc` 均通过；功能代码和 `Cargo.lock` 未改变。
+- 当前停止位置：注释密度校正已完成，等待提交推送后继续进行 M3-B 审阅。
+- 下一项允许执行的工作：继续等待 M3-B 审阅；不得开始 M3-C 或真实 Server 写路径。
 
 ## 未解决风险与待确认事项
 

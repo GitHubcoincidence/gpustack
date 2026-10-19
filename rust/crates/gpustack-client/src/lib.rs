@@ -9,31 +9,23 @@ use url::Url;
 mod auth;
 mod client;
 mod error;
-/// Replaceable HTTP transport boundary used by production and mock clients.
 pub mod http;
-/// GPUStack v2.2.3 request and response wire types.
 pub mod types;
-/// JSON-line watch stream events and decoder.
 pub mod watch;
 
 pub use auth::{SecretToken, SecretTokenError};
 pub use client::ServerClient;
 pub use error::ClientError;
 
-/// Named Server connection that references credentials by file path.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Context {
-    /// Operator-facing context name.
     pub name: String,
-    /// GPUStack Server base URL without credentials or query parameters.
     pub server_url: Url,
-    /// Absolute path to the credential file used by this context.
     pub token_file: PathBuf,
 }
 
 impl Context {
-    /// Validates context identity, URL safety, and credential path shape.
     pub fn validate(&self) -> Result<(), ContextError> {
         if self.name.trim().is_empty() {
             return Err(ContextError::InvalidName);
@@ -55,19 +47,14 @@ impl Context {
     }
 }
 
-/// Validation failures for a named Server context.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ContextError {
-    /// The context name is empty or whitespace-only.
     #[error("context name must not be empty")]
     InvalidName,
-    /// The Server URL is not HTTP or HTTPS.
     #[error("server URL must use http or https")]
     InvalidServerUrl,
-    /// The Server URL embeds credentials or unsupported URL components.
     #[error("server URL must not contain user info, query parameters, or a fragment")]
     ServerUrlContainsSensitiveOrUnsupportedData,
-    /// The token file is not an absolute path.
     #[error("token file path must be absolute")]
     TokenFileMustBeAbsolute,
 }

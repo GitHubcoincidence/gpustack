@@ -35,15 +35,14 @@ M1 从只读检查开始，必须确认：
 
 仓库内测试使用 mock 与 fixture，不访问真实网络、Docker、数据库或 GPU。测试覆盖配置优先级、脱敏、CLI 输出与退出码、Server 协议序列化、watch 重连、状态转移、镜像解析、GPU 映射、端口分配、WorkloadSpec 生成、所有权检查、幂等协调和故障策略。
 
-Rust workspace 将 `missing_docs` 设为 `deny`。每个 crate 和 module、所有公开 type/trait/function/method/constant/field 都必须有英文 Rustdoc；状态机、安全与所有权检查、协议兼容偏差、错误恢复及非直观实现还必须有解释目的和原因的英文行内注释。每次阶段门禁至少执行：
+Rust 代码只在对维护者有实际价值的位置添加英文注释。状态机、安全与所有权检查、协议兼容偏差、错误恢复、关键数据流和非直观实现必须解释目的和原因；简单 getter、字段、枚举值、CLI 参数以及代码已能清楚表达的行为不要求注释。每次阶段门禁至少执行：
 
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings`
 - `cargo test --workspace --all-targets --locked --offline`
 - `cargo build --workspace --locked --offline`
-- `cargo doc --workspace --no-deps --locked --offline`
 
-编译和文档构建负责阻止公开 API 漏写文档；人工审阅负责拒绝过期注释、逐行复述、修改历史叙述以及关键私有逻辑缺少“为什么”的情况。测试通过不能覆盖注释门禁失败。
+注释门禁由人工审阅负责，因为编译器无法判断某段逻辑是否关键。审阅同时拒绝两类问题：关键逻辑缺少“为什么”，以及过期、逐行复述、修改历史叙述或数量过多而遮挡代码的注释。测试通过不能覆盖注释门禁失败。保留的 Rustdoc 可按需运行 `cargo doc --workspace --no-deps --locked --offline` 验证，但不要求每个公开字段都写文档。
 
 ### 阶段实现报告与验收顺序
 
@@ -115,4 +114,4 @@ R1 全程保留 Python Worker。测试使用全新的 Rust Worker name、UUID、
 
 设计已经冻结，M1 环境基线、M2 Rust workspace/CLI 骨架和 M3-A Server 契约均已接受。M3-B 已按固定 v2.2.3 fixture 实现类型化 request/response、Bearer 脱敏、版本门禁、version/register/me/heartbeat/status、model/model-instance full sync、ModelInstance 完整更新、HTTP transport 和逐行 watch 解码，状态为 `ready_for_review`。全部验证使用 mock transport 或静态 fixture，没有读取 token 或执行真实 Server 写操作。
 
-M3-B 已通过新接受的注释硬门禁和 `cargo doc`，直接实现报告随本次聊天交接提供；状态仍保持 `ready_for_review`，尚未接受。下一步是共同审阅 M3-B 实现、`reqwest`/`futures-util` 依赖与离线证据。接受后进入 M3-C：实现原子 token 持久化、注册状态机、heartbeat/status/watch/full-sync 控制循环及 mock 重连测试。真实 Worker 注册仍需单独批准隔离身份，不由 M3-B 接受自动授权。
+M3-B 已按“关键必要、不过量”的修订规则完成注释审阅，直接实现报告已在聊天中交付；状态仍保持 `ready_for_review`，尚未接受。下一步是共同审阅 M3-B 实现、`reqwest`/`futures-util` 依赖与离线证据。接受后进入 M3-C：实现原子 token 持久化、注册状态机、heartbeat/status/watch/full-sync 控制循环及 mock 重连测试。真实 Worker 注册仍需单独批准隔离身份，不由 M3-B 接受自动授权。

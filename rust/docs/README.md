@@ -26,7 +26,7 @@
 ## 当前状态
 
 - 设计状态：`frozen`
-- 实现状态：M2 与 M3-A 均为 `accepted`；M3-B Rust Server client 已实现并通过注释/文档构建硬门禁，直接实现报告随本次聊天交接提供，状态仍为 `ready_for_review`。
+- 实现状态：M2 与 M3-A 均为 `accepted`；M3-B Rust Server client 已实现，并按“关键必要、不过量”的修订规则完成注释审阅，状态仍为 `ready_for_review`。
 - 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
 - 当前停止位置：M3-B 已在 fixture 与 mock transport 上实现并通过离线门禁；没有执行 Server 写请求，现有 GPUStack 服务未受影响。
 - 下一项允许执行的工作：共同审阅聊天中直接交付的 M3-B 详细实现报告、代码和依赖选择；接受后进入 M3-C 离线身份持久化与控制循环，第一次真实注册仍需隔离 Worker identity 和单独门禁。

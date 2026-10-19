@@ -7,17 +7,14 @@ use serde::Serialize;
 
 use crate::config::WorkerConfig;
 
-/// Aggregate result returned by `worker doctor`.
 #[derive(Debug, Clone, Serialize)]
 pub struct DoctorReport {
-    /// Whether no check reported a hard failure.
     pub healthy: bool,
-    /// Individual prerequisite checks in display order.
     pub checks: Vec<DiagnosticCheck>,
 }
 
-/// Inspects configured paths and settings without contacting Docker or Server.
 #[must_use]
+/// Checks local prerequisites without contacting Docker Engine or Server.
 pub fn run_doctor(config: &WorkerConfig) -> DoctorReport {
     let mut checks = Vec::new();
     checks.push(match &config.server_url {
