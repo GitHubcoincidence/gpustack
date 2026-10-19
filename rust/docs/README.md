@@ -26,9 +26,9 @@
 ## 当前状态
 
 - 设计状态：`frozen`
-- 实现状态：M2 `accepted`；M3-A Server 契约与 fixture 已形成，状态为 `ready_for_review`。
+- 实现状态：M2 与 M3-A 均为 `accepted`；M3-B Rust Server client 可以开始。
 - 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
-- 当前停止位置：已从固定 v2.2.3 源码、公开只读响应和同版本 Pydantic 序列化冻结 M3-A fixture；没有执行 Server 写请求，现有 GPUStack 服务未受影响。
-- 下一项允许执行的工作：共同审阅 `server-contract-v2.2.3.md` 与 `rust/fixtures/server-v2.2.3/`；接受前不开始 M3-B Server client 写路径。
+- 当前停止位置：M3-A 契约和 fixture 已由用户审阅接受；尚未开始 M3-B，也没有执行 Server 写请求，现有 GPUStack 服务未受影响。
+- 下一项允许执行的工作：在 fixture 和 mock transport 上实现 M3-B 类型化 Server client；第一次真实注册仍需隔离 Worker identity 和单独门禁。
 
-当前检查点包含 Rust CLI/Worker 基础源码和离线契约 fixture，但不包含 Worker 注册、真实 Server 写操作、Docker 工作负载变更、GPU 使用或 Python Worker 变更。
+当前检查点包含 Rust CLI/Worker 基础源码以及已接受的离线契约 fixture，但不包含 Worker 注册、真实 Server 写操作、Docker 工作负载变更、GPU 使用或 Python Worker 变更。

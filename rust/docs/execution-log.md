@@ -14,20 +14,20 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
-- 当前阶段：M3-A Server 控制面契约与 fixture 已完成只读提取，等待共同审阅
+- 状态：`ready`
+- 当前阶段：M3-A Server 控制面契约与 fixture 已接受，M3-B Rust Server client 可以开始
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-A fixture 实现检查点为 `cff7c1fca8272d02600f32333f6bd0b6aa7c5408`；提交并推送后 `codex/rust-worker` 与 `origin/codex/rust-worker` 一致，工作树干净。
+- 90 主机源码状态：M3-A fixture 实现检查点为 `cff7c1fca8272d02600f32333f6bd0b6aa7c5408`，治理检查点为 `760de1df5758b8301cb3c881826ab2c6426edaf1`；用户验收前 `codex/rust-worker` 与 `origin/codex/rust-worker` 一致，工作树干净。
 - 实现状态：四 crate Rust workspace 和三个首批 CLI 命令已建立；尚未实现 Server 注册、Docker 工作负载或 GPU 路径，也未远程部署 Rust Worker。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-A 契约文档、fixture 与离线完整性测试已形成；现有 Python Server/Worker 继续运行，Rust Worker 尚未连接 Server。
-- 下一项允许执行的工作：共同审阅 M3-A 契约和 fixture；接受前不实现或执行注册、heartbeat、状态更新等 Server 写路径。
+- 当前停止位置：M3-A 契约文档、fixture 与离线完整性测试已经接受；现有 Python Server/Worker 继续运行，Rust Worker 尚未连接 Server。
+- 下一项允许执行的工作：在 mock transport 上实现 M3-B 类型化 Server client；不得执行真实注册、heartbeat、状态更新等 Server 写请求。
 
 ## 里程碑
 
@@ -119,6 +119,16 @@
 - 漂移审计：R1 仍为 vLLM、本地 Docker、本地模型目录、单 Worker 单/双 A100、复用 Runner、CLI-first；未引入 K8s、跨 Worker 分布式、Python bridge 或额外推理后端。M3-A 只增加协议证据和离线测试，没有改变架构边界。
 - 当前停止位置：fixture 等待共同审阅；它们固定 schema 形状但不冒充真实认证成功流量。
 - 下一项允许执行的工作：接受 M3-A 后，在 mock transport 上实现 M3-B Rust Server client。第一次真实注册必须另行使用隔离 Worker identity，并将真实响应与 synthetic fixture 比较。
+
+### 2026-10-19：M3-A Server 控制面契约接受
+
+- 目的：把已共同审阅的 v2.2.3 协议事实升级为 M3-B 的正式实现输入，并明确真实写路径仍受后续门禁约束。
+- 结果：用户接受 M3-A，状态由 `ready_for_review` 更新为 `accepted`。本次接受不改变 R1 scope、架构、Server 基线或安全边界。
+- 证据：契约文档 `rust/docs/server-contract-v2.2.3.md`；fixture 目录 `rust/fixtures/server-v2.2.3/`；实现检查点 `cff7c1fca8272d02600f32333f6bd0b6aa7c5408`；治理检查点 `760de1df5758b8301cb3c881826ab2c6426edaf1`。契约测试 4 项、workspace 总计 10 项测试以及 fmt、Clippy、离线 locked build 均已通过。
+- 解释：M3-B 可以把固定 schema、认证边界、分页和 watch framing 实现为 Rust 类型与客户端行为。synthetic 注册成功样本仍不是实际认证流量，不能作为真实集成通过证据。
+- 安全边界：M3-B 首先只使用静态 fixture 和 mock transport；不得读取现有 token、向运行中的 Server 发送写请求、占用 GPU、启动 vLLM 或修改 Python Worker。
+- 当前停止位置：M3-A 已接受，M3-B 尚未开始。
+- 下一项允许执行的工作：实现 M3-B 类型、错误模型、Bearer 注入与脱敏、endpoint 请求、全量分页和 watch 解析，并以无网络测试验证；第一次真实注册必须另立隔离身份集成门禁。
 
 ## 未解决风险与待确认事项
 
