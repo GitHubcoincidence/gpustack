@@ -1,3 +1,5 @@
+//! Build-time identity discovery for the `gpustack-rs` binary.
+
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;

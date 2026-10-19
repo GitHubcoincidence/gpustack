@@ -1,3 +1,5 @@
+//! Read-only checks for local Worker deployment prerequisites.
+
 use std::path::Path;
 
 use gpustack_runtime::{CheckStatus, DiagnosticCheck, PathKind, inspect_path};
@@ -5,12 +7,16 @@ use serde::Serialize;
 
 use crate::config::WorkerConfig;
 
+/// Aggregate result returned by `worker doctor`.
 #[derive(Debug, Clone, Serialize)]
 pub struct DoctorReport {
+    /// Whether no check reported a hard failure.
     pub healthy: bool,
+    /// Individual prerequisite checks in display order.
     pub checks: Vec<DiagnosticCheck>,
 }
 
+/// Inspects configured paths and settings without contacting Docker or Server.
 #[must_use]
 pub fn run_doctor(config: &WorkerConfig) -> DoctorReport {
     let mut checks = Vec::new();

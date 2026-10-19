@@ -11,11 +11,12 @@
 - 2026-10-17：最终公开 CLI 统一为 `gpustack`，迁移期二进制为 `gpustack-rs`。更早提出的最终独立 `gpustack-worker` 公开命令已被取代。
 - 2026-10-17：用户选择让 90 主机使用账号级 GitHub SSH 权限，而不是仓库级 deploy key。
 - 2026-10-17：用户选择以中文维护 `rust/docs/` 内部治理与实验文档；技术标识保留英文。顶层 MkDocs `docs/` 若发布相关内容，单独编写英文版。
+- 2026-10-19：用户把代码注释设为硬门禁，并要求每个实现阶段在请求验收前直接在聊天中交付详细实现报告；两项要求追溯应用于尚未接受的 M3-B。
 
 ## 当前状态
 
 - 状态：`ready_for_review`
-- 当前阶段：M3-B Rust Server client 已完成离线实现，等待共同审阅
+- 当前阶段：M3-B Rust Server client 已完成离线实现并通过注释/文档构建硬门禁，直接实现报告随本次聊天交接提供
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
@@ -26,8 +27,8 @@
 - 实现状态：四 crate Rust workspace、三个首批 CLI 命令和类型化 Server client 已建立；尚未实现身份持久化、Worker 控制循环、Docker 工作负载或 GPU 路径，也未远程部署 Rust Worker。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-B 类型化 client 已通过 fixture/mock 门禁，等待审阅；现有 Python Server/Worker 继续运行，Rust Worker 尚未连接 Server。
-- 下一项允许执行的工作：接受 M3-B 后实现 M3-C 离线身份持久化与控制循环；不得执行真实注册、heartbeat、状态更新等 Server 写请求。
+- 当前停止位置：M3-B 类型化 client 已通过 fixture/mock 功能门禁、公开 API 文档、关键逻辑注释和 `cargo doc`；直接实现报告随本次聊天交接提供。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接 Server。
+- 下一项允许执行的工作：共同审阅 M3-B 的直接实现报告、代码与依赖选择；不得执行真实注册、heartbeat、状态更新等 Server 写请求。
 
 ## 里程碑
 
@@ -143,6 +144,18 @@
 - 漂移审计：实现仍只面向 v2.2.3、vLLM、本地 Docker、本地模型目录与单 Worker；未加入 K8s、跨 Worker 分布式推理、Python bridge 或额外后端。真实写入门禁未被放宽。
 - 当前停止位置：M3-B 已实现并推送，等待共同审阅；M3-C 与真实集成都未开始。
 - 下一项允许执行的工作：接受 M3-B 后实现 M3-C 原子 token 持久化、注册状态机、heartbeat/status/watch/full-sync 控制循环与 mock 重连；第一次真实注册仍需另行批准隔离身份。
+
+### 2026-10-19：代码注释与阶段直接汇报门禁生效
+
+- 目的：把“代码需要注释”和“用户需要知道每阶段具体实现”从协作偏好升级为可审计、可阻止验收的项目规则。
+- 状态：`ready_for_review`。该变更由用户明确提出并接受，不属于未授权 scope 漂移；代码与文档构建门禁已经完成，M3-B 的直接实现报告随本次聊天交接提供，M3-B 本身仍等待用户共同审阅。
+- 代码门禁：workspace 使用 `missing_docs = "deny"`，crate、module、公开 type/trait/function/method/constant/field 缺少英文 Rustdoc 时编译失败；安全边界、状态转移、协议偏差、恢复和非直观算法还需英文行内注释解释目的与原因。逐行复述、失真、过期或修改历史式注释不合格。
+- 验证门禁：阶段检查加入 `cargo doc --workspace --no-deps --locked --offline`，并继续执行 fmt、Clippy `-D warnings`、workspace test、离线 locked build；人工审阅关键私有逻辑注释。功能测试通过不能覆盖注释门禁失败。
+- 汇报门禁：每个阶段在请求验收前，必须直接在聊天中报告目标、功能、实现机制、数据流、模块、依赖取舍、证据、安全边界、限制、未实现项和下一步。长期文档只保存恢复所需摘要，不能代替直接报告。
+- 漂移审计：R1 后端、Docker runtime、本地模型、单 Worker 单/双 GPU、Server v2.2.3、Runner、Managed/Lab 与容器化发布门禁均未改变；本次只收紧代码质量与验收顺序。
+- 验证证据：`cargo fmt --all -- --check`、workspace Clippy `-D warnings`、17 项 workspace test、离线 locked build 和 `cargo doc --workspace --no-deps --locked --offline` 全部通过。公开 API 漏写 Rustdoc 现在会在编译阶段失败。
+- 当前停止位置：注释与文档构建门禁已补齐；等待本次聊天交付 M3-B 详细实现报告后由用户共同审阅，M3-C 尚未开始。
+- 下一项允许执行的工作：交付 M3-B 详细实现报告并等待审阅；未收到接受结论前不得把 M3-B 标记为 `accepted` 或开始 M3-C。
 
 ## 未解决风险与待确认事项
 

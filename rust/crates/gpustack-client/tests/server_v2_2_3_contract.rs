@@ -1,3 +1,5 @@
+//! Frozen GPUStack v2.2.3 fixture compatibility tests.
+
 use gpustack_client::types::{
     ModelInstancePublic, ModelInstanceUpdate, ModelPublic, Paginated, ServerVersion, WorkerCreate,
     WorkerRegistrationPublic, WorkerStatusReport,

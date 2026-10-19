@@ -1,3 +1,5 @@
+//! Offline endpoint and transport behavior tests for `ServerClient`.
+
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},

@@ -1,24 +1,35 @@
+//! Read-only host runtime diagnostics shared by Worker commands.
+
 use std::fs::Metadata;
 use std::path::Path;
 
 use serde::Serialize;
 
+/// Severity and outcome of one diagnostic check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CheckStatus {
+    /// The prerequisite is available and has the expected shape.
     Pass,
+    /// The prerequisite is optional or can be created later.
     Warn,
+    /// The prerequisite is required but unavailable or invalid.
     Fail,
 }
 
+/// One named, human-readable runtime diagnostic result.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DiagnosticCheck {
+    /// Stable check name used by table and JSON output.
     pub name: String,
+    /// Machine-readable result severity.
     pub status: CheckStatus,
+    /// Human-readable explanation that does not expose secret values.
     pub message: String,
 }
 
 impl DiagnosticCheck {
+    /// Constructs a successful diagnostic check.
     #[must_use]
     pub fn pass(name: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
@@ -28,6 +39,7 @@ impl DiagnosticCheck {
         }
     }
 
+    /// Constructs a warning for a deferred or optional prerequisite.
     #[must_use]
     pub fn warn(name: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
@@ -37,6 +49,7 @@ impl DiagnosticCheck {
         }
     }
 
+    /// Constructs a failed diagnostic check.
     #[must_use]
     pub fn fail(name: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
@@ -47,14 +60,23 @@ impl DiagnosticCheck {
     }
 }
 
+/// Expected filesystem object type for a path diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PathKind {
+    /// Any filesystem object type is acceptable.
     Any,
+    /// The path must be a directory.
     Directory,
+    /// The path must be a regular file.
     File,
+    /// The path must be a Unix domain socket.
     UnixSocket,
 }
 
+/// Inspects a path without opening or mutating the referenced object.
+///
+/// Missing optional paths produce a warning so commands can distinguish
+/// deferred setup from an unusable required prerequisite.
 #[must_use]
 pub fn inspect_path(
     name: &str,

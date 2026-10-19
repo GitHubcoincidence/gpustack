@@ -1,3 +1,5 @@
+//! Layered Worker configuration and validation.
+
 use std::ffi::OsString;
 use std::fs;
 use std::net::IpAddr;
@@ -7,24 +9,38 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::Url;
 
+/// Default YAML configuration file searched when no explicit path is supplied.
 pub const DEFAULT_CONFIG_PATH: &str = "/etc/gpustack-rust/config.yaml";
+/// Default persistent state directory.
 pub const DEFAULT_DATA_DIR: &str = "/var/lib/gpustack-rust-worker";
+/// Default log directory.
 pub const DEFAULT_LOG_DIR: &str = "/var/log/gpustack-rust-worker";
+/// Default Docker Engine Unix socket.
 pub const DEFAULT_DOCKER_SOCKET: &str = "/var/run/docker.sock";
 
+/// Effective Worker configuration after all layers have been merged.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WorkerConfig {
+    /// Optional GPUStack Server base URL.
     pub server_url: Option<Url>,
+    /// Optional explicit Worker name.
     pub worker_name: Option<String>,
+    /// Optional explicit Worker address.
     pub worker_ip: Option<IpAddr>,
+    /// Absolute path to a credential file; token values are never accepted inline.
     pub token_file: Option<PathBuf>,
+    /// Persistent Worker state directory.
     pub data_dir: PathBuf,
+    /// Worker log directory.
     pub log_dir: PathBuf,
+    /// Local model directories permitted for R1 deployments.
     pub model_roots: Vec<PathBuf>,
+    /// Docker Engine Unix socket used by the runtime layer.
     pub docker_socket: PathBuf,
 }
 
 impl WorkerConfig {
+    /// Validates URL safety, identity shape, and absolute host paths.
     pub fn validate(&self) -> Result<(), ConfigError> {
         if let Some(server_url) = &self.server_url {
             if !matches!(server_url.scheme(), "http" | "https") {
@@ -65,21 +81,33 @@ impl WorkerConfig {
     }
 }
 
+/// Optional CLI values with precedence over all other configuration layers.
 #[derive(Debug, Clone, Default)]
 pub struct ConfigOverrides {
+    /// Server URL override.
     pub server_url: Option<String>,
+    /// Worker name override.
     pub worker_name: Option<String>,
+    /// Worker address override.
     pub worker_ip: Option<String>,
+    /// Credential file path override.
     pub token_file: Option<PathBuf>,
+    /// Persistent state directory override.
     pub data_dir: Option<PathBuf>,
+    /// Log directory override.
     pub log_dir: Option<PathBuf>,
+    /// Local model root overrides.
     pub model_roots: Option<Vec<PathBuf>>,
+    /// Docker socket override.
     pub docker_socket: Option<PathBuf>,
 }
 
+/// Effective configuration and the YAML file that contributed to it.
 #[derive(Debug, Clone)]
 pub struct LoadedConfig {
+    /// Validated effective Worker configuration.
     pub config: WorkerConfig,
+    /// YAML source path, or `None` when defaults and overrides were used.
     pub source: Option<PathBuf>,
 }
 
@@ -98,6 +126,8 @@ struct ConfigLayer {
 
 impl ConfigLayer {
     fn merge(&mut self, other: Self) {
+        // Layers are merged from lowest to highest priority, so only explicit
+        // values in the later layer replace values already collected.
         if other.server_url.is_some() {
             self.server_url = other.server_url;
         }
@@ -178,28 +208,47 @@ impl From<ConfigOverrides> for ConfigLayer {
     }
 }
 
+/// Configuration loading and validation failures safe to present to operators.
 #[derive(Debug, Error)]
 pub enum ConfigError {
+    /// The selected YAML file could not be read.
     #[error("failed to read configuration file {path}: {kind:?}")]
     Read {
+        /// Configuration file path.
         path: PathBuf,
+        /// Coarse I/O failure kind without platform-specific sensitive detail.
         kind: std::io::ErrorKind,
     },
+    /// The selected YAML file could not be parsed.
     #[error("failed to parse configuration file {path} at line {line}, column {column}")]
     Parse {
+        /// Configuration file path.
         path: PathBuf,
+        /// One-based line when available, otherwise zero.
         line: usize,
+        /// One-based column when available, otherwise zero.
         column: usize,
     },
+    /// A recognized environment variable has an invalid value.
     #[error("invalid environment variable {key}")]
-    InvalidEnvironment { key: String },
+    InvalidEnvironment {
+        /// Environment variable name; its value is deliberately omitted.
+        key: String,
+    },
+    /// A merged configuration field violates its contract.
     #[error("invalid configuration field {field}: {reason}")]
     InvalidField {
+        /// Stable field name.
         field: &'static str,
+        /// Non-secret validation reason.
         reason: &'static str,
     },
 }
 
+/// Loads configuration using `CLI > environment > YAML > defaults` precedence.
+///
+/// An explicitly selected missing YAML file is an error. The default YAML path
+/// is optional so a minimal local diagnostic can run from built-in defaults.
 pub fn load_config(
     config_path: Option<&Path>,
     overrides: ConfigOverrides,

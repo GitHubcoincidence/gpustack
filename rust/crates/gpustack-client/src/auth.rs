@@ -1,3 +1,5 @@
+//! Secret token validation and redacted formatting.
+
 use std::fmt;
 
 use serde::{Deserialize, Deserializer};
@@ -5,10 +7,12 @@ use thiserror::Error;
 
 const REDACTED: &str = "<redacted-token>";
 
+/// Validated bearer token whose `Debug` and `Display` forms are always redacted.
 #[derive(Clone, PartialEq, Eq)]
 pub struct SecretToken(String);
 
 impl SecretToken {
+    /// Creates a token after rejecting empty values and header-breaking controls.
     pub fn new(value: impl Into<String>) -> Result<Self, SecretTokenError> {
         let value = value.into();
         if value.trim().is_empty() {
@@ -21,6 +25,8 @@ impl SecretToken {
     }
 
     pub(crate) fn expose(&self) -> &str {
+        // Raw access stays crate-private so only the transport boundary can
+        // place a credential into the Authorization header.
         &self.0
     }
 
@@ -51,10 +57,13 @@ impl<'de> Deserialize<'de> for SecretToken {
     }
 }
 
+/// Validation failures for secret bearer-token input.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum SecretTokenError {
+    /// The supplied token is empty or whitespace-only.
     #[error("token must not be empty")]
     Empty,
+    /// The token contains a control character unsafe for an HTTP header.
     #[error("token must not contain control characters")]
     ContainsControlCharacter,
 }

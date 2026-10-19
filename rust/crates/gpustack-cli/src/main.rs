@@ -1,3 +1,5 @@
+//! Process entry point for the transitional `gpustack-rs` CLI.
+
 use std::process::ExitCode;
 
 use clap::Parser;

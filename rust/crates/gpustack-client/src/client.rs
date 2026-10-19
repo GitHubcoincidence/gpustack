@@ -1,3 +1,5 @@
+//! Endpoint orchestration for the GPUStack v2.2.3 Worker control plane.
+
 use std::time::Duration;
 
 use serde::{Serialize, de::DeserializeOwned};
@@ -18,12 +20,14 @@ const EVENT_STREAM_CONTENT_TYPE: &str = "text/event-stream";
 const MAX_ERROR_PREVIEW_CHARS: usize = 1024;
 const BUFFERED_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Typed Server client parameterized by an HTTP transport implementation.
 pub struct ServerClient<T> {
     base_url: Url,
     transport: T,
 }
 
 impl<T: Transport> ServerClient<T> {
+    /// Creates a client after rejecting unsafe or ambiguous base URLs.
     pub fn new(base_url: Url, transport: T) -> Result<Self, ClientError> {
         validate_base_url(&base_url)?;
         Ok(Self {
@@ -32,6 +36,7 @@ impl<T: Transport> ServerClient<T> {
         })
     }
 
+    /// Reads the unauthenticated Server build identity.
     pub async fn version(&self) -> Result<ServerVersion, ClientError> {
         let response = self
             .transport
@@ -40,6 +45,7 @@ impl<T: Transport> ServerClient<T> {
         self.decode_json(response, "Server version", None)
     }
 
+    /// Registers a Worker using the one-time registration credential.
     pub async fn register(
         &self,
         registration_token: &SecretToken,
@@ -63,6 +69,7 @@ impl<T: Transport> ServerClient<T> {
         )
     }
 
+    /// Resolves the unique Worker represented by a Worker bearer token.
     pub async fn me(&self, worker_token: &SecretToken) -> Result<WorkerPublic, ClientError> {
         let response = self
             .transport
@@ -85,6 +92,7 @@ impl<T: Transport> ServerClient<T> {
         Ok(workers.items.remove(0))
     }
 
+    /// Sends the empty heartbeat expected by the v2.2.3 Worker endpoint.
     pub async fn heartbeat(&self, worker_token: &SecretToken) -> Result<(), ClientError> {
         let body = b"{}".to_vec();
         let response = self
@@ -100,6 +108,7 @@ impl<T: Transport> ServerClient<T> {
         self.expect_no_content(response, "Worker heartbeat", worker_token)
     }
 
+    /// Replaces the Server's current view of this Worker's resource status.
     pub async fn report_status(
         &self,
         worker_token: &SecretToken,
@@ -119,6 +128,7 @@ impl<T: Transport> ServerClient<T> {
         self.expect_no_content(response, "Worker status", worker_token)
     }
 
+    /// Fetches the authoritative, unpaginated Model snapshot.
     pub async fn list_models(
         &self,
         worker_token: &SecretToken,
@@ -136,6 +146,7 @@ impl<T: Transport> ServerClient<T> {
         self.decode_json(response, "Model full sync", Some(worker_token))
     }
 
+    /// Fetches the authoritative, unpaginated ModelInstance snapshot.
     pub async fn list_model_instances(
         &self,
         worker_token: &SecretToken,
@@ -153,6 +164,7 @@ impl<T: Transport> ServerClient<T> {
         self.decode_json(response, "ModelInstance full sync", Some(worker_token))
     }
 
+    /// Replaces an assigned ModelInstance after enforcing R1 ownership and scope.
     pub async fn update_assigned_model_instance(
         &self,
         worker_token: &SecretToken,
@@ -179,6 +191,7 @@ impl<T: Transport> ServerClient<T> {
         )
     }
 
+    /// Opens the Model JSON-line watch stream.
     pub async fn watch_models(
         &self,
         worker_token: &SecretToken,
@@ -186,6 +199,7 @@ impl<T: Transport> ServerClient<T> {
         self.open_watch("v2/models?watch=true", worker_token).await
     }
 
+    /// Opens the ModelInstance JSON-line watch stream.
     pub async fn watch_model_instances(
         &self,
         worker_token: &SecretToken,
@@ -210,6 +224,8 @@ impl<T: Transport> ServerClient<T> {
             )?)
             .await?;
         if !(200..300).contains(&response.status) {
+            // Streaming error responses are buffered by the transport so they
+            // pass through the same redaction and API-error mapping as normal calls.
             return Err(map_error_response(
                 HttpResponse {
                     status: response.status,
@@ -297,6 +313,8 @@ fn validate_base_url(url: &Url) -> Result<(), ClientError> {
 }
 
 fn append_path_and_query(base: &Url, path_and_query: &str) -> Result<Url, ClientError> {
+    // URL::join treats a leading slash as an instruction to discard any base
+    // path. Explicit assembly preserves deployments hosted below a path prefix.
     let (path, query) = path_and_query
         .split_once('?')
         .map_or((path_and_query, None), |(path, query)| (path, Some(query)));
@@ -323,6 +341,8 @@ fn map_error_response(response: HttpResponse, token: Option<&SecretToken>) -> Cl
         };
     }
 
+    // Unknown bodies are diagnostic only. Bound them before inclusion in an
+    // error and redact the active token even when the body is not valid JSON.
     let preview = String::from_utf8_lossy(&response.body);
     let preview: String = preview.chars().take(MAX_ERROR_PREVIEW_CHARS).collect();
     let body_preview = token.map_or(preview.clone(), |token| token.redact(&preview));
