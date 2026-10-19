@@ -16,20 +16,20 @@
 
 ## 当前状态
 
-- 状态：`ready`
-- 当前阶段：M3-B Rust Server client 已接受，M3-C 尚未开始
+- 状态：`ready_for_review`
+- 当前阶段：M3-C 离线身份持久化与控制循环已实现，等待详细报告与共同验收
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-B 实现检查点为 `fed728afc82c4f4f5d5f5d21e0800a73a61c3ea3`，注释密度校正检查点为 `8287ceb0af461d291c1e4faf780715acd862d7d9`；`codex/rust-worker` 与 `origin/codex/rust-worker` 一致，工作树干净。
-- 实现状态：四 crate Rust workspace、三个首批 CLI 命令和类型化 Server client 已建立；尚未实现身份持久化、Worker 控制循环、Docker 工作负载或 GPU 路径，也未远程部署 Rust Worker。
+- 90 主机源码状态：M3-C 代码检查点为 `5c7c69cc31774cbc1aa0dac8d600ec8971d938b3`；本记录随其后的治理检查点单独提交。
+- 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、身份持久化/恢复和控制循环已建立；尚未执行真实 Server 集成，也未实现 Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-B 类型化 client 已接受；现有 Python Server/Worker 继续运行，Rust Worker 尚未连接 Server，M3-C 尚未开始。
-- 下一项允许执行的工作：实现 M3-C 原子 token 持久化、注册状态机、heartbeat/status/watch/full-sync 控制循环与 mock 重连；不得执行真实注册、heartbeat、状态更新等 Server 写请求。
+- 当前停止位置：M3-C 代码已通过离线门禁并形成检查点；现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：在聊天中交付 M3-C 详细实现报告并等待用户验收；未接受前不得开始真实注册、heartbeat、状态上报或其他集成写路径。
 
 ## 里程碑
 
@@ -180,6 +180,20 @@
 - 当前停止位置：M3-B 已接受，M3-C 尚未开始。
 - 下一项允许执行的工作：实现 M3-C 离线身份持久化与控制循环，并以 mock 验证原子写入、恢复、重连、backoff 和 full sync；不得连接真实写路径。
 
+### 2026-10-19：M3-C 身份持久化与控制循环待审阅
+
+- 目的：在不连接真实 Server 的前提下，实现 Worker 注册/恢复身份和长期控制面循环，使下一阶段真实集成不再依赖临时代码。
+- 状态：`ready_for_review`，尚未标记 `accepted`。代码检查点为 `5c7c69cc31774cbc1aa0dac8d600ec8971d938b3`（`feat(worker): add identity and control loops`）。
+- 身份范围：注册凭据与 Server 签发的 Worker 系统凭据分离；后者固定在 `<data_dir>/managed/worker-token`，使用私有目录、`0600` 文件、同目录临时文件、`fsync` 和 hard-link no-replace 发布。启动时优先恢复持久身份并调用 `me` 验证；已存在凭据无效时失败关闭，不自动重新注册。
+- 控制循环范围：heartbeat 与状态上报独立运行；期望状态由启动/重连/周期 full sync 与 model/model-instance watch 共同维护。仅保留当前 Worker 的 ModelInstance；断流、未知事件或请求失败时保留最后一次权威状态，以指数 backoff 重连并在重新 watch 前 full sync。
+- 依赖证据：Worker 新增 workspace 内 `gpustack-client` 依赖；Unix 目标直接声明已在锁文件中的 `libc` 以使用 `O_NOFOLLOW`；Tokio 启用 `sync`；`serde_json` 仅用于测试。`Cargo.lock` SHA-256 为 `af566acb9215d5601dd8bec1282eb93c133b521c4b946870e6762b88409d5019`。
+- 自动化证据：workspace 共 25 项测试通过，其中 Worker 11 项；fmt、all-features Clippy `-D warnings`、locked/offline test、locked/offline build、Rustdoc `-D warnings`、diff check 和 staged secret scan 均通过。新增测试覆盖原子凭据往返、权限与覆盖拒绝、身份恢复、首次注册、持久凭据失败关闭、慢状态请求不阻塞 heartbeat、断线 full-sync 恢复和 assignment 移出。
+- 隔离证据：全部测试使用临时目录、静态 fixture 和 mock API；没有读取现有 token，没有真实注册、heartbeat 或状态写入，没有操作 Docker、GPU、vLLM 或 Python Worker。
+- 环境核验：完成后 Server `/healthz`、Python Worker `/healthz` 与 metrics 均为 HTTP 200，`gpustack` 和 `gpustack-worker` 容器保持运行；此前未归因的远端 `17897` 监听此时已不存在，本阶段没有停止或修改它。
+- 漂移审计：实现继续固定 Server v2.2.3，未加入 K8s、跨 Worker 分布式推理、其他推理后端、Python bridge 或 runtime 容器操作。注释仅保留在凭据暴露边界、协议偏差和失败恢复等关键位置。
+- 当前停止位置：M3-C 代码和治理摘要已完成，等待聊天中的详细实现报告与用户共同审阅。
+- 下一项允许执行的工作：M3-C 接受后讨论并审批隔离 identity 的真实 Server 集成；在获得单独批准前不得发送真实写请求。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
@@ -187,4 +201,4 @@
 - 真实 drain、停止 Python Worker 与回滚流程尚未执行；`docker stop/start gpustack-worker` 只作为已识别的容器级回滚路径，正式演练需维护窗口。
 - Rust 容器最终 user/group 仍需在 M8 根据 Docker socket、NVML 与持久化目录要求验证；宿主机开发用户已确认具备 `docker` group 权限。
 - 90 主机到 GitHub 的小规模 fetch/push 可用，但大对象传输吞吐过低；bootstrap 和发布 tag 增量 bundle 是当前已验证的补充路径。
-- 90 主机 `127.0.0.1:17897` 与 `[::1]:17897` 当前存在未归因监听；它不影响离线构建证据，但在复用或停止该代理前必须先确认所有者。后续自动化 SSH 命令显式使用 `ClearAllForwardings=yes`，避免自动创建额外转发。
+- 90 主机 `127.0.0.1:17897` 与 `[::1]:17897` 曾存在未归因监听，M3-C 完成核验时已无监听；本项目没有停止它。未来复用或处置同端口监听前仍须确认所有者，自动化 SSH 命令继续显式使用 `ClearAllForwardings=yes`，避免自动创建额外转发。
