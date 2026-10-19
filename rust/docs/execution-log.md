@@ -16,20 +16,20 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
-- 当前阶段：M3-B Rust Server client 已完成离线实现和直接实现报告，并按修订后的注释密度规则完成校正
+- 状态：`ready`
+- 当前阶段：M3-B Rust Server client 已接受，M3-C 尚未开始
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-B 实现检查点为 `fed728afc82c4f4f5d5f5d21e0800a73a61c3ea3`；提交并推送后 `codex/rust-worker` 与 `origin/codex/rust-worker` 一致，工作树干净。
+- 90 主机源码状态：M3-B 实现检查点为 `fed728afc82c4f4f5d5f5d21e0800a73a61c3ea3`，注释密度校正检查点为 `8287ceb0af461d291c1e4faf780715acd862d7d9`；`codex/rust-worker` 与 `origin/codex/rust-worker` 一致，工作树干净。
 - 实现状态：四 crate Rust workspace、三个首批 CLI 命令和类型化 Server client 已建立；尚未实现身份持久化、Worker 控制循环、Docker 工作负载或 GPU 路径，也未远程部署 Rust Worker。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-B 类型化 client 已通过 fixture/mock 功能门禁并交付直接实现报告；模板化字段注释已移除，关键协议和安全说明保留。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接 Server。
-- 下一项允许执行的工作：共同审阅 M3-B 的直接实现报告、代码与依赖选择；不得执行真实注册、heartbeat、状态更新等 Server 写请求。
+- 当前停止位置：M3-B 类型化 client 已接受；现有 Python Server/Worker 继续运行，Rust Worker 尚未连接 Server，M3-C 尚未开始。
+- 下一项允许执行的工作：实现 M3-C 原子 token 持久化、注册状态机、heartbeat/status/watch/full-sync 控制循环与 mock 重连；不得执行真实注册、heartbeat、状态更新等 Server 写请求。
 
 ## 里程碑
 
@@ -168,6 +168,18 @@
 - 当前停止位置：注释密度校正已完成，等待提交推送后继续进行 M3-B 审阅。
 - 下一项允许执行的工作：继续等待 M3-B 审阅；不得开始 M3-C 或真实 Server 写路径。
 
+### 2026-10-19：M3-B Rust Server client 接受
+
+- 目的：在进入 Worker 身份和控制循环前，正式确认类型化 v2.2.3 client 的协议覆盖、安全边界、依赖选择、离线证据和注释质量。
+- 结果：用户在收到 M3-B 详细实现报告及注释密度校正结果后确认无问题，M3-B 状态由 `ready_for_review` 更新为 `accepted`。
+- 实现证据：client 实现检查点 `fed728afc82c4f4f5d5f5d21e0800a73a61c3ea3`；注释与治理校正检查点 `8287ceb0af461d291c1e4faf780715acd862d7d9`；`Cargo.lock` SHA-256 为 `b1708691bb817145f3dc5742865b22fc081feb252134de21263e4eaf9ba3b3d8`。
+- 验证证据：`gpustack-client` 12 项、workspace 17 项测试全部通过；fmt、Clippy `-D warnings`、locked offline build、按需 Rustdoc、diff 检查和 secret scan 均通过。Server、Python Worker 和 metrics 健康检查均为 HTTP 200。
+- 解释：接受结果只证明固定 fixture/mock transport 下的 v2.2.3 client 行为，不证明 token 文件生命周期、Worker 控制循环、真实认证写流量、Docker、GPU 或 vLLM 能力。
+- 安全边界：没有读取现有 token，没有向 Server 发送写请求，没有修改 Docker 工作负载、GPU 状态或 Python Worker。第一次真实注册仍需隔离 Worker identity 和单独批准。
+- 漂移审计：M3-B 与 R1 的 vLLM、本地 Docker、本地模型、单 Worker、Server v2.2.3 和 CLI-first 范围一致；D034 只校正注释密度，不改变实现行为或证据解释。
+- 当前停止位置：M3-B 已接受，M3-C 尚未开始。
+- 下一项允许执行的工作：实现 M3-C 离线身份持久化与控制循环，并以 mock 验证原子写入、恢复、重连、backoff 和 full sync；不得连接真实写路径。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
@@ -175,3 +187,4 @@
 - 真实 drain、停止 Python Worker 与回滚流程尚未执行；`docker stop/start gpustack-worker` 只作为已识别的容器级回滚路径，正式演练需维护窗口。
 - Rust 容器最终 user/group 仍需在 M8 根据 Docker socket、NVML 与持久化目录要求验证；宿主机开发用户已确认具备 `docker` group 权限。
 - 90 主机到 GitHub 的小规模 fetch/push 可用，但大对象传输吞吐过低；bootstrap 和发布 tag 增量 bundle 是当前已验证的补充路径。
+- 90 主机 `127.0.0.1:17897` 与 `[::1]:17897` 当前存在未归因监听；它不影响离线构建证据，但在复用或停止该代理前必须先确认所有者。后续自动化 SSH 命令显式使用 `ClearAllForwardings=yes`，避免自动创建额外转发。
