@@ -16,20 +16,20 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
-- 当前阶段：M3-C 离线身份持久化与控制循环已实现，等待详细报告与共同验收
+- 状态：`ready`
+- 当前阶段：M3-C 离线身份持久化与控制循环已接受，M3-D 真实 Server 集成尚未开始
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-C 代码检查点为 `5c7c69cc31774cbc1aa0dac8d600ec8971d938b3`；本记录随其后的治理检查点单独提交。
+- 90 主机源码状态：M3-C 代码检查点为 `5c7c69cc31774cbc1aa0dac8d600ec8971d938b3`，待审阅治理检查点为 `0b0689b6f7e21f2d60113e37a693857223803c8c`；本次验收结论随新的治理检查点提交。
 - 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、身份持久化/恢复和控制循环已建立；尚未执行真实 Server 集成，也未实现 Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-C 代码已通过离线门禁并形成检查点；现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：在聊天中交付 M3-C 详细实现报告并等待用户验收；未接受前不得开始真实注册、heartbeat、状态上报或其他集成写路径。
+- 当前停止位置：M3-C 已接受；现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：讨论并冻结 M3-D 隔离 Worker identity 的真实 Server 集成方案；真实注册、heartbeat、状态上报或其他写请求仍需单独批准。
 
 ## 里程碑
 
@@ -193,6 +193,17 @@
 - 漂移审计：实现继续固定 Server v2.2.3，未加入 K8s、跨 Worker 分布式推理、其他推理后端、Python bridge 或 runtime 容器操作。注释仅保留在凭据暴露边界、协议偏差和失败恢复等关键位置。
 - 当前停止位置：M3-C 代码和治理摘要已完成，等待聊天中的详细实现报告与用户共同审阅。
 - 下一项允许执行的工作：M3-C 接受后讨论并审批隔离 identity 的真实 Server 集成；在获得单独批准前不得发送真实写请求。
+
+### 2026-10-19：M3-C 身份持久化与控制循环接受
+
+- 目的：在进入真实 Server 写路径前，正式确认 M3-C 的身份生命周期、控制循环、安全不变量、依赖选择和离线验证证据。
+- 结果：用户在收到逐项实现报告后确认无问题，M3-C 状态由 `ready_for_review` 更新为 `accepted`。
+- 实现证据：代码检查点 `5c7c69cc31774cbc1aa0dac8d600ec8971d938b3`；待审阅治理检查点 `0b0689b6f7e21f2d60113e37a693857223803c8c`；`Cargo.lock` SHA-256 为 `af566acb9215d5601dd8bec1282eb93c133b521c4b946870e6762b88409d5019`。
+- 验证证据：workspace 25 项测试全部通过，其中 Worker 11 项；fmt、all-features Clippy `-D warnings`、locked/offline test、locked/offline build、Rustdoc `-D warnings`、diff check 和 secret scan 均通过。完成后的 Server、Python Worker 与 metrics 健康检查均为 HTTP 200。
+- 解释：本次接受确认的是临时文件、静态 fixture 和 mock API 下的身份及控制状态机，不证明真实注册、真实 heartbeat/status、GPU 状态采集、Worker API、Docker、vLLM 或 Managed 模型流程。
+- 安全边界：没有读取现有 token，没有向真实 Server 发送写请求，没有操作 Docker、GPU、vLLM 或 Python Worker。M3-C 接受不会自动授权 M3-D 的外部写操作。
+- 当前停止位置：M3-C 已接受，M3-D 尚未开始。
+- 下一项允许执行的工作：先共同确定隔离 Worker name/UUID、端口、数据目录、注册凭据来源、Server 可见性、清理和回滚步骤，再单独决定是否进入真实 Server 集成。
 
 ## 未解决风险与待确认事项
 

@@ -112,6 +112,6 @@ R1 全程保留 Python Worker。测试使用全新的 Rust Worker name、UUID、
 
 ## 当前停止位置
 
-设计已经冻结，M1 环境基线、M2 Rust workspace/CLI 骨架、M3-A Server 契约和 M3-B Rust Server client 均已接受。M3-C 已在离线范围完成实现，状态为 `ready_for_review`：实现权限受限且不可覆盖的 Worker token 持久化、持久身份恢复与首次注册状态机，以及 heartbeat、状态上报、权威 full sync、双 watch 和退避重连控制循环。
+设计已经冻结，M1 环境基线、M2 Rust workspace/CLI 骨架以及 M3-A、M3-B、M3-C 均已接受。M3-C 已实现权限受限且不可覆盖的 Worker token 持久化、持久身份恢复与首次注册状态机，以及 heartbeat、状态上报、权威 full sync、双 watch 和退避重连控制循环。
 
-M3-C 验证只使用临时凭据文件、静态 v2.2.3 fixture 与 mock API，没有读取现有 token，也没有连接真实 Server 写路径、Docker、GPU 或 vLLM。下一步先在聊天中交付详细实现报告并等待共同验收；M3-C 接受后才能讨论隔离 Worker identity 的真实 Server 集成，真实注册仍需单独批准。
+M3-C 验证只使用临时凭据文件、静态 v2.2.3 fixture 与 mock API，没有读取现有 token，也没有连接真实 Server 写路径、Docker、GPU 或 vLLM。下一步是讨论并冻结 M3-D 隔离 Worker identity 的真实 Server 集成方案；接受 M3-C 不等于批准真实注册或其他写请求。

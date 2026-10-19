@@ -26,9 +26,9 @@
 ## 当前状态
 
 - 设计状态：`frozen`
-- 实现状态：M2、M3-A 与 M3-B 均为 `accepted`；M3-C 身份持久化与 Worker 控制循环为 `ready_for_review`。
+- 实现状态：M2、M3-A、M3-B 与 M3-C 均为 `accepted`；M3-D 真实 Server 集成尚未开始。
 - 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
-- 当前停止位置：M3-C 已使用临时文件、静态 fixture 和 mock API 完成实现与离线门禁；没有执行 Server 写请求，现有 GPUStack 服务未受影响。
-- 下一项允许执行的工作：直接交付 M3-C 详细实现报告并等待用户验收。第一次真实注册仍需隔离 Worker identity 和单独门禁。
+- 当前停止位置：M3-C 已通过离线门禁和用户共同验收；没有执行 Server 写请求，现有 GPUStack 服务未受影响。
+- 下一项允许执行的工作：讨论并冻结 M3-D 隔离 Worker identity 的真实 Server 集成方案。第一次真实注册仍需单独门禁。
 
-当前检查点包含 Rust CLI/Worker 基础源码、已接受的离线契约 fixture、类型化 Server client，以及待审阅的身份持久化和控制循环；不包含实际 Worker 注册、真实 Server 写操作、Docker 工作负载变更、GPU 使用或 Python Worker 变更。
+当前检查点包含 Rust CLI/Worker 基础源码、已接受的离线契约 fixture、类型化 Server client、身份持久化和控制循环；不包含实际 Worker 注册、真实 Server 写操作、Docker 工作负载变更、GPU 使用或 Python Worker 变更。
