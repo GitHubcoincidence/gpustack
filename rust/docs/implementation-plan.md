@@ -97,6 +97,6 @@ R1 全程保留 Python Worker。测试使用全新的 Rust Worker name、UUID、
 
 ## 当前停止位置
 
-设计已经冻结，M1 环境基线和 M2 Rust workspace/CLI 骨架均已接受。M3-A 已从固定 GPUStack v2.2.3 源码、部署的公开只读响应和同版本 Pydantic 序列化形成控制面契约与 fixture，状态为 `ready_for_review`。证据覆盖 version、注册、Worker identity、heartbeat、status、model/model-instance list/watch、`page=-1` full sync、ModelInstance 完整更新和错误 shape；没有读取 token 或执行真实 Server 写操作。
+设计已经冻结，M1 环境基线、M2 Rust workspace/CLI 骨架和 M3-A Server 契约均已接受。M3-B 已按固定 v2.2.3 fixture 实现类型化 request/response、Bearer 脱敏、版本门禁、version/register/me/heartbeat/status、model/model-instance full sync、ModelInstance 完整更新、HTTP transport 和逐行 watch 解码，状态为 `ready_for_review`。全部验证使用 mock transport 或静态 fixture，没有读取 token 或执行真实 Server 写操作。
 
-下一项允许执行的工作是共同审阅 `server-contract-v2.2.3.md` 与 `rust/fixtures/server-v2.2.3/`。接受后进入 M3-B：先用 fixture 和 mock transport 实现、测试 Rust Server client；真实 Worker 注册仍需单独批准隔离身份，不由 fixture 接受自动授权。
+下一项允许执行的工作是共同审阅 M3-B 实现、`reqwest`/`futures-util` 依赖与离线证据。接受后进入 M3-C：实现原子 token 持久化、注册状态机、heartbeat/status/watch/full-sync 控制循环及 mock 重连测试。真实 Worker 注册仍需单独批准隔离身份，不由 M3-B 接受自动授权。
