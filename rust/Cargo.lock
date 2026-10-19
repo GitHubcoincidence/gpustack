@@ -458,9 +458,12 @@ dependencies = [
 name = "gpustack-worker"
 version = "0.1.0"
 dependencies = [
+ "gpustack-client",
  "gpustack-runtime",
+ "libc",
  "serde",
  "serde-saphyr",
+ "serde_json",
  "tempfile",
  "thiserror",
  "tokio",

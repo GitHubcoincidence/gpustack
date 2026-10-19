@@ -1,6 +1,6 @@
 //! Secret token validation and redacted formatting.
 
-use std::fmt;
+use std::{fmt, io};
 
 use serde::{Deserialize, Deserializer};
 use thiserror::Error;
@@ -28,6 +28,13 @@ impl SecretToken {
         // Raw access stays crate-private so only the transport boundary can
         // place a credential into the Authorization header.
         &self.0
+    }
+
+    /// Writes the credential only to a caller-selected secret sink.
+    pub fn write_secret(&self, writer: &mut impl io::Write) -> io::Result<()> {
+        // Deliberate write-only exposure lets the Worker persist an issued
+        // credential without making raw token access generally available.
+        writer.write_all(self.0.as_bytes())
     }
 
     pub(crate) fn redact(&self, value: &str) -> String {
