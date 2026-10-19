@@ -10,6 +10,7 @@
 - [architecture.md](architecture.md)：组件边界、状态所有权、协调循环、运行时、配置与部署拓扑。
 - [cli-design.md](cli-design.md)：CLI-first 产品契约，以及 Managed 和 Lab 两种命令界面。
 - [worker-protocol.md](worker-protocol.md)：Server/Worker 兼容协议、Worker HTTP API、认证与模型生命周期。
+- [server-contract-v2.2.3.md](server-contract-v2.2.3.md)：M3 固定的 Server endpoint、schema、认证、分页、watch 与错误契约。
 - [implementation-plan.md](implementation-plan.md)：带门禁的里程碑、验证矩阵、证据要求与回滚约束。
 - [environment-baseline.md](environment-baseline.md)：M1 验证过的 90 主机、GPU、Docker、部署、镜像、模型与网络身份。
 - [decisions.md](decisions.md)：已接受的架构决策与被否决的替代方案。
@@ -25,9 +26,9 @@
 ## 当前状态
 
 - 设计状态：`frozen`
-- 实现状态：M2 `accepted`；Rust workspace 与 CLI 基础已建立，M3 尚未开始。
+- 实现状态：M2 `accepted`；M3-A Server 契约与 fixture 已形成，状态为 `ready_for_review`。
 - 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
-- 当前停止位置：实现提交 `c5bbd01e7ab5e113d90b88c46afcf074d57d52a2` 已通过 format、test、Clippy、Linux 离线构建和 CLI 冒烟，现有 GPUStack 服务未受影响。
-- 下一项允许执行的工作：M3-A 只读冻结已部署 Server 的版本、注册、heartbeat、状态、watch/full-sync 与最小 probe 契约 fixture，再实现 Server client。
+- 当前停止位置：已从固定 v2.2.3 源码、公开只读响应和同版本 Pydantic 序列化冻结 M3-A fixture；没有执行 Server 写请求，现有 GPUStack 服务未受影响。
+- 下一项允许执行的工作：共同审阅 `server-contract-v2.2.3.md` 与 `rust/fixtures/server-v2.2.3/`；接受前不开始 M3-B Server client 写路径。
 
-当前检查点包含 Rust CLI/Worker 基础源码，但不包含 Worker 注册、真实 Server 写操作、Docker 工作负载变更、GPU 使用或 Python Worker 变更。
+当前检查点包含 Rust CLI/Worker 基础源码和离线契约 fixture，但不包含 Worker 注册、真实 Server 写操作、Docker 工作负载变更、GPU 使用或 Python Worker 变更。

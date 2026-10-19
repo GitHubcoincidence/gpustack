@@ -1,0 +1,57 @@
+{
+  "items": [
+    {
+      "api_detected_backend_version": null,
+      "backend": "vLLM",
+      "backend_version": null,
+      "cluster_id": 1,
+      "computed_resource_claim": null,
+      "created_at": "2026-01-02T03:04:05Z",
+      "distributed_servers": null,
+      "download_progress": null,
+      "draft_model_download_progress": null,
+      "draft_model_resolved_path": null,
+      "draft_model_source": null,
+      "gpu_addresses": [
+        "00000000-0000-4000-8000-0000000000a0"
+      ],
+      "gpu_indexes": [
+        0
+      ],
+      "gpu_type": null,
+      "huggingface_filename": null,
+      "huggingface_repo_id": null,
+      "id": 301,
+      "injected_backend_parameters": null,
+      "last_restart_time": null,
+      "local_path": "/models/Qwen-7B",
+      "model_id": 201,
+      "model_name": "contract-qwen",
+      "model_scope_file_path": null,
+      "model_scope_model_id": null,
+      "mounted_loras": null,
+      "name": "contract-qwen-001",
+      "owner_principal_id": 1,
+      "pid": null,
+      "port": null,
+      "ports": [],
+      "resolved_path": null,
+      "restart_count": 0,
+      "source": "local_path",
+      "state": "scheduled",
+      "state_message": null,
+      "updated_at": "2026-01-02T03:04:05Z",
+      "worker_advertise_address": null,
+      "worker_id": 101,
+      "worker_ifname": "eth0",
+      "worker_ip": "192.0.2.10",
+      "worker_name": "rust-worker-contract"
+    }
+  ],
+  "pagination": {
+    "page": -1,
+    "perPage": 100,
+    "total": 1,
+    "totalPage": 1
+  }
+}

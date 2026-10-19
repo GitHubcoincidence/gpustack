@@ -1,0 +1,58 @@
+{
+  "advertise_address": null,
+  "cluster_id": null,
+  "external_id": null,
+  "hostname": "contract-host",
+  "ifname": "eth0",
+  "ip": "192.0.2.10",
+  "labels": {
+    "arch": "x86_64",
+    "os": "linux"
+  },
+  "machine_id": null,
+  "maintenance": null,
+  "metrics_port": 20151,
+  "name": "rust-worker-contract",
+  "owner_principal_id": null,
+  "port": 20150,
+  "proxy_mode": "worker",
+  "state_message": null,
+  "status": {
+    "cpu": {
+      "total": 0,
+      "utilization_rate": null
+    },
+    "filesystem": [],
+    "gpu_devices": [],
+    "kernel": {
+      "architecture": "",
+      "name": "",
+      "release": "",
+      "version": ""
+    },
+    "memory": {
+      "allocated": null,
+      "is_unified_memory": false,
+      "total": 0,
+      "used": null,
+      "utilization_rate": null
+    },
+    "os": {
+      "name": "",
+      "version": ""
+    },
+    "rpc_servers": null,
+    "swap": {
+      "total": 0,
+      "used": null,
+      "utilization_rate": null
+    },
+    "uptime": {
+      "boot_time": "",
+      "uptime": 0.0
+    }
+  },
+  "system_reserved": null,
+  "worker_uuid": "00000000-0000-4000-8000-000000000001",
+  "worker_version": "v2.2.3"
+}

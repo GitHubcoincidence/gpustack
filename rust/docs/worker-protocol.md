@@ -2,9 +2,9 @@
 
 ## 兼容基线
 
-R1 以 90 服务器上已经运行的准确 GPUStack Server 部署为目标。M1 记录其版本、容器镜像 tag 和 digest，以及对应源码 commit。R1 实现和验证期间不升级 Server。
+R1 以 90 服务器上已经运行的 GPUStack `v2.2.3` 为准确目标，源码 commit 固定为 `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`。部署 image tag、digest 与环境身份见 `environment-baseline.md`。R1 实现和验证期间不升级 Server。
 
-本地源码 commit `76dc841916ff8fed4068a1ab99d178d2e27a4a06` 只用于设计阶段的代码检查。在 M1 证明它与已部署 Server 匹配前，它不是正式兼容基线。
+M3 的准确 endpoint、schema、认证、分页、watch framing、错误和 fixture 见 `server-contract-v2.2.3.md` 与 `rust/fixtures/server-v2.2.3/`。设计阶段检查过的其他 commit 不再是兼容性证据。
 
 ## Worker 到 Server 的操作
 
@@ -21,7 +21,7 @@ R1 以 90 服务器上已经运行的准确 GPUStack Server 部署为目标。M1
 - R1 CLI 使用的运维侧 model CRUD 与日志 API；
 - R1 CLI 使用的 OpenAI-compatible 推理请求。
 
-准确 prefix、schema、认证 header、null 行为、enum 拼写与错误响应体，都要从 M1 冻结的 Server 捕获为契约 fixture。
+准确 prefix、schema、认证 header、null 行为、enum 拼写与错误响应体已经在 M3-A 从固定源码、公开只读响应和同版本 Pydantic 序列化中形成契约 fixture。第一次隔离身份集成测试必须再以真实认证响应交叉验证 synthetic 样本。
 
 ## Worker HTTP API
 

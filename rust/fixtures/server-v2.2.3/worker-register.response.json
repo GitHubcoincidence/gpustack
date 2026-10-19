@@ -1,0 +1,73 @@
+{
+  "advertise_address": null,
+  "cluster_id": null,
+  "created_at": "2026-01-02T03:04:05Z",
+  "external_id": null,
+  "heartbeat_time": null,
+  "hostname": "contract-host",
+  "id": 101,
+  "ifname": "eth0",
+  "ip": "192.0.2.10",
+  "labels": {
+    "arch": "x86_64",
+    "os": "linux"
+  },
+  "maintenance": null,
+  "me": null,
+  "metrics_port": 20151,
+  "name": "rust-worker-contract",
+  "owner_principal_id": null,
+  "port": 20150,
+  "provider": "Docker",
+  "provider_config": null,
+  "provision_progress": null,
+  "proxy_address": null,
+  "proxy_mode": "worker",
+  "ssh_key_id": null,
+  "state": "not_ready",
+  "state_message": null,
+  "status": {
+    "cpu": {
+      "total": 0,
+      "utilization_rate": null
+    },
+    "filesystem": [],
+    "gpu_devices": [],
+    "kernel": {
+      "architecture": "",
+      "name": "",
+      "release": "",
+      "version": ""
+    },
+    "memory": {
+      "allocated": null,
+      "is_unified_memory": false,
+      "total": 0,
+      "used": null,
+      "utilization_rate": null
+    },
+    "os": {
+      "name": "",
+      "version": ""
+    },
+    "rpc_servers": null,
+    "swap": {
+      "total": 0,
+      "used": null,
+      "utilization_rate": null
+    },
+    "uptime": {
+      "boot_time": "",
+      "uptime": 0.0
+    }
+  },
+  "system_principal_id": null,
+  "system_reserved": null,
+  "token": "<redacted-worker-token>",
+  "unreachable": false,
+  "updated_at": "2026-01-02T03:04:05Z",
+  "worker_config": null,
+  "worker_pool_id": null,
+  "worker_uuid": "00000000-0000-4000-8000-000000000001",
+  "worker_version": "v2.2.3"
+}

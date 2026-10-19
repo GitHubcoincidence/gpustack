@@ -1,0 +1,48 @@
+{
+  "items": [
+    {
+      "access_policy": "authed",
+      "backend": "vLLM",
+      "backend_parameters": null,
+      "backend_version": null,
+      "categories": [],
+      "cluster_id": null,
+      "cpu_offloading": null,
+      "created_at": "2026-01-02T03:04:05Z",
+      "description": null,
+      "distributable": false,
+      "distributed_inference_across_workers": true,
+      "env": null,
+      "extended_kv_cache": null,
+      "generic_proxy": false,
+      "gpu_selector": null,
+      "has_stale_lora_instances": null,
+      "huggingface_filename": null,
+      "huggingface_repo_id": null,
+      "id": 201,
+      "image_name": "quay.io/gpustack/runner:cuda13.0-vllm0.25.1",
+      "local_path": "/models/Qwen-7B",
+      "lora_list": null,
+      "meta": {},
+      "model_scope_file_path": null,
+      "model_scope_model_id": null,
+      "name": "contract-qwen",
+      "owner_principal_id": 1,
+      "placement_strategy": "spread",
+      "ready_replicas": 0,
+      "replicas": 1,
+      "restart_on_error": true,
+      "run_command": null,
+      "source": "local_path",
+      "speculative_config": null,
+      "updated_at": "2026-01-02T03:04:05Z",
+      "worker_selector": {}
+    }
+  ],
+  "pagination": {
+    "page": -1,
+    "perPage": 100,
+    "total": 1,
+    "totalPage": 1
+  }
+}
