@@ -16,20 +16,20 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
-- 当前阶段：M3-C.1 Server 权威身份修正已实现并通过离线门禁；M3-D 真实 Server 集成暂停
+- 状态：`ready`
+- 当前阶段：M3-C.1 Server 权威身份修正已接受；M3-D 真实 Server 集成尚未开始
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-C.1 决策检查点为 `118622e2f4046f65b0f3060180b69b3953dcdb18`，代码检查点为 `e04fda6562c1065491b7eb7478bb617f33d9d4f7`；两者均已推送到 fork。
+- 90 主机源码状态：M3-C.1 决策检查点为 `118622e2f4046f65b0f3060180b69b3953dcdb18`，代码检查点为 `e04fda6562c1065491b7eb7478bb617f33d9d4f7`，待审阅治理检查点为 `30ad11899b8ae475587ed46f8f32e3d27fcd91e5`；本次验收结论随新的治理检查点提交。
 - 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、控制循环和 Server 权威 Worker 身份两文件状态机已建立；尚未执行真实 Server 集成，也未实现 Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-C.1 为 `ready_for_review`；M3-C 控制循环结论继续有效，旧 UUID 等值语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：在聊天中交付 M3-C.1 详细实现报告并等待用户重新验收；不得开始 M3-D 或真实写请求。
+- 当前停止位置：M3-C.1 已接受；M3-C 控制循环结论继续有效，旧 UUID 等值语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：重新确认 M3-D 隔离身份、凭据输入、运行时长、保留/清理与回滚门禁；未获明确执行批准前不得发送真实注册或其他写请求。
 
 ## 里程碑
 
@@ -227,6 +227,16 @@
 - 安全边界：全部测试使用临时目录、静态 fixture 和 mock transport；没有读取真实 token，没有注册真实 Worker，没有发送 heartbeat/status 或其他真实写请求，没有操作 Docker 容器、GPU、vLLM 或 Python Worker。
 - 当前停止位置：M3-C.1 状态为 `ready_for_review`，等待直接实现报告和用户共同验收；M3-D 继续暂停。
 - 下一项允许执行的工作：完成详细报告与审阅；若用户接受，再提交验收治理检查点并恢复 M3-D 的独立审批流程。
+
+### 2026-10-20：M3-C.1 Server 权威身份修正接受
+
+- 目的：在恢复真实 Server 集成讨论前，正式确认纠偏后的身份权威、两文件状态机、安全不变量、fixture 语义和离线证据。
+- 结果：用户在收到逐项实现报告后确认无问题，M3-C.1 状态由 `ready_for_review` 更新为 `accepted`。
+- 接受范围：Server 返回的 Worker ID/name/UUID 为权威；身份元数据先于 token 持久化；正常重启核验、metadata-only 恢复、token-only fail closed、持久 token 被拒绝时不重新注册，以及相应离线回归测试。
+- 保留的失效记录：M3-A 注册请求/响应 UUID 等值 fixture 语义与 M3-C 对应断言继续标记为 `invalidated`，不得重新作为兼容性证据；M3-C 控制循环和其他已验证契约不受影响。
+- 安全边界：本次接受只确认离线实现，不授权真实 Worker 注册、heartbeat/status、Docker、GPU、vLLM 或 Python Worker 操作。
+- 当前停止位置：M3-C.1 已接受，M3-D 尚未开始。
+- 下一项允许执行的工作：恢复 M3-D 执行前门禁讨论；第一次真实 Server 写请求必须再次获得用户明确批准。
 
 ## 未解决风险与待确认事项
 
