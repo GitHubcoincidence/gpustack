@@ -77,9 +77,14 @@ fn live_fixtures_pin_the_server_identity_and_error_shape() {
 
 #[test]
 fn full_sync_and_worker_fixtures_pin_control_plane_semantics() {
+    let request = parse_json("worker register request", WORKER_REGISTER_REQUEST);
     let register = parse_json("worker register response", WORKER_REGISTER_RESPONSE);
     assert_eq!(register["worker_version"], "v2.2.3");
     assert_eq!(register["token"], "<redacted-worker-token>");
+    assert_ne!(register["worker_uuid"], request["worker_uuid"]);
+
+    let status = parse_json("worker status", WORKER_STATUS);
+    assert_eq!(status["worker_uuid"], register["worker_uuid"]);
 
     let heartbeat = parse_json("worker heartbeat", WORKER_HEARTBEAT);
     assert_eq!(heartbeat, Value::Object(Default::default()));

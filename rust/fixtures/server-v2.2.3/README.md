@@ -16,8 +16,11 @@ GPUStack `v2.2.3`，源码 commit
   identity、地址、时间和 token 都是保留测试值，不来自数据库或真实凭据。
 
 这些 synthetic 样本固定字段名、默认值、null、enum 拼写和事件编码，但不声称
-是一次真实注册或模型部署的捕获。第一次隔离身份集成测试必须把真实响应与这些
-样本比较；若有差异，先更新契约证据，再修改 Rust client。
+是一次真实注册或模型部署的捕获。注册请求使用的候选 UUID 以 `...0001` 结尾，
+注册响应中的 Server 权威 UUID 以 `...0002` 结尾，随后 status fixture 也使用
+`...0002`。这个差异刻意模拟 v2.2.3 路由忽略首次请求 UUID 并生成新 UUID 的行为。
+第一次隔离身份集成测试必须把真实响应与这些样本比较；若有差异，先更新契约证据，
+再修改 Rust client。
 
 ## 文件与用途
 
@@ -25,8 +28,8 @@ GPUStack `v2.2.3`，源码 commit
 |---|---|
 | `live-version.response.json` | `GET /version` 成功响应 |
 | `unauthenticated.response.json` | 通用未认证错误响应 |
-| `worker-register.request.json` | `POST /v2/workers` 请求体 |
-| `worker-register.response.json` | 注册成功的 `WorkerRegistrationPublic` 响应体 |
+| `worker-register.request.json` | `POST /v2/workers` 请求体；首次 UUID 是非权威候选值 |
+| `worker-register.response.json` | 注册成功的 `WorkerRegistrationPublic` 响应体；UUID 由 Server 分配 |
 | `workers-me.response.json` | `GET /v2/workers?me=true` 响应体 |
 | `worker-heartbeat.request.json` | `POST /v2/worker-heartbeat` 请求体；成功 body 为空、status 为 204 |
 | `worker-status.request.json` | `POST /v2/worker-status` 请求体；成功 body 为空、status 为 204 |

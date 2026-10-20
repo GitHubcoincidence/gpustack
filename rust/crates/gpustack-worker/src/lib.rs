@@ -9,6 +9,6 @@ pub mod signal;
 pub use config::{ConfigError, ConfigOverrides, LoadedConfig, WorkerConfig, load_config};
 pub use doctor::{DoctorReport, run_doctor};
 pub use identity::{
-    CredentialStore, IdentityBootstrap, IdentityError, IdentitySource, WorkerIdentity,
-    worker_credential_path,
+    CredentialStore, IdentityBootstrap, IdentityError, IdentityRecordStore, IdentitySource,
+    WorkerIdentity, WorkerIdentityRecord, worker_credential_path, worker_identity_path,
 };

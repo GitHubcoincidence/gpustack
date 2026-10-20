@@ -2,7 +2,7 @@
 
 ## 状态与边界
 
-- 状态：`ready_for_review`
+- 状态：`accepted`；2026-10-20 以 M3-C.1 修正注册身份语义
 - 兼容版本：GPUStack `v2.2.3`
 - 源码 commit：`1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`
 - 目标部署：90 主机当前运行的固定 Server；R1 期间不升级
@@ -45,9 +45,11 @@ token 值。
 | ModelInstance 全量同步 | `GET /v2/model-instances?page=-1` | Worker token | query | `200 PaginatedList<ModelInstancePublic>` |
 | 更新 observed state | `PUT /v2/model-instances/{id}` | Worker token | 完整 `ModelInstanceUpdate` | `200 ModelInstancePublic` |
 
-Python Worker 注册时总是重新请求注册，持久化 Server 返回的 Worker token，再用它
-建立正式 client。随后以 `me=true` 查询自身，结果不是恰好一项就视为注册失败。
-Rust Worker 采用相同序列，但写入 token 文件必须使用原子替换和仅 owner 可读权限。
+Python Worker 注册时总是重新请求注册，并保存 Server 返回的 Worker name、UUID 和
+token，再用 Worker token 建立正式 client。随后以 `me=true` 查询自身，结果不是
+恰好一项就视为注册失败。Rust Worker 采用相同的 Server 权威身份语义，但使用本地
+身份元数据和 token 的两文件状态机保证重启与部分写入恢复；两类文件都必须原子发布、
+不可覆盖且仅 owner 可读。
 
 注册请求的 `worker_version` 是 Server 兼容身份；R1 固定发送 `v2.2.3`。Rust
 artifact 版本、Git commit 和 build target 仍由 Rust `/version` 与 CLI `version`
@@ -105,6 +107,13 @@ OpenAPI required 字段为：`name`、`hostname`、`ip`、`ifname`、`port`、`s
 optional `worker_config`。常规 `GET /workers` 明确排除 `worker_uuid` 和
 `machine_id`，也绝不返回 token。Rust response deserializer 必须允许新增未知字段，
 并把所有 optional 字段的缺失与显式 null 都映射为 `None`。
+
+固定 v2.2.3 的新 Worker 注册路由不会保留首次请求中的 `worker_uuid`：路由先排除该
+字段并以空值创建 Worker，再由 Server 生成唯一 UUID。注册响应中的 UUID 因而是权威
+值，不能要求它等于请求 UUID。`me` 响应又不包含 UUID，所以 Rust Worker 必须把注册
+响应的 `id`、`name` 和 `worker_uuid` 持久化到私有身份元数据；正常重启用 `me` 核验
+ID/name，并从元数据恢复 UUID。若身份元数据已落盘而 token 尚未落盘，则以保存的
+Server UUID 重注册同一 Worker；token 存在而身份元数据缺失时必须拒绝启动。
 
 ### Worker status
 

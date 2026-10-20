@@ -144,7 +144,11 @@ async fn client_uses_the_frozen_control_plane_contract() {
         .register(&registration_token, &worker)
         .await
         .expect("register");
-    assert_eq!(registration.worker_uuid, worker.worker_uuid);
+    assert_ne!(registration.worker_uuid, worker.worker_uuid);
+    assert_eq!(
+        registration.worker_uuid,
+        "00000000-0000-4000-8000-000000000002"
+    );
     assert_eq!(client.me(&worker_token).await.expect("me").id, 101);
     client.heartbeat(&worker_token).await.expect("heartbeat");
     client

@@ -68,6 +68,6 @@
   "updated_at": "2026-01-02T03:04:05Z",
   "worker_config": null,
   "worker_pool_id": null,
-  "worker_uuid": "00000000-0000-4000-8000-000000000001",
+  "worker_uuid": "00000000-0000-4000-8000-000000000002",
   "worker_version": "v2.2.3"
 }
