@@ -32,6 +32,26 @@ M1 从只读检查开始，必须确认：
 
 只读盘点期间，不修改任何现有容器、服务、配置、端口分配或模型。如果不确定项会改变部署拓扑，项目返回设计讨论，不直接进入实现。
 
+## M3-D 隔离真实控制面门禁
+
+M3-D 使用固定隔离身份 `rust-m3d-r760xa`，在 `10.213.80.90:20150` 提供最小 `GET /healthz`。数据目录固定为 `/home/wujiaxing2/.local/state/gpustack-rust-worker/m3d`，注册令牌只允许从 `/home/wujiaxing2/.config/gpustack-rust/m3d-registration-token` 读取。Server 返回的 Worker ID、名称和 UUID 仍按 D035 作为权威身份持久化。
+
+`gpustack-rs worker run --control-plane-only` 必须以类型化 maintenance 配置注册 Worker，且满足以下硬约束：
+
+- `maintenance.enabled=true`，维护信息说明这是 Rust M3-D control-plane validation；
+- `gpu_devices=[]`，不提供 metrics 端口；
+- 不初始化 GPU/NVML、Docker client、vLLM、ModelFile manager 或 ModelInstance reconciler；
+- 不发送 ModelFile 或 ModelInstance 状态更新；
+- 只运行版本检查、注册/身份恢复、heartbeat/status、Model/ModelInstance/ModelFile list/watch/full-sync 和 liveness；
+- 日志、CLI 输出、测试证据和 Git diff 均不得出现注册 token、Worker token 或 Authorization header。
+
+M3-D 分成两个独立门禁：
+
+1. **M3-D.1 离线实现**：实现 CLI run 路径、最小 health listener、类型化 maintenance、安全关闭和可观测摘要；使用 fixture、mock transport 和临时目录验证，不读取真实 token，不向真实 Server 写入。完成后直接在聊天中交付详细实现报告并等待审阅。
+2. **M3-D.2 真实集成**：只有另获用户明确批准后才准备凭据并注册。首次运行至少 6 分钟，覆盖多轮 heartbeat/status、watch 保活和一次周期 full sync；正常停止后用相同数据目录再次运行约 2 分钟，验证恢复同一身份且不产生重复 Worker。
+
+真实集成通过条件包括：Server 只有一个隔离身份、状态始终为 maintenance、GPU 列表为空、Server 能访问 Rust `/healthz`、心跳持续推进、三资源同步稳定、重启复用同一 ID/UUID、没有 ModelInstance/ModelFile 写入、没有新增 Docker/vLLM/GPU 进程，且 Python Server/Worker 全程健康。停止后 Rust 进程和端口必须消失。正常验收保留 maintenance identity 与本地状态供 M4 复用；精确删除 Server Worker 记录属于另一个破坏性门禁。
+
 ## 验证策略
 
 ### 本地自动化检查
@@ -122,4 +142,4 @@ M1 环境基线、M2 Rust workspace/CLI 骨架、M3-B client、M3-C 控制循环
 
 2026-10-20 的状态机复核确认原设计错误地让本地模型跳过 `DOWNLOADING`，并遗漏 ModelFile 控制资源。该设计偏差尚未进入 Docker/runtime 实现；已接受修订要求 Managed 完整遵循 ModelInstance/ModelFile 状态所有权，同时保留 Lab 独立本地状态。
 
-M3-C.2 已接受：Rust Worker 具备完整调度状态链所需的 ModelInstance/ModelFile 协议建模、三资源缓存和断线恢复，但尚不执行实际状态推进、文件准备或 vLLM 启动。M3-D 尚未开始；下一步只能共同冻结隔离真实集成的身份、凭据、端口、清理和回滚门禁，在另获明确批准前不得读取现有 token，也不得连接真实 Server 写路径、Docker、GPU 或 vLLM。
+M3-C.2 已接受：Rust Worker 具备完整调度状态链所需的 ModelInstance/ModelFile 协议建模、三资源缓存和断线恢复，但尚不执行实际状态推进、文件准备或 vLLM 启动。M3-D 的隔离身份、端口、运行模式、凭据、清理和回滚设计已冻结；下一项允许工作是 M3-D.1 离线实现。在 M3-D.1 完成详细实现报告并再次获得明确批准前，不得读取现有 token 或连接真实 Server 写路径，也不得操作 Docker、GPU、vLLM 或 Python Worker。

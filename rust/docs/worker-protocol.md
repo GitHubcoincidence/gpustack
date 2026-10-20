@@ -25,6 +25,12 @@ M3 的准确 endpoint、schema、认证、分页、watch framing、错误和 fix
 
 准确 prefix、schema、认证 header、null 行为、enum 拼写与错误响应体已经在 M3-A 从固定源码、公开只读响应和同版本 Pydantic 序列化中形成契约 fixture。第一次隔离身份集成测试必须再以真实认证响应交叉验证 synthetic 样本。
 
+## M3-D 真实协议验证子集
+
+第一次真实集成只允许 `control-plane-only` 子集：版本检查、注册或 `me` 身份恢复、heartbeat、status，以及三类资源的 list/watch/full-sync。注册请求的 maintenance 必须类型化为 `enabled=true`，status 必须携带空 GPU 列表；M3-D 不调用 ModelInstance 或 ModelFile update，也不启动任何工作负载。
+
+Rust Worker 在独立的 `10.213.80.90:20150` 提供最小 `GET /healthz`，供 Server 探测真实进程。该响应只证明 liveness；M3-D 不宣称 `/readyz`、metrics 或其他 Worker API 已实现。真实运行时必须记录 Server 可见状态、心跳推进、watch/full-sync、重启身份恢复和无副作用证据，但不得记录任何 token 或 Authorization header。
+
 ## Worker HTTP API
 
 ### 公开探针

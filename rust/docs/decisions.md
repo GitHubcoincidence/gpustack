@@ -86,3 +86,17 @@ M3-A 中“注册请求 UUID 与响应 UUID 相同”的 synthetic fixture 语�
 | D039 | 里程碑顺序 | 在 M3-D 前加入 M3-C.2，离线补齐 ModelFile schema/fixture/client/list/watch/update 与控制缓存；M6 拆为文件准备状态协调和 `STARTING` 后 runtime 两部分 | 第一次真实控制面集成应覆盖 Worker 所需的三类资源，并在启动容器前固定状态所有权门禁。 |
 
 D036–D039 修订了最初设计中“本地模型不经过下载阶段”和只同步 Model/ModelInstance 的假设。修订时 Rust Worker 尚未实现 Docker workload、ModelFile manager 或 Managed reconciler，因此没有需要作废的运行时或 GPU 证据；M3-C 已接受的身份、heartbeat/status、Model/ModelInstance watch/full-sync 结论继续有效。M3-D 的真实写路径仍需单独批准。
+
+## 2026-10-20 M3-D 隔离真实控制面设计冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D040 | M3-D 运行模式 | 新增显式 `gpustack-rs worker run --control-plane-only`；只启动身份、探针、heartbeat/status 和三类控制资源同步，不初始化 GPU、Docker、vLLM、ModelFile 准备或 ModelInstance reconciler | 让第一次真实集成只验证控制面协议，不能因默认初始化路径意外执行工作负载。 |
+| D041 | 不可调度双重门禁 | 注册时提交 `maintenance.enabled=true`，并上报空 `gpu_devices`；maintenance 是主要调度隔离，空 GPU 是独立防御 | 固定 v2.2.3 调度器只接受 `READY` Worker；只依赖空 GPU 不能覆盖未来 CPU/offload 等候选路径。 |
+| D042 | 最小 Worker HTTP 能力 | 从 M4 提前实现独立端口上的 `GET /healthz`，只表示 Rust 进程存活；M3-D 不提供 readiness、metrics、文件、日志或推理 API | Server 必须能够探测真实 Rust Worker，不能借用 Python Worker 端口，也不能把存活误报为完整工作就绪。 |
+| D043 | 隔离身份与目录 | 名称 `rust-m3d-r760xa`、IP `10.213.80.90`、网卡 `eno8403`、health 端口 `20150`、无 metrics 端口、数据目录 `/home/wujiaxing2/.local/state/gpustack-rust-worker/m3d`、注册令牌文件 `/home/wujiaxing2/.config/gpustack-rust/m3d-registration-token` | 与现有 Python Worker 的 `10150/10151`、身份和数据完全隔离，并给重启恢复提供固定位置。 |
+| D044 | 凭据策略 | 优先使用专用 cluster registration token；若创建不便，可在另获明确批准后把现有 Python Worker 的 `GPUSTACK_TOKEN` 直接写入权限为 `0600` 的文件，整个过程不得在终端、日志、Git 或证据中回显 | 保持凭据来源可撤销、可审计，同时为当前部署保留安全的实际执行路径。 |
+| D045 | 阶段与外部写入门禁 | M3-D.1 只做代码、fixture/mock 测试和实现报告；M3-D.2 才读取获批凭据并对真实 Server 注册、heartbeat/status。接受本设计不授权 M3-D.2 | 把实现审阅与真实系统变更分开，使用户能在任何外部写入前检查完整行为。 |
+| D046 | 验收后身份处理 | 验收后停止 Rust 进程，但保留 maintenance Worker identity 和本地状态供 M4 复用；完整删除只在最终清理、身份失效或用户针对精确 Worker ID 另行批准时执行 | Worker identity 本应跨重启持久；保留不可调度身份既能验证恢复，也避免各阶段重复注册和危险级联清理。 |
+
+M3-D.2 的第一次运行至少持续 6 分钟，以覆盖多轮 heartbeat/status、watch 保活和一次五分钟周期 full sync；正常停止后使用相同数据目录再次运行约 2 分钟，证明恢复同一 Server 身份且不产生重复 Worker。该阶段不要求 drain 或停止 Python Worker，因为 Rust Worker 处于 maintenance、上报空 GPU 且没有 runtime 路径；任何后续 GPU、Docker 或 vLLM 测试仍必须使用单独维护窗口。

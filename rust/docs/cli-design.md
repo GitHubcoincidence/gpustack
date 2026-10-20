@@ -25,6 +25,18 @@ gpustack-rs
 
 最终命令树在 `gpustack` 下保留这些子命令，并随着后续 Server 模块的重写继续扩展。
 
+## M3-D control-plane-only 启动
+
+M3-D.1 为 `worker run` 增加显式安全模式：
+
+```text
+gpustack-rs worker run --config <path> --control-plane-only
+```
+
+该命令只启动最小 `/healthz`、Worker 注册或身份恢复、heartbeat/status，以及 Model、ModelInstance、ModelFile 的 list/watch/full-sync。它注册为 maintenance、上报空 GPU，并且不初始化 NVML、Docker、vLLM、文件准备或模型 reconciler。`control-plane-only` 必须显示在结构化状态和启动日志中，不能静默退化成普通 Managed Worker。
+
+注册凭据仍只能来自权限受限的 token 文件，不能作为命令行值传入。进程收到 `SIGINT` 或 `SIGTERM` 后停止后台循环和 health listener，保留 Server identity 与本地状态供下一次启动核验。M3-D 不提供自助删除 Server Worker 的 CLI；精确身份删除属于单独的破坏性操作门禁。
+
 ## Managed 模型命令
 
 `model deploy` 使用运维人员身份认证，并通过 Server API 创建模型。它不直接访问 Docker 或 Worker。R1 强制显式指定目标 Worker，避免测试任务被调度到 Python Worker。

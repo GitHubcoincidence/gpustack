@@ -72,6 +72,12 @@ RUNNING -> STOPPED
 
 这些状态只描述一次本地实验部署。Lab 可以直接解析本地模型路径并继续启动容器，但必须复用 Managed 路径将使用的模型路径校验、分片解析、Docker planner、runtime 和健康检查；它不创建 `ModelFile`，也不向 Server 上报任何模型生命周期状态。
 
+### M3-D control-plane-only 验证模式
+
+`gpustack-rs worker run --control-plane-only` 是完整 Managed 模式之前的受限启动配置，不是第二套生产模式。它只运行最小 `/healthz`、Server 版本检查、Worker 注册/恢复、heartbeat/status 和三资源 list/watch/full-sync。注册请求固定携带 `maintenance.enabled=true`，状态固定上报空 GPU；进程不构造 runtime、GPU inventory、ModelFile manager 或 ModelInstance reconciler，因此不能接受或执行模型任务。
+
+该模式用于把真实 Server 协议证据与 Docker/GPU/runtime 证据分离。M4 以后逐步启用的能力不能在 M3-D 中被隐式探测或自动开启；完整 Managed 启动路径仍以下述生命周期为目标。
+
 ## 状态所有权
 
 | 状态 | 权威来源 |
@@ -88,7 +94,7 @@ RUNNING -> STOPPED
 
 本地 manifest 只用于辅助恢复，不是权威来源。必须能根据 Server 的权威快照和 Docker 所有权标签重建它们。
 
-## 启动生命周期
+## 完整 Managed 启动生命周期
 
 1. 解析配置，并获取数据目录的排他进程锁。
 2. 启动 HTTP listener；liveness 可用，但 readiness 为 false。

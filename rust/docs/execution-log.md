@@ -14,23 +14,24 @@
 - 2026-10-19：用户把代码注释设为硬门禁，并要求每个实现阶段在请求验收前直接在聊天中交付详细实现报告；两项要求追溯应用于尚未接受的 M3-B。
 - 2026-10-19：用户澄清代码门禁要求的是关键必要注释而非逐项公开文档；取消 `missing_docs = "deny"`，并把注释过量同样列为门禁失败。阶段直接汇报要求不变。
 - 2026-10-20：纠正 Managed 状态机设计：本地模型也保留 ModelFile 控制链和 `DOWNLOADING`，Lab 使用独立本地状态；M3-D 前新增 M3-C.2 ModelFile 离线协议阶段。
+- 2026-10-20：冻结 M3-D control-plane-only、maintenance 加空 GPU 双重隔离、独立 health 端口、两段式执行门禁与身份保留方案；方案接受不授权真实 Server 写入。
 
 ## 当前状态
 
-- 状态：`accepted`
-- 当前阶段：M3-C.2 ModelFile 控制协议已接受；M3-D 真实 Server 集成尚未开始
+- 状态：`ready`
+- 当前阶段：M3-D 设计已冻结；M3-D.1 离线实现尚未开始
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-C.2 启动检查点为 `ac2e9c7892b25ddee22cd4b6d08a374b36e7773f`，代码检查点为 `b8a9b126770dc963518c839557d348d62eca03cd`，待审阅治理检查点为 `5633e15f98047ee74454edf146ec0567cb54ead9`；本次验收结论随独立治理检查点提交。
+- 90 主机源码状态：M3-C.2 启动检查点为 `ac2e9c7892b25ddee22cd4b6d08a374b36e7773f`，代码检查点为 `b8a9b126770dc963518c839557d348d62eca03cd`，待审阅治理检查点为 `5633e15f98047ee74454edf146ec0567cb54ead9`，接受检查点为 `32bcfcfc467853b1890e4424e25d342d360c06d1`。
 - 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、Server 权威 Worker 身份两文件状态机，以及 Model/ModelInstance/ModelFile 三资源控制循环已经建立；尚未执行真实 Server 集成、ModelFile 本地准备、Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-C.2 已接受；M3-D 尚未开始。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：共同冻结 M3-D 的隔离 Worker identity、凭据来源、端口、数据目录、Server 可见性、清理和回滚门禁；任何真实注册或写路径必须再次获得明确批准。
+- 当前停止位置：M3-D 设计已冻结，M3-D.1 离线实现尚未开始。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：实现 M3-D.1 `worker run --control-plane-only`、最小 `/healthz`、类型化 maintenance 和优雅停止，并只用 fixture/mock 验证。任何真实凭据读取、注册或写路径仍必须再次获得明确批准。
 
 ## 里程碑
 
@@ -286,6 +287,20 @@
 - 安全边界：验收不授权读取现有 token、注册真实 Worker、发送 heartbeat/status/ModelFile/ModelInstance 写请求，或操作 Docker、GPU、vLLM 与 Python Worker。
 - 当前停止位置：M3-C.2 已接受，M3-D 尚未开始。
 - 下一项允许执行的工作：共同冻结 M3-D 的隔离身份和真实集成运行手册；只有用户随后明确批准真实写路径，才能执行 M3-D。
+
+### 2026-10-20：M3-D 隔离真实控制面设计冻结
+
+- 目的：在第一次真实 Server 注册前固定 Rust Worker 的运行范围、不可调度保护、身份、端口、凭据处理、运行时长、证据和清理边界。
+- 用户确认：用户接受 `control-plane-only` 设计，并同意提前实现最小 `/healthz`、优先使用专用注册 token 且保留安全复用现有 token 的备选路径、验收后保留 maintenance identity 供 M4 使用。
+- 隔离身份：Worker 名称 `rust-m3d-r760xa`，IP `10.213.80.90`，网卡 `eno8403`，health 端口 `20150`，无 metrics 端口；数据目录 `/home/wujiaxing2/.local/state/gpustack-rust-worker/m3d`，注册令牌文件 `/home/wujiaxing2/.config/gpustack-rust/m3d-registration-token`。
+- 调度保护：注册固定 `maintenance.enabled=true`，状态上报固定空 GPU；M3-D 不初始化 NVML、Docker、vLLM、ModelFile manager 或 ModelInstance reconciler，也不发送 ModelFile/ModelInstance update。
+- 分阶段门禁：M3-D.1 只实现代码并用 fixture/mock 验证，完成后必须直接交付详细实现报告；M3-D.2 才能在再次明确批准后读取凭据并对真实 Server 写入。
+- 真实运行计划：首次连续运行至少 6 分钟，正常停止后以相同数据目录再次运行约 2 分钟；证明 heartbeat/status、三资源 watch/full-sync、Server health 探测和同一身份恢复，同时验证无新容器、无 GPU 进程、无模型状态写入且 Python Server/Worker 健康。
+- 清理与延续：每次运行后停止 Rust 进程并确认 `20150` 关闭；正常验收保留 maintenance Worker row 和本地状态供 M4 复用。删除精确 Worker identity 需要单独破坏性审批。
+- 证据等级：当前仅冻结设计，不是实际注册、认证成功、调度兼容或模型运行证据；支持完整状态协议仍不等于已经执行完整调度状态链。
+- 安全边界：本次只修改治理文档，不读取 token，不连接真实 Server 写路径，不操作 Docker、GPU、vLLM 或 Python Worker。
+- 当前停止位置：M3-D 设计已冻结，M3-D.1 尚未开始。
+- 下一项允许执行的工作：提交本治理检查点后，等待用户授权 M3-D.1 离线实现；M3-D.2 仍未授权。
 
 ## 未解决风险与待确认事项
 
