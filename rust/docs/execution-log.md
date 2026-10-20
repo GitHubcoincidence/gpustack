@@ -18,20 +18,20 @@
 
 ## 当前状态
 
-- 状态：`running`
-- 当前阶段：M3-D.1 control-plane-only 离线实现
+- 状态：`ready_for_review`
+- 当前阶段：M3-D.1 control-plane-only 离线实现待审阅
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-C.2 启动检查点为 `ac2e9c7892b25ddee22cd4b6d08a374b36e7773f`，代码检查点为 `b8a9b126770dc963518c839557d348d62eca03cd`，待审阅治理检查点为 `5633e15f98047ee74454edf146ec0567cb54ead9`，接受检查点为 `32bcfcfc467853b1890e4424e25d342d360c06d1`。
-- 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、Server 权威 Worker 身份两文件状态机，以及 Model/ModelInstance/ModelFile 三资源控制循环已经建立；尚未执行真实 Server 集成、ModelFile 本地准备、Docker 工作负载、GPU 盘点或 vLLM 路径。
+- 90 主机源码状态：M3-D 设计检查点为 `090604b5c5735cc8da3b760858a575fc07e2e7ac`，M3-D.1 启动检查点为 `dde1f8e1b2d485b3505c4520b94fb777caa57fa5`，代码检查点为 `49235477b7d436343fded38c5c72bc16d31e0823`。
+- 实现状态：四 crate Rust workspace、类型化 Server client、Server 权威 Worker 身份两文件状态机、Model/ModelInstance/ModelFile 三资源控制循环，以及显式 `worker run --control-plane-only` supervisor 和最小 `/healthz` 已经建立；尚未执行真实 Server 集成、ModelFile 本地准备、Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-D.1 已获用户授权并进入离线实现。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：实现 M3-D.1 `worker run --control-plane-only`、最小 `/healthz`、类型化 maintenance 和优雅停止，并只用 fixture/mock 验证。任何真实凭据读取、注册或写路径仍必须再次获得明确批准。
+- 当前停止位置：M3-D.1 代码已经完成并推送，等待聊天中的详细实现报告和用户共同审阅。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：交付 M3-D.1 详细实现报告并等待验收；M3-D.2 的真实凭据读取、注册和控制面写路径仍未授权。
 
 ## 里程碑
 
@@ -311,6 +311,21 @@
 - 安全边界：测试不得读取 `/home/wujiaxing2/.config/gpustack-rust/m3d-registration-token` 或现有 Python Worker 环境，不得运行新的 `worker run` 连接真实 Server，不得操作 Docker、GPU、vLLM 或 Python Worker。
 - 当前停止位置：M3-D.1 状态为 `running`，代码尚未修改。
 - 下一项允许执行的工作：完成离线实现、自动化门禁、注释审阅和环境无副作用核验，然后提交代码检查点并在聊天中交付详细实现报告。
+
+### 2026-10-20：M3-D.1 control-plane-only 离线实现待审阅
+
+- 结果：代码检查点 `49235477b7d436343fded38c5c72bc16d31e0823` 已实现并推送，M3-D.1 状态为 `ready_for_review`，尚未标记 `accepted`。
+- CLI 与配置：新增显式 `gpustack-rs worker run --control-plane-only`，未提供该安全开关时以配置退出码 10 拒绝运行；补齐 hostname、ifname 和 Worker port 的 YAML、环境变量、CLI 与默认值合并。最终摘要支持 table/JSON，过程事件只输出非敏感身份和控制状态。
+- supervisor 与安全 profile：启动顺序固定为先绑定 health、再安全读取注册凭据、建立或恢复 Server 权威身份、重新读取 `me` 确认 `maintenance.enabled=true`，最后启动 heartbeat/status 和三资源 full-sync/watch。注册与状态固定为空 GPU、无 metrics，不初始化 NVML、Docker、vLLM、ModelFile manager 或 ModelInstance reconciler，也不发送 ModelFile/ModelInstance update。
+- health 与关闭：Tokio 最小监听器只对 `GET /healthz` 返回 200，限制 8 KiB 请求和 2 秒读取时间；端口冲突会在任何凭据或 Server 操作前失败。SIGINT/SIGTERM 会通知 health 和控制循环停止，并输出包含身份来源、desired revision、各健康位和重连计数的摘要。
+- 身份与契约证据：首次 mock 运行保存 Server 返回的 ID/name/UUID 和 Worker token；同一临时数据目录第二次运行恢复同一身份且不重复注册。新增 maintenance Worker synthetic fixture，并将其纳入固定 v2.2.3 契约解析与脱敏检查。
+- 自动化证据：Rust 1.99.1 下 workspace 共 40 项测试通过，其中 CLI 3 项、client 13 项、Worker 24 项；`cargo fmt --check`、全 workspace/all targets/all features Clippy `-D warnings`、locked/offline test、locked/offline build、Rustdoc `-D warnings`、diff check 和 secret scan 全部通过。
+- 依赖证据：没有新增第三方 crate 或版本；Tokio 只启用已有依赖的 `net`/`io-util` feature，CLI 直接声明已有 Tokio，Worker 测试直接声明锁文件中已有 `futures-util`。`Cargo.lock` SHA-256 为 `b6c0de0cbc158818868a749558fe9ca1aa4ca633c2eb3ef367929fe9d34b0eae`。
+- CLI 离线证据：`worker run --help` 展示 safety flag 和完整 identity 参数；固定 M3-D 参数的 `validate-config` 返回 `valid: true`；不带 flag 的 `worker run` 返回 10、stdout 为空，并明确提示必须指定 `--control-plane-only`。没有执行带 flag 的真实 run。
+- 环境与隔离证据：完成后 Server、Python Worker 和 metrics 均为 HTTP 200；`gpustack` 与 `gpustack-worker` 容器继续运行；20150 端口空闲、没有 `gpustack-rs` 进程，两张 A100 仍可见。本阶段没有读取真实 token、注册真实 Worker、发送真实 heartbeat/status 或操作 Docker、GPU、vLLM 与 Python Worker。
+- 漂移审计：实现继续固定 Server v2.2.3、maintenance 加空 GPU 双重隔离、单 Worker、本地 Docker 和 vLLM-only R1 边界；没有提前实现 M4 Worker API、M6 状态写回或 runtime。关键注释只解释端口先绑定、Server UUID 权威和探针错误隔离等非直观不变量。
+- 当前停止位置：M3-D.1 等待聊天中的详细实现报告和用户共同验收，M3-D.2 仍未授权。
+- 下一项允许执行的工作：完成报告与审阅；若用户接受，再记录 M3-D.1 接受检查点并单独讨论是否授权 M3-D.2 真实集成运行手册。
 
 ## 未解决风险与待确认事项
 
