@@ -145,4 +145,4 @@ M1 环境基线、M2 Rust workspace/CLI 骨架、M3-B client、M3-C 控制循环
 
 2026-10-20 的状态机复核确认原设计错误地让本地模型跳过 `DOWNLOADING`，并遗漏 ModelFile 控制资源。该设计偏差尚未进入 Docker/runtime 实现；已接受修订要求 Managed 完整遵循 ModelInstance/ModelFile 状态所有权，同时保留 Lab 独立本地状态。
 
-M3-D.1 已接受，D047–D048 的 M3-D.1.1 离线实现已在代码检查点 `99e9fdb9` 完成并进入 `ready_for_review`。当前只允许交付并审阅详细实现报告；在用户验收且对冻结运行手册再次明确授权前，不得读取真实 token、注册 Worker 或发送真实 Server 写请求，也不得操作 Docker、GPU、vLLM 或 Python Worker。
+M3-D.1 与 D047–D048 的 M3-D.1.1 离线实现均已接受，M3-D.1.1 代码检查点为 `99e9fdb9`。当前只允许共同冻结 M3-D.2 的精确命令和执行门禁；在用户对冻结运行手册再次明确授权前，不得读取真实 token、注册 Worker 或发送真实 Server 写请求，也不得操作 Docker、GPU、vLLM 或 Python Worker。

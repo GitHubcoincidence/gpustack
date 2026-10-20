@@ -18,8 +18,8 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
-- 当前阶段：M3-D.1.1 凭据生命周期离线加固待审阅
+- 状态：`proposed`
+- 当前阶段：M3-D.2 真实集成运行手册讨论
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
@@ -30,8 +30,8 @@
 - 实现状态：四 crate Rust workspace、类型化 Server client、Server 权威 Worker 身份两文件状态机、Model/ModelInstance/ModelFile 三资源控制循环，以及显式 `worker run --control-plane-only` supervisor 和最小 `/healthz` 已经建立；尚未执行真实 Server 集成、ModelFile 本地准备、Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-D.1.1 已在代码检查点 `99e9fdb9` 完成离线实现与门禁，等待详细报告和用户验收。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：交付并审阅 M3-D.1.1 详细实现报告；真实凭据读取、注册和控制面写路径仍未授权。
+- 当前停止位置：用户已审阅并接受 M3-D.1.1 详细实现报告。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：共同冻结 M3-D.2 的精确命令、观测点和执行门禁；真实凭据读取、注册和控制面写路径仍未授权。
 
 ## 里程碑
 
@@ -359,6 +359,16 @@
 - 漂移审计：未改变固定 Server v2.2.3、CLI 参数、身份文件格式、maintenance 加空 GPU、三资源控制循环或 R1 范围；只收紧 D047–D048 已接受的凭据驻留边界。
 - 当前停止位置：M3-D.1.1 等待聊天中的详细实现报告和用户共同验收，M3-D.2 仍未授权。
 - 下一项允许执行的工作：完成报告与审阅；若用户接受，再记录 M3-D.1.1 接受检查点并继续冻结 M3-D.2 的精确命令，真实执行仍需单独明确批准。
+
+### 2026-10-21：M3-D.1.1 凭据生命周期加固接受
+
+- 结果：用户在收到 supervisor 行为、身份状态组合、测试、依赖、隔离证据和限制的详细报告后确认无问题；M3-D.1.1 状态由 `ready_for_review` 更新为 `accepted`。
+- 接受范围：registration token 可选读取和传递；完整 identity 加 per-Worker token 可在没有 Cluster token 时恢复；首次注册和 metadata-only 恢复缺少 Cluster token 时 fail closed，且不发送 `POST /v2/workers`；Cluster token 文件的删除保留为首次真实运行确认身份完整后的显式受控步骤。
+- 证据：设计检查点 `eb5a9c2d80d1e191f9030808e1dcc80e7a217445`；代码检查点 `99e9fdb9038f65c480371005fb62fe1c1d6b1c72`；待审阅治理检查点 `19ae17d9461e9db8f09c9bfa7a121379b5f8c680`；workspace 42 项测试及 fmt、Clippy、locked/offline build、Rustdoc、diff 和 secret 门禁均通过。
+- 明确非结论：本次接受只证明 fixture、mock transport 和临时目录下的凭据生命周期；不证明真实 Cluster token、真实注册、真实 heartbeat/status、Server 探针、持续运行、重启恢复、Docker、GPU 或 vLLM 能力。
+- 安全边界：接受结果不授权读取真实 token、注册真实 Worker、向 Server 写入或启动 `gpustack-rs worker run --control-plane-only`，也不授权操作 Docker、GPU、vLLM 或 Python Worker。
+- 当前停止位置：M3-D.1.1 已接受，M3-D.2 运行手册进入讨论状态。
+- 下一项允许执行的工作：共同冻结 M3-D.2 的凭据写入、预检、首次运行、身份确认、Cluster token 副本删除、第二次恢复、观测、停止和失败处置命令；真实执行仍需用户在完整命令审阅后再次明确批准。
 
 ## 未解决风险与待确认事项
 
