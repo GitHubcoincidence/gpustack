@@ -36,6 +36,8 @@ M1 从只读检查开始，必须确认：
 
 M3-D 使用固定隔离身份 `rust-m3d-r760xa`，在 `10.213.80.90:20150` 提供最小 `GET /healthz`。数据目录固定为 `/home/wujiaxing2/.local/state/gpustack-rust-worker/m3d`，注册令牌只允许从 `/home/wujiaxing2/.config/gpustack-rust/m3d-registration-token` 读取。Server 返回的 Worker ID、名称和 UUID 仍按 D035 作为权威身份持久化。
 
+固定 v2.2.3 的 registration token 是现有默认 Cluster 的共享 bootstrap secret，不是预签发的 per-Worker token。M3-D 为它使用独立的 `0600` 文件，但只保留到首次运行确认 `worker-identity.json` 和 `worker-token` 完整落盘。之后删除该本地副本，第二次运行必须只用 per-Worker token 恢复；首次注册或 metadata-only 恢复缺少 Cluster token 时必须 fail closed。
+
 `gpustack-rs worker run --control-plane-only` 必须以类型化 maintenance 配置注册 Worker，且满足以下硬约束：
 
 - `maintenance.enabled=true`，维护信息说明这是 Rust M3-D control-plane validation；
@@ -45,10 +47,11 @@ M3-D 使用固定隔离身份 `rust-m3d-r760xa`，在 `10.213.80.90:20150` 提�
 - 只运行版本检查、注册/身份恢复、heartbeat/status、Model/ModelInstance/ModelFile list/watch/full-sync 和 liveness；
 - 日志、CLI 输出、测试证据和 Git diff 均不得出现注册 token、Worker token 或 Authorization header。
 
-M3-D 分成两个独立门禁：
+M3-D 分成三个独立门禁：
 
 1. **M3-D.1 离线实现**：实现 CLI run 路径、最小 health listener、类型化 maintenance、安全关闭和可观测摘要；使用 fixture、mock transport 和临时目录验证，不读取真实 token，不向真实 Server 写入。完成后直接在聊天中交付详细实现报告并等待审阅。
-2. **M3-D.2 真实集成**：只有另获用户明确批准后才准备凭据并注册。首次运行至少 6 分钟，覆盖多轮 heartbeat/status、watch 保活和一次周期 full sync；正常停止后用相同数据目录再次运行约 2 分钟，验证恢复同一身份且不产生重复 Worker。
+2. **M3-D.1.1 凭据生命周期加固**：registration token 对 supervisor 可选；完整持久身份无需 Cluster token，首次注册和 metadata-only 恢复仍严格要求。只进行离线实现、测试和报告，不读取真实 token 或运行真实 Worker。
+3. **M3-D.2 真实集成**：只有另获用户明确批准后才准备凭据并注册。首次运行至少 6 分钟，覆盖多轮 heartbeat/status、watch 保活和一次周期 full sync；确认身份完整后删除 Cluster token 本地副本，再用相同数据目录运行约 2 分钟，验证只靠 Worker token 恢复同一身份且不产生重复 Worker。
 
 真实集成通过条件包括：Server 只有一个隔离身份、状态始终为 maintenance、GPU 列表为空、Server 能访问 Rust `/healthz`、心跳持续推进、三资源同步稳定、重启复用同一 ID/UUID、没有 ModelInstance/ModelFile 写入、没有新增 Docker/vLLM/GPU 进程，且 Python Server/Worker 全程健康。停止后 Rust 进程和端口必须消失。正常验收保留 maintenance identity 与本地状态供 M4 复用；精确删除 Server Worker 记录属于另一个破坏性门禁。
 
@@ -142,4 +145,4 @@ M1 环境基线、M2 Rust workspace/CLI 骨架、M3-B client、M3-C 控制循环
 
 2026-10-20 的状态机复核确认原设计错误地让本地模型跳过 `DOWNLOADING`，并遗漏 ModelFile 控制资源。该设计偏差尚未进入 Docker/runtime 实现；已接受修订要求 Managed 完整遵循 ModelInstance/ModelFile 状态所有权，同时保留 Lab 独立本地状态。
 
-M3-D.1 已接受：Rust Worker 已具备显式 control-plane-only supervisor、maintenance 加空 GPU 双重隔离、最小 `/healthz`、身份建立或恢复、heartbeat/status、三资源 full-sync/watch 和优雅停止的离线证据。当前只允许共同冻结 M3-D.2 真实集成运行手册；在用户对冻结手册再次明确授权前，不得读取真实 token、注册 Worker 或发送真实 Server 写请求，也不得操作 Docker、GPU、vLLM 或 Python Worker。
+M3-D.1 已接受，用户已进一步接受 D047–D048 的凭据生命周期修订。当前只允许实现 M3-D.1.1 并以 fixture/mock/临时目录验证完整身份不依赖 Cluster token；在完成详细报告且用户对冻结运行手册再次明确授权前，不得读取真实 token、注册 Worker 或发送真实 Server 写请求，也不得操作 Docker、GPU、vLLM 或 Python Worker。

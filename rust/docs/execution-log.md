@@ -18,8 +18,8 @@
 
 ## 当前状态
 
-- 状态：`proposed`
-- 当前阶段：M3-D.2 真实集成运行手册讨论
+- 状态：`running`
+- 当前阶段：M3-D.1.1 凭据生命周期离线加固
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
@@ -30,8 +30,8 @@
 - 实现状态：四 crate Rust workspace、类型化 Server client、Server 权威 Worker 身份两文件状态机、Model/ModelInstance/ModelFile 三资源控制循环，以及显式 `worker run --control-plane-only` supervisor 和最小 `/healthz` 已经建立；尚未执行真实 Server 集成、ModelFile 本地准备、Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：用户已审阅并接受 M3-D.1 详细实现报告，正在共同讨论 M3-D.2 运行手册。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：讨论并冻结 M3-D.2 的凭据、预检、运行、观测、停止、失败处置和证据规则；真实凭据读取、注册和控制面写路径仍未授权。
+- 当前停止位置：用户已接受默认 Cluster token 短期落盘、首次成功后删除，以及完整 Worker 身份不依赖 Cluster token 的修订；M3-D.1.1 开始离线实现。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：实现并离线验证可选 registration token 生命周期，完成详细报告后等待验收；真实凭据读取、注册和控制面写路径仍未授权。
 
 ## 里程碑
 
@@ -336,6 +336,16 @@
 - 安全边界：本次接受不授权读取真实 token、注册真实 Worker、向 Server 写入、启动 `gpustack-rs worker run --control-plane-only`，也不授权操作 Docker、GPU、vLLM 或 Python Worker。
 - 当前停止位置：M3-D.1 已接受，M3-D.2 运行手册进入讨论状态。
 - 下一项允许执行的工作：共同冻结 M3-D.2 的凭据、预检、首次运行、第二次恢复、观测、失败处置和证据要求；执行仍需用户再次明确批准。
+
+### 2026-10-21：M3-D.1.1 凭据生命周期加固启动
+
+- 触发事实：固定 v2.2.3 只有 Cluster 级 bootstrap registration token；Server 在注册成功后才返回 per-Worker token。当前 supervisor 在每次启动时强制读取 Cluster token，虽然身份状态机已支持完整 identity 加 Worker token 独立恢复。
+- 用户决定：首次注册使用现有默认 Cluster token，由用户通过隐藏输入写入 M3-D 专用 `0600` 文件；不使用 admin API key、不读取 Python Worker 环境、不创建新 Cluster。首次运行确认两份 Worker 身份文件后删除本地 Cluster token 副本，第二次只靠 Worker token 恢复。
+- 修订范围：supervisor 改用可选 registration token；完整 identity 加 Worker token 可以恢复，首次注册或 metadata-only 恢复缺少 Cluster token 时继续 fail closed。CLI 参数、身份格式、Server v2.2.3、maintenance/空 GPU、控制循环和 M3-D.2 验收标准不变。
+- 实现门禁：只使用 fixture、mock transport 和临时目录，验证首次缺凭据拒绝、完整身份无 Cluster token 恢复、metadata-only 无 Cluster token 拒绝、不会重复注册以及秘密脱敏；运行全部 Rust 自动化和隔离检查。
+- 安全边界：本阶段不读取真实 token，不启动真实 Rust Worker，不注册或写入 Server，不操作 Docker、GPU、vLLM 或 Python Worker。M3-D.2 仍需完成详细报告和再次明确批准。
+- 当前停止位置：M3-D.1.1 状态为 `running`。
+- 下一项允许执行的工作：提交本治理检查点后进行离线代码实现、门禁和详细报告。
 
 ## 未解决风险与待确认事项
 

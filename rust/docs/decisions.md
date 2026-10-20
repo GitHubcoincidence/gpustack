@@ -100,3 +100,14 @@ D036–D039 修订了最初设计中“本地模型不经过下载阶段”和�
 | D046 | 验收后身份处理 | 验收后停止 Rust 进程，但保留 maintenance Worker identity 和本地状态供 M4 复用；完整删除只在最终清理、身份失效或用户针对精确 Worker ID 另行批准时执行 | Worker identity 本应跨重启持久；保留不可调度身份既能验证恢复，也避免各阶段重复注册和危险级联清理。 |
 
 M3-D.2 的第一次运行至少持续 6 分钟，以覆盖多轮 heartbeat/status、watch 保活和一次五分钟周期 full sync；正常停止后使用相同数据目录再次运行约 2 分钟，证明恢复同一 Server 身份且不产生重复 Worker。该阶段不要求 drain 或停止 Python Worker，因为 Rust Worker 处于 maintenance、上报空 GPU 且没有 runtime 路径；任何后续 GPU、Docker 或 vLLM 测试仍必须使用单独维护窗口。
+
+## 2026-10-21 M3-D 凭据生命周期修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D047 | M3-D 注册凭据语义与生命周期 | 固定 v2.2.3 不预签发 per-Worker registration token；首次注册使用现有默认 Cluster 的共享 registration token，由用户通过隐藏输入写入 M3-D 专用 `0600` 文件。首次运行确认 Worker identity 和 per-Worker token 完整落盘后删除该 Cluster token 本地副本；不使用 admin API key、不读取 Python Worker 环境，也不额外创建 Cluster | “专用”只指隔离文件而不是新的注册凭据。共享 Cluster token 能创建 Worker，必须缩短落盘时间；Server 返回的 per-Worker token 才是后续恢复所需的最小权限身份。 |
+| D048 | 完整身份恢复不依赖 Cluster token | M3-D.1.1 把 supervisor 的 registration token 读取改为可选：完整 identity 加 Worker token 可以独立恢复；首次注册或 metadata-only 恢复仍要求 Cluster token，缺失时 fail closed。完成离线门禁和详细报告前不得进入 M3-D.2 | 身份状态机本已区分注册凭据和 Worker 凭据，外层强制每次读取 Cluster token 会扩大共享 secret 驻留时间，也无法证明真正的持久身份恢复。 |
+
+D047 修订 D044 中“专用 cluster registration token”和读取 Python Worker `GPUSTACK_TOKEN` 的备选表述：固定 v2.2.3 的 Cluster token 是共享 bootstrap secret，本阶段只为它创建专用文件；不再把读取现有 Python Worker 环境作为 M3-D.2 的正常或备选路径。
+
+修订后的 M3-D.2 在首次正常停止并确认两份 Worker 身份文件后删除本地 Cluster token 副本，再使用相同数据目录运行约 2 分钟，证明只靠 per-Worker token 恢复同一 Server 身份且不产生重复 Worker。其余运行时长、隔离和维护窗口边界不变。
