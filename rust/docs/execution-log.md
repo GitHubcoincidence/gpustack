@@ -16,20 +16,20 @@
 
 ## 当前状态
 
-- 状态：`running`
-- 当前阶段：M3-C.1 Server 权威身份修正；M3-D 真实 Server 集成暂停
+- 状态：`ready_for_review`
+- 当前阶段：M3-C.1 Server 权威身份修正已实现并通过离线门禁；M3-D 真实 Server 集成暂停
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-C 代码检查点为 `5c7c69cc31774cbc1aa0dac8d600ec8971d938b3`，接受治理检查点为 `1d6be8f74309986b42e5223cfd5dc85ed6715549`；M3-C.1 纠偏从该检查点开始。
-- 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client 和控制循环已建立；M3-C 身份实现中的 UUID 等值假设已失效，正在改为持久化 Server 权威身份；尚未执行真实 Server 集成，也未实现 Docker 工作负载、GPU 盘点或 vLLM 路径。
+- 90 主机源码状态：M3-C.1 决策检查点为 `118622e2f4046f65b0f3060180b69b3953dcdb18`，代码检查点为 `e04fda6562c1065491b7eb7478bb617f33d9d4f7`；两者均已推送到 fork。
+- 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、控制循环和 Server 权威 Worker 身份两文件状态机已建立；尚未执行真实 Server 集成，也未实现 Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-C 控制循环结论继续有效；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言已标记为 `invalidated`，M3-C.1 为 `running`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：实现并离线验证 M3-C.1 身份元数据、部分写入恢复和 fail-closed 规则；完成详细报告并重新验收前，不得开始 M3-D 或真实写请求。
+- 当前停止位置：M3-C.1 为 `ready_for_review`；M3-C 控制循环结论继续有效，旧 UUID 等值语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：在聊天中交付 M3-C.1 详细实现报告并等待用户重新验收；不得开始 M3-D 或真实写请求。
 
 ## 里程碑
 
@@ -215,6 +215,18 @@
 - 用户结论：用户已接受 M3-C.1 纠偏方案并授权离线实现；该授权不包含 M3-D 真实 Server 写路径。
 - 当前停止位置：M3-C.1 状态为 `running`，M3-D 暂停。
 - 下一项允许执行的工作：提交本纠偏检查点后实现 M3-C.1，并在聊天中交付详细实现报告供重新验收。
+
+### 2026-10-20：M3-C.1 Server 权威身份修正待审阅
+
+- 结果：代码检查点 `e04fda6562c1065491b7eb7478bb617f33d9d4f7` 已实现并推送。首次注册接受并持久化 Server 返回的 `id`、`name`、`worker_uuid`；正常重启用 token 调用 `me` 核验 ID/name；身份元数据存在但 token 缺失时，以保存的 Server name/UUID 重注册；token 存在但身份元数据缺失时在任何网络 I/O 前 fail closed。
+- 磁盘语义：新增 `<data_dir>/managed/worker-identity.json`，格式版本为 1；身份元数据与 `worker-token` 共用拒绝符号链接、拒绝宽权限、16 KiB 上限、0600 文件、0700 目录、临时文件 fsync、hard-link no-replace 发布与目录 fsync。首次注册固定先发布身份元数据再发布 token，使两次写入之间的崩溃可恢复。
+- 契约修正：注册 request fixture UUID 为 `...0001`，response 的 Server UUID 为 `...0002`，后续 status fixture 使用 `...0002`；client 和契约测试明确断言请求/响应 UUID 不同以及 status 采用响应 UUID。
+- 自动化证据：Rust 1.99.1 下 `cargo fmt --all -- --check`、Clippy 全 workspace/all targets/all features `-D warnings`、全 workspace 30 个测试、离线 build 和 `RUSTDOCFLAGS='-D warnings' cargo doc` 全部通过。Worker 测试从 11 个增加到 16 个。`Cargo.lock` SHA-256 仍为 `af566acb9215d5601dd8bec1282eb93c133b521c4b946870e6762b88409d5019`。
+- 依赖与注释审阅：`serde_json` 从该 crate 的 dev dependency 移至已有 workspace production dependency，没有新增第三方 crate 或 lockfile 变化。关键注释只覆盖 token-only 安全原因、两文件写入顺序和 atomic no-replace 发布，没有加入逐字段或逐行模板化注释。
+- 环境证据：提交前 Server `/healthz`、Python Worker `/healthz` 和 metrics 均为 200；`gpustack` 与 `gpustack-worker` 容器继续为 Up 5 days。staged diff secret scan 与 `git diff --check` 通过。
+- 安全边界：全部测试使用临时目录、静态 fixture 和 mock transport；没有读取真实 token，没有注册真实 Worker，没有发送 heartbeat/status 或其他真实写请求，没有操作 Docker 容器、GPU、vLLM 或 Python Worker。
+- 当前停止位置：M3-C.1 状态为 `ready_for_review`，等待直接实现报告和用户共同验收；M3-D 继续暂停。
+- 下一项允许执行的工作：完成详细报告与审阅；若用户接受，再提交验收治理检查点并恢复 M3-D 的独立审批流程。
 
 ## 未解决风险与待确认事项
 

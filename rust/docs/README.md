@@ -26,9 +26,9 @@
 ## 当前状态
 
 - 设计状态：`frozen`
-- 实现状态：M2、M3-B 与 M3-C 控制循环为 `accepted`；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言已标记为 `invalidated`，M3-C.1 Server 权威身份修正为 `running`；M3-D 真实 Server 集成暂停。
+- 实现状态：M2、M3-B 与 M3-C 控制循环为 `accepted`；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言已标记为 `invalidated`；M3-C.1 Server 权威身份修正已实现并处于 `ready_for_review`，M3-D 真实 Server 集成暂停。
 - 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
-- 当前停止位置：固定 v2.2.3 源码复核发现首次注册 UUID 由 Server 生成，旧 fixture 与离线身份恢复对此建模错误；用户已接受 M3-C.1 纠偏方案，正在实现身份元数据持久化与故障恢复。没有执行 Server 写请求，现有 GPUStack 服务未受影响。
-- 下一项允许执行的工作：只实现并离线验证 M3-C.1；完成详细实现报告并重新验收前，不得开始 M3-D 或第一次真实注册。
+- 当前停止位置：M3-C.1 已在 `e04fda6562c1065491b7eb7478bb617f33d9d4f7` 实现并通过全部离线门禁，等待聊天中的详细实现报告和用户重新验收。没有执行 Server 写请求，现有 GPUStack 服务未受影响。
+- 下一项允许执行的工作：交付并审阅 M3-C.1 详细实现报告；用户接受前不得开始 M3-D 或第一次真实注册。
 
 当前检查点包含 Rust CLI/Worker 基础源码、已接受的离线契约 fixture、类型化 Server client、身份持久化和控制循环；不包含实际 Worker 注册、真实 Server 写操作、Docker 工作负载变更、GPU 使用或 Python Worker 变更。
