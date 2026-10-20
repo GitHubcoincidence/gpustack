@@ -122,7 +122,10 @@ mod tests {
         let config = WorkerConfig {
             server_url: None,
             worker_name: None,
+            worker_hostname: None,
             worker_ip: None,
+            worker_ifname: None,
+            worker_port: crate::config::DEFAULT_WORKER_PORT,
             token_file: None,
             data_dir: directory.path().join("data"),
             log_dir: directory.path().join("logs"),

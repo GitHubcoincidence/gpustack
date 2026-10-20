@@ -18,6 +18,9 @@ GPUStack `v2.2.3`，源码 commit
   `model-file-watch.ndjson`：2026-10-20 直接根据固定 commit 的 ModelFile schema、
   route、Python Worker 更新顺序和事件协议离线构造，没有调用运行中的 Server 或
   Docker。这些样本固定本阶段需要的字段与状态，但不冒充 Pydantic 运行结果。
+- `worker-maintenance-me.response.json`：2026-10-20 根据固定 commit 的
+  `WorkerPublic` 与 `Maintenance` schema 离线构造，用于证明 M3-D Worker 在启动控制
+  循环前会重新确认 Server 保存的 maintenance 门禁；它不是一次真实注册响应。
 
 这些 synthetic 样本固定字段名、默认值、null、enum 拼写和事件编码，但不声称
 是一次真实注册或模型部署的捕获。注册请求使用的候选 UUID 以 `...0001` 结尾，
@@ -35,6 +38,7 @@ GPUStack `v2.2.3`，源码 commit
 | `worker-register.request.json` | `POST /v2/workers` 请求体；首次 UUID 是非权威候选值 |
 | `worker-register.response.json` | 注册成功的 `WorkerRegistrationPublic` 响应体；UUID 由 Server 分配 |
 | `workers-me.response.json` | `GET /v2/workers?me=true` 响应体 |
+| `worker-maintenance-me.response.json` | M3-D maintenance Worker 的 `me=true` synthetic 响应体 |
 | `worker-heartbeat.request.json` | `POST /v2/worker-heartbeat` 请求体；成功 body 为空、status 为 204 |
 | `worker-status.request.json` | `POST /v2/worker-status` 请求体；成功 body 为空、status 为 204 |
 | `models-full-sync.response.json` | `GET /v2/models?page=-1` 响应体 |

@@ -13,13 +13,17 @@ pub const DEFAULT_CONFIG_PATH: &str = "/etc/gpustack-rust/config.yaml";
 pub const DEFAULT_DATA_DIR: &str = "/var/lib/gpustack-rust-worker";
 pub const DEFAULT_LOG_DIR: &str = "/var/log/gpustack-rust-worker";
 pub const DEFAULT_DOCKER_SOCKET: &str = "/var/run/docker.sock";
+pub const DEFAULT_WORKER_PORT: u16 = 10150;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Effective Worker configuration after all precedence layers are merged.
 pub struct WorkerConfig {
     pub server_url: Option<Url>,
     pub worker_name: Option<String>,
+    pub worker_hostname: Option<String>,
     pub worker_ip: Option<IpAddr>,
+    pub worker_ifname: Option<String>,
+    pub worker_port: u16,
     pub token_file: Option<PathBuf>,
     pub data_dir: PathBuf,
     pub log_dir: PathBuf,
@@ -47,14 +51,22 @@ impl WorkerConfig {
                 });
             }
         }
-        if self
-            .worker_name
-            .as_ref()
-            .is_some_and(|name| name.trim().is_empty())
-        {
+        for (field, value) in [
+            ("worker_name", self.worker_name.as_deref()),
+            ("worker_hostname", self.worker_hostname.as_deref()),
+            ("worker_ifname", self.worker_ifname.as_deref()),
+        ] {
+            if value.is_some_and(|value| value.trim().is_empty()) {
+                return Err(ConfigError::InvalidField {
+                    field,
+                    reason: "must not be empty",
+                });
+            }
+        }
+        if self.worker_port == 0 {
             return Err(ConfigError::InvalidField {
-                field: "worker_name",
-                reason: "must not be empty",
+                field: "worker_port",
+                reason: "must be greater than zero",
             });
         }
         validate_absolute_path("token_file", self.token_file.as_deref())?;
@@ -72,7 +84,10 @@ impl WorkerConfig {
 pub struct ConfigOverrides {
     pub server_url: Option<String>,
     pub worker_name: Option<String>,
+    pub worker_hostname: Option<String>,
     pub worker_ip: Option<String>,
+    pub worker_ifname: Option<String>,
+    pub worker_port: Option<u16>,
     pub token_file: Option<PathBuf>,
     pub data_dir: Option<PathBuf>,
     pub log_dir: Option<PathBuf>,
@@ -91,7 +106,10 @@ pub struct LoadedConfig {
 struct ConfigLayer {
     server_url: Option<String>,
     worker_name: Option<String>,
+    worker_hostname: Option<String>,
     worker_ip: Option<String>,
+    worker_ifname: Option<String>,
+    worker_port: Option<u16>,
     token_file: Option<PathBuf>,
     data_dir: Option<PathBuf>,
     log_dir: Option<PathBuf>,
@@ -109,8 +127,17 @@ impl ConfigLayer {
         if other.worker_name.is_some() {
             self.worker_name = other.worker_name;
         }
+        if other.worker_hostname.is_some() {
+            self.worker_hostname = other.worker_hostname;
+        }
         if other.worker_ip.is_some() {
             self.worker_ip = other.worker_ip;
+        }
+        if other.worker_ifname.is_some() {
+            self.worker_ifname = other.worker_ifname;
+        }
+        if other.worker_port.is_some() {
+            self.worker_port = other.worker_port;
         }
         if other.token_file.is_some() {
             self.token_file = other.token_file;
@@ -142,7 +169,16 @@ impl ConfigLayer {
             match key.as_str() {
                 "GPUSTACK_RS_SERVER_URL" => layer.server_url = Some(value),
                 "GPUSTACK_RS_WORKER_NAME" => layer.worker_name = Some(value),
+                "GPUSTACK_RS_WORKER_HOSTNAME" => layer.worker_hostname = Some(value),
                 "GPUSTACK_RS_WORKER_IP" => layer.worker_ip = Some(value),
+                "GPUSTACK_RS_WORKER_IFNAME" => layer.worker_ifname = Some(value),
+                "GPUSTACK_RS_WORKER_PORT" => {
+                    layer.worker_port = Some(
+                        value
+                            .parse::<u16>()
+                            .map_err(|_| ConfigError::InvalidEnvironment { key: key.clone() })?,
+                    );
+                }
                 "GPUSTACK_RS_TOKEN_FILE" => layer.token_file = Some(PathBuf::from(value)),
                 "GPUSTACK_RS_DATA_DIR" => layer.data_dir = Some(PathBuf::from(value)),
                 "GPUSTACK_RS_LOG_DIR" => layer.log_dir = Some(PathBuf::from(value)),
@@ -173,7 +209,10 @@ impl From<ConfigOverrides> for ConfigLayer {
         Self {
             server_url: value.server_url,
             worker_name: value.worker_name,
+            worker_hostname: value.worker_hostname,
             worker_ip: value.worker_ip,
+            worker_ifname: value.worker_ifname,
+            worker_port: value.worker_port,
             token_file: value.token_file,
             data_dir: value.data_dir,
             log_dir: value.log_dir,
@@ -279,7 +318,10 @@ fn build_config(layer: ConfigLayer) -> Result<WorkerConfig, ConfigError> {
     Ok(WorkerConfig {
         server_url,
         worker_name: layer.worker_name,
+        worker_hostname: layer.worker_hostname,
         worker_ip,
+        worker_ifname: layer.worker_ifname,
+        worker_port: layer.worker_port.unwrap_or(DEFAULT_WORKER_PORT),
         token_file: layer.token_file,
         data_dir: layer
             .data_dir
@@ -320,6 +362,7 @@ mod tests {
         let environment = [
             ("GPUSTACK_RS_WORKER_NAME", "env-worker"),
             ("GPUSTACK_RS_DATA_DIR", "/env/data"),
+            ("GPUSTACK_RS_WORKER_PORT", "20150"),
         ];
         let overrides = ConfigOverrides {
             worker_name: Some("cli-worker".to_owned()),
@@ -332,6 +375,7 @@ mod tests {
         assert_eq!(loaded.config.worker_name.as_deref(), Some("cli-worker"));
         assert_eq!(loaded.config.data_dir, PathBuf::from("/env/data"));
         assert_eq!(loaded.config.log_dir, PathBuf::from("/yaml/log"));
+        assert_eq!(loaded.config.worker_port, 20150);
         assert_eq!(
             loaded.config.docker_socket,
             PathBuf::from(DEFAULT_DOCKER_SOCKET)

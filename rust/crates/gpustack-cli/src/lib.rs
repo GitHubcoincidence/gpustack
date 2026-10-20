@@ -5,7 +5,8 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use gpustack_worker::{
-    ConfigError, ConfigOverrides, DoctorReport, WorkerConfig, load_config, run_doctor,
+    ConfigError, ConfigOverrides, ControlPlaneOnlySummary, DoctorReport, WorkerConfig,
+    WorkerRunError, load_config, run_control_plane_only, run_doctor,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -13,6 +14,7 @@ use thiserror::Error;
 pub const EXIT_SUCCESS: u8 = 0;
 pub const EXIT_INTERNAL: u8 = 1;
 pub const EXIT_CONFIG: u8 = 10;
+pub const EXIT_CONTROL_PLANE: u8 = 30;
 pub const EXIT_RUNTIME: u8 = 50;
 
 #[derive(Debug, Parser)]
@@ -37,7 +39,7 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     Version,
-    Worker(WorkerArgs),
+    Worker(Box<WorkerArgs>),
 }
 
 #[derive(Debug, Args)]
@@ -55,7 +57,13 @@ pub struct WorkerConfigArgs {
     #[arg(long, global = true)]
     pub worker_name: Option<String>,
     #[arg(long, global = true)]
+    pub worker_hostname: Option<String>,
+    #[arg(long, global = true)]
     pub worker_ip: Option<String>,
+    #[arg(long, global = true)]
+    pub worker_ifname: Option<String>,
+    #[arg(long, global = true)]
+    pub worker_port: Option<u16>,
     #[arg(long, global = true)]
     pub token_file: Option<PathBuf>,
     #[arg(long, global = true)]
@@ -73,7 +81,10 @@ impl From<WorkerConfigArgs> for ConfigOverrides {
         Self {
             server_url: value.server_url,
             worker_name: value.worker_name,
+            worker_hostname: value.worker_hostname,
             worker_ip: value.worker_ip,
+            worker_ifname: value.worker_ifname,
+            worker_port: value.worker_port,
             token_file: value.token_file,
             data_dir: value.data_dir,
             log_dir: value.log_dir,
@@ -86,7 +97,14 @@ impl From<WorkerConfigArgs> for ConfigOverrides {
 #[derive(Debug, Subcommand)]
 pub enum WorkerCommand {
     Doctor,
+    Run(WorkerRunArgs),
     ValidateConfig,
+}
+
+#[derive(Debug, Args)]
+pub struct WorkerRunArgs {
+    #[arg(long)]
+    pub control_plane_only: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -105,6 +123,10 @@ pub struct Execution {
 pub enum CliError {
     #[error("{0}")]
     Config(#[from] ConfigError),
+    #[error("worker run currently requires --control-plane-only")]
+    ControlPlaneOnlyRequired,
+    #[error(transparent)]
+    WorkerRun(#[from] WorkerRunError),
     #[error("failed to serialize command output")]
     Serialization(#[from] serde_json::Error),
 }
@@ -113,14 +135,15 @@ impl CliError {
     #[must_use]
     pub const fn exit_code(&self) -> u8 {
         match self {
-            Self::Config(_) => EXIT_CONFIG,
+            Self::Config(_) | Self::ControlPlaneOnlyRequired => EXIT_CONFIG,
+            Self::WorkerRun(_) => EXIT_CONTROL_PLANE,
             Self::Serialization(_) => EXIT_INTERNAL,
         }
     }
 }
 
 /// Executes an already parsed command without directly accessing process streams.
-pub fn execute(cli: Cli) -> Result<Execution, CliError> {
+pub async fn execute(cli: Cli) -> Result<Execution, CliError> {
     let quiet = cli.quiet;
     let output_format = cli.output;
     let execution = match cli.command {
@@ -132,6 +155,18 @@ pub fn execute(cli: Cli) -> Result<Execution, CliError> {
                     render_valid_config(output_format, &loaded.config, loaded.source.as_deref())?
                 }
                 WorkerCommand::Doctor => render_doctor(output_format, &run_doctor(&loaded.config))?,
+                WorkerCommand::Run(arguments) => {
+                    if !arguments.control_plane_only {
+                        return Err(CliError::ControlPlaneOnlyRequired);
+                    }
+                    let summary = run_control_plane_only(&loaded.config, |event| {
+                        if !quiet {
+                            eprintln!("{event}");
+                        }
+                    })
+                    .await?;
+                    render_control_plane_summary(output_format, &summary)?
+                }
             }
         }
     };
@@ -232,6 +267,30 @@ fn render_config_table(result: &ConfigValidation<'_>) -> String {
         config.worker_name.as_deref().unwrap_or("not configured")
     )
     .expect("write to String");
+    writeln!(
+        output,
+        "worker_hostname: {}",
+        config
+            .worker_hostname
+            .as_deref()
+            .unwrap_or("not configured")
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "worker_ifname: {}",
+        config.worker_ifname.as_deref().unwrap_or("not configured")
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "worker_ip: {}",
+        config
+            .worker_ip
+            .map_or_else(|| "not configured".to_owned(), |ip| ip.to_string())
+    )
+    .expect("write to String");
+    writeln!(output, "worker_port: {}", config.worker_port).expect("write to String");
     writeln!(output, "data_dir: {}", config.data_dir.display()).expect("write to String");
     writeln!(output, "log_dir: {}", config.log_dir.display()).expect("write to String");
     writeln!(output, "docker_socket: {}", config.docker_socket.display()).expect("write to String");
@@ -277,6 +336,59 @@ fn render_doctor(
     })
 }
 
+fn render_control_plane_summary(
+    output_format: OutputFormat,
+    summary: &ControlPlaneOnlySummary,
+) -> Result<Execution, CliError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(summary)?,
+        OutputFormat::Table => format!(
+            concat!(
+                "mode: {}\n",
+                "server_version: {}\n",
+                "server_git_commit: {}\n",
+                "worker_id: {}\n",
+                "worker_name: {}\n",
+                "worker_uuid: {}\n",
+                "identity_source: {}\n",
+                "health_address: {}\n",
+                "shutdown_signal: {}\n",
+                "desired_models: {}\n",
+                "desired_model_instances: {}\n",
+                "desired_model_files: {}\n",
+                "desired_revision: {}\n",
+                "heartbeat_ok: {}\n",
+                "status_ok: {}\n",
+                "full_sync_ok: {}\n",
+                "watch_connected: {}\n",
+                "reconnect_attempts: {}\n"
+            ),
+            summary.mode,
+            summary.server_version,
+            summary.server_git_commit,
+            summary.worker_id,
+            summary.worker_name,
+            summary.worker_uuid,
+            summary.identity_source,
+            summary.health_address,
+            summary.shutdown_signal,
+            summary.desired_models,
+            summary.desired_model_instances,
+            summary.desired_model_files,
+            summary.desired_revision,
+            summary.heartbeat_ok,
+            summary.status_ok,
+            summary.full_sync_ok,
+            summary.watch_connected,
+            summary.reconnect_attempts,
+        ),
+    };
+    Ok(Execution {
+        output,
+        exit_code: EXIT_SUCCESS,
+    })
+}
+
 fn to_json(value: &impl Serialize) -> Result<String, serde_json::Error> {
     serde_json::to_string_pretty(value).map(|output| format!("{output}\n"))
 }
@@ -292,17 +404,27 @@ mod tests {
         Cli::command().debug_assert();
     }
 
-    #[test]
-    fn version_supports_stable_json_output() {
+    #[tokio::test]
+    async fn version_supports_stable_json_output() {
         let cli =
             Cli::try_parse_from(["gpustack-rs", "--output", "json", "version"]).expect("parse CLI");
 
-        let execution = execute(cli).expect("execute version");
+        let execution = execute(cli).await.expect("execute version");
 
         assert_eq!(execution.exit_code, EXIT_SUCCESS);
         let value: serde_json::Value =
             serde_json::from_str(&execution.output).expect("parse JSON output");
         assert_eq!(value["name"], "gpustack-rs");
         assert_eq!(value["rust_toolchain"], "1.99.1");
+    }
+
+    #[tokio::test]
+    async fn worker_run_requires_explicit_control_plane_only_mode() {
+        let cli = Cli::try_parse_from(["gpustack-rs", "worker", "run"]).expect("parse CLI");
+
+        let error = execute(cli).await.expect_err("restricted mode is required");
+
+        assert!(matches!(error, CliError::ControlPlaneOnlyRequired));
+        assert_eq!(error.exit_code(), EXIT_CONFIG);
     }
 }

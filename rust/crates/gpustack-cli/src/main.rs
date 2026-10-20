@@ -5,9 +5,10 @@ use std::process::ExitCode;
 use clap::Parser;
 use gpustack_cli::{Cli, execute};
 
-fn main() -> ExitCode {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> ExitCode {
     let cli = Cli::parse();
-    match execute(cli) {
+    match execute(cli).await {
         Ok(execution) => {
             print!("{}", execution.output);
             ExitCode::from(execution.exit_code)

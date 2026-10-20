@@ -17,6 +17,7 @@ tokio.workspace = true
 url.workspace = true
 
 [dev-dependencies]
+futures-util.workspace = true
 tempfile = "3.0"
 
 [target.'cfg(unix)'.dependencies]

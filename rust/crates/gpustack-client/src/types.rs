@@ -129,6 +129,13 @@ pub struct WorkerResourceStatus {
     pub uptime: Option<UptimeInfo>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkerMaintenance {
+    pub enabled: bool,
+    pub message: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkerCreate {
@@ -140,7 +147,7 @@ pub struct WorkerCreate {
     pub ip: String,
     pub labels: BTreeMap<String, String>,
     pub machine_id: Option<String>,
-    pub maintenance: Option<Value>,
+    pub maintenance: Option<WorkerMaintenance>,
     pub metrics_port: Option<u16>,
     pub name: String,
     pub owner_principal_id: Option<i64>,
@@ -175,6 +182,7 @@ pub struct WorkerStatusReport {
 pub struct WorkerPublic {
     pub id: i64,
     pub name: String,
+    pub maintenance: Option<WorkerMaintenance>,
     pub me: Option<bool>,
     pub worker_version: Option<String>,
     pub status: Option<Value>,

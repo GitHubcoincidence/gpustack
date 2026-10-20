@@ -2,7 +2,8 @@
 
 use gpustack_client::types::{
     ModelFilePublic, ModelFileUpdate, ModelInstancePublic, ModelInstanceUpdate, ModelPublic,
-    Paginated, ServerVersion, WorkerCreate, WorkerRegistrationPublic, WorkerStatusReport,
+    Paginated, ServerVersion, WorkerCreate, WorkerPublic, WorkerRegistrationPublic,
+    WorkerStatusReport,
 };
 use serde_json::Value;
 
@@ -14,6 +15,8 @@ const WORKER_REGISTER_REQUEST: &str =
 const WORKER_REGISTER_RESPONSE: &str =
     include_str!("../../../fixtures/server-v2.2.3/worker-register.response.json");
 const WORKERS_ME: &str = include_str!("../../../fixtures/server-v2.2.3/workers-me.response.json");
+const WORKER_MAINTENANCE_ME: &str =
+    include_str!("../../../fixtures/server-v2.2.3/worker-maintenance-me.response.json");
 const WORKER_HEARTBEAT: &str =
     include_str!("../../../fixtures/server-v2.2.3/worker-heartbeat.request.json");
 const WORKER_STATUS: &str =
@@ -46,6 +49,7 @@ fn json_fixtures_are_well_formed_and_redacted() {
         ("worker register request", WORKER_REGISTER_REQUEST),
         ("worker register response", WORKER_REGISTER_RESPONSE),
         ("workers me", WORKERS_ME),
+        ("maintenance worker me", WORKER_MAINTENANCE_ME),
         ("worker heartbeat", WORKER_HEARTBEAT),
         ("worker status", WORKER_STATUS),
         ("models full sync", MODELS_FULL_SYNC),
@@ -201,6 +205,14 @@ fn typed_responses_are_tolerant_and_preserve_the_update_contract() {
         serde_json::from_str(MODELS_FULL_SYNC).expect("typed Models response");
     assert_eq!(models.pagination.page, -1);
     assert_eq!(models.items[0].backend.as_deref(), Some("vLLM"));
+
+    let workers: Paginated<WorkerPublic> =
+        serde_json::from_str(WORKER_MAINTENANCE_ME).expect("typed maintenance Worker response");
+    let maintenance = workers.items[0]
+        .maintenance
+        .as_ref()
+        .expect("maintenance profile");
+    assert!(maintenance.enabled);
 
     let instances: Paginated<ModelInstancePublic> =
         serde_json::from_str(MODEL_INSTANCES_FULL_SYNC).expect("typed ModelInstances response");
