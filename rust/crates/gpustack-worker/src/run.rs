@@ -257,7 +257,9 @@ where
         address: health.local_addr(),
     });
 
-    let registration_token = CredentialStore::new(&profile.token_file).load()?;
+    // A complete Worker identity recovers without retaining the cluster-wide
+    // bootstrap secret; only registration paths require this optional token.
+    let registration_token = CredentialStore::new(&profile.token_file).load_optional()?;
     let transport = ReqwestTransport::new()?;
     let client = ServerClient::new(profile.server_url.clone(), transport)?;
     run_control_plane_only_session(
@@ -275,7 +277,7 @@ async fn run_control_plane_only_session<T, L, S, F>(
     profile: ControlPlaneOnlyProfile,
     client: ServerClient<T>,
     health: L,
-    registration_token: SecretToken,
+    registration_token: Option<SecretToken>,
     shutdown_signal: S,
     observe: &mut F,
 ) -> Result<ControlPlaneOnlySummary, WorkerRunError>
@@ -297,7 +299,7 @@ where
             CredentialStore::new(worker_credential_path(&profile.data_dir)),
             IdentityRecordStore::new(worker_identity_path(&profile.data_dir)),
         );
-        let establish = bootstrap.establish(Some(&registration_token), &registration_request);
+        let establish = bootstrap.establish(registration_token.as_ref(), &registration_request);
         tokio::pin!(establish);
         tokio::select! {
             result = &mut health_future => {
@@ -681,7 +683,7 @@ mod tests {
             profile.clone(),
             client,
             health,
-            registration_token,
+            Some(registration_token),
             shutdown,
             &mut |event| events.push(event.clone()),
         )
@@ -757,7 +759,7 @@ mod tests {
             profile,
             restore_client,
             restore_health,
-            SecretToken::new("unused-registration-token").expect("secret token"),
+            None,
             restore_shutdown,
             &mut |_| {},
         )
@@ -784,5 +786,91 @@ mod tests {
                 .iter()
                 .any(|request| request.method == Method::Put)
         );
+    }
+
+    #[tokio::test]
+    async fn first_registration_without_cluster_token_fails_before_registering() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let profile =
+            ControlPlaneOnlyProfile::from_config(&test_config(directory.path().to_path_buf()))
+                .expect("complete profile");
+        let transport = MockTransport::new();
+        let requests = transport.clone();
+        let client = ServerClient::new(profile.server_url.clone(), transport).expect("client");
+        let started = Arc::new(AtomicBool::new(false));
+        let stopped = Arc::new(AtomicBool::new(false));
+        let health = MockLivenessServer {
+            address: profile.listen_address(),
+            started: Arc::clone(&started),
+            stopped: Arc::clone(&stopped),
+        };
+
+        let error = run_control_plane_only_session(
+            profile,
+            client,
+            health,
+            None,
+            std::future::pending::<io::Result<ShutdownSignal>>(),
+            &mut |_| {},
+        )
+        .await
+        .expect_err("first registration requires the Cluster token");
+
+        assert!(matches!(
+            error,
+            WorkerRunError::Identity(IdentityError::RegistrationTokenRequired)
+        ));
+        assert!(started.load(Ordering::SeqCst));
+        assert!(stopped.load(Ordering::SeqCst));
+        assert!(!requests.requests().iter().any(|request| {
+            request.method == Method::Post && request.url.path() == "/v2/workers"
+        }));
+    }
+
+    #[tokio::test]
+    async fn metadata_only_recovery_without_cluster_token_fails_before_registering() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let profile =
+            ControlPlaneOnlyProfile::from_config(&test_config(directory.path().to_path_buf()))
+                .expect("complete profile");
+        IdentityRecordStore::new(worker_identity_path(directory.path()))
+            .persist_new(&crate::identity::WorkerIdentityRecord {
+                version: 1,
+                worker_id: 101,
+                worker_name: "rust-m3d-r760xa".to_owned(),
+                worker_uuid: "00000000-0000-4000-8000-000000000002".to_owned(),
+            })
+            .expect("persist identity metadata");
+        let transport = MockTransport::new();
+        let requests = transport.clone();
+        let client = ServerClient::new(profile.server_url.clone(), transport).expect("client");
+        let started = Arc::new(AtomicBool::new(false));
+        let stopped = Arc::new(AtomicBool::new(false));
+        let health = MockLivenessServer {
+            address: profile.listen_address(),
+            started: Arc::clone(&started),
+            stopped: Arc::clone(&stopped),
+        };
+
+        let error = run_control_plane_only_session(
+            profile,
+            client,
+            health,
+            None,
+            std::future::pending::<io::Result<ShutdownSignal>>(),
+            &mut |_| {},
+        )
+        .await
+        .expect_err("metadata-only recovery requires the Cluster token");
+
+        assert!(matches!(
+            error,
+            WorkerRunError::Identity(IdentityError::RegistrationTokenRequired)
+        ));
+        assert!(started.load(Ordering::SeqCst));
+        assert!(stopped.load(Ordering::SeqCst));
+        assert!(!requests.requests().iter().any(|request| {
+            request.method == Method::Post && request.url.path() == "/v2/workers"
+        }));
     }
 }
