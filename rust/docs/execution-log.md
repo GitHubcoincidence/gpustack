@@ -15,23 +15,24 @@
 - 2026-10-19：用户澄清代码门禁要求的是关键必要注释而非逐项公开文档；取消 `missing_docs = "deny"`，并把注释过量同样列为门禁失败。阶段直接汇报要求不变。
 - 2026-10-20：纠正 Managed 状态机设计：本地模型也保留 ModelFile 控制链和 `DOWNLOADING`，Lab 使用独立本地状态；M3-D 前新增 M3-C.2 ModelFile 离线协议阶段。
 - 2026-10-20：冻结 M3-D control-plane-only、maintenance 加空 GPU 双重隔离、独立 health 端口、两段式执行门禁与身份保留方案；方案接受不授权真实 Server 写入。
+- 2026-10-21：冻结 M3-D.2 操作手册；用户亲自分段执行，助手只提供命令、解释并审阅非敏感输出。证据保存在 Git 外 `0700` 目录，token 永不进入聊天或证据；首次注册一旦尝试，无论结果都删除本地 Cluster token 副本。
 
 ## 当前状态
 
-- 状态：`proposed`
-- 当前阶段：M3-D.2 真实集成运行手册讨论
+- 状态：`ready`
+- 当前阶段：M3-D.2 真实集成分段执行准备
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-D 设计检查点为 `090604b5c5735cc8da3b760858a575fc07e2e7ac`，M3-D.1 启动检查点为 `dde1f8e1b2d485b3505c4520b94fb777caa57fa5`，代码检查点为 `49235477b7d436343fded38c5c72bc16d31e0823`。
+- 90 主机源码状态：M3-D.1.1 设计检查点为 `eb5a9c2d80d1e191f9030808e1dcc80e7a217445`，代码检查点为 `99e9fdb9038f65c480371005fb62fe1c1d6b1c72`，接受检查点为 `ee701a075d921c95e33e29ea232a0dd1ffd291bb`。
 - 实现状态：四 crate Rust workspace、类型化 Server client、Server 权威 Worker 身份两文件状态机、Model/ModelInstance/ModelFile 三资源控制循环，以及显式 `worker run --control-plane-only` supervisor 和最小 `/healthz` 已经建立；尚未执行真实 Server 集成、ModelFile 本地准备、Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：用户已审阅并接受 M3-D.1.1 详细实现报告。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：共同冻结 M3-D.2 的精确命令、观测点和执行门禁；真实凭据读取、注册和控制面写路径仍未授权。
+- 当前停止位置：M3-D.2 运行手册已冻结；用户选择亲自执行全部命令，助手按门禁逐段交付。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server，也未读取 token。
+- 下一项允许执行的工作：用户执行第 0 段只读预检并返回完整非敏感输出；只有该段通过审阅后才允许干净构建，凭据准备和真实写路径继续锁定。
 
 ## 里程碑
 
@@ -369,6 +370,18 @@
 - 安全边界：接受结果不授权读取真实 token、注册真实 Worker、向 Server 写入或启动 `gpustack-rs worker run --control-plane-only`，也不授权操作 Docker、GPU、vLLM 或 Python Worker。
 - 当前停止位置：M3-D.1.1 已接受，M3-D.2 运行手册进入讨论状态。
 - 下一项允许执行的工作：共同冻结 M3-D.2 的凭据写入、预检、首次运行、身份确认、Cluster token 副本删除、第二次恢复、观测、停止和失败处置命令；真实执行仍需用户在完整命令审阅后再次明确批准。
+
+### 2026-10-21：M3-D.2 真实集成运行手册冻结
+
+- 目的：在任何真实凭据读取或 Server 写入前，固定操作者、分段门禁、参数、证据位置、运行时序和失败处置，使首次真实控制面集成可以停止、审计和恢复。
+- 用户确认：用户接受运行手册，并选择亲自在 90 主机执行全部命令；助手逐段提供详细命令与目的说明，只审阅返回的非敏感输出。任何 token 都不得发送到聊天。
+- 固定身份与路径：Worker `rust-m3d-r760xa`，Server `http://127.0.0.1`，hostname `r760xa`，IP `10.213.80.90`，网卡 `eno8403`，health `20150`；token/data 继续使用 D043 路径；证据目录为 Git 外 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m3d2-formal`，权限 `0700`。
+- 运行与观测：从冻结后干净 HEAD 重建 binary 并记录 commit/SHA-256；首次运行 370 秒并在约 60 秒和 330 秒观测，第二次在 token file 缺失的情况下运行 130 秒；用一次 Server 容器内只读 HTTP probe 证明 `10.213.80.90:20150/healthz` 可达。
+- 凭据处置：首次注册一旦尝试，无论成功失败，都删除精确路径上的本地 Cluster token 副本；重试需要用户重新隐藏输入。失败不自动删除身份文件、Server Worker row 或其他状态。
+- 保留与非目标：正常结果保留 maintenance Worker 和本地身份供 M4；Python Worker 保持运行。本阶段不停止或修改容器，不使用 GPU，不启动 vLLM，不执行 ModelInstance/ModelFile 状态写入。
+- 证据等级：当前只证明运行手册和责任边界已经冻结，不证明真实 token、注册、heartbeat/status、health 可达、持续运行或身份恢复。
+- 当前停止位置：尚未执行第 0 段预检，尚未创建证据目录、构建正式 binary、读取 token 或连接真实写路径。
+- 下一项允许执行的工作：用户只执行第 0 段只读预检并返回完整非敏感输出；通过审阅前不得进入后续段。
 
 ## 未解决风险与待确认事项
 

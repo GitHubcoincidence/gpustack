@@ -55,6 +55,10 @@ M3-D 分成三个独立门禁：
 
 真实集成通过条件包括：Server 只有一个隔离身份、状态始终为 maintenance、GPU 列表为空、Server 能访问 Rust `/healthz`、心跳持续推进、三资源同步稳定、重启复用同一 ID/UUID、没有 ModelInstance/ModelFile 写入、没有新增 Docker/vLLM/GPU 进程，且 Python Server/Worker 全程健康。停止后 Rust 进程和端口必须消失。正常验收保留 maintenance identity 与本地状态供 M4 复用；精确删除 Server Worker 记录属于另一个破坏性门禁。
 
+M3-D.2 按 D049–D052 分段执行。用户是唯一命令执行者，助手只提供当前已解锁的一段命令、解释并审阅非敏感输出；token 值不得进入聊天。正式证据目录固定为 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m3d2-formal`，权限为 `0700`，位于 Git 工作树外，文件不得包含 token 或 Authorization header。Server 容器到 `10.213.80.90:20150/healthz` 使用一次只读 `docker exec gpustack` HTTP probe 验证。
+
+执行顺序固定为：只读预检；从干净冻结 HEAD 重新构建并记录 binary identity；隐藏输入 Cluster token；首次 370 秒运行并在约 60 秒和 330 秒观测；确认两份身份文件；无论首次注册尝试成功或失败都删除本地 Cluster token 副本；查询并保存脱敏 Server 证据；缺少 token file 的第二次 130 秒恢复运行；最终核验和保留状态。任一门禁失败都停止，不自动删除身份文件或 Server row；重试首次注册需要重新隐藏输入。
+
 ## 验证策略
 
 ### 本地自动化检查
@@ -145,4 +149,4 @@ M1 环境基线、M2 Rust workspace/CLI 骨架、M3-B client、M3-C 控制循环
 
 2026-10-20 的状态机复核确认原设计错误地让本地模型跳过 `DOWNLOADING`，并遗漏 ModelFile 控制资源。该设计偏差尚未进入 Docker/runtime 实现；已接受修订要求 Managed 完整遵循 ModelInstance/ModelFile 状态所有权，同时保留 Lab 独立本地状态。
 
-M3-D.1 与 D047–D048 的 M3-D.1.1 离线实现均已接受，M3-D.1.1 代码检查点为 `99e9fdb9`。当前只允许共同冻结 M3-D.2 的精确命令和执行门禁；在用户对冻结运行手册再次明确授权前，不得读取真实 token、注册 Worker 或发送真实 Server 写请求，也不得操作 Docker、GPU、vLLM 或 Python Worker。
+M3-D.1 与 D047–D048 的 M3-D.1.1 离线实现均已接受，M3-D.1.1 代码检查点为 `99e9fdb9`。D049–D052 已冻结 M3-D.2 运行手册，用户选择亲自分段执行命令。当前只允许第 0 段只读预检；通过审阅后才能解锁干净构建，凭据准备和真实 Server 写入必须继续按分段门禁推进。不得操作 Docker 工作负载、GPU、vLLM 或 Python Worker。

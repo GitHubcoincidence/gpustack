@@ -111,3 +111,14 @@ M3-D.2 的第一次运行至少持续 6 分钟，以覆盖多轮 heartbeat/statu
 D047 修订 D044 中“专用 cluster registration token”和读取 Python Worker `GPUSTACK_TOKEN` 的备选表述：固定 v2.2.3 的 Cluster token 是共享 bootstrap secret，本阶段只为它创建专用文件；不再把读取现有 Python Worker 环境作为 M3-D.2 的正常或备选路径。
 
 修订后的 M3-D.2 在首次正常停止并确认两份 Worker 身份文件后删除本地 Cluster token 副本，再使用相同数据目录运行约 2 分钟，证明只靠 per-Worker token 恢复同一 Server 身份且不产生重复 Worker。其余运行时长、隔离和维护窗口边界不变。
+
+## 2026-10-21 M3-D.2 真实集成运行手册冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D049 | 操作责任与分段门禁 | M3-D.2 的全部命令由用户在 90 主机亲自执行；助手逐段提供命令与目的说明，只审阅用户返回的非敏感输出。每一段必须验收后才提供下一段，registration token 和 Worker token 永不发送到聊天 | 让真实外部写入保持在用户直接控制下，同时避免凭据进入对话记录或因一次性交付整套命令而绕过中间门禁。 |
+| D050 | 证据目录与 Server 可达性 | 正式证据写入 Git 外固定 `0700` 目录 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m3d2-formal`；证据不得保存 token 或 Authorization header。Server 到 Rust health 的方向使用一次 `docker exec gpustack` 内的只读 HTTP probe 验证 | 将运行证据与源码提交分离，并直接验证 Server 容器实际使用的网络方向；临时 probe 不改变容器或工作负载状态。 |
+| D051 | 首次注册凭据失败处置 | 首次注册尝试一旦开始，无论成功或失败，都删除精确路径上的本地 Cluster token 副本；需要重试时由用户重新隐藏输入。失败时不自动删除身份文件、Server Worker row 或其他状态 | 缩短共享 bootstrap secret 的驻留时间，并避免在结果不明时用级联清理破坏可审计现场或误删已签发身份。 |
+| D052 | 正式运行时序 | 正式二进制必须从冻结后干净 HEAD 重新构建并记录 commit 与 SHA-256。首次运行用 SIGINT 超时边界持续 370 秒，在约 60 秒和 330 秒观测；第二次在确认身份完整且已删除 Cluster token 副本后持续 130 秒。正常结束保留 maintenance Worker 和本地身份 | 370 秒覆盖多轮 30 秒 heartbeat/status 和一次五分钟 full sync；第二次明确验证只靠 per-Worker token 恢复同一 ID/UUID。固定构建 identity 使证据可归因。 |
+
+冻结参数继续使用 Worker `rust-m3d-r760xa`、Server `http://127.0.0.1`、`r760xa`、`10.213.80.90`、`eno8403`、端口 `20150`、D043 的 token/data 路径和无 metrics 配置。现有 Python Worker 在本阶段保持运行；control-plane-only、maintenance 和空 GPU 三项约束意味着无需为此次控制面验证安排 GPU 维护窗口。
