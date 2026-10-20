@@ -17,8 +17,8 @@
 
 ## 当前状态
 
-- 状态：`ready`
-- 当前阶段：M3-C.2 ModelFile 控制协议设计已冻结、实现尚未开始；M3-D 真实 Server 集成继续暂停
+- 状态：`running`
+- 当前阶段：M3-C.2 ModelFile 控制协议离线实现；M3-D 真实 Server 集成继续暂停
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
@@ -29,8 +29,8 @@
 - 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、Model/ModelInstance 控制循环和 Server 权威 Worker 身份两文件状态机已建立；ModelFile client/cache 尚未实现，也未执行真实 Server 集成、Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-C.1 已接受；M3-C.2 设计已冻结但没有代码或 fixture；M3-D 暂停。M3-C 的身份和现有控制循环结论继续有效，旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：先直接说明并共同确认 M3-C.2 的具体实现边界，再仅使用固定源码、fixture 和 mock transport 补齐 ModelFile 协议；未接受 M3-C.2 且未另获真实写路径批准前，不得发送真实注册或其他 Server 写请求。
+- 当前停止位置：M3-C.1 已接受；M3-C.2 的文件级实现方案已获用户确认，准备开始离线代码与 fixture；M3-D 暂停。M3-C 的身份和现有控制循环结论继续有效，旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：仅使用固定源码、synthetic fixture 和 mock transport 补齐 ModelFile list/get/watch/update 与控制缓存，完成自动化门禁后直接交付详细实现报告；未接受 M3-C.2 且未另获真实写路径批准前，不得发送真实注册或其他 Server 写请求。
 
 ## 里程碑
 
@@ -252,6 +252,16 @@
 - 安全边界：本次只检查固定 Git 对象并修改治理文档；没有读取 token、连接真实 Server 写路径、操作 Docker/GPU/vLLM，也没有修改 Python Worker。
 - 当前停止位置：M3-C.2 设计已冻结、实现未开始；M3-D 继续暂停。
 - 下一项允许执行的工作：在聊天中交付 M3-C.2 的文件级实现计划、数据流、测试矩阵和验收边界，得到确认后才开始离线代码实现。
+
+### 2026-10-20：M3-C.2 ModelFile 控制协议实现启动
+
+- 目的：在第一次真实 Server 集成前，把固定 v2.2.3 的 ModelFile list/get/watch/update 契约加入 Rust client 和 Worker 权威控制缓存，但不执行文件准备或运行时动作。
+- 用户确认：用户已审阅并接受文件级实现方案、数据流、测试矩阵和验收边界，并明确同意把 `GET /v2/model-files/{id}` 纳入本阶段。
+- 单项刷新理由：ModelFile update 是完整 PUT；固定 Python Worker 每次更新前先获取最新 public 对象。Rust 保留该顺序，避免用可能过期的 watch cache 主动覆盖已知字段。该读取不改变固定协议缺少 ETag/条件更新的事实。
+- 实现边界：新增 synthetic ModelFile fixture、public/update 类型、list/get/watch/update client、三资源 full sync/watch 和离线回归测试；不实现 ModelFile manager、本地路径访问、分片解析、实际状态写入、ModelInstance 推进、Docker、GPU 或 vLLM。
+- 证据等级：本阶段 fixture 和 mock 结果属于离线协议证据，不冒充真实认证流量或 Managed 部署结果。
+- 当前停止位置：M3-C.2 状态为 `running`，M3-D 继续暂停。
+- 下一项允许执行的工作：提交本启动检查点后进行离线实现，完成门禁与详细报告前不得请求验收。
 
 ## 未解决风险与待确认事项
 

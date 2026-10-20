@@ -47,6 +47,7 @@ token 值。
 | 更新 observed state | `PUT /v2/model-instances/{id}` | Worker token | 完整 `ModelInstanceUpdate` | `200 ModelInstancePublic` |
 | ModelFile watch | `GET /v2/model-files?watch=true&worker_id={worker_id}` | Worker token | query | 长连接事件流 |
 | ModelFile 全量同步 | `GET /v2/model-files?page=-1&worker_id={worker_id}` | Worker token | query | `200 PaginatedList<ModelFilePublic>` |
+| ModelFile 单项刷新 | `GET /v2/model-files/{id}` | Worker token | 无 | `200 ModelFilePublic` |
 | 更新文件准备结果 | `PUT /v2/model-files/{id}` | Worker token | 完整 `ModelFileUpdate` | `200 ModelFilePublic` |
 
 Python Worker 注册时总是重新请求注册，并保存 Server 返回的 Worker name、UUID 和
@@ -149,6 +150,7 @@ optional `gateway_endpoint`。当前 Server 允许并忽略这一额外字段。
 - public response 额外包含 `id`、`owner_principal_id`、`created_at` 与
   `updated_at`；
 - `GET /model-files` 支持 `worker_id` 精确过滤、`page=-1` 与 `watch=true`；
+- `GET /model-files/{id}` 返回最新 `ModelFilePublic`；
 - `PUT /model-files/{id}` 接受完整 `ModelFileUpdate`，不是 JSON Merge Patch。
 
 Worker 只处理 `worker_id` 等于当前 Server Worker ID 的记录，并在更新前再次核对归属。
@@ -157,6 +159,11 @@ Worker 只处理 `worker_id` 等于当前 Server Worker ID 的记录，并在更
 `download_progress=100` 与 `state=ready`，失败时写入脱敏错误和 `state=error`。
 Server Controller 根据 ModelFile 事件负责把关联 ModelInstance 推进到
 `downloading` 或 `starting`；Worker 不直接代替该推进。
+
+原 Python Worker 在每次更新前先按 ID 获取最新 public 对象，再构造完整
+`ModelFileUpdate`。Rust Worker 保留该顺序，不能直接从可能过期的 watch cache 构造
+完整 PUT。固定协议没有 ETag 或条件更新，因此该读取不能提供事务隔离，但能够避免
+主动覆盖读取之后已经存在的已知字段。
 
 ## 分页与权威 full sync
 
@@ -227,7 +234,7 @@ M3-D 第一次真实 Server 集成前，必须离线完成：
 
 1. 从固定 commit 冻结 ModelFile public/update/full-sync/watch fixture；
 2. 在 `gpustack-client` 实现 ModelFile tolerant response、完整 update request、按
-   `worker_id` 的 list/watch 和 update；
+   `worker_id` 的 list/watch、按 ID 刷新和 update；
 3. 在 Worker desired state、full sync 和 watch 恢复中加入当前 Worker ModelFile；
 4. 测试其他 Worker 文件被忽略、assignment 移出、ID-only delete、断线 full sync、
    完整更新字段保留和 `local_path` 状态值；

@@ -17,6 +17,7 @@ M3 的准确 endpoint、schema、认证、分页、watch framing、错误和 fix
 - `POST /worker-status`；
 - Model、ModelInstance 与 ModelFile 的 list/watch 操作；
 - 不分页的权威 Model/ModelInstance 全量列表，以及按当前 `worker_id` 过滤的 ModelFile 全量列表；
+- 按 ID 读取最新 ModelFile，作为完整更新的基准；
 - 更新 ModelInstance observed state；
 - 更新分配给当前 Worker 的完整 ModelFile；
 - R1 CLI 使用的运维侧 model CRUD 与日志 API；
@@ -95,7 +96,7 @@ ModelFile 状态值为 `downloading | ready | error`。Server 为 `INITIALIZING`
 
 Worker 对 `local_path` 至少执行允许根目录检查、symlink canonicalization、文件/目录存在性和模型分片解析。成功时写回 `download_progress=100`、`resolved_paths` 和 `state=ready`；失败时写回 `state=error` 与脱敏的 `state_message`。
 
-`PUT /model-files/{id}` 使用完整 `ModelFileUpdate`，不是 merge patch。更新前必须再次核对 `worker_id`，并保留来源、路径、清理策略、LoRA、大小和其他已知 schema 字段，不能用仅含状态的对象覆盖 Server 数据。ModelFile watch/full-sync 的断线、未知事件和删除安全规则与 ModelInstance 相同。
+`PUT /model-files/{id}` 使用完整 `ModelFileUpdate`，不是 merge patch。每次更新前先用 `GET /model-files/{id}` 读取最新 public 对象，再转换为 update 并只修改目标字段；随后必须再次核对 `worker_id`，并保留来源、路径、清理策略、LoRA、大小和其他已知 schema 字段，不能用仅含状态或可能过期的 watch cache 覆盖 Server 数据。ModelFile watch/full-sync 的断线、未知事件和删除安全规则与 ModelInstance 相同。
 
 ## Lab 状态边界
 

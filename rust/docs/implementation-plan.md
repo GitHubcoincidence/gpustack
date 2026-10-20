@@ -8,7 +8,7 @@
 | M1 环境基线 | 只读盘点 90 服务器、现有 Server/Worker、GPU、Docker、网络、模型、Runner 镜像与 Git 连通性 | M0 已提交 | 已验证的基线报告和完整环境身份信息 | 命令、版本、镜像摘要、源码映射、网络探测，且无部署变更 |
 | M2 Rust workspace 与 CLI 骨架 | 四 crate workspace、配置、context、输出、错误分类、signal 与本地测试 | 已有 M1 基线和工具链 | 支持 `version`、`validate-config` 与 `doctor` 的 `gpustack-rs` | format、lint、unit test、Linux build、secret redaction test |
 | M3-A–C.1 Server 控制面基础 | 版本检查、类型化 client、注册身份持久化、heartbeat/status、Model/ModelInstance watch 与 full sync | 已冻结 Server fixture | 已接受的离线控制循环与 Server 权威 Worker 身份 | fixture、mock transport、恢复和重连测试 |
-| M3-C.2 ModelFile 控制协议 | ModelFile schema/fixture、按 Worker list/watch、完整 update、desired state 与 full-sync 恢复 | M3-C.1 与固定 v2.2.3 源码复核 | 不启动模型的完整 Managed 控制资源缓存 | 所有权过滤、字段保留、断线恢复、状态值和 ID-only delete 离线测试 |
+| M3-C.2 ModelFile 控制协议 | ModelFile schema/fixture、按 Worker list/watch、按 ID 刷新、完整 update、desired state 与 full-sync 恢复 | M3-C.1 与固定 v2.2.3 源码复核 | 不启动模型的完整 Managed 控制资源缓存 | 所有权过滤、字段保留、断线恢复、状态值和 ID-only delete 离线测试 |
 | M3-D 隔离真实 Server 集成 | 隔离身份注册、身份落盘、heartbeat/status、Model/ModelInstance/ModelFile list/watch/full-sync | M3-C.2 接受且真实写路径另行批准 | Rust Worker 在 Server 可见且稳定，但不可调度、不启动模型 | 真实响应与 fixture 对比、运行时长、Server 可见性、清理与回滚证据 |
 | M4 资源盘点与 Worker API | NVML/系统上报、文件系统 API、日志、读取配置、metrics 与认证 | M3-D | Server 能看到两张 A100，并能调用所需 Worker API | Python/Rust fixture 对比、路径安全测试、HTTP auth test、A100 证据 |
 | M5 Docker runtime 与 Lab | Docker 原语、所有权标签、WorkloadSpec、vLLM builder、本地 Lab 状态、Lab 命令、日志、健康与清理 | M4 与维护窗口 | 完全通过 CLI 完成单 GPU Lab 推理，不创建 Server ModelInstance/ModelFile | unit plan、Docker smoke、vLLM response、log stream、清理与非所有权测试 |
@@ -122,4 +122,4 @@ M1 环境基线、M2 Rust workspace/CLI 骨架、M3-B client、M3-C 控制循环
 
 2026-10-20 的状态机复核确认原设计错误地让本地模型跳过 `DOWNLOADING`，并遗漏 ModelFile 控制资源。该设计偏差尚未进入 Docker/runtime 实现；已接受修订要求 Managed 完整遵循 ModelInstance/ModelFile 状态所有权，同时保留 Lab 独立本地状态。
 
-当前停止点为 M3-C.2 设计已冻结、代码尚未开始，M3-D 继续暂停。下一项允许执行的工作是先给出并确认 M3-C.2 的具体实现边界，然后仅用 fixture/mock 实现 ModelFile client 和控制缓存；在 M3-C.2 接受且另获明确批准前，不得读取现有 token，也不得连接真实 Server 写路径、Docker、GPU 或 vLLM。
+当前 M3-C.2 实现方案已经共同确认，状态为 `running`，M3-D 继续暂停。允许的工作仅为使用固定源码、synthetic fixture 和 mock transport 实现 ModelFile client 与控制缓存；在 M3-C.2 接受且另获明确批准前，不得读取现有 token，也不得连接真实 Server 写路径、Docker、GPU 或 vLLM。
