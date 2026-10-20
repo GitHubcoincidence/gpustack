@@ -18,8 +18,8 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
-- 当前阶段：M3-D.1 control-plane-only 离线实现待审阅
+- 状态：`proposed`
+- 当前阶段：M3-D.2 真实集成运行手册讨论
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
@@ -30,8 +30,8 @@
 - 实现状态：四 crate Rust workspace、类型化 Server client、Server 权威 Worker 身份两文件状态机、Model/ModelInstance/ModelFile 三资源控制循环，以及显式 `worker run --control-plane-only` supervisor 和最小 `/healthz` 已经建立；尚未执行真实 Server 集成、ModelFile 本地准备、Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-D.1 代码已经完成并推送，等待聊天中的详细实现报告和用户共同审阅。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：交付 M3-D.1 详细实现报告并等待验收；M3-D.2 的真实凭据读取、注册和控制面写路径仍未授权。
+- 当前停止位置：用户已审阅并接受 M3-D.1 详细实现报告，正在共同讨论 M3-D.2 运行手册。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：讨论并冻结 M3-D.2 的凭据、预检、运行、观测、停止、失败处置和证据规则；真实凭据读取、注册和控制面写路径仍未授权。
 
 ## 里程碑
 
@@ -326,6 +326,16 @@
 - 漂移审计：实现继续固定 Server v2.2.3、maintenance 加空 GPU 双重隔离、单 Worker、本地 Docker 和 vLLM-only R1 边界；没有提前实现 M4 Worker API、M6 状态写回或 runtime。关键注释只解释端口先绑定、Server UUID 权威和探针错误隔离等非直观不变量。
 - 当前停止位置：M3-D.1 等待聊天中的详细实现报告和用户共同验收，M3-D.2 仍未授权。
 - 下一项允许执行的工作：完成报告与审阅；若用户接受，再记录 M3-D.1 接受检查点并单独讨论是否授权 M3-D.2 真实集成运行手册。
+
+### 2026-10-20：M3-D.1 control-plane-only 离线实现接受
+
+- 结果：用户在收到目标、功能、启动顺序、安全 profile、模块、依赖、测试、隔离证据和限制的详细报告后确认无问题；M3-D.1 状态由 `ready_for_review` 更新为 `accepted`。
+- 接受范围：显式 `worker run --control-plane-only`、缺少安全开关时拒绝运行、maintenance 加空 GPU 双重隔离、最小 `/healthz`、Server 权威身份注册或恢复、maintenance 二次确认、heartbeat/status、三资源 full-sync/watch、优雅停止和脱敏摘要。
+- 证据：代码检查点 `49235477b7d436343fded38c5c72bc16d31e0823`；待审阅治理检查点 `8d7f2ebeb7278065452e39854fa8b316d30be107`；workspace 40 项测试及 fmt、Clippy、locked/offline build、Rustdoc、diff 和 secret 门禁均通过。
+- 明确非结论：接受结果只证明 fixture/mock/临时目录下的离线实现，不证明真实注册、真实 heartbeat/status、Server 探针、持续运行、重启恢复、模型状态推进、Docker、GPU 或 vLLM 能力。
+- 安全边界：本次接受不授权读取真实 token、注册真实 Worker、向 Server 写入、启动 `gpustack-rs worker run --control-plane-only`，也不授权操作 Docker、GPU、vLLM 或 Python Worker。
+- 当前停止位置：M3-D.1 已接受，M3-D.2 运行手册进入讨论状态。
+- 下一项允许执行的工作：共同冻结 M3-D.2 的凭据、预检、首次运行、第二次恢复、观测、失败处置和证据要求；执行仍需用户再次明确批准。
 
 ## 未解决风险与待确认事项
 

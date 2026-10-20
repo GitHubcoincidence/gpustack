@@ -142,4 +142,4 @@ M1 环境基线、M2 Rust workspace/CLI 骨架、M3-B client、M3-C 控制循环
 
 2026-10-20 的状态机复核确认原设计错误地让本地模型跳过 `DOWNLOADING`，并遗漏 ModelFile 控制资源。该设计偏差尚未进入 Docker/runtime 实现；已接受修订要求 Managed 完整遵循 ModelInstance/ModelFile 状态所有权，同时保留 Lab 独立本地状态。
 
-M3-C.2 已接受：Rust Worker 具备完整调度状态链所需的 ModelInstance/ModelFile 协议建模、三资源缓存和断线恢复，但尚不执行实际状态推进、文件准备或 vLLM 启动。M3-D 的隔离身份、端口、运行模式、凭据、清理和回滚设计已冻结；下一项允许工作是 M3-D.1 离线实现。在 M3-D.1 完成详细实现报告并再次获得明确批准前，不得读取现有 token 或连接真实 Server 写路径，也不得操作 Docker、GPU、vLLM 或 Python Worker。
+M3-D.1 已接受：Rust Worker 已具备显式 control-plane-only supervisor、maintenance 加空 GPU 双重隔离、最小 `/healthz`、身份建立或恢复、heartbeat/status、三资源 full-sync/watch 和优雅停止的离线证据。当前只允许共同冻结 M3-D.2 真实集成运行手册；在用户对冻结手册再次明确授权前，不得读取真实 token、注册 Worker 或发送真实 Server 写请求，也不得操作 Docker、GPU、vLLM 或 Python Worker。
