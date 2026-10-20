@@ -17,20 +17,20 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
-- 当前阶段：M3-C.2 ModelFile 控制协议离线实现已完成，等待共同验收；M3-D 真实 Server 集成继续暂停
+- 状态：`accepted`
+- 当前阶段：M3-C.2 ModelFile 控制协议已接受；M3-D 真实 Server 集成尚未开始
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-C.2 启动检查点为 `ac2e9c7892b25ddee22cd4b6d08a374b36e7773f`，代码检查点为 `b8a9b126770dc963518c839557d348d62eca03cd`；本次待审阅结论随独立治理检查点提交。
+- 90 主机源码状态：M3-C.2 启动检查点为 `ac2e9c7892b25ddee22cd4b6d08a374b36e7773f`，代码检查点为 `b8a9b126770dc963518c839557d348d62eca03cd`，待审阅治理检查点为 `5633e15f98047ee74454edf146ec0567cb54ead9`；本次验收结论随独立治理检查点提交。
 - 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、Server 权威 Worker 身份两文件状态机，以及 Model/ModelInstance/ModelFile 三资源控制循环已经建立；尚未执行真实 Server 集成、ModelFile 本地准备、Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-C.2 离线实现与自动化门禁完成，状态为 `ready_for_review`；M3-D 暂停。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：在聊天中交付 M3-C.2 的详细实现报告并共同验收；未接受 M3-C.2 且未另获真实写路径批准前，不得发送真实注册或其他 Server 写请求。
+- 当前停止位置：M3-C.2 已接受；M3-D 尚未开始。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：共同冻结 M3-D 的隔离 Worker identity、凭据来源、端口、数据目录、Server 可见性、清理和回滚门禁；任何真实注册或写路径必须再次获得明确批准。
 
 ## 里程碑
 
@@ -276,6 +276,16 @@
 - 解释：本阶段只证明固定 v2.2.3 下 ModelFile wire contract、控制缓存和断线恢复的离线兼容性，不证明真实认证、并发 PUT 保护、文件准备、ModelInstance 状态推进或模型运行能力。
 - 当前停止位置：M3-C.2 等待聊天中的详细实现报告和用户共同验收；M3-D 继续暂停。
 - 下一项允许执行的工作：完成详细报告与审阅；若用户接受，再提交验收治理检查点。任何真实注册或写路径仍需另行明确批准。
+
+### 2026-10-20：M3-C.2 ModelFile 控制协议接受
+
+- 结果：用户在收到详细实现报告，并确认“支持完整状态协议与控制缓存”不等于“已经执行完整调度流程”后表示无问题；M3-C.2 状态由 `ready_for_review` 更新为 `accepted`。
+- 接受范围：固定 v2.2.3 的 ModelFile tolerant response、完整 update、list/get/watch client，Model/ModelInstance/ModelFile 三资源 desired state、full sync、watch 重连，以及所有权、字段保留、状态值和 ID-only delete 离线回归证据。
+- 明确非结论：本次接受不代表 Rust Worker 已执行 `SCHEDULED -> INITIALIZING`、ModelFile 准备与状态写回、Server Controller 推进或 `STARTING -> RUNNING`；这些能力仍分别属于 M6-A、Server 和 M6-B。
+- 证据：代码检查点 `b8a9b126770dc963518c839557d348d62eca03cd`；待审阅治理检查点 `5633e15f98047ee74454edf146ec0567cb54ead9`；workspace 35 项测试及格式、Clippy、build、Rustdoc、diff 和 secret 门禁均通过。
+- 安全边界：验收不授权读取现有 token、注册真实 Worker、发送 heartbeat/status/ModelFile/ModelInstance 写请求，或操作 Docker、GPU、vLLM 与 Python Worker。
+- 当前停止位置：M3-C.2 已接受，M3-D 尚未开始。
+- 下一项允许执行的工作：共同冻结 M3-D 的隔离身份和真实集成运行手册；只有用户随后明确批准真实写路径，才能执行 M3-D。
 
 ## 未解决风险与待确认事项
 
