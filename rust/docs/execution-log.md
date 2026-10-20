@@ -16,20 +16,20 @@
 
 ## 当前状态
 
-- 状态：`ready`
-- 当前阶段：M3-C 离线身份持久化与控制循环已接受，M3-D 真实 Server 集成尚未开始
+- 状态：`running`
+- 当前阶段：M3-C.1 Server 权威身份修正；M3-D 真实 Server 集成暂停
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-C 代码检查点为 `5c7c69cc31774cbc1aa0dac8d600ec8971d938b3`，待审阅治理检查点为 `0b0689b6f7e21f2d60113e37a693857223803c8c`；本次验收结论随新的治理检查点提交。
-- 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、身份持久化/恢复和控制循环已建立；尚未执行真实 Server 集成，也未实现 Docker 工作负载、GPU 盘点或 vLLM 路径。
+- 90 主机源码状态：M3-C 代码检查点为 `5c7c69cc31774cbc1aa0dac8d600ec8971d938b3`，接受治理检查点为 `1d6be8f74309986b42e5223cfd5dc85ed6715549`；M3-C.1 纠偏从该检查点开始。
+- 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client 和控制循环已建立；M3-C 身份实现中的 UUID 等值假设已失效，正在改为持久化 Server 权威身份；尚未执行真实 Server 集成，也未实现 Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-C 已接受；现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：讨论并冻结 M3-D 隔离 Worker identity 的真实 Server 集成方案；真实注册、heartbeat、状态上报或其他写请求仍需单独批准。
+- 当前停止位置：M3-C 控制循环结论继续有效；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言已标记为 `invalidated`，M3-C.1 为 `running`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：实现并离线验证 M3-C.1 身份元数据、部分写入恢复和 fail-closed 规则；完成详细报告并重新验收前，不得开始 M3-D 或真实写请求。
 
 ## 里程碑
 
@@ -204,6 +204,17 @@
 - 安全边界：没有读取现有 token，没有向真实 Server 发送写请求，没有操作 Docker、GPU、vLLM 或 Python Worker。M3-C 接受不会自动授权 M3-D 的外部写操作。
 - 当前停止位置：M3-C 已接受，M3-D 尚未开始。
 - 下一项允许执行的工作：先共同确定隔离 Worker name/UUID、端口、数据目录、注册凭据来源、Server 可见性、清理和回滚步骤，再单独决定是否进入真实 Server 集成。
+
+### 2026-10-20：M3-C.1 Server 权威身份纠偏启动
+
+- 触发事实：复核固定 GPUStack v2.2.3 的 `gpustack/routes/workers.py` 后确认，新 Worker 注册会排除请求中的 `worker_uuid`、先以空值创建，再由 Server 生成唯一 UUID；`WorkerRegistrationPublic` 返回 Server UUID，而 `WorkerPublic`/`me` 不包含 UUID。Python Worker 在注册后保存响应中的 name 和 UUID。
+- 漂移结论：M3-A synthetic 注册 fixture 直接序列化模型，未经过真实路由，因此错误地让请求与响应 UUID 相同；M3-C 随后把该等值关系当作安全断言，并在 token 恢复时使用本地请求 UUID。真实首次注册会安全失败，若移除断言又会在重启时恢复错误 UUID。
+- 历史处理：M3-A 的 UUID 等值 fixture 语义和 M3-C 的对应身份断言标记为 `invalidated`；其余协议形状、M3-B client、M3-C heartbeat/status/full-sync/watch/reconnect 结论不受影响。此前接受记录保留，不静默改写历史。
+- 已接受修正：新增权限受限的 `worker-identity.json`，持久化 Server 返回的 `id`、`name`、`worker_uuid`；先写身份元数据再写 token。元数据存在但 token 缺失时，用已保存的 Server UUID 重注册同一 Worker；token 存在但元数据缺失时 fail closed；二者都存在时以 `me` 核验 ID/name，并从元数据恢复 UUID。
+- 门禁：先修正 synthetic fixture 和离线状态机，覆盖首次注册、正常重启、元数据先写后的恢复、token-only 拒绝、元数据损坏和身份不匹配；不执行真实注册，不读取现有 token，不操作 Docker、GPU、vLLM 或 Python Worker。
+- 用户结论：用户已接受 M3-C.1 纠偏方案并授权离线实现；该授权不包含 M3-D 真实 Server 写路径。
+- 当前停止位置：M3-C.1 状态为 `running`，M3-D 暂停。
+- 下一项允许执行的工作：提交本纠偏检查点后实现 M3-C.1，并在聊天中交付详细实现报告供重新验收。
 
 ## 未解决风险与待确认事项
 

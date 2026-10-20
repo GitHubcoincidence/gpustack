@@ -67,3 +67,11 @@
 | D034 | 关键必要注释 | 取消 `missing_docs = "deny"` 和逐项公开 API 文档要求；只对安全边界、状态转移、协议偏差、恢复逻辑、所有权检查、关键数据流和非直观算法要求英文注释；缺少关键注释与注释过量均视为门禁失败 | 用户要求的是帮助理解和维护的关键注释，而不是覆盖每个字段的模板化说明；注释过多会遮挡代码并增加同步成本。 |
 
 D034 只修订 D032 的注释密度和检查方式。D033 的阶段详细实现报告要求保持不变，R1 产品范围、协议、依赖与运行行为均未改变。
+
+## 2026-10-20 Server 权威 Worker 身份纠偏
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D035 | Worker 注册身份权威与恢复 | 首次注册以后以 Server 返回的 Worker `id`、`name` 和 `worker_uuid` 为权威，并将三者写入 `<data_dir>/managed/worker-identity.json`；身份元数据必须先于 Worker token 持久化。重启时由 token 调用 `me` 核验 `id` 和 `name`，由受保护的本地元数据恢复 `worker_uuid`。若只有元数据而没有 token，则使用注册凭据和已持久化的 Server UUID 重注册同一 Worker；若只有 token 而没有元数据，则拒绝启动。 | 固定 v2.2.3 的注册路由会忽略客户端首次提交的 `worker_uuid` 并生成 Server UUID，注册响应包含该 UUID，但 `me` 响应不包含。先写元数据使注册后崩溃能够恢复同一 Worker；token 无元数据时无法安全确定 UUID，必须 fail closed。 |
+
+M3-A 中“注册请求 UUID 与响应 UUID 相同”的 synthetic fixture 语义，以及 M3-C 中依赖该等值关系的身份断言，自本决策起标记为 `invalidated`，不得继续作为兼容性证据。M3-A 的其余协议形状、M3-B client 与 M3-C 控制循环结论保持有效。该修订不授权真实 Server 注册或其他写请求。
