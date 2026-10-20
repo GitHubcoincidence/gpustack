@@ -26,9 +26,9 @@
 ## 当前状态
 
 - 设计状态：`frozen`
-- 实现状态：M2、M3-B、M3-C、M3-C.1、M3-C.2 与 M3-D.1 均为 `accepted`；M3-D.1.1 凭据生命周期加固为 `running`；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言保持 `invalidated`；M3-D.2 真实 Server 集成尚未开始。
+- 实现状态：M2、M3-B、M3-C、M3-C.1、M3-C.2 与 M3-D.1 均为 `accepted`；M3-D.1.1 凭据生命周期加固为 `ready_for_review`，代码检查点为 `99e9fdb9`；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言保持 `invalidated`；M3-D.2 真实 Server 集成尚未开始。
 - 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
-- 当前停止位置：用户已接受 M3-D.1.1 的凭据生命周期修订，开始离线实现；没有读取真实 token 或执行 Server 写请求，现有 GPUStack 服务未受影响。
-- 下一项允许执行的工作：完成 registration token 可选恢复的代码、测试、门禁和详细报告；M3-D.2 第一次真实注册仍需用户再次明确批准。
+- 当前停止位置：M3-D.1.1 已完成离线实现与门禁，等待详细实现报告和用户验收；没有读取真实 token 或执行 Server 写请求，现有 GPUStack 服务未受影响。
+- 下一项允许执行的工作：交付并审阅 M3-D.1.1 详细实现报告；M3-D.2 第一次真实注册仍需用户再次明确批准。
 
 当前检查点包含 Rust CLI/Worker 基础源码、已接受的离线契约 fixture、类型化 Server client、身份持久化、控制循环、显式 control-plane-only supervisor 和最小 `/healthz`；不包含实际 Worker 注册、真实 Server 写操作、Docker 工作负载变更、GPU 使用或 Python Worker 变更。
