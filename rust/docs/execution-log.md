@@ -17,20 +17,20 @@
 
 ## 当前状态
 
-- 状态：`running`
-- 当前阶段：M3-C.2 ModelFile 控制协议离线实现；M3-D 真实 Server 集成继续暂停
+- 状态：`ready_for_review`
+- 当前阶段：M3-C.2 ModelFile 控制协议离线实现已完成，等待共同验收；M3-D 真实 Server 集成继续暂停
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-C.1 决策检查点为 `118622e2f4046f65b0f3060180b69b3953dcdb18`，代码检查点为 `e04fda6562c1065491b7eb7478bb617f33d9d4f7`，待审阅治理检查点为 `30ad11899b8ae475587ed46f8f32e3d27fcd91e5`；本次验收结论随新的治理检查点提交。
-- 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、Model/ModelInstance 控制循环和 Server 权威 Worker 身份两文件状态机已建立；ModelFile client/cache 尚未实现，也未执行真实 Server 集成、Docker 工作负载、GPU 盘点或 vLLM 路径。
+- 90 主机源码状态：M3-C.2 启动检查点为 `ac2e9c7892b25ddee22cd4b6d08a374b36e7773f`，代码检查点为 `b8a9b126770dc963518c839557d348d62eca03cd`；本次待审阅结论随独立治理检查点提交。
+- 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、Server 权威 Worker 身份两文件状态机，以及 Model/ModelInstance/ModelFile 三资源控制循环已经建立；尚未执行真实 Server 集成、ModelFile 本地准备、Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-C.1 已接受；M3-C.2 的文件级实现方案已获用户确认，准备开始离线代码与 fixture；M3-D 暂停。M3-C 的身份和现有控制循环结论继续有效，旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：仅使用固定源码、synthetic fixture 和 mock transport 补齐 ModelFile list/get/watch/update 与控制缓存，完成自动化门禁后直接交付详细实现报告；未接受 M3-C.2 且未另获真实写路径批准前，不得发送真实注册或其他 Server 写请求。
+- 当前停止位置：M3-C.2 离线实现与自动化门禁完成，状态为 `ready_for_review`；M3-D 暂停。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：在聊天中交付 M3-C.2 的详细实现报告并共同验收；未接受 M3-C.2 且未另获真实写路径批准前，不得发送真实注册或其他 Server 写请求。
 
 ## 里程碑
 
@@ -262,6 +262,20 @@
 - 证据等级：本阶段 fixture 和 mock 结果属于离线协议证据，不冒充真实认证流量或 Managed 部署结果。
 - 当前停止位置：M3-C.2 状态为 `running`，M3-D 继续暂停。
 - 下一项允许执行的工作：提交本启动检查点后进行离线实现，完成门禁与详细报告前不得请求验收。
+
+### 2026-10-20：M3-C.2 ModelFile 控制协议待审阅
+
+- 结果：代码检查点 `b8a9b126770dc963518c839557d348d62eca03cd` 已实现并推送，M3-C.2 状态为 `ready_for_review`，尚未标记 `accepted`。
+- client 范围：新增 tolerant `ModelFilePublic`、完整 `ModelFileUpdate`、`downloading/ready/error` 写入状态校验，以及按 Worker 的 list/watch、按 ID 刷新和完整 PUT。写请求在传输前拒绝错误 Worker、非 `local_path`、空路径和未知状态；调用方必须先 GET 最新 public 对象再构造完整 update。
+- Worker 范围：desired state、full sync 和 watch session 已扩展为 Model、ModelInstance、ModelFile 三资源；服务端过滤后再次按当前 Worker 防御性过滤。任一 watch 断开、报错或收到未知事件都会保留最后权威快照并重连、full sync；ModelFile delete 只移除控制缓存，不触碰文件系统。
+- fixture 证据：新增 full-sync、完整 update 和 CREATED/UPDATED/ID-only DELETED synthetic fixture，均由固定 Server commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365` 的 schema、route、Python Worker 顺序与事件协议离线构造；未冒充真实 Server 或 Pydantic 运行结果。
+- 自动化证据：Rust 1.99.1 下 workspace 共 35 项测试通过，其中 `gpustack-client` 13 项、`gpustack-worker` 20 项、CLI 2 项；`cargo fmt --check`、全 workspace/all targets/all features Clippy `-D warnings`、locked/offline test、locked/offline build、Rustdoc `-D warnings`、diff check 和 secret scan 全部通过。
+- 依赖证据：没有修改 `Cargo.toml` 或 `Cargo.lock`，锁文件 SHA-256 仍为 `af566acb9215d5601dd8bec1282eb93c133b521c4b946870e6762b88409d5019`。
+- 环境证据：提交前 Server `/healthz`、Python Worker `/healthz` 与 metrics 均为 HTTP 200；`gpustack` 和 `gpustack-worker` 容器继续为 Up 5 days。
+- 安全与漂移审计：实现只使用 static fixture、mock transport 和内存状态；没有读取真实 token，没有向真实 Server 发送写请求，没有访问模型路径，也没有操作 Docker、GPU、vLLM 或 Python Worker。实现与已接受的 Managed 状态所有权、Lab 隔离和 M3-C.2 边界一致。
+- 解释：本阶段只证明固定 v2.2.3 下 ModelFile wire contract、控制缓存和断线恢复的离线兼容性，不证明真实认证、并发 PUT 保护、文件准备、ModelInstance 状态推进或模型运行能力。
+- 当前停止位置：M3-C.2 等待聊天中的详细实现报告和用户共同验收；M3-D 继续暂停。
+- 下一项允许执行的工作：完成详细报告与审阅；若用户接受，再提交验收治理检查点。任何真实注册或写路径仍需另行明确批准。
 
 ## 未解决风险与待确认事项
 
