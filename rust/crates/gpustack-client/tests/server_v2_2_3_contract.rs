@@ -1,8 +1,8 @@
 //! Frozen GPUStack v2.2.3 fixture compatibility tests.
 
 use gpustack_client::types::{
-    ModelInstancePublic, ModelInstanceUpdate, ModelPublic, Paginated, ServerVersion, WorkerCreate,
-    WorkerRegistrationPublic, WorkerStatusReport,
+    ModelFilePublic, ModelFileUpdate, ModelInstancePublic, ModelInstanceUpdate, ModelPublic,
+    Paginated, ServerVersion, WorkerCreate, WorkerRegistrationPublic, WorkerStatusReport,
 };
 use serde_json::Value;
 
@@ -24,9 +24,15 @@ const MODEL_INSTANCES_FULL_SYNC: &str =
     include_str!("../../../fixtures/server-v2.2.3/model-instances-full-sync.response.json");
 const MODEL_INSTANCE_UPDATE: &str =
     include_str!("../../../fixtures/server-v2.2.3/model-instance-update.request.json");
+const MODEL_FILES_FULL_SYNC: &str =
+    include_str!("../../../fixtures/server-v2.2.3/model-files-full-sync.response.json");
+const MODEL_FILE_UPDATE: &str =
+    include_str!("../../../fixtures/server-v2.2.3/model-file-update.request.json");
 const MODEL_WATCH: &str = include_str!("../../../fixtures/server-v2.2.3/model-watch.ndjson");
 const MODEL_INSTANCE_WATCH: &str =
     include_str!("../../../fixtures/server-v2.2.3/model-instance-watch.ndjson");
+const MODEL_FILE_WATCH: &str =
+    include_str!("../../../fixtures/server-v2.2.3/model-file-watch.ndjson");
 
 fn parse_json(name: &str, raw: &str) -> Value {
     serde_json::from_str(raw).unwrap_or_else(|error| panic!("invalid {name}: {error}"))
@@ -45,6 +51,8 @@ fn json_fixtures_are_well_formed_and_redacted() {
         ("models full sync", MODELS_FULL_SYNC),
         ("model instances full sync", MODEL_INSTANCES_FULL_SYNC),
         ("model instance update", MODEL_INSTANCE_UPDATE),
+        ("model files full sync", MODEL_FILES_FULL_SYNC),
+        ("model file update", MODEL_FILE_UPDATE),
     ];
 
     for (name, raw) in fixtures {
@@ -92,6 +100,7 @@ fn full_sync_and_worker_fixtures_pin_control_plane_semantics() {
     for (name, raw) in [
         ("models", MODELS_FULL_SYNC),
         ("model instances", MODEL_INSTANCES_FULL_SYNC),
+        ("model files", MODEL_FILES_FULL_SYNC),
     ] {
         let response = parse_json(name, raw);
         assert_eq!(response["pagination"]["page"], -1);
@@ -120,6 +129,22 @@ fn watch_fixtures_use_numeric_event_types_and_id_only_deletes() {
     assert_eq!(instance_events[0]["type"], 1);
     assert_eq!(instance_events[1]["type"], 3);
     assert_eq!(instance_events[1]["data"], serde_json::json!({ "id": 301 }));
+
+    let model_file_events: Vec<Value> = MODEL_FILE_WATCH
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| parse_json("model file watch event", line))
+        .collect();
+    assert_eq!(model_file_events.len(), 3);
+    assert_eq!(model_file_events[0]["type"], 1);
+    assert_eq!(model_file_events[0]["data"]["state"], "downloading");
+    assert_eq!(model_file_events[1]["type"], 2);
+    assert_eq!(model_file_events[1]["data"]["state"], "ready");
+    assert_eq!(model_file_events[2]["type"], 3);
+    assert_eq!(
+        model_file_events[2]["data"],
+        serde_json::json!({ "id": 401 })
+    );
 }
 
 #[test]
@@ -143,6 +168,20 @@ fn typed_requests_serialize_to_the_frozen_wire_shape() {
     assert_eq!(
         serde_json::to_value(update).expect("serialize ModelInstanceUpdate"),
         parse_json("model instance update", MODEL_INSTANCE_UPDATE)
+    );
+
+    let model_file_update: ModelFileUpdate =
+        serde_json::from_str(MODEL_FILE_UPDATE).expect("typed ModelFileUpdate");
+    for state in ["downloading", "ready", "error"] {
+        let mut candidate = model_file_update.clone();
+        candidate.state.0 = state.to_owned();
+        candidate
+            .validate_for_worker(101)
+            .unwrap_or_else(|error| panic!("valid ModelFile state {state}: {error}"));
+    }
+    assert_eq!(
+        serde_json::to_value(model_file_update).expect("serialize ModelFileUpdate"),
+        parse_json("model file update", MODEL_FILE_UPDATE)
     );
 }
 
@@ -169,5 +208,26 @@ fn typed_responses_are_tolerant_and_preserve_the_update_contract() {
     assert_eq!(
         serde_json::to_value(update).expect("serialize update"),
         parse_json("model instance update", MODEL_INSTANCE_UPDATE)
+    );
+
+    let mut model_files_value = parse_json("model files", MODEL_FILES_FULL_SYNC);
+    model_files_value["items"][0]["future_server_field"] = serde_json::json!({ "enabled": true });
+    let model_files: Paginated<ModelFilePublic> =
+        serde_json::from_value(model_files_value).expect("typed ModelFiles response");
+    assert!(
+        model_files.items[0]
+            .extensions
+            .contains_key("future_server_field")
+    );
+
+    let expected_update: ModelFileUpdate =
+        serde_json::from_str(MODEL_FILE_UPDATE).expect("typed ModelFileUpdate");
+    let mut model_file_update = ModelFileUpdate::from(&model_files.items[0]);
+    model_file_update.download_progress = expected_update.download_progress;
+    model_file_update.resolved_paths = expected_update.resolved_paths;
+    model_file_update.state = expected_update.state;
+    assert_eq!(
+        serde_json::to_value(model_file_update).expect("serialize ModelFile update"),
+        parse_json("model file update", MODEL_FILE_UPDATE)
     );
 }

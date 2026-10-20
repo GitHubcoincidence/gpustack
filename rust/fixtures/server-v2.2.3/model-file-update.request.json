@@ -1,0 +1,21 @@
+{
+  "source": "local_path",
+  "huggingface_repo_id": null,
+  "huggingface_filename": null,
+  "model_scope_model_id": null,
+  "model_scope_file_path": null,
+  "local_path": "/srv/models/contract-qwen",
+  "local_dir": null,
+  "worker_id": 101,
+  "cleanup_on_delete": false,
+  "is_lora": false,
+  "base_model": null,
+  "size": 14000000000,
+  "download_progress": 100.0,
+  "resolved_paths": [
+    "/srv/models/contract-qwen/model-00001-of-00002.safetensors",
+    "/srv/models/contract-qwen/model-00002-of-00002.safetensors"
+  ],
+  "state": "ready",
+  "state_message": null
+}

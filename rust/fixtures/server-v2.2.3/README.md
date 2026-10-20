@@ -11,9 +11,13 @@ GPUStack `v2.2.3`，源码 commit
   `GET /version` 只读捕获。
 - `unauthenticated.response.json`：2026-10-19 未携带凭据请求
   `GET /v2/workers` 的真实错误响应。没有读取或记录任何 token。
-- 其他 `.json` 与 `.ndjson`：在现有 `gpustack` Server 容器内，使用固定版本
+- 除下述 ModelFile 样本外的其他 `.json` 与 `.ndjson`：在现有 `gpustack` Server 容器内，使用固定版本
   的 Pydantic 类型和 FastAPI `jsonable_encoder` 构造的 synthetic 样本。所有
   identity、地址、时间和 token 都是保留测试值，不来自数据库或真实凭据。
+- `model-files-full-sync.response.json`、`model-file-update.request.json` 与
+  `model-file-watch.ndjson`：2026-10-20 直接根据固定 commit 的 ModelFile schema、
+  route、Python Worker 更新顺序和事件协议离线构造，没有调用运行中的 Server 或
+  Docker。这些样本固定本阶段需要的字段与状态，但不冒充 Pydantic 运行结果。
 
 这些 synthetic 样本固定字段名、默认值、null、enum 拼写和事件编码，但不声称
 是一次真实注册或模型部署的捕获。注册请求使用的候选 UUID 以 `...0001` 结尾，
@@ -38,6 +42,9 @@ GPUStack `v2.2.3`，源码 commit
 | `model-instance-update.request.json` | `PUT /v2/model-instances/{id}` 的完整更新请求体 |
 | `model-watch.ndjson` | `GET /v2/models?watch=true` 的非空事件行 |
 | `model-instance-watch.ndjson` | ModelInstance CREATED 与 ID-only DELETED 事件行 |
+| `model-files-full-sync.response.json` | `GET /v2/model-files?page=-1&worker_id=101` 响应体；首项也作为单项 GET 响应 |
+| `model-file-update.request.json` | `PUT /v2/model-files/{id}` 的完整更新请求体 |
+| `model-file-watch.ndjson` | ModelFile CREATED、UPDATED 与 ID-only DELETED 事件行 |
 
 ## 再生依据
 
@@ -46,7 +53,11 @@ GPUStack `v2.2.3`，源码 commit
 - `gpustack/routes/routes.py`：`/v2` prefix、认证路由和 endpoint 挂载；
 - `gpustack/routes/workers.py`：注册、status、heartbeat 与 204 语义；
 - `gpustack/routes/models.py`、`gpustack/routes/model_instances.py`：list、watch 与更新；
-- `gpustack/schemas/workers.py`、`gpustack/schemas/models.py`：schema、enum 与 null；
+- `gpustack/routes/model_files.py`：ModelFile list、get、watch、worker filter 与完整更新；
+- `gpustack/schemas/workers.py`、`gpustack/schemas/models.py`、
+  `gpustack/schemas/model_files.py`：schema、enum 与 null；
+- `gpustack/worker/model_file_manager.py`：更新前刷新 public 对象以及完整
+  `ModelFileUpdate` 的构造顺序；
 - `gpustack/client/worker_manager_clients.py` 与 `generated_*_client.py`：Python
   Worker 的实际请求序列化方式；
 - `gpustack/mixins/active_record.py`、`gpustack/server/coordinator/base.py`：分页、

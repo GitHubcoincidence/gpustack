@@ -9,8 +9,9 @@ use crate::{
     ClientError, SecretToken,
     http::{HttpRequest, HttpResponse, Method, Transport},
     types::{
-        ErrorResponse, ModelInstancePublic, ModelInstanceUpdate, ModelPublic, Paginated,
-        ServerVersion, WorkerCreate, WorkerPublic, WorkerRegistrationPublic, WorkerStatusReport,
+        ErrorResponse, ModelFilePublic, ModelFileUpdate, ModelInstancePublic, ModelInstanceUpdate,
+        ModelPublic, Paginated, ServerVersion, WorkerCreate, WorkerPublic,
+        WorkerRegistrationPublic, WorkerStatusReport,
     },
     watch::WatchConnection,
 };
@@ -156,6 +157,42 @@ impl<T: Transport> ServerClient<T> {
         self.decode_json(response, "ModelInstance full sync", Some(worker_token))
     }
 
+    pub async fn list_model_files(
+        &self,
+        worker_token: &SecretToken,
+        worker_id: i64,
+    ) -> Result<Paginated<ModelFilePublic>, ClientError> {
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Get,
+                &format!("v2/model-files?page=-1&worker_id={worker_id}"),
+                Some(worker_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "ModelFile full sync", Some(worker_token))
+    }
+
+    pub async fn get_model_file(
+        &self,
+        worker_token: &SecretToken,
+        model_file_id: i64,
+    ) -> Result<ModelFilePublic, ClientError> {
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Get,
+                &format!("v2/model-files/{model_file_id}"),
+                Some(worker_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "ModelFile response", Some(worker_token))
+    }
+
     /// Performs a full update only after checking Worker ownership and R1 scope.
     pub async fn update_assigned_model_instance(
         &self,
@@ -183,6 +220,32 @@ impl<T: Transport> ServerClient<T> {
         )
     }
 
+    /// Performs a full update only after checking Worker ownership and R1 scope.
+    ///
+    /// Callers must refresh the public object with `get_model_file` before
+    /// constructing this body because v2.2.3 has neither patch nor ETag updates.
+    pub async fn update_assigned_model_file(
+        &self,
+        worker_token: &SecretToken,
+        worker_id: i64,
+        model_file_id: i64,
+        update: &ModelFileUpdate,
+    ) -> Result<ModelFilePublic, ClientError> {
+        update.validate_for_worker(worker_id)?;
+        let body = encode_json(update, "ModelFile update request")?;
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Put,
+                &format!("v2/model-files/{model_file_id}"),
+                Some(worker_token),
+                Some(body),
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "ModelFile update response", Some(worker_token))
+    }
+
     pub async fn watch_models(
         &self,
         worker_token: &SecretToken,
@@ -196,6 +259,18 @@ impl<T: Transport> ServerClient<T> {
     ) -> Result<WatchConnection<ModelInstancePublic>, ClientError> {
         self.open_watch("v2/model-instances?watch=true", worker_token)
             .await
+    }
+
+    pub async fn watch_model_files(
+        &self,
+        worker_token: &SecretToken,
+        worker_id: i64,
+    ) -> Result<WatchConnection<ModelFilePublic>, ClientError> {
+        self.open_watch(
+            &format!("v2/model-files?watch=true&worker_id={worker_id}"),
+            worker_token,
+        )
+        .await
     }
 
     async fn open_watch<R: DeserializeOwned>(

@@ -208,6 +208,16 @@ impl ModelSource {
 #[serde(transparent)]
 pub struct ModelInstanceState(pub String);
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ModelFileState(pub String);
+
+impl ModelFileState {
+    fn is_supported(&self) -> bool {
+        matches!(self.0.as_str(), "downloading" | "ready" | "error")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ModelPublic {
     pub id: i64,
@@ -218,6 +228,106 @@ pub struct ModelPublic {
     pub image_name: Option<String>,
     #[serde(flatten)]
     pub extensions: BTreeMap<String, Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct ModelFilePublic {
+    pub id: i64,
+    pub created_at: String,
+    pub updated_at: String,
+    pub base_model: Option<String>,
+    pub cleanup_on_delete: Option<bool>,
+    pub download_progress: Option<f64>,
+    pub huggingface_filename: Option<String>,
+    pub huggingface_repo_id: Option<String>,
+    pub is_lora: bool,
+    pub local_dir: Option<String>,
+    pub local_path: Option<String>,
+    pub model_scope_file_path: Option<String>,
+    pub model_scope_model_id: Option<String>,
+    pub owner_principal_id: Option<i64>,
+    pub resolved_paths: Vec<String>,
+    pub size: Option<i64>,
+    pub source: ModelSource,
+    pub state: ModelFileState,
+    pub state_message: Option<String>,
+    pub worker_id: Option<i64>,
+    #[serde(flatten)]
+    pub extensions: BTreeMap<String, Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+/// Complete replacement body for a Worker-owned ModelFile.
+pub struct ModelFileUpdate {
+    pub base_model: Option<String>,
+    pub cleanup_on_delete: Option<bool>,
+    pub download_progress: Option<f64>,
+    pub huggingface_filename: Option<String>,
+    pub huggingface_repo_id: Option<String>,
+    pub is_lora: bool,
+    pub local_dir: Option<String>,
+    pub local_path: Option<String>,
+    pub model_scope_file_path: Option<String>,
+    pub model_scope_model_id: Option<String>,
+    pub resolved_paths: Vec<String>,
+    pub size: Option<i64>,
+    pub source: ModelSource,
+    pub state: ModelFileState,
+    pub state_message: Option<String>,
+    pub worker_id: Option<i64>,
+}
+
+impl ModelFileUpdate {
+    /// Prevents writes for another Worker or an unsupported R1 model source.
+    pub fn validate_for_worker(&self, worker_id: i64) -> Result<(), ClientError> {
+        if self.worker_id != Some(worker_id) {
+            return Err(ClientError::Contract(format!(
+                "model file is assigned to worker {:?}, not worker {worker_id}",
+                self.worker_id
+            )));
+        }
+        if !self.source.is_local_path() {
+            return Err(ClientError::Contract(
+                "R1 only accepts model source local_path".to_owned(),
+            ));
+        }
+        if self.local_path.as_deref().is_none_or(str::is_empty) {
+            return Err(ClientError::Contract(
+                "local_path model file requires a non-empty local_path".to_owned(),
+            ));
+        }
+        if !self.state.is_supported() {
+            return Err(ClientError::Contract(format!(
+                "unsupported ModelFile state {}",
+                self.state.0
+            )));
+        }
+        Ok(())
+    }
+}
+
+impl From<&ModelFilePublic> for ModelFileUpdate {
+    fn from(model_file: &ModelFilePublic) -> Self {
+        Self {
+            base_model: model_file.base_model.clone(),
+            cleanup_on_delete: model_file.cleanup_on_delete,
+            download_progress: model_file.download_progress,
+            huggingface_filename: model_file.huggingface_filename.clone(),
+            huggingface_repo_id: model_file.huggingface_repo_id.clone(),
+            is_lora: model_file.is_lora,
+            local_dir: model_file.local_dir.clone(),
+            local_path: model_file.local_path.clone(),
+            model_scope_file_path: model_file.model_scope_file_path.clone(),
+            model_scope_model_id: model_file.model_scope_model_id.clone(),
+            resolved_paths: model_file.resolved_paths.clone(),
+            size: model_file.size,
+            source: model_file.source.clone(),
+            state: model_file.state.clone(),
+            state_message: model_file.state_message.clone(),
+            worker_id: model_file.worker_id,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]

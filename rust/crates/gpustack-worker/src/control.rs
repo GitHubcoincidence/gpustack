@@ -6,7 +6,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use gpustack_client::http::Transport;
-use gpustack_client::types::{ModelInstancePublic, ModelPublic, WorkerStatusReport};
+use gpustack_client::types::{
+    ModelFilePublic, ModelInstancePublic, ModelPublic, WorkerStatusReport,
+};
 use gpustack_client::watch::{WatchConnection, WatchEvent};
 use gpustack_client::{ClientError, SecretToken, ServerClient};
 use serde::de::DeserializeOwned;
@@ -18,6 +20,7 @@ use tokio::time::{Instant, MissedTickBehavior};
 pub struct DesiredState {
     pub models: BTreeMap<i64, ModelPublic>,
     pub model_instances: BTreeMap<i64, ModelInstancePublic>,
+    pub model_files: BTreeMap<i64, ModelFilePublic>,
     pub revision: u64,
 }
 
@@ -100,6 +103,7 @@ where
 pub trait ControlPlaneApi: Send + Sync + 'static {
     type ModelWatch: EventStream<ModelPublic>;
     type ModelInstanceWatch: EventStream<ModelInstancePublic>;
+    type ModelFileWatch: EventStream<ModelFilePublic>;
 
     fn heartbeat<'a>(
         &'a self,
@@ -122,6 +126,12 @@ pub trait ControlPlaneApi: Send + Sync + 'static {
         worker_token: &'a SecretToken,
     ) -> impl Future<Output = Result<Vec<ModelInstancePublic>, ClientError>> + Send + 'a;
 
+    fn list_model_files<'a>(
+        &'a self,
+        worker_token: &'a SecretToken,
+        worker_id: i64,
+    ) -> impl Future<Output = Result<Vec<ModelFilePublic>, ClientError>> + Send + 'a;
+
     fn watch_models<'a>(
         &'a self,
         worker_token: &'a SecretToken,
@@ -131,6 +141,12 @@ pub trait ControlPlaneApi: Send + Sync + 'static {
         &'a self,
         worker_token: &'a SecretToken,
     ) -> impl Future<Output = Result<Self::ModelInstanceWatch, ClientError>> + Send + 'a;
+
+    fn watch_model_files<'a>(
+        &'a self,
+        worker_token: &'a SecretToken,
+        worker_id: i64,
+    ) -> impl Future<Output = Result<Self::ModelFileWatch, ClientError>> + Send + 'a;
 }
 
 impl<T> ControlPlaneApi for ServerClient<T>
@@ -139,6 +155,7 @@ where
 {
     type ModelWatch = WatchConnection<ModelPublic>;
     type ModelInstanceWatch = WatchConnection<ModelInstancePublic>;
+    type ModelFileWatch = WatchConnection<ModelFilePublic>;
 
     fn heartbeat<'a>(
         &'a self,
@@ -173,6 +190,16 @@ where
             .map(|page| page.items)
     }
 
+    async fn list_model_files(
+        &self,
+        worker_token: &SecretToken,
+        worker_id: i64,
+    ) -> Result<Vec<ModelFilePublic>, ClientError> {
+        ServerClient::list_model_files(self, worker_token, worker_id)
+            .await
+            .map(|page| page.items)
+    }
+
     fn watch_models<'a>(
         &'a self,
         worker_token: &'a SecretToken,
@@ -185,6 +212,14 @@ where
         worker_token: &'a SecretToken,
     ) -> impl Future<Output = Result<Self::ModelInstanceWatch, ClientError>> + Send + 'a {
         ServerClient::watch_model_instances(self, worker_token)
+    }
+
+    fn watch_model_files<'a>(
+        &'a self,
+        worker_token: &'a SecretToken,
+        worker_id: i64,
+    ) -> impl Future<Output = Result<Self::ModelFileWatch, ClientError>> + Send + 'a {
+        ServerClient::watch_model_files(self, worker_token, worker_id)
     }
 }
 
@@ -375,8 +410,8 @@ async fn run_desired_state_loop<A: ControlPlaneApi>(
         replace_snapshot(&desired_tx, snapshot);
         health_tx.send_modify(|health| health.full_sync_ok = true);
 
-        let (mut model_watch, mut instance_watch) =
-            match open_watches(api.as_ref(), &worker_token).await {
+        let (mut model_watch, mut instance_watch, mut model_file_watch) =
+            match open_watches(api.as_ref(), &worker_token, worker_id).await {
                 Ok(watches) => watches,
                 Err(_) => {
                     health_tx.send_modify(|health| {
@@ -401,6 +436,7 @@ async fn run_desired_state_loop<A: ControlPlaneApi>(
             &health_tx,
             &mut model_watch,
             &mut instance_watch,
+            &mut model_file_watch,
             &mut shutdown,
         )
         .await;
@@ -432,12 +468,20 @@ async fn full_sync<A: ControlPlaneApi>(
 ) -> Result<DesiredState, ClientError> {
     let models = api.list_models(worker_token).await?;
     let instances = api.list_model_instances(worker_token).await?;
+    let model_files = api.list_model_files(worker_token, worker_id).await?;
     Ok(DesiredState {
         models: models.into_iter().map(|model| (model.id, model)).collect(),
         model_instances: instances
             .into_iter()
             .filter(|instance| instance.worker_id == Some(worker_id))
             .map(|instance| (instance.id, instance))
+            .collect(),
+        // The Server query is scoped, but this second check prevents a buggy
+        // or stale response from granting this Worker ownership of another file.
+        model_files: model_files
+            .into_iter()
+            .filter(|model_file| model_file.worker_id == Some(worker_id))
+            .map(|model_file| (model_file.id, model_file))
             .collect(),
         revision: 0,
     })
@@ -446,10 +490,12 @@ async fn full_sync<A: ControlPlaneApi>(
 async fn open_watches<A: ControlPlaneApi>(
     api: &A,
     worker_token: &SecretToken,
-) -> Result<(A::ModelWatch, A::ModelInstanceWatch), ClientError> {
+    worker_id: i64,
+) -> Result<(A::ModelWatch, A::ModelInstanceWatch, A::ModelFileWatch), ClientError> {
     let model_watch = api.watch_models(worker_token).await?;
     let instance_watch = api.watch_model_instances(worker_token).await?;
-    Ok((model_watch, instance_watch))
+    let model_file_watch = api.watch_model_files(worker_token, worker_id).await?;
+    Ok((model_watch, instance_watch, model_file_watch))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -468,6 +514,7 @@ async fn run_watch_session<A: ControlPlaneApi>(
     health_tx: &watch::Sender<ControlPlaneHealth>,
     model_watch: &mut A::ModelWatch,
     instance_watch: &mut A::ModelInstanceWatch,
+    model_file_watch: &mut A::ModelFileWatch,
     shutdown: &mut watch::Receiver<bool>,
 ) -> WatchSessionOutcome {
     let start = Instant::now() + full_sync_interval;
@@ -496,6 +543,21 @@ async fn run_watch_session<A: ControlPlaneApi>(
                 match event {
                     Ok(Some(event)) => {
                         if !apply_instance_event(desired_tx, worker_id, event) {
+                            return WatchSessionOutcome::Reconnect {
+                                observed_activity: true,
+                            };
+                        }
+                        observed_activity = true;
+                    }
+                    Ok(None) | Err(_) => {
+                        return WatchSessionOutcome::Reconnect { observed_activity };
+                    }
+                }
+            }
+            event = model_file_watch.next_event() => {
+                match event {
+                    Ok(Some(event)) => {
+                        if !apply_model_file_event(desired_tx, worker_id, event) {
                             return WatchSessionOutcome::Reconnect {
                                 observed_activity: true,
                             };
@@ -583,6 +645,37 @@ fn apply_instance_event(
     }
 }
 
+fn apply_model_file_event(
+    desired_tx: &watch::Sender<DesiredState>,
+    worker_id: i64,
+    event: WatchEvent<ModelFilePublic>,
+) -> bool {
+    match event {
+        WatchEvent::Created(model_file) | WatchEvent::Updated(model_file) => {
+            desired_tx.send_modify(|state| {
+                if model_file.worker_id == Some(worker_id) {
+                    state.model_files.insert(model_file.id, model_file);
+                } else {
+                    state.model_files.remove(&model_file.id);
+                }
+                state.revision = state.revision.saturating_add(1);
+            });
+            true
+        }
+        WatchEvent::Deleted { id } => {
+            // M3-C.2 owns only the authoritative cache. Filesystem cleanup is a
+            // later, separately gated ModelFile manager responsibility.
+            desired_tx.send_modify(|state| {
+                state.model_files.remove(&id);
+                state.revision = state.revision.saturating_add(1);
+            });
+            true
+        }
+        WatchEvent::Heartbeat => true,
+        WatchEvent::Unknown { .. } => false,
+    }
+}
+
 fn replace_snapshot(desired_tx: &watch::Sender<DesiredState>, mut snapshot: DesiredState) {
     snapshot.revision = desired_tx.borrow().revision.saturating_add(1);
     desired_tx.send_replace(snapshot);
@@ -647,8 +740,10 @@ mod tests {
         status_results: VecDeque<bool>,
         models: VecDeque<Result<Vec<ModelPublic>, ClientError>>,
         instances: VecDeque<Result<Vec<ModelInstancePublic>, ClientError>>,
+        model_files: VecDeque<Result<Vec<ModelFilePublic>, ClientError>>,
         model_watches: VecDeque<Result<ScriptedWatch<ModelPublic>, ClientError>>,
         instance_watches: VecDeque<Result<ScriptedWatch<ModelInstancePublic>, ClientError>>,
+        model_file_watches: VecDeque<Result<ScriptedWatch<ModelFilePublic>, ClientError>>,
         heartbeat_calls: u64,
         status_calls: u64,
         status_delay: Option<Duration>,
@@ -662,6 +757,7 @@ mod tests {
     impl ControlPlaneApi for MockApi {
         type ModelWatch = ScriptedWatch<ModelPublic>;
         type ModelInstanceWatch = ScriptedWatch<ModelInstancePublic>;
+        type ModelFileWatch = ScriptedWatch<ModelFilePublic>;
 
         async fn heartbeat(&self, _worker_token: &SecretToken) -> Result<(), ClientError> {
             let mut state = self.state.lock().expect("mock state lock");
@@ -719,6 +815,19 @@ mod tests {
                 .expect("scripted instance snapshot")
         }
 
+        async fn list_model_files(
+            &self,
+            _worker_token: &SecretToken,
+            _worker_id: i64,
+        ) -> Result<Vec<ModelFilePublic>, ClientError> {
+            self.state
+                .lock()
+                .expect("mock state lock")
+                .model_files
+                .pop_front()
+                .expect("scripted ModelFile snapshot")
+        }
+
         async fn watch_models(
             &self,
             _worker_token: &SecretToken,
@@ -742,6 +851,19 @@ mod tests {
                 .pop_front()
                 .expect("scripted instance watch")
         }
+
+        async fn watch_model_files(
+            &self,
+            _worker_token: &SecretToken,
+            _worker_id: i64,
+        ) -> Result<Self::ModelFileWatch, ClientError> {
+            self.state
+                .lock()
+                .expect("mock state lock")
+                .model_file_watches
+                .pop_front()
+                .expect("scripted ModelFile watch")
+        }
     }
 
     fn model_fixture() -> Vec<ModelPublic> {
@@ -757,6 +879,14 @@ mod tests {
             "../../../fixtures/server-v2.2.3/model-instances-full-sync.response.json"
         ))
         .expect("model instance fixture")
+        .items
+    }
+
+    fn model_file_fixture() -> Vec<ModelFilePublic> {
+        serde_json::from_slice::<Paginated<ModelFilePublic>>(include_bytes!(
+            "../../../fixtures/server-v2.2.3/model-files-full-sync.response.json"
+        ))
+        .expect("ModelFile fixture")
         .items
     }
 
@@ -823,16 +953,23 @@ mod tests {
         let mut second_instances = first_instances.clone();
         second_instances[0].id = 302;
         second_instances[0].name = "contract-qwen-002".to_owned();
+        let first_model_files = model_file_fixture();
+        let mut second_model_files = first_model_files.clone();
+        second_model_files[0].id = 402;
+        second_model_files[0].local_path = Some("/srv/models/contract-qwen-002".to_owned());
         {
             let mut state = api.state.lock().expect("mock state lock");
             state.models = VecDeque::from([Ok(model_fixture()), Ok(model_fixture())]);
             state.instances = VecDeque::from([Ok(first_instances), Ok(second_instances)]);
-            state.model_watches = VecDeque::from([
+            state.model_files = VecDeque::from([Ok(first_model_files), Ok(second_model_files)]);
+            state.model_watches =
+                VecDeque::from([Ok(ScriptedWatch::pending()), Ok(ScriptedWatch::pending())]);
+            state.instance_watches =
+                VecDeque::from([Ok(ScriptedWatch::pending()), Ok(ScriptedWatch::pending())]);
+            state.model_file_watches = VecDeque::from([
                 Ok(ScriptedWatch::delayed_error(Duration::from_millis(30))),
                 Ok(ScriptedWatch::pending()),
             ]);
-            state.instance_watches =
-                VecDeque::from([Ok(ScriptedWatch::pending()), Ok(ScriptedWatch::pending())]);
         }
         let (control, handle) = WorkerControlPlane::new(
             api,
@@ -848,6 +985,7 @@ mod tests {
 
         desired.changed().await.expect("initial full sync");
         assert!(desired.borrow().model_instances.contains_key(&301));
+        assert!(desired.borrow().model_files.contains_key(&401));
         assert_eq!(desired.borrow().revision, 1);
         tokio::time::timeout(Duration::from_millis(200), async {
             loop {
@@ -861,6 +999,8 @@ mod tests {
         .expect("reconnect timeout");
         assert!(!desired.borrow().model_instances.contains_key(&301));
         assert!(desired.borrow().model_instances.contains_key(&302));
+        assert!(!desired.borrow().model_files.contains_key(&401));
+        assert!(desired.borrow().model_files.contains_key(&402));
 
         shutdown_tx.send(true).expect("request shutdown");
         task.await.expect("control task");
@@ -884,5 +1024,84 @@ mod tests {
             WatchEvent::Updated(instance)
         ));
         assert!(desired.borrow().model_instances.is_empty());
+    }
+
+    #[test]
+    fn model_file_events_remove_assignments_moved_to_another_worker() {
+        let (desired_tx, desired) = watch::channel(DesiredState::default());
+        let mut model_file = model_file_fixture().remove(0);
+        assert!(apply_model_file_event(
+            &desired_tx,
+            101,
+            WatchEvent::Created(model_file.clone())
+        ));
+        assert!(desired.borrow().model_files.contains_key(&401));
+
+        model_file.worker_id = Some(202);
+        assert!(apply_model_file_event(
+            &desired_tx,
+            101,
+            WatchEvent::Updated(model_file)
+        ));
+        assert!(desired.borrow().model_files.is_empty());
+    }
+
+    #[test]
+    fn model_file_delete_only_removes_the_cached_record() {
+        let (desired_tx, desired) = watch::channel(DesiredState::default());
+        let model_file = model_file_fixture().remove(0);
+        assert!(apply_model_file_event(
+            &desired_tx,
+            101,
+            WatchEvent::Created(model_file)
+        ));
+        assert!(apply_model_file_event(
+            &desired_tx,
+            101,
+            WatchEvent::Deleted { id: 401 }
+        ));
+        assert!(desired.borrow().model_files.is_empty());
+        assert_eq!(desired.borrow().revision, 2);
+    }
+
+    #[test]
+    fn unknown_model_file_event_requires_a_full_reconnect() {
+        let (desired_tx, desired) = watch::channel(DesiredState::default());
+        assert!(!apply_model_file_event(
+            &desired_tx,
+            101,
+            WatchEvent::Unknown { id: 401 }
+        ));
+        assert_eq!(desired.borrow().revision, 0);
+    }
+
+    #[tokio::test]
+    async fn full_sync_filters_unscoped_model_files_and_rejects_partial_refresh() {
+        let api = MockApi::default();
+        let mut files = model_file_fixture();
+        let mut foreign = files[0].clone();
+        foreign.id = 499;
+        foreign.worker_id = Some(202);
+        files.push(foreign);
+        {
+            let mut state = api.state.lock().expect("mock state lock");
+            state.models = VecDeque::from([Ok(model_fixture()), Ok(model_fixture())]);
+            state.instances = VecDeque::from([Ok(instance_fixture()), Ok(instance_fixture())]);
+            state.model_files = VecDeque::from([
+                Ok(files),
+                Err(ClientError::Watch("ModelFile list unavailable".to_owned())),
+            ]);
+        }
+        let token = SecretToken::new("worker-secret").expect("valid token");
+        let (desired_tx, desired) = watch::channel(DesiredState::default());
+
+        let first = full_sync(&api, &token, 101).await.expect("first full sync");
+        replace_snapshot(&desired_tx, first);
+        assert!(desired.borrow().model_files.contains_key(&401));
+        assert!(!desired.borrow().model_files.contains_key(&499));
+
+        assert!(full_sync(&api, &token, 101).await.is_err());
+        assert!(desired.borrow().model_files.contains_key(&401));
+        assert_eq!(desired.borrow().revision, 1);
     }
 }

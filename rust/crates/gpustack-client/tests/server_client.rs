@@ -9,7 +9,10 @@ use futures_util::stream;
 use gpustack_client::{
     ClientError, SecretToken, ServerClient,
     http::{HttpRequest, HttpResponse, StreamResponse, Transport, TransportError},
-    types::{ModelInstanceUpdate, WorkerCreate, WorkerStatusReport},
+    types::{
+        ModelFileState, ModelFileUpdate, ModelInstanceUpdate, ModelSource, WorkerCreate,
+        WorkerStatusReport,
+    },
     watch::WatchEvent,
 };
 use serde_json::{Value, json};
@@ -29,8 +32,14 @@ const MODEL_INSTANCES_FULL_SYNC: &str =
     include_str!("../../../fixtures/server-v2.2.3/model-instances-full-sync.response.json");
 const MODEL_INSTANCE_UPDATE: &str =
     include_str!("../../../fixtures/server-v2.2.3/model-instance-update.request.json");
+const MODEL_FILES_FULL_SYNC: &str =
+    include_str!("../../../fixtures/server-v2.2.3/model-files-full-sync.response.json");
+const MODEL_FILE_UPDATE: &str =
+    include_str!("../../../fixtures/server-v2.2.3/model-file-update.request.json");
 const MODEL_INSTANCE_WATCH: &str =
     include_str!("../../../fixtures/server-v2.2.3/model-instance-watch.ndjson");
+const MODEL_FILE_WATCH: &str =
+    include_str!("../../../fixtures/server-v2.2.3/model-file-watch.ndjson");
 
 #[derive(Clone, Default)]
 struct MockTransport {
@@ -105,6 +114,16 @@ fn json_item_from_page(raw: &str) -> Vec<u8> {
     serde_json::to_vec(&page["items"][0]).expect("item JSON")
 }
 
+fn model_file_update_response() -> Vec<u8> {
+    let page: Value = serde_json::from_str(MODEL_FILES_FULL_SYNC).expect("ModelFile page JSON");
+    let mut item = page["items"][0].clone();
+    let update: Value = serde_json::from_str(MODEL_FILE_UPDATE).expect("ModelFile update JSON");
+    for (field, value) in update.as_object().expect("ModelFile update object") {
+        item[field.as_str()] = value.clone();
+    }
+    serde_json::to_vec(&item).expect("ModelFile response JSON")
+}
+
 #[tokio::test]
 async fn client_uses_the_frozen_control_plane_contract() {
     let transport = MockTransport::default();
@@ -115,11 +134,15 @@ async fn client_uses_the_frozen_control_plane_contract() {
     transport.push_response(204, Vec::new());
     transport.push_response(200, MODELS_FULL_SYNC);
     transport.push_response(200, MODEL_INSTANCES_FULL_SYNC);
+    transport.push_response(200, MODEL_FILES_FULL_SYNC);
+    transport.push_response(200, json_item_from_page(MODEL_FILES_FULL_SYNC));
     transport.push_response(200, json_item_from_page(MODEL_INSTANCES_FULL_SYNC));
+    transport.push_response(200, model_file_update_response());
     transport.push_stream(vec![
         MODEL_INSTANCE_WATCH.as_bytes()[..47].to_vec(),
         MODEL_INSTANCE_WATCH.as_bytes()[47..].to_vec(),
     ]);
+    transport.push_stream(vec![MODEL_FILE_WATCH.as_bytes().to_vec()]);
 
     let client = ServerClient::new(
         Url::parse("http://127.0.0.1/base/").expect("base URL"),
@@ -133,6 +156,8 @@ async fn client_uses_the_frozen_control_plane_contract() {
         serde_json::from_str(WORKER_STATUS).expect("WorkerStatusReport");
     let update: ModelInstanceUpdate =
         serde_json::from_str(MODEL_INSTANCE_UPDATE).expect("ModelInstanceUpdate");
+    let model_file_update: ModelFileUpdate =
+        serde_json::from_str(MODEL_FILE_UPDATE).expect("ModelFileUpdate");
 
     client
         .version()
@@ -173,10 +198,36 @@ async fn client_uses_the_frozen_control_plane_contract() {
             .id,
         301
     );
+    assert_eq!(
+        client
+            .list_model_files(&worker_token, 101)
+            .await
+            .expect("model files")
+            .items[0]
+            .id,
+        401
+    );
+    assert_eq!(
+        client
+            .get_model_file(&worker_token, 401)
+            .await
+            .expect("model file")
+            .worker_id,
+        Some(101)
+    );
     client
         .update_assigned_model_instance(&worker_token, 101, 301, &update)
         .await
         .expect("update assigned ModelInstance");
+    assert_eq!(
+        client
+            .update_assigned_model_file(&worker_token, 101, 401, &model_file_update)
+            .await
+            .expect("update assigned ModelFile")
+            .state
+            .0,
+        "ready"
+    );
 
     let mut watch = client
         .watch_model_instances(&worker_token)
@@ -191,6 +242,27 @@ async fn client_uses_the_frozen_control_plane_contract() {
         Some(WatchEvent::Deleted { id: 301 })
     );
     assert_eq!(watch.next_event().await.expect("end of stream"), None);
+
+    let mut model_file_watch = client
+        .watch_model_files(&worker_token, 101)
+        .await
+        .expect("ModelFile watch");
+    assert!(matches!(
+        model_file_watch.next_event().await.expect("created event"),
+        Some(WatchEvent::Created(model_file)) if model_file.id == 401
+    ));
+    assert!(matches!(
+        model_file_watch.next_event().await.expect("updated event"),
+        Some(WatchEvent::Updated(model_file)) if model_file.state.0 == "ready"
+    ));
+    assert_eq!(
+        model_file_watch.next_event().await.expect("deleted event"),
+        Some(WatchEvent::Deleted { id: 401 })
+    );
+    assert_eq!(
+        model_file_watch.next_event().await.expect("end of stream"),
+        None
+    );
 
     let requests = transport.requests();
     let paths_and_queries: Vec<String> = requests
@@ -214,8 +286,12 @@ async fn client_uses_the_frozen_control_plane_contract() {
             "/base/v2/worker-status",
             "/base/v2/models?page=-1",
             "/base/v2/model-instances?page=-1",
+            "/base/v2/model-files?page=-1&worker_id=101",
+            "/base/v2/model-files/401",
             "/base/v2/model-instances/301",
+            "/base/v2/model-files/401",
             "/base/v2/model-instances?watch=true",
+            "/base/v2/model-files?watch=true&worker_id=101",
         ]
     );
     assert!(requests[0].authorization.is_none());
@@ -225,11 +301,15 @@ async fn client_uses_the_frozen_control_plane_contract() {
             .all(|request| request.authorization.is_some())
     );
     assert!(
-        requests[..8]
+        requests[..11]
             .iter()
             .all(|request| request.timeout.is_some())
     );
-    assert!(requests[8].timeout.is_none());
+    assert!(
+        requests[11..]
+            .iter()
+            .all(|request| request.timeout.is_none())
+    );
     assert_eq!(
         serde_json::from_slice::<Value>(requests[3].body.as_deref().expect("heartbeat body"))
             .expect("heartbeat JSON"),
@@ -279,6 +359,49 @@ async fn update_refuses_an_instance_assigned_to_another_worker() {
         .update_assigned_model_instance(&token, 999, 301, &update)
         .await
         .expect_err("assignment mismatch");
+    assert!(matches!(error, ClientError::Contract(_)));
+    assert!(transport.requests().is_empty());
+}
+
+#[tokio::test]
+async fn model_file_update_rejects_unsupported_or_unowned_requests_before_transport() {
+    let transport = MockTransport::default();
+    let client = ServerClient::new(
+        Url::parse("http://127.0.0.1").expect("base URL"),
+        transport.clone(),
+    )
+    .expect("client");
+    let token = SecretToken::new("worker-secret").expect("token");
+    let update: ModelFileUpdate = serde_json::from_str(MODEL_FILE_UPDATE).expect("ModelFileUpdate");
+
+    let error = client
+        .update_assigned_model_file(&token, 999, 401, &update)
+        .await
+        .expect_err("assignment mismatch");
+    assert!(matches!(error, ClientError::Contract(_)));
+
+    let mut unsupported_source = update.clone();
+    unsupported_source.source = ModelSource("huggingface".to_owned());
+    let error = client
+        .update_assigned_model_file(&token, 101, 401, &unsupported_source)
+        .await
+        .expect_err("unsupported source");
+    assert!(matches!(error, ClientError::Contract(_)));
+
+    let mut missing_local_path = update.clone();
+    missing_local_path.local_path = Some(String::new());
+    let error = client
+        .update_assigned_model_file(&token, 101, 401, &missing_local_path)
+        .await
+        .expect_err("missing local path");
+    assert!(matches!(error, ClientError::Contract(_)));
+
+    let mut unsupported_state = update;
+    unsupported_state.state = ModelFileState("future_state".to_owned());
+    let error = client
+        .update_assigned_model_file(&token, 101, 401, &unsupported_state)
+        .await
+        .expect_err("unsupported state");
     assert!(matches!(error, ClientError::Contract(_)));
     assert!(transport.requests().is_empty());
 }
