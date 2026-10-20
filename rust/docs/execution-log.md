@@ -18,8 +18,8 @@
 
 ## 当前状态
 
-- 状态：`ready`
-- 当前阶段：M3-D 设计已冻结；M3-D.1 离线实现尚未开始
+- 状态：`running`
+- 当前阶段：M3-D.1 control-plane-only 离线实现
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
@@ -30,7 +30,7 @@
 - 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、Server 权威 Worker 身份两文件状态机，以及 Model/ModelInstance/ModelFile 三资源控制循环已经建立；尚未执行真实 Server 集成、ModelFile 本地准备、Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-D 设计已冻结，M3-D.1 离线实现尚未开始。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 当前停止位置：M3-D.1 已获用户授权并进入离线实现。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
 - 下一项允许执行的工作：实现 M3-D.1 `worker run --control-plane-only`、最小 `/healthz`、类型化 maintenance 和优雅停止，并只用 fixture/mock 验证。任何真实凭据读取、注册或写路径仍必须再次获得明确批准。
 
 ## 里程碑
@@ -301,6 +301,16 @@
 - 安全边界：本次只修改治理文档，不读取 token，不连接真实 Server 写路径，不操作 Docker、GPU、vLLM 或 Python Worker。
 - 当前停止位置：M3-D 设计已冻结，M3-D.1 尚未开始。
 - 下一项允许执行的工作：提交本治理检查点后，等待用户授权 M3-D.1 离线实现；M3-D.2 仍未授权。
+
+### 2026-10-20：M3-D.1 control-plane-only 离线实现启动
+
+- 目的：把已冻结的隔离控制面设计实现为正式 CLI 和 Worker supervisor，在任何真实凭据或 Server 写入前验证完整启动、身份、控制循环和关闭路径。
+- 用户确认：用户已授权开始 M3-D.1；该授权只包含代码、静态 fixture、mock transport、临时目录和离线构建测试，不包含 M3-D.2。
+- 实现切面：类型化 maintenance；hostname/ifname/port 配置；`worker run --control-plane-only`；最小 `/healthz`；registration/status 安全 profile；身份 bootstrap、三资源控制循环和 shutdown 编排；脱敏事件与退出摘要。
+- 依赖边界：不新增 HTTP framework 或其他第三方 crate；只启用工作区现有 Tokio 的 network/I/O feature。最小 health listener 属于 M3-D liveness 子集，M4 再扩展完整 Worker API。
+- 安全边界：测试不得读取 `/home/wujiaxing2/.config/gpustack-rust/m3d-registration-token` 或现有 Python Worker 环境，不得运行新的 `worker run` 连接真实 Server，不得操作 Docker、GPU、vLLM 或 Python Worker。
+- 当前停止位置：M3-D.1 状态为 `running`，代码尚未修改。
+- 下一项允许执行的工作：完成离线实现、自动化门禁、注释审阅和环境无副作用核验，然后提交代码检查点并在聊天中交付详细实现报告。
 
 ## 未解决风险与待确认事项
 
