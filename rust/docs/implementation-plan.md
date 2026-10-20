@@ -7,11 +7,14 @@
 | M0 冻结设计 | Charter、架构、CLI、协议、计划、决策与交接记录 | 用户接受设计 | `codex/rust-worker` 上的本套文档 | 审阅通过，并以只包含目标文档的 Git commit 保存 |
 | M1 环境基线 | 只读盘点 90 服务器、现有 Server/Worker、GPU、Docker、网络、模型、Runner 镜像与 Git 连通性 | M0 已提交 | 已验证的基线报告和完整环境身份信息 | 命令、版本、镜像摘要、源码映射、网络探测，且无部署变更 |
 | M2 Rust workspace 与 CLI 骨架 | 四 crate workspace、配置、context、输出、错误分类、signal 与本地测试 | 已有 M1 基线和工具链 | 支持 `version`、`validate-config` 与 `doctor` 的 `gpustack-rs` | format、lint、unit test、Linux build、secret redaction test |
-| M3 Server 控制面 | 版本检查、注册、身份持久化、heartbeat、状态、watch、full sync 与最小 HTTP probe | 已冻结 Server fixture | Rust Worker 可见且稳定，但暂不启动模型 | 契约测试、重连测试、使用隔离身份连接真实 Server |
-| M4 资源盘点与 Worker API | NVML/系统上报、文件系统 API、日志、读取配置、metrics 与认证 | M3 | Server 能看到两张 A100，并能调用所需 Worker API | Python/Rust fixture 对比、路径安全测试、HTTP auth test、A100 证据 |
-| M5 Docker runtime 与 Lab | Docker 原语、所有权标签、WorkloadSpec、vLLM builder、Lab 命令、日志、健康与清理 | M4 与维护窗口 | 完全通过 CLI 完成单 GPU Lab 推理 | unit plan、Docker smoke、vLLM response、log stream、清理与非所有权测试 |
-| M6 Managed 单 GPU 路径 | Server 期望状态、reconciler、状态上报、model CLI、Managed inference 与删除 | M5 | 完全通过 CLI 完成 Server 托管单 GPU 推理 | 完整命令记录、Server 状态、响应、日志、删除后无孤儿资源 |
-| M7 恢复与双 GPU 路径 | 接管、事件/full-sync 恢复、重启策略、Server/Docker 故障、双 A100 tensor parallelism | M6 | 宿主机进程形式的 Worker 行为可靠 | 重启、断连、故障、未知容器与双 GPU 证据 |
+| M3-A–C.1 Server 控制面基础 | 版本检查、类型化 client、注册身份持久化、heartbeat/status、Model/ModelInstance watch 与 full sync | 已冻结 Server fixture | 已接受的离线控制循环与 Server 权威 Worker 身份 | fixture、mock transport、恢复和重连测试 |
+| M3-C.2 ModelFile 控制协议 | ModelFile schema/fixture、按 Worker list/watch、完整 update、desired state 与 full-sync 恢复 | M3-C.1 与固定 v2.2.3 源码复核 | 不启动模型的完整 Managed 控制资源缓存 | 所有权过滤、字段保留、断线恢复、状态值和 ID-only delete 离线测试 |
+| M3-D 隔离真实 Server 集成 | 隔离身份注册、身份落盘、heartbeat/status、Model/ModelInstance/ModelFile list/watch/full-sync | M3-C.2 接受且真实写路径另行批准 | Rust Worker 在 Server 可见且稳定，但不可调度、不启动模型 | 真实响应与 fixture 对比、运行时长、Server 可见性、清理与回滚证据 |
+| M4 资源盘点与 Worker API | NVML/系统上报、文件系统 API、日志、读取配置、metrics 与认证 | M3-D | Server 能看到两张 A100，并能调用所需 Worker API | Python/Rust fixture 对比、路径安全测试、HTTP auth test、A100 证据 |
+| M5 Docker runtime 与 Lab | Docker 原语、所有权标签、WorkloadSpec、vLLM builder、本地 Lab 状态、Lab 命令、日志、健康与清理 | M4 与维护窗口 | 完全通过 CLI 完成单 GPU Lab 推理，不创建 Server ModelInstance/ModelFile | unit plan、Docker smoke、vLLM response、log stream、清理与非所有权测试 |
+| M6-A Managed 文件准备 | `SCHEDULED -> INITIALIZING`、ModelFile 本地路径校验/分片解析、完整结果上报，并等待 Server `STARTING` | M5 与 M3-C.2 | Managed 实例按原状态所有权完成本地模型准备，不提前启动容器 | 状态所有权、ModelFile ready/error、路径安全和“STARTING 前无容器”测试 |
+| M6-B Managed 单 GPU runtime | `STARTING` 后 reconciler 启动/接管 vLLM，健康后上报 `RUNNING`，并支持 model CLI、推理与删除 | M6-A | 完全通过 CLI 完成 Server 托管单 GPU 推理 | 完整命令记录、全状态链、响应、日志、健康门禁和删除后无孤儿资源 |
+| M7 恢复与双 GPU 路径 | 接管、事件/full-sync 恢复、重启策略、Server/Docker 故障、双 A100 tensor parallelism | M6-B | 宿主机进程形式的 Worker 行为可靠 | 重启、断连、故障、未知容器与双 GPU 证据 |
 | M8 Worker 容器与 R1 candidate | Worker 镜像、socket/NVML/network/path 契约、持久化状态、容器重启恢复与回滚 | M7 | 容器化 Rust Worker release candidate | 重跑单/双 GPU 套件、镜像摘要、回滚到 Python Worker、最终审计 |
 
 ## M1 门禁
@@ -33,7 +36,7 @@ M1 从只读检查开始，必须确认：
 
 ### 本地自动化检查
 
-仓库内测试使用 mock 与 fixture，不访问真实网络、Docker、数据库或 GPU。测试覆盖配置优先级、脱敏、CLI 输出与退出码、Server 协议序列化、watch 重连、状态转移、镜像解析、GPU 映射、端口分配、WorkloadSpec 生成、所有权检查、幂等协调和故障策略。
+仓库内测试使用 mock 与 fixture，不访问真实网络、Docker、数据库或 GPU。测试覆盖配置优先级、脱敏、CLI 输出与退出码、Server 协议序列化、Model/ModelInstance/ModelFile watch 重连与 full sync、状态所有权、镜像解析、GPU 映射、端口分配、WorkloadSpec 生成、所有权检查、幂等协调和故障策略。
 
 Rust 代码只在对维护者有实际价值的位置添加英文注释。状态机、安全与所有权检查、协议兼容偏差、错误恢复、关键数据流和非直观实现必须解释目的和原因；简单 getter、字段、枚举值、CLI 参数以及代码已能清楚表达的行为不要求注释。每次阶段门禁至少执行：
 
@@ -80,6 +83,8 @@ Lab 证据必须标记为 diagnostic 或 smoke。只有完整 Managed 流程可�
 - Worker probe、文件系统、日志、配置、metrics 与认证 API。
 - 在一张 GPU 上完成 Lab deploy、status、logs、inference、stop 与 remove。
 - 在一张 GPU 上完成 Managed deploy、status、logs、inference 与 delete。
+- Managed 流程完整经过 `SCHEDULED -> INITIALIZING -> DOWNLOADING -> STARTING -> RUNNING`，且每次推进由约定责任方完成。
+- `local_path` 通过 ModelFile ready/error 控制链完成解析，`STARTING` 前无 vLLM 容器，健康探针成功前不报告 `RUNNING`。
 - Managed 双 GPU tensor parallel inference。
 - Worker 进程和 Worker 容器重启后接管已有工作负载。
 - Server 与 watch stream 重连后通过权威状态收敛。
@@ -99,6 +104,7 @@ Lab 证据必须标记为 diagnostic 或 smoke。只有完整 Managed 流程可�
 - 破坏现有部署：使用独立 identity、目录、端口、Compose project 与 label；保留 Python 配置和数据。
 - 错误清理：要求完整所有权 label tuple 和权威期望状态；Lab cleanup 默认 dry-run。
 - 协议漂移：固定已部署 Server，并基于它构建 fixture。
+- 状态所有权漂移：以固定 v2.2.3 的 ModelInstance Controller、ModelFile Controller 和 Python Worker 行为为兼容 oracle；Lab 本地状态不得冒充 Managed 状态证据。
 - 路径 namespace 不匹配：宿主机、Worker 与 vLLM 使用相同模型根目录，模型启动前验证 canonical mapping。
 - 敏感信息泄露：使用 token file、脱敏测试、精确路径 Git staging，以及日志/证据复查。
 - Git 数据丢失：把关键检查点推送至可写 fork；90 工作树不是唯一副本。
@@ -112,6 +118,8 @@ R1 全程保留 Python Worker。测试使用全新的 Rust Worker name、UUID、
 
 ## 当前停止位置
 
-设计已经冻结，M1 环境基线、M2 Rust workspace/CLI 骨架、M3-B client、M3-C 控制循环和 M3-C.1 Server 权威身份修正均已接受。固定 v2.2.3 源码复核发现的 M3-A 注册 fixture UUID 等值语义与 M3-C 对应身份断言保持 `invalidated`，不得重新作为兼容性证据。
+M1 环境基线、M2 Rust workspace/CLI 骨架、M3-B client、M3-C 控制循环和 M3-C.1 Server 权威身份修正均已接受。固定 v2.2.3 源码复核发现的 M3-A 注册 fixture UUID 等值语义与 M3-C 对应身份断言保持 `invalidated`，不得重新作为兼容性证据。
 
-M3-C.1 的接受只覆盖 synthetic fixture、身份元数据持久化、正常重启核验、部分写入恢复和 fail-closed 规则的离线证据。下一步恢复 M3-D 隔离 Worker identity 真实 Server 集成的执行前门禁确认；未获明确批准前不得读取现有 token，也不得连接真实 Server 写路径、Docker、GPU 或 vLLM。
+2026-10-20 的状态机复核确认原设计错误地让本地模型跳过 `DOWNLOADING`，并遗漏 ModelFile 控制资源。该设计偏差尚未进入 Docker/runtime 实现；已接受修订要求 Managed 完整遵循 ModelInstance/ModelFile 状态所有权，同时保留 Lab 独立本地状态。
+
+当前停止点为 M3-C.2 设计已冻结、代码尚未开始，M3-D 继续暂停。下一项允许执行的工作是先给出并确认 M3-C.2 的具体实现边界，然后仅用 fixture/mock 实现 ModelFile client 和控制缓存；在 M3-C.2 接受且另获明确批准前，不得读取现有 token，也不得连接真实 Server 写路径、Docker、GPU 或 vLLM。

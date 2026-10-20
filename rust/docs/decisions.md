@@ -75,3 +75,14 @@ D034 只修订 D032 的注释密度和检查方式。D033 的阶段详细实现�
 | D035 | Worker 注册身份权威与恢复 | 首次注册以后以 Server 返回的 Worker `id`、`name` 和 `worker_uuid` 为权威，并将三者写入 `<data_dir>/managed/worker-identity.json`；身份元数据必须先于 Worker token 持久化。重启时由 token 调用 `me` 核验 `id` 和 `name`，由受保护的本地元数据恢复 `worker_uuid`。若只有元数据而没有 token，则使用注册凭据和已持久化的 Server UUID 重注册同一 Worker；若只有 token 而没有元数据，则拒绝启动。 | 固定 v2.2.3 的注册路由会忽略客户端首次提交的 `worker_uuid` 并生成 Server UUID，注册响应包含该 UUID，但 `me` 响应不包含。先写元数据使注册后崩溃能够恢复同一 Worker；token 无元数据时无法安全确定 UUID，必须 fail closed。 |
 
 M3-A 中“注册请求 UUID 与响应 UUID 相同”的 synthetic fixture 语义，以及 M3-C 中依赖该等值关系的身份断言，自本决策起标记为 `invalidated`，不得继续作为兼容性证据。M3-A 的其余协议形状、M3-B client 与 M3-C 控制循环结论保持有效。该修订不授权真实 Server 注册或其他写请求。
+
+## 2026-10-20 Managed 状态机与 Lab 边界纠偏
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D036 | Managed ModelInstance 状态机 | R1 完整保留 `PENDING -> ANALYZING -> SCHEDULED -> INITIALIZING -> DOWNLOADING -> STARTING -> RUNNING`，并按固定 v2.2.3 的 Scheduler、Server Controller 与 Worker 职责推进；`ERROR`、`UNREACHABLE` 保留原旁路语义 | 状态词汇相同但跳过控制步骤不等于协议兼容；状态所有权会直接影响容器启动、恢复与 Server 可见性。 |
+| D037 | 本地模型与 ModelFile | `local_path` 仍通过 ModelFile 控制链；Worker 不进行网络下载，但负责安全校验、分片解析并上报完整 ModelFile `ready/error` 结果，Server 据此推进 ModelInstance 的 `downloading/starting` | ModelFile 是原 Server 协调 ModelInstance 的必要资源，而不只是远程模型下载器。 |
+| D038 | Lab 状态 | Lab 不创建 ModelInstance/ModelFile，也不写 Server 状态；使用本地 `CREATED/PREPARING/STARTING/RUNNING/FAILED/STOPPED`，与 Managed 复用模型路径解析、planner、Docker runtime、日志和健康检查 | 允许 CLI 独立演示真实执行能力，同时不伪造 Managed 协议证据或引入第二套生产控制面。 |
+| D039 | 里程碑顺序 | 在 M3-D 前加入 M3-C.2，离线补齐 ModelFile schema/fixture/client/list/watch/update 与控制缓存；M6 拆为文件准备状态协调和 `STARTING` 后 runtime 两部分 | 第一次真实控制面集成应覆盖 Worker 所需的三类资源，并在启动容器前固定状态所有权门禁。 |
+
+D036–D039 修订了最初设计中“本地模型不经过下载阶段”和只同步 Model/ModelInstance 的假设。修订时 Rust Worker 尚未实现 Docker workload、ModelFile manager 或 Managed reconciler，因此没有需要作废的运行时或 GPU 证据；M3-C 已接受的身份、heartbeat/status、Model/ModelInstance watch/full-sync 结论继续有效。M3-D 的真实写路径仍需单独批准。

@@ -60,12 +60,27 @@ gpustack-rs worker lab ...
 
 Lab 模式不向 Server 注册，不创建 Server 数据库记录，不使用 Worker token，也不创建 gateway route。Lab 证据只属于诊断或冒烟证据，不能代替 Managed 验收证据。
 
+Lab 使用独立的本地部署状态，不复用或伪造 Server 的 `ModelInstance` 状态：
+
+```text
+CREATED -> PREPARING -> STARTING -> RUNNING
+              |            |           |
+              +----------> FAILED <----+
+
+RUNNING -> STOPPED
+```
+
+这些状态只描述一次本地实验部署。Lab 可以直接解析本地模型路径并继续启动容器，但必须复用 Managed 路径将使用的模型路径校验、分片解析、Docker planner、runtime 和健康检查；它不创建 `ModelFile`，也不向 Server 上报任何模型生命周期状态。
+
 ## 状态所有权
 
 | 状态 | 权威来源 |
 |---|---|
 | 模型规格、副本数、放置位置、Worker/GPU 分配 | Server |
 | Worker 身份与系统凭据 | Server |
+| `PENDING`、`ANALYZING`、`SCHEDULED` 和不可达解释 | Server/Scheduler |
+| `ModelFile` 创建、关联以及据此推进 `DOWNLOADING`、`STARTING` | Server Controller |
+| 分配任务的初始化事实、`ModelFile` 准备结果和 vLLM 健康事实 | Rust Worker |
 | 容器是否存在、运行状态、退出码与镜像摘要 | Docker Engine |
 | GPU 身份与实时利用率 | NVML，并与 Docker 信息关联 |
 | 端口预留、重启次数、日志与本地操作元数据 | Rust Worker |
@@ -81,7 +96,7 @@ Lab 模式不向 Server 注册，不创建 Server 数据库记录，不使用 Wo
 4. 验证与已冻结 Server 基线的兼容性。
 5. 注册 Worker，并原子保存返回的身份与凭据。
 6. 发布初始系统与 GPU 状态。
-7. 获取不分页的权威 ModelInstance 快照。
+7. 获取不分页的权威 Model、ModelInstance 与分配给当前 Worker 的 ModelFile 快照。
 8. 枚举带有 Rust 所有权标签的 Docker 容器。
 9. 执行第一次全量协调，并接管匹配且健康的容器。
 10. 启动 heartbeat、状态上报、watch stream、健康检查与定期 full sync 循环。
@@ -92,7 +107,7 @@ Lab 模式不向 Server 注册，不创建 Server 数据库记录，不使用 Wo
 事件只用于加速，而不是唯一事实来源。按 ModelInstance key 去重的工作队列保证每个实例的协调过程串行执行。启动时、watch 重连后以及可配置的周期到达时，都必须触发权威 full sync。
 
 ```text
-desired ModelInstance + actual Docker workload + local recovery record
+desired Model + ModelInstance + ModelFile + actual Docker workload + local recovery record
   -> normalize WorkloadSpec
   -> compare identity and spec hash
   -> create, adopt, replace, stop, or report
@@ -114,20 +129,30 @@ io.gpustack.spec-hash=<hash>
 
 Lab 容器携带 `io.gpustack.mode=lab` 与一个 Lab 标识。每次变更容器前都要验证完整所有权 tuple。
 
-## 模型生命周期
+## Managed 模型生命周期
 
-R1 沿用现有状态词汇，但不经过下载阶段：
+R1 与固定 GPUStack v2.2.3 的完整 `ModelInstance` 状态链保持一致：
 
 ```text
-SCHEDULED -> INITIALIZING -> STARTING -> RUNNING
-                                |           |
-                                +-> ERROR <-+
+PENDING -> ANALYZING -> SCHEDULED -> INITIALIZING
+                                      |
+                                      v
+                                DOWNLOADING -> STARTING -> RUNNING
+                                      |            |           |
+                                      +----------> ERROR <------+
+
+UNREACHABLE 由 Server 在 Worker 失联时解释。
 ```
 
-- `INITIALIZING`：验证路径、镜像、GPU 分配、端口与规范化工作负载计划。
-- `STARTING`：拉取或检查镜像，创建并启动容器，持久化日志，并等待健康检查 deadline。
-- `RUNNING`：vLLM 健康探针成功。
-- `ERROR`：启动、健康或运行时故障导致当前无法收敛。
+状态迁移按以下所有权执行：
+
+- Server 和 Scheduler 负责 `PENDING`、`ANALYZING`、调度结果与 `SCHEDULED`。
+- Worker 只接受分配给自身的 `SCHEDULED` 实例；验证 assignment、端口和准备参数后，将实例更新为 `INITIALIZING`。
+- Server Controller 为 `INITIALIZING` 实例创建或关联 `ModelFile`。当文件处于准备中时，Server 把实例推进为 `DOWNLOADING`。
+- Worker 的 ModelFile manager 只处理分配给自身的文件。即使来源是 `local_path`，仍要执行允许根目录校验、symlink canonicalization、分片解析，并把 `resolved_paths`、progress 和 `READY` 或 `ERROR` 写回完整 `ModelFileUpdate`。本地路径不发生网络下载，但不能绕过 ModelFile 控制链。
+- Server Controller 聚合关联文件；全部 `READY` 后写入解析结果，并把实例推进为 `STARTING`。Worker 不得自行跳过到该状态。
+- Worker 只在观察到 `STARTING` 后创建或接管 vLLM 工作负载。Docker 容器处于 running 不是模型就绪证据；vLLM 健康探针成功后才能把实例更新为 `RUNNING`。
+- 文件准备、启动、健康或运行时故障进入 `ERROR`；具体写入者由发生故障的层和固定 Server 协议决定，状态消息必须简洁、可执行且脱敏。
 
 启用 `restart_on_error` 后，重试延迟依次为 0、10、20、40、80 秒等，最大 300 秒。保留重启次数以及当前和上一次日志。Worker 退出时不移除健康的 Managed 容器。
 

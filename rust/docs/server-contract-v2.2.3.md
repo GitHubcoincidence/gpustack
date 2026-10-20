@@ -2,16 +2,17 @@
 
 ## 状态与边界
 
-- 状态：`accepted`；2026-10-20 以 M3-C.1 修正注册身份语义
+- 状态：`accepted`；2026-10-20 以 M3-C.1 修正注册身份语义，并冻结 M3-C.2 ModelFile 扩展设计
 - 兼容版本：GPUStack `v2.2.3`
 - 源码 commit：`1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`
 - 目标部署：90 主机当前运行的固定 Server；R1 期间不升级
 - 本阶段限制：只读检查和 synthetic schema 序列化；没有注册 Worker、发送
   heartbeat/status、更新 ModelInstance 或读取任何 token
 
-本文件冻结 M3 Rust client 必须实现的最小 Server 契约。运维 model CRUD、日志和
-OpenAI-compatible inference 属于后续 CLI/Worker 里程碑，不在本次 M3-A fixture
-集合中展开。
+本文件冻结 M3 Rust client 必须实现的最小 Server 契约。最初的 M3-A fixture 只覆盖
+Model 与 ModelInstance；固定源码复核后，M3-C.2 在第一次真实集成前补充 ModelFile
+list/watch/update 契约和离线 fixture。运维 model CRUD、日志和 OpenAI-compatible
+inference 属于后续 CLI/Worker 里程碑，不在本次控制面 fixture 集合中展开。
 
 ## 证据优先级
 
@@ -44,6 +45,9 @@ token 值。
 | ModelInstance watch | `GET /v2/model-instances?watch=true` | Worker token | query | 长连接事件流 |
 | ModelInstance 全量同步 | `GET /v2/model-instances?page=-1` | Worker token | query | `200 PaginatedList<ModelInstancePublic>` |
 | 更新 observed state | `PUT /v2/model-instances/{id}` | Worker token | 完整 `ModelInstanceUpdate` | `200 ModelInstancePublic` |
+| ModelFile watch | `GET /v2/model-files?watch=true&worker_id={worker_id}` | Worker token | query | 长连接事件流 |
+| ModelFile 全量同步 | `GET /v2/model-files?page=-1&worker_id={worker_id}` | Worker token | query | `200 PaginatedList<ModelFilePublic>` |
+| 更新文件准备结果 | `PUT /v2/model-files/{id}` | Worker token | 完整 `ModelFileUpdate` | `200 ModelFilePublic` |
 
 Python Worker 注册时总是重新请求注册，并保存 Server 返回的 Worker name、UUID 和
 token，再用 Worker token 建立正式 client。随后以 `me=true` 查询自身，结果不是
@@ -136,6 +140,24 @@ optional `gateway_endpoint`。当前 Server 允许并忽略这一额外字段。
 对象构造 update 后修改 state/runtime 字段。Rust client 必须保留未知于业务逻辑但
 属于已知 schema 的字段，防止全量更新把 Server 期望状态清空。
 
+### ModelFile
+
+- 状态值为 `downloading | ready | error`；
+- ModelFile 继承模型来源字段，并包含 `local_dir`、`worker_id`、
+  `cleanup_on_delete`、`is_lora`、`base_model`、`size`、`download_progress`、
+  `resolved_paths`、`state` 和 `state_message`；
+- public response 额外包含 `id`、`owner_principal_id`、`created_at` 与
+  `updated_at`；
+- `GET /model-files` 支持 `worker_id` 精确过滤、`page=-1` 与 `watch=true`；
+- `PUT /model-files/{id}` 接受完整 `ModelFileUpdate`，不是 JSON Merge Patch。
+
+Worker 只处理 `worker_id` 等于当前 Server Worker ID 的记录，并在更新前再次核对归属。
+对于 `local_path`，文件管理器仍通过 ModelFile 报告准备结果：不执行网络下载，但必须
+验证允许根目录、解析 symlink 和模型分片，成功时写入 `resolved_paths`、
+`download_progress=100` 与 `state=ready`，失败时写入脱敏错误和 `state=error`。
+Server Controller 根据 ModelFile 事件负责把关联 ModelInstance 推进到
+`downloading` 或 `starting`；Worker 不直接代替该推进。
+
 ## 分页与权威 full sync
 
 普通 list 默认 `page=1&perPage=100`。`page=-1` 时 Server 不加 SQL offset/limit，
@@ -144,8 +166,9 @@ optional `gateway_endpoint`。当前 Server 允许并忽略这一额外字段。
 被截断。
 
 ModelInstance full sync 至少带 `page=-1`，并在本地只保留分配给自身 Worker identity
-的主实例或 subordinate assignment。每次 watch 建连/重连后都执行一次权威 full
-sync；周期性 full sync 继续作为兜底。只有成功解析的完整响应可以驱动清理。
+的主实例或 subordinate assignment。ModelFile full sync 同时带 `page=-1` 和当前
+`worker_id`，并对响应逐项执行归属防御检查。每次 watch 建连/重连后都执行一次权威
+full sync；周期性 full sync 继续作为兜底。只有成功解析的完整响应可以驱动清理。
 
 ## Watch framing 与事件
 
@@ -197,3 +220,18 @@ HTTP status、`code`、`reason` 和已脱敏 `message`；响应不是该 shape �
 
 fixture 审阅不授权停止 Python Worker、占用 GPU、启动 vLLM、修改现有容器或写入
 真实 Server。
+
+## M3-C.2 ModelFile 扩展门禁
+
+M3-D 第一次真实 Server 集成前，必须离线完成：
+
+1. 从固定 commit 冻结 ModelFile public/update/full-sync/watch fixture；
+2. 在 `gpustack-client` 实现 ModelFile tolerant response、完整 update request、按
+   `worker_id` 的 list/watch 和 update；
+3. 在 Worker desired state、full sync 和 watch 恢复中加入当前 Worker ModelFile；
+4. 测试其他 Worker 文件被忽略、assignment 移出、ID-only delete、断线 full sync、
+   完整更新字段保留和 `local_path` 状态值；
+5. 只使用 fixture 与 mock transport，不连接真实 Server，不操作 Docker、GPU 或 vLLM。
+
+M3-C.2 验收后，M3-D 仍需单独批准真实注册和写路径；ModelFile 契约补齐本身不构成
+该授权。

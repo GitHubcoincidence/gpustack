@@ -13,11 +13,12 @@
 - 2026-10-17：用户选择以中文维护 `rust/docs/` 内部治理与实验文档；技术标识保留英文。顶层 MkDocs `docs/` 若发布相关内容，单独编写英文版。
 - 2026-10-19：用户把代码注释设为硬门禁，并要求每个实现阶段在请求验收前直接在聊天中交付详细实现报告；两项要求追溯应用于尚未接受的 M3-B。
 - 2026-10-19：用户澄清代码门禁要求的是关键必要注释而非逐项公开文档；取消 `missing_docs = "deny"`，并把注释过量同样列为门禁失败。阶段直接汇报要求不变。
+- 2026-10-20：纠正 Managed 状态机设计：本地模型也保留 ModelFile 控制链和 `DOWNLOADING`，Lab 使用独立本地状态；M3-D 前新增 M3-C.2 ModelFile 离线协议阶段。
 
 ## 当前状态
 
 - 状态：`ready`
-- 当前阶段：M3-C.1 Server 权威身份修正已接受；M3-D 真实 Server 集成尚未开始
+- 当前阶段：M3-C.2 ModelFile 控制协议设计已冻结、实现尚未开始；M3-D 真实 Server 集成继续暂停
 - 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
 - 分支：`codex/rust-worker`
 - 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
@@ -25,11 +26,11 @@
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
 - 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
 - 90 主机源码状态：M3-C.1 决策检查点为 `118622e2f4046f65b0f3060180b69b3953dcdb18`，代码检查点为 `e04fda6562c1065491b7eb7478bb617f33d9d4f7`，待审阅治理检查点为 `30ad11899b8ae475587ed46f8f32e3d27fcd91e5`；本次验收结论随新的治理检查点提交。
-- 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、控制循环和 Server 权威 Worker 身份两文件状态机已建立；尚未执行真实 Server 集成，也未实现 Docker 工作负载、GPU 盘点或 vLLM 路径。
+- 实现状态：四 crate Rust workspace、三个首批 CLI 命令、类型化 Server client、Model/ModelInstance 控制循环和 Server 权威 Worker 身份两文件状态机已建立；ModelFile client/cache 尚未实现，也未执行真实 Server 集成、Docker 工作负载、GPU 盘点或 vLLM 路径。
 - 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
 - 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-C.1 已接受；M3-C 控制循环结论继续有效，旧 UUID 等值语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
-- 下一项允许执行的工作：重新确认 M3-D 隔离身份、凭据输入、运行时长、保留/清理与回滚门禁；未获明确执行批准前不得发送真实注册或其他写请求。
+- 当前停止位置：M3-C.1 已接受；M3-C.2 设计已冻结但没有代码或 fixture；M3-D 暂停。M3-C 的身份和现有控制循环结论继续有效，旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server。
+- 下一项允许执行的工作：先直接说明并共同确认 M3-C.2 的具体实现边界，再仅使用固定源码、fixture 和 mock transport 补齐 ModelFile 协议；未接受 M3-C.2 且未另获真实写路径批准前，不得发送真实注册或其他 Server 写请求。
 
 ## 里程碑
 
@@ -237,6 +238,20 @@
 - 安全边界：本次接受只确认离线实现，不授权真实 Worker 注册、heartbeat/status、Docker、GPU、vLLM 或 Python Worker 操作。
 - 当前停止位置：M3-C.1 已接受，M3-D 尚未开始。
 - 下一项允许执行的工作：恢复 M3-D 执行前门禁讨论；第一次真实 Server 写请求必须再次获得用户明确批准。
+
+### 2026-10-20：Managed 状态机与 Lab 边界纠偏接受
+
+- 目的：在 M3-D 前核对当前设计是否完整遵循固定 GPUStack v2.2.3 的 ModelInstance 生命周期，并明确 Lab 是否需要进入相同状态链。
+- 触发事实：现有 `architecture.md` 和 `worker-protocol.md` 明确写成 `SCHEDULED -> INITIALIZING -> STARTING -> RUNNING`，并声称本地模型不进入 `DOWNLOADING`；当前 Rust desired state 也只包含 Model 和 ModelInstance，没有 ModelFile。
+- 固定源码证据：在 commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365` 核对了 `gpustack/schemas/models.py`、`gpustack/scheduler/scheduler.py`、`gpustack/worker/serve_manager.py`、`gpustack/worker/backends/base.py`、`gpustack/server/controllers.py`、`gpustack/schemas/model_files.py`、`gpustack/routes/model_files.py`、`gpustack/worker/model_file_manager.py` 和 `gpustack/worker/downloaders.py`。
+- 协议结论：完整链路为 `PENDING -> ANALYZING -> SCHEDULED -> INITIALIZING -> DOWNLOADING -> STARTING -> RUNNING`。Worker 接受自身 `SCHEDULED` 后写 `INITIALIZING`；Server Controller 根据 ModelFile 写 `DOWNLOADING/STARTING`；Worker 只在 `STARTING` 后启动 vLLM，并在健康检查成功后写 `RUNNING`。
+- 本地路径结论：`local_path` 不执行网络下载，但仍由 ModelFile manager 验证路径、解析分片并写回 `resolved_paths`、progress 与 `ready/error`；因此不能绕过 ModelFile 控制链。
+- Lab 结论：Lab 不创建 ModelInstance/ModelFile，也不写 Server 状态；使用隔离的本地 `CREATED/PREPARING/STARTING/RUNNING/FAILED/STOPPED`，同时与 Managed 复用模型路径解析、Docker planner/runtime、日志和健康检查。Lab 结果继续只属于诊断或冒烟证据。
+- 漂移结论：这是已发现并经用户确认修正的设计偏差。偏差尚未进入 Docker workload、ModelFile manager 或 Managed reconciler，因此没有错误运行时、GPU 或集成 artifact 需要作废；M3-C 已接受的身份、heartbeat/status、Model/ModelInstance watch/full-sync 证据继续有效。
+- 已接受修订：新增 D036–D039；M3-D 前插入 M3-C.2，离线实现 ModelFile fixture/schema/client、按 Worker list/watch、完整 update、desired state 和 full-sync 恢复；M6 拆为文件准备协调与 `STARTING` 后 runtime。
+- 安全边界：本次只检查固定 Git 对象并修改治理文档；没有读取 token、连接真实 Server 写路径、操作 Docker/GPU/vLLM，也没有修改 Python Worker。
+- 当前停止位置：M3-C.2 设计已冻结、实现未开始；M3-D 继续暂停。
+- 下一项允许执行的工作：在聊天中交付 M3-C.2 的文件级实现计划、数据流、测试矩阵和验收边界，得到确认后才开始离线代码实现。
 
 ## 未解决风险与待确认事项
 

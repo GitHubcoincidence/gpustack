@@ -15,9 +15,10 @@ M3 的准确 endpoint、schema、认证、分页、watch framing、错误和 fix
 - 获取已认证 Worker 身份；
 - `POST /worker-heartbeat`；
 - `POST /worker-status`；
-- model 与 ModelInstance 的 list/watch 操作；
-- 不分页的权威 ModelInstance 全量列表；
+- Model、ModelInstance 与 ModelFile 的 list/watch 操作；
+- 不分页的权威 Model/ModelInstance 全量列表，以及按当前 `worker_id` 过滤的 ModelFile 全量列表；
 - 更新 ModelInstance observed state；
+- 更新分配给当前 Worker 的完整 ModelFile；
 - R1 CLI 使用的运维侧 model CRUD 与日志 API；
 - R1 CLI 使用的 OpenAI-compatible 推理请求。
 
@@ -63,25 +64,42 @@ Managed CLI 使用运维人员凭据请求 Server。Server 在代理模型日志
 
 ## Readiness 定义
 
-只有 Docker 与 NVML 可用、注册成功、已发布初始状态、已获得权威模型快照且第一次协调完成，readiness 才为 true。持续的 Server 失联或不可恢复的 runtime 故障会使 readiness 变为 false，但 liveness 可以保持 true。
+只有 Docker 与 NVML 可用、注册成功、已发布初始状态、已获得权威 Model、ModelInstance 和当前 Worker ModelFile 快照且第一次协调完成，readiness 才为 true。持续的 Server 失联或不可恢复的 runtime 故障会使 readiness 变为 false，但 liveness 可以保持 true。
 
 ## 事件与协调契约
 
-Watch event 把 ModelInstance 标记为 dirty，并触发按 key 协调。每次重连都触发一次权威全量 list，周期性权威 sync 作为最后兜底。清理决策绝不能来自临时空 cache、失败请求或不完整分页。
+ModelInstance watch event 把实例标记为 dirty，并触发按 key 协调；ModelFile watch event 更新当前 Worker 的文件准备队列。ModelFile 准备完成后由 Server 推进 ModelInstance，并通过独立的 ModelInstance watch 通知 Worker。每次重连都触发一次权威全量 list，周期性权威 sync 作为最后兜底。清理决策绝不能来自临时空 cache、失败请求或不完整分页。
 
-Worker 只处理分配给自身 Worker identity 的实例。R1 拒绝跨 Worker 分布式放置；同一 Worker 的 assignment 可以包含一张或两张 GPU 的 index。
+Worker 只处理分配给自身 Worker identity 的实例和 `worker_id` 等于当前 Worker ID 的 ModelFile。R1 拒绝跨 Worker 分布式放置；同一 Worker 的 assignment 可以包含一张或两张 GPU 的 index。
 
 ## 模型状态上报
 
-R1 上报现有状态词汇：
+R1 保留并遵守固定 v2.2.3 的完整状态词汇和状态所有权：
 
 ```text
-SCHEDULED -> INITIALIZING -> STARTING -> RUNNING
-                                |           |
-                                +-> ERROR <-+
+PENDING -> ANALYZING -> SCHEDULED -> INITIALIZING
+                                      |
+                                      v
+                                DOWNLOADING -> STARTING -> RUNNING
+                                      |            |           |
+                                      +----------> ERROR <------+
 ```
 
-本地模型部署不进入 `DOWNLOADING`。状态消息必须简洁、可执行且已脱敏。Server 继续负责 `PENDING`、`ANALYZING`、调度和 unreachable Worker 的解释。
+Server/Scheduler 负责 `PENDING`、`ANALYZING`、调度和 `SCHEDULED`。Worker 接受分配给自身的 `SCHEDULED` 后，可以在完成任务与端口准备时更新为 `INITIALIZING`。Server Controller 根据关联 ModelFile 把实例推进为 `DOWNLOADING`，并在所有文件 `ready` 后推进为 `STARTING`。Worker 不得自行跳过这两个 Server 状态；只有观察到 `STARTING` 才能创建或接管 vLLM，且只有 vLLM 健康检查成功后才能上报 `RUNNING`。Server 继续负责 unreachable Worker 的解释。
+
+本地模型仍进入 `DOWNLOADING` 协调阶段，但 `local_path` 的文件准备不进行网络下载。状态消息必须简洁、可执行且已脱敏。
+
+## ModelFile 协议
+
+ModelFile 状态值为 `downloading | ready | error`。Server 为 `INITIALIZING` 实例创建或关联 ModelFile；Worker 通过 `GET /model-files?page=-1&worker_id=<id>` 和对应 watch 流只接收属于自身的文件。
+
+Worker 对 `local_path` 至少执行允许根目录检查、symlink canonicalization、文件/目录存在性和模型分片解析。成功时写回 `download_progress=100`、`resolved_paths` 和 `state=ready`；失败时写回 `state=error` 与脱敏的 `state_message`。
+
+`PUT /model-files/{id}` 使用完整 `ModelFileUpdate`，不是 merge patch。更新前必须再次核对 `worker_id`，并保留来源、路径、清理策略、LoRA、大小和其他已知 schema 字段，不能用仅含状态的对象覆盖 Server 数据。ModelFile watch/full-sync 的断线、未知事件和删除安全规则与 ModelInstance 相同。
+
+## Lab 状态边界
+
+Lab 不注册 Server，不创建 ModelInstance 或 ModelFile，也不写入上述状态。它使用本地 `CREATED -> PREPARING -> STARTING -> RUNNING` 状态以及 `FAILED`、`STOPPED` 旁路；本地路径解析、Docker runtime 和 vLLM 健康检查与 Managed 复用实现，但 Lab 结果只能作为诊断或冒烟证据。
 
 ## 文件系统安全
 

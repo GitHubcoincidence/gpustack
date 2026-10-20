@@ -38,7 +38,7 @@ R1 部署输入包括：
 - 一张或两张本地 GPU 的 index；
 - 使用两张 GPU 时的 tensor parallel size；
 - 已支持的结构化 vLLM 选项；
-- 使用 `--wait` 跟踪 ModelInstance，直至进入 `RUNNING` 或 `ERROR`。
+- 使用 `--wait` 跟踪 ModelInstance，并显示 `SCHEDULED`、`INITIALIZING`、`DOWNLOADING`、`STARTING` 等中间状态，直至进入 `RUNNING` 或 `ERROR`。
 
 CLI 把友好的 GPU 参数转换为现有 Server selector 形式，例如 `worker-name:cuda:0`。端口分配仍由 Worker/Server 负责。
 
@@ -53,6 +53,10 @@ Managed `inference` 命令调用 Server 或 gateway 的 OpenAI-compatible endpoi
 ## Lab 命令
 
 Lab 模式用于在完成 Server 集成前演示真实 Worker runtime。它复用生产路径中的 workload planner、runtime、health check、logging 和 reconciler，但不进行 Server 注册，不使用 Worker credential，不创建 Server 数据库记录或 gateway route。
+
+Lab 状态只保存在隔离的本地记录中：`CREATED -> PREPARING -> STARTING -> RUNNING`，并包含 `FAILED`、`STOPPED`。它们不是 `ModelInstanceStateEnum`，不得通过任何 Server API 上报。Lab status 的机器可读输出必须明确标记 `mode=lab`。
+
+Lab 对 `local_path` 直接执行允许根目录校验、symlink canonicalization 和模型分片解析，不创建 ModelFile；这些解析原语必须与后续 Managed ModelFile manager 复用。Docker 容器 running 只表示进程存在，只有 vLLM 健康检查成功后 Lab 才能进入本地 `RUNNING`。
 
 出现以下任一情况时，Lab deploy 拒绝执行：Rust Managed 数据目录锁处于活动状态、目标 GPU 已被占用、目标端口已占用或存在同名 Lab 工作负载。正式测试还要求先 drain 并停止 Python Worker；Rust 自身的锁无法证明它独占物理 GPU。
 
