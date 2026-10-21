@@ -11,6 +11,7 @@ pub mod resources;
 pub mod run;
 pub mod signal;
 pub mod worker_api;
+pub mod workload;
 
 pub use config::{ConfigError, ConfigOverrides, LoadedConfig, WorkerConfig, load_config};
 pub use doctor::{DoctorReport, run_doctor};

@@ -1,4 +1,6 @@
-//! Read-only host runtime diagnostics shared by Worker commands.
+//! Host diagnostics and container-runtime primitives shared by Worker commands.
+
+pub mod docker;
 
 use std::fs::Metadata;
 use std::path::Path;
