@@ -383,6 +383,23 @@
 - 当前停止位置：尚未执行第 0 段预检，尚未创建证据目录、构建正式 binary、读取 token 或连接真实写路径。
 - 下一项允许执行的工作：用户只执行第 0 段只读预检并返回完整非敏感输出；通过审阅前不得进入后续段。
 
+### 2026-10-21：M3-D.2 真实控制面集成接受
+
+- 结果：M3-D.2 状态为 `accepted`。正式二进制来自干净提交 `e30e7bd40d0d0b12746b9d1cdd5c3a4e9a62af6d`，SHA-256 为 `4272530f2dde55f4679c955544bb64104c8cbff16ee7cc8ca8e32d0b875ca713`，固定 Server 为 v2.2.3 / `1cfcbbf`。
+- 操作者修订：用户在门禁通过后明确要求助手代为执行，形成 D053；只改变 D049 的操作者，不改变正式参数、运行时长、秘密边界、验收口径或非目标。
+- 无效尝试：`m3d2-formal/first-run/` 中的调用把 `--server-url` 等 Worker 参数放在顶层解析器，CLI 在网络和身份初始化前以退出码 2 拒绝。Cluster token 按 D051 删除，数据目录未创建、Server 无同名 Worker；证据保留并标记 `invalidated`。
+- 修正与重试：CLI 帮助和 `validate-config` 确认正确层级为 `gpustack-rs [global options] worker [worker options] run --control-plane-only`。通过官方 `/auth/login` 重新获取默认 Cluster token，二次认证和等值校验后以 `0600` 原子安装；登录 cookie、响应和比较文件均在退出时删除。
+- 首次正式运行：`m3d2-formal/first-run-retry-1/` 持续 370 秒，60 秒和 330 秒观测均只有一个 `rust-m3d-r760xa`，maintenance 开启、GPU 列表为空、metrics 端口为空；heartbeat 从 `2026-10-21T04:14:54Z` 推进到 `04:19:24Z`，宿主机和 Server 容器访问 `10.213.80.90:20150/healthz` 均为 200。
+- 首次摘要：优雅 `interrupt` 退出，`identity_source=registered`；heartbeat、status、full sync、watch 全部为 true，重连次数为 0。Server 分配 Worker ID 2，名称 `rust-m3d-r760xa`，UUID `f38b7c2c-90f7-4a76-a2c5-dfe1ff63fea0`，与本地 `worker-identity.json` 三方一致。
+- 凭据生命周期：首次正式运行结束后 Cluster registration token 固定副本已删除；`managed/` 为 `0700`，`worker-identity.json` 和 per-Worker `worker-token` 均为 `0600`。per-Worker token 可独立查询 `GET /v2/workers?me=true`，证据目录秘密扫描通过。
+- 第二次恢复：`m3d2-formal/second-run/` 在 Cluster token 文件缺失时持续 130 秒，60 秒和 110 秒仍为 Worker ID 2，heartbeat 从 `04:22:34Z` 推进到 `04:23:34Z`；最终摘要为 `identity_source=persisted`，ID、UUID 和名称与首次运行及本地身份完全一致，各控制健康位为 true，重连次数为 0。
+- 管理员独立复核：全局按名称查询只有一个 Worker ID 2；该 Worker 关联 ModelInstance 和 ModelFile 数量均为 0。Worker 保持 maintenance、空 GPU、无 metrics 端口，没有重复注册或模型状态写入。
+- 隔离结果：两次运行后 Server、Python Worker 和 Python metrics 均为 HTTP 200；Rust 进程数和 `20150` 监听均为 0；`gpustack`、`gpustack-worker` 和原有 `open-webui` 容器继续运行；两张 A100 显存使用和利用率均为 0。未启动 Docker workload、vLLM 或 GPU 任务，也未停止或修改 Python Worker。
+- 证据：正式根目录 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m3d2-formal` 为 `0700`；有效运行目录与文件为 `0600`，包含 timing、脱敏观测、health、events、summary、token cleanup 和管理员复核。任何 token 与 Authorization header 均未写入 Git 或正式证据。
+- 解释：真实 Server 已验证 Rust control-plane-only Worker 的首次注册、Server 权威身份持久化、持续 heartbeat/status、三资源 full-sync/watch、Server 到 Worker health 可达、安全停止，以及不依赖 Cluster token 的同一身份恢复。该结论不证明完整 Worker API、Docker runtime、GPU、vLLM、模型准备或推理能力。
+- 当前停止位置：M3-D.2 已接受；Rust Worker 已停止，但 maintenance Worker ID 2 和本地 per-Worker 身份按 D046 保留，Cluster token 本地副本保持不存在。
+- 下一项允许执行的工作：讨论并冻结 M4 Worker HTTP API 的范围、端口、认证、离线测试和真实验证门禁。任何 Docker、GPU、vLLM 或 Python Worker 维护操作仍需单独授权并安排维护窗口。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。

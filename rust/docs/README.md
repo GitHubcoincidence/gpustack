@@ -26,9 +26,9 @@
 ## 当前状态
 
 - 设计状态：`frozen`
-- 实现状态：M2、M3-B、M3-C、M3-C.1、M3-C.2、M3-D.1 与 M3-D.1.1 均为 `accepted`；M3-D.1.1 代码检查点为 `99e9fdb9`；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言保持 `invalidated`；M3-D.2 运行手册已冻结，真实 Server 集成尚未开始。
+- 实现状态：M2、M3-B、M3-C、M3-C.1、M3-C.2、M3-D.1、M3-D.1.1 与 M3-D.2 均为 `accepted`；M3-D.1.1 代码检查点为 `99e9fdb9`，M3-D.2 正式二进制来自 `e30e7bd4`；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言保持 `invalidated`。
 - 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
-- 当前停止位置：用户选择亲自执行 M3-D.2 命令；助手只分段提供命令、解释并审阅非敏感输出。没有读取真实 token 或执行 Server 写请求，现有 GPUStack 服务未受影响。
-- 下一项允许执行的工作：用户执行 M3-D.2 第 0 段只读预检并返回完整非敏感输出；在该输出通过审阅前，不进入编译、凭据准备或真实 Server 写路径。
+- 当前停止位置：M3-D.2 已在真实 v2.2.3 Server 上接受；maintenance Worker `rust-m3d-r760xa`（ID 2）和本地 per-Worker 身份保留供后续阶段复用，Cluster registration token 本地副本已删除，Rust 进程与 `20150` 监听均已停止。
+- 下一项允许执行的工作：讨论并冻结 M4 Worker HTTP API 的实现切面和离线门禁；任何 Docker、GPU、vLLM 或停止 Python Worker 的操作仍需单独维护窗口授权。
 
-当前检查点包含 Rust CLI/Worker 基础源码、已接受的离线契约 fixture、类型化 Server client、身份持久化、控制循环、显式 control-plane-only supervisor 和最小 `/healthz`；不包含实际 Worker 注册、真实 Server 写操作、Docker 工作负载变更、GPU 使用或 Python Worker 变更。
+当前检查点包含 Rust CLI/Worker 基础源码、已接受的离线契约 fixture、类型化 Server client、身份持久化、控制循环、显式 control-plane-only supervisor、最小 `/healthz`，以及真实 v2.2.3 Server 上的注册、持续控制循环和无 Cluster token 身份恢复证据；不包含完整 Worker API、Docker workload、GPU 使用、vLLM 推理或 Python Worker 变更。

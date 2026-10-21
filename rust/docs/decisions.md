@@ -122,3 +122,12 @@ D047 修订 D044 中“专用 cluster registration token”和读取 Python Work
 | D052 | 正式运行时序 | 正式二进制必须从冻结后干净 HEAD 重新构建并记录 commit 与 SHA-256。首次运行用 SIGINT 超时边界持续 370 秒，在约 60 秒和 330 秒观测；第二次在确认身份完整且已删除 Cluster token 副本后持续 130 秒。正常结束保留 maintenance Worker 和本地身份 | 370 秒覆盖多轮 30 秒 heartbeat/status 和一次五分钟 full sync；第二次明确验证只靠 per-Worker token 恢复同一 ID/UUID。固定构建 identity 使证据可归因。 |
 
 冻结参数继续使用 Worker `rust-m3d-r760xa`、Server `http://127.0.0.1`、`r760xa`、`10.213.80.90`、`eno8403`、端口 `20150`、D043 的 token/data 路径和无 metrics 配置。现有 Python Worker 在本阶段保持运行；control-plane-only、maintenance 和空 GPU 三项约束意味着无需为此次控制面验证安排 GPU 维护窗口。
+
+## 2026-10-21 M3-D.2 执行授权与失败证据修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D053 | M3-D.2 操作者修订 | 用户在预检、构建、凭据准备门禁完成后明确授权助手代为执行剩余正式命令；该授权仅修订 D049 的操作者，不改变二进制、身份、时序、观测、秘密处理、失败停止和验收条件 | 保留用户对真实外部写入的显式授权，同时使助手可以完成长时间观测和证据归档；授权没有扩展到 Docker workload、GPU、vLLM 或 Python Worker 操作。 |
+| D054 | CLI 参数层级错误的处置 | 第一次调用因把 Worker 配置参数放在顶层解析器而以退出码 2 结束；该目录保留为 `invalidated`，不覆盖、不计入正式结果。确认没有 Server 写入或本地身份后，通过官方登录端点重新获取 Cluster token，在 `validate-config` 验证 `gpustack-rs [global] worker [worker options] run --control-plane-only` 后使用新证据目录重试 | 区分运行手册命令错误与 Worker 实现失败，保留失败链，并遵守 D051 在首次尝试退出时删除 Cluster token 的要求。 |
+
+D053 只覆盖本次 M3-D.2 剩余执行；后续真实部署、维护窗口和破坏性操作仍需按各自门禁单独授权。D054 没有改变 370/130 秒时序或验收口径，旧 `first-run/` 证据不得作为成功证据，正式首次结果位于 `first-run-retry-1/`。
