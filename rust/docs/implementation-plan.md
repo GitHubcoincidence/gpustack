@@ -193,6 +193,6 @@ M1 环境基线、M2 Rust workspace/CLI 骨架、M3-B client、M3-C 控制循环
 
 M3-D.1 与 D047–D048 的 M3-D.1.1 离线实现均已接受，M3-D.1.1 代码检查点为 `99e9fdb9`。M3-D.2 已使用来自干净 `e30e7bd4` 的固定二进制在真实 v2.2.3 Server 上接受：370 秒首次注册和 130 秒无 Cluster token 恢复均保持 maintenance、空 GPU、持续 heartbeat/status/full-sync/watch，并复用同一 Worker ID/UUID。正式证据位于 Git 外 `m3d2-formal/`，其中参数层级错误且未触发网络写入的首次 CLI 调用保留为 `invalidated`。
 
-M4 设计和 M4-A～M4-D 门禁已经冻结。M4-A 已从固定 v2.2.3 源码、现场只读 Worker/OpenAPI/metrics、90 主机资源基线和独立 scratch crate 完成精确契约、fixture 与依赖版本审计，并经用户审阅后标记为 `accepted`。M4-A 没有修改 Rust 源码或 workspace `Cargo.lock`，也没有读取 Worker token、启动 Rust Worker、更新 Server 或操作服务。
+M4 设计和 M4-A～M4-D 门禁已经冻结。M4-A 契约/fixture/依赖审计与 M4-B resource-api-only 离线实现均已在详细报告后获用户接受；M4-B 代码检查点为 `994b820cba795b0bbfa25d23a8d55e2e2f470915`，workspace `Cargo.lock` SHA-256 为 `ad5fabd70e55fcbee197c3a644b8acf530ba943ca385c9344e7e6cfb06cb19c3`。
 
-当前允许进入 M4-B 的 mock/fake 驱动离线实现；实现、全部离线门禁和详细报告完成后只能标记为 `ready_for_review`。M4-C 真实 NVML 冒烟和 M4-D 停止 Python Worker 仍需各自门禁与授权。Docker workload、vLLM 和任何模型执行仍不属于 M4。
+M4-C 已使用来自干净 `c76fa3903b3b` 的 CLI 真实读取 NVML，并与 `nvidia-smi` 对两张 A100 的 index、UUID、名称、显存和驱动逐项一致；当前为 `ready_for_review`。该 smoke 没有启动 Worker、连接 Server 或绑定端口，不能替代 M4-D。下一项只允许交付并审阅 M4-C 报告；M4-D 停止 Python Worker 和启动 resource-api-only 必须另获精确维护窗口授权。Docker workload、vLLM 和任何模型执行仍不属于 M4。

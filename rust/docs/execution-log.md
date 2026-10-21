@@ -500,6 +500,76 @@
   `accepted` 并单独讨论 M4-C 的只读 GPU 命令。用户接受前不得运行 `worker gpu list`
   或 `--resource-api-only`。
 
+### 2026-10-21：M4-B resource-api-only 离线实现接受
+
+- 结果：用户审阅资源采集、类型化状态、Worker API、路径安全、日志、metrics、
+  resource-api-only supervisor、CLI、自动化门禁和环境隔离的详细实现报告后确认无问题；
+  M4-B 由 `ready_for_review` 更新为 `accepted`。
+- 接受证据：代码检查点
+  `994b820cba795b0bbfa25d23a8d55e2e2f470915`；workspace `Cargo.lock`
+  SHA-256 为
+  `ad5fabd70e55fcbee197c3a644b8acf530ba943ca385c9344e7e6cfb06cb19c3`；
+  62 项 workspace 测试、fmt、locked/offline check/build/test 和全 target Clippy
+  `-D warnings` 均通过。
+- 接受边界：该结果接受离线实现及 mock/fake 证据，不证明真实 NVML、Server 资源上报、
+  在线 Worker API/metrics、Docker 或 vLLM。用户的接受只解锁 M4-C 宿主机只读 GPU
+  冒烟，不授权 M4-D、停止 Python Worker 或启动 resource-api-only。
+- 当前停止位置：M4-B 已接受，M4-C 可按冻结门禁读取真实 NVML 并与
+  `nvidia-smi` 对比。
+- 下一项允许执行的工作：只运行 `worker gpu list --output json` 和
+  `nvidia-smi`，记录 diagnostic/smoke 证据；Python Worker 必须保持运行。
+
+### 2026-10-21：M4-C 宿主机只读 GPU 冒烟待审阅
+
+- 结果：M4-C 状态为 `ready_for_review`。有效重试精确枚举两张
+  `NVIDIA A100 80GB PCIe`；Rust 与 `nvidia-smi` 的 index、UUID、名称、显存总量和
+  driver version 规范化结果逐行一致，空 diff 与附加固定 A100 断言均通过。
+- 构建身份：从干净 HEAD `c76fa3903b3ba81010b22cf17cd272a053dde2cb`
+  离线重建 `gpustack-cli`；二进制 SHA-256 为
+  `fa645ae457c656039e2a75fbf28cce96888e7503de15d4007946a7fde09b3ece`，
+  内嵌 commit 为 `c76fa3903b3b`，Rust 为 1.99.1；`Cargo.lock` 保持冻结 SHA-256
+  `ad5fabd70e55fcbee197c3a644b8acf530ba943ca385c9344e7e6cfb06cb19c3`。
+- GPU 0：index `0`，UUID
+  `GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3`，名称
+  `NVIDIA A100 80GB PCIe`，Rust total `85899345920` bytes，对应
+  `nvidia-smi` 的 `81920` MiB，driver `580.178.04`。
+- GPU 1：index `1`，UUID
+  `GPU-b1f89e65-e9c4-26f5-a306-8a520df07708`，名称
+  `NVIDIA A100 80GB PCIe`，Rust total `85899345920` bytes，对应
+  `nvidia-smi` 的 `81920` MiB，driver `580.178.04`。
+- 附加观测：Rust 对两卡报告 NVIDIA/CUDA、Ampere、runtime `13.0`、compute
+  capability `8.0`、6912 cores、0 bytes used 和 0% utilization；温度分别为
+  33°C 与 32°C。这些字段是 smoke 观测，不扩展本阶段的通过门槛。
+- 有效证据：Git 外目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m4c-gpu-smoke-c76fa390-retry-1`
+  为 `0700`，文件为 `0600`。`rust-gpu-list.json` SHA-256 为
+  `9e6a8779bf63e29fcf5f7f01ae6ada5fd822b1f5568cdf360427bd8d5f1dfeb5`，
+  `nvidia-smi.csv` 为
+  `5aa3c26084d35fdfe2c27854afae9c9cea87e8d9af4e2f8ad5b3b4d81aecd1a5`，
+  `comparison.txt` 为
+  `207f500d72880c5fa336bfdff7677438d162707fe99347f824fbc5d6e748b22c`，
+  规范化 diff 为空文件。
+- 无效和非计分证据：预检发现旧 binary 内嵌 `d602c1baaf21-dirty`，仅运行
+  `version` 后即拒绝使用。随后一条跨 PowerShell/Bash 的长命令发生变量提前展开，
+  把后续单词错误传给 `tee`，截断生成 binary、污染 `Cargo.lock` 并创建 8 个零字节
+  根目录文件；第一次脚本因此只得到有效 `nvidia-smi` 与空 Rust 输出，目录
+  `m4c-gpu-smoke-c76fa390/` 已写入 `INVALIDATED.txt`，不得作为 GPU collector 证据。
+  精确恢复冻结 lock、删除本次误建文件、清理 CLI 构建产物并离线重建后，工作树重新
+  干净。比较脚本首次附加 jq 断言作用域错误也不计分；规范化 diff 当时已一致，修正
+  jq 后只复用已捕获文件，没有再次读取 GPU。
+- 隔离结果：有效比较后 Server、Python Worker health 与 Python metrics 均为 HTTP
+  200；`gpustack-rs` 精确进程数为 0，`20150/20151` 无监听；`gpustack` 和
+  `gpustack-worker` 容器继续 Up 6 days。没有读取 Worker token、注册或更新 Server、
+  启动 Rust Worker、停止 Python Worker、创建 Docker/vLLM workload 或运行 GPU 任务。
+- 解释：本阶段证明生产 NVML collector 能在 90 宿主机准确读取两张 A100 的关键身份
+  和容量字段；它只属于 diagnostic/smoke，不证明 resource-api-only 的真实 Server
+  status、Worker HTTP API、metrics 或维护窗口回滚，也不能使整个 M4 标记为接受。
+- 当前停止位置：M4-C 等待聊天中的详细结果报告和用户共同验收；Rust Worker 保持
+  停止，Python Server/Worker 保持原状。
+- 下一项允许执行的工作：交付并审阅 M4-C 报告。若用户接受，只能开始讨论 M4-D
+  精确维护窗口、预检、stop/start 和回滚命令；未获得单独明确授权前不得停止 Python
+  Worker 或运行 `--resource-api-only`。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
