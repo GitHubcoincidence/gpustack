@@ -14,6 +14,7 @@ pub const DEFAULT_DATA_DIR: &str = "/var/lib/gpustack-rust-worker";
 pub const DEFAULT_LOG_DIR: &str = "/var/log/gpustack-rust-worker";
 pub const DEFAULT_DOCKER_SOCKET: &str = "/var/run/docker.sock";
 pub const DEFAULT_WORKER_PORT: u16 = 10150;
+pub const DEFAULT_METRICS_PORT: u16 = 10151;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Effective Worker configuration after all precedence layers are merged.
@@ -24,6 +25,7 @@ pub struct WorkerConfig {
     pub worker_ip: Option<IpAddr>,
     pub worker_ifname: Option<String>,
     pub worker_port: u16,
+    pub metrics_port: u16,
     pub token_file: Option<PathBuf>,
     pub data_dir: PathBuf,
     pub log_dir: PathBuf,
@@ -69,6 +71,12 @@ impl WorkerConfig {
                 reason: "must be greater than zero",
             });
         }
+        if self.metrics_port == 0 || self.metrics_port == self.worker_port {
+            return Err(ConfigError::InvalidField {
+                field: "metrics_port",
+                reason: "must be non-zero and different from worker_port",
+            });
+        }
         validate_absolute_path("token_file", self.token_file.as_deref())?;
         validate_absolute_path("data_dir", Some(&self.data_dir))?;
         validate_absolute_path("log_dir", Some(&self.log_dir))?;
@@ -88,6 +96,7 @@ pub struct ConfigOverrides {
     pub worker_ip: Option<String>,
     pub worker_ifname: Option<String>,
     pub worker_port: Option<u16>,
+    pub metrics_port: Option<u16>,
     pub token_file: Option<PathBuf>,
     pub data_dir: Option<PathBuf>,
     pub log_dir: Option<PathBuf>,
@@ -110,6 +119,7 @@ struct ConfigLayer {
     worker_ip: Option<String>,
     worker_ifname: Option<String>,
     worker_port: Option<u16>,
+    metrics_port: Option<u16>,
     token_file: Option<PathBuf>,
     data_dir: Option<PathBuf>,
     log_dir: Option<PathBuf>,
@@ -138,6 +148,9 @@ impl ConfigLayer {
         }
         if other.worker_port.is_some() {
             self.worker_port = other.worker_port;
+        }
+        if other.metrics_port.is_some() {
+            self.metrics_port = other.metrics_port;
         }
         if other.token_file.is_some() {
             self.token_file = other.token_file;
@@ -179,6 +192,13 @@ impl ConfigLayer {
                             .map_err(|_| ConfigError::InvalidEnvironment { key: key.clone() })?,
                     );
                 }
+                "GPUSTACK_RS_METRICS_PORT" => {
+                    layer.metrics_port = Some(
+                        value
+                            .parse::<u16>()
+                            .map_err(|_| ConfigError::InvalidEnvironment { key: key.clone() })?,
+                    );
+                }
                 "GPUSTACK_RS_TOKEN_FILE" => layer.token_file = Some(PathBuf::from(value)),
                 "GPUSTACK_RS_DATA_DIR" => layer.data_dir = Some(PathBuf::from(value)),
                 "GPUSTACK_RS_LOG_DIR" => layer.log_dir = Some(PathBuf::from(value)),
@@ -213,6 +233,7 @@ impl From<ConfigOverrides> for ConfigLayer {
             worker_ip: value.worker_ip,
             worker_ifname: value.worker_ifname,
             worker_port: value.worker_port,
+            metrics_port: value.metrics_port,
             token_file: value.token_file,
             data_dir: value.data_dir,
             log_dir: value.log_dir,
@@ -322,6 +343,7 @@ fn build_config(layer: ConfigLayer) -> Result<WorkerConfig, ConfigError> {
         worker_ip,
         worker_ifname: layer.worker_ifname,
         worker_port: layer.worker_port.unwrap_or(DEFAULT_WORKER_PORT),
+        metrics_port: layer.metrics_port.unwrap_or(DEFAULT_METRICS_PORT),
         token_file: layer.token_file,
         data_dir: layer
             .data_dir

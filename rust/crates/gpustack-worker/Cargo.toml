@@ -7,17 +7,21 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+axum.workspace = true
+futures-util.workspace = true
 gpustack-client = { path = "../gpustack-client" }
 gpustack-runtime = { path = "../gpustack-runtime" }
+nvml-wrapper.workspace = true
+prometheus-client.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde-saphyr.workspace = true
+sysinfo.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
 
 [dev-dependencies]
-futures-util.workspace = true
 tempfile = "3.0"
 
 [target.'cfg(unix)'.dependencies]

@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 clap.workspace = true
 gpustack-worker = { path = "../gpustack-worker" }
+gpustack-client = { path = "../gpustack-client" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

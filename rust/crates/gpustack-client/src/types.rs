@@ -115,12 +115,52 @@ pub struct UptimeInfo {
     pub uptime: f64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MountPointInfo {
+    pub name: String,
+    pub mount_point: String,
+    pub mount_from: String,
+    pub total: u64,
+    pub used: u64,
+    pub free: u64,
+    pub available: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GpuCoreInfo {
+    pub total: Option<u64>,
+    pub utilization_rate: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GpuDeviceInfo {
+    pub vendor: Option<String>,
+    #[serde(rename = "type")]
+    pub device_type: Option<String>,
+    pub index: Option<u32>,
+    pub device_index: u32,
+    pub device_chip_index: u32,
+    pub arch_family: Option<String>,
+    pub name: String,
+    pub uuid: Option<String>,
+    pub driver_version: Option<String>,
+    pub runtime_version: Option<String>,
+    pub compute_capability: Option<String>,
+    pub core: Option<GpuCoreInfo>,
+    pub memory: Option<MemoryInfo>,
+    pub temperature: Option<f64>,
+    pub network: Option<Value>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkerResourceStatus {
     pub cpu: Option<CpuInfo>,
-    pub filesystem: Option<Vec<Value>>,
-    pub gpu_devices: Option<Vec<Value>>,
+    pub filesystem: Option<Vec<MountPointInfo>>,
+    pub gpu_devices: Option<Vec<GpuDeviceInfo>>,
     pub kernel: Option<KernelInfo>,
     pub memory: Option<MemoryInfo>,
     pub os: Option<OperatingSystemInfo>,

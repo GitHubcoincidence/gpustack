@@ -5,14 +5,22 @@ pub mod control;
 pub mod doctor;
 pub mod health;
 pub mod identity;
+pub mod metrics;
+pub mod resource_run;
+pub mod resources;
 pub mod run;
 pub mod signal;
+pub mod worker_api;
 
 pub use config::{ConfigError, ConfigOverrides, LoadedConfig, WorkerConfig, load_config};
 pub use doctor::{DoctorReport, run_doctor};
 pub use identity::{
     CredentialStore, IdentityBootstrap, IdentityError, IdentityRecordStore, IdentitySource,
     WorkerIdentity, WorkerIdentityRecord, worker_credential_path, worker_identity_path,
+};
+pub use resource_run::{
+    RESOURCE_API_ONLY_MODE, ResourceApiEvent, ResourceApiRunError, ResourceApiSummary,
+    run_resource_api_only,
 };
 pub use run::{
     CONTROL_PLANE_ONLY_MODE, ControlPlaneOnlyEvent, ControlPlaneOnlySummary, WorkerRunError,

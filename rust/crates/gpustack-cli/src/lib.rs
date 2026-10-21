@@ -4,9 +4,12 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use gpustack_worker::resources::{ResourceError, collect_gpu_inventory};
+use gpustack_worker::worker_api::public_config_view;
 use gpustack_worker::{
-    ConfigError, ConfigOverrides, ControlPlaneOnlySummary, DoctorReport, WorkerConfig,
-    WorkerRunError, load_config, run_control_plane_only, run_doctor,
+    ConfigError, ConfigOverrides, ControlPlaneOnlySummary, DoctorReport, ResourceApiRunError,
+    ResourceApiSummary, WorkerConfig, WorkerRunError, load_config, run_control_plane_only,
+    run_doctor, run_resource_api_only,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -65,6 +68,8 @@ pub struct WorkerConfigArgs {
     #[arg(long, global = true)]
     pub worker_port: Option<u16>,
     #[arg(long, global = true)]
+    pub metrics_port: Option<u16>,
+    #[arg(long, global = true)]
     pub token_file: Option<PathBuf>,
     #[arg(long, global = true)]
     pub data_dir: Option<PathBuf>,
@@ -85,6 +90,7 @@ impl From<WorkerConfigArgs> for ConfigOverrides {
             worker_ip: value.worker_ip,
             worker_ifname: value.worker_ifname,
             worker_port: value.worker_port,
+            metrics_port: value.metrics_port,
             token_file: value.token_file,
             data_dir: value.data_dir,
             log_dir: value.log_dir,
@@ -96,15 +102,41 @@ impl From<WorkerConfigArgs> for ConfigOverrides {
 
 #[derive(Debug, Subcommand)]
 pub enum WorkerCommand {
+    Config(WorkerConfigCommand),
     Doctor,
+    Gpu(WorkerGpuCommand),
     Run(WorkerRunArgs),
     ValidateConfig,
 }
 
 #[derive(Debug, Args)]
+pub struct WorkerConfigCommand {
+    #[command(subcommand)]
+    pub command: WorkerConfigSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum WorkerConfigSubcommand {
+    Get,
+}
+
+#[derive(Debug, Args)]
+pub struct WorkerGpuCommand {
+    #[command(subcommand)]
+    pub command: WorkerGpuSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum WorkerGpuSubcommand {
+    List,
+}
+
+#[derive(Debug, Args)]
 pub struct WorkerRunArgs {
-    #[arg(long)]
+    #[arg(long, conflicts_with = "resource_api_only")]
     pub control_plane_only: bool,
+    #[arg(long, conflicts_with = "control_plane_only")]
+    pub resource_api_only: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -126,6 +158,10 @@ pub enum CliError {
     #[error("worker run currently requires --control-plane-only")]
     ControlPlaneOnlyRequired,
     #[error(transparent)]
+    Resource(#[from] ResourceError),
+    #[error(transparent)]
+    ResourceRun(#[from] ResourceApiRunError),
+    #[error(transparent)]
     WorkerRun(#[from] WorkerRunError),
     #[error("failed to serialize command output")]
     Serialization(#[from] serde_json::Error),
@@ -137,6 +173,8 @@ impl CliError {
         match self {
             Self::Config(_) | Self::ControlPlaneOnlyRequired => EXIT_CONFIG,
             Self::WorkerRun(_) => EXIT_CONTROL_PLANE,
+            Self::Resource(_) => EXIT_RUNTIME,
+            Self::ResourceRun(_) => EXIT_CONTROL_PLANE,
             Self::Serialization(_) => EXIT_INTERNAL,
         }
     }
@@ -151,21 +189,39 @@ pub async fn execute(cli: Cli) -> Result<Execution, CliError> {
         Command::Worker(worker) => {
             let loaded = load_config(cli.config.as_deref(), worker.overrides.into())?;
             match worker.command {
+                WorkerCommand::Config(arguments) => match arguments.command {
+                    WorkerConfigSubcommand::Get => render_public_config(output_format)?,
+                },
                 WorkerCommand::ValidateConfig => {
                     render_valid_config(output_format, &loaded.config, loaded.source.as_deref())?
                 }
                 WorkerCommand::Doctor => render_doctor(output_format, &run_doctor(&loaded.config))?,
+                WorkerCommand::Gpu(arguments) => match arguments.command {
+                    WorkerGpuSubcommand::List => {
+                        render_gpu_inventory(output_format, &collect_gpu_inventory()?)?
+                    }
+                },
                 WorkerCommand::Run(arguments) => {
-                    if !arguments.control_plane_only {
+                    if !arguments.control_plane_only && !arguments.resource_api_only {
                         return Err(CliError::ControlPlaneOnlyRequired);
                     }
-                    let summary = run_control_plane_only(&loaded.config, |event| {
-                        if !quiet {
-                            eprintln!("{event}");
-                        }
-                    })
-                    .await?;
-                    render_control_plane_summary(output_format, &summary)?
+                    if arguments.resource_api_only {
+                        let summary = run_resource_api_only(&loaded.config, |event| {
+                            if !quiet {
+                                eprintln!("{event}");
+                            }
+                        })
+                        .await?;
+                        render_resource_api_summary(output_format, &summary)?
+                    } else {
+                        let summary = run_control_plane_only(&loaded.config, |event| {
+                            if !quiet {
+                                eprintln!("{event}");
+                            }
+                        })
+                        .await?;
+                        render_control_plane_summary(output_format, &summary)?
+                    }
                 }
             }
         }
@@ -179,6 +235,57 @@ pub async fn execute(cli: Cli) -> Result<Execution, CliError> {
     } else {
         Ok(execution)
     }
+}
+
+fn render_public_config(output_format: OutputFormat) -> Result<Execution, CliError> {
+    let config = public_config_view();
+    let output = match output_format {
+        OutputFormat::Json => to_json(&config)?,
+        OutputFormat::Table => {
+            let value = serde_json::to_value(config)?;
+            let object = value.as_object().expect("config view serializes as object");
+            let mut output = String::new();
+            for (name, value) in object {
+                writeln!(output, "{name}: {value}").expect("write to String");
+            }
+            output
+        }
+    };
+    Ok(Execution {
+        output,
+        exit_code: EXIT_SUCCESS,
+    })
+}
+
+fn render_gpu_inventory(
+    output_format: OutputFormat,
+    gpus: &[gpustack_client::types::GpuDeviceInfo],
+) -> Result<Execution, CliError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(&gpus)?,
+        OutputFormat::Table => {
+            let mut output = String::from("INDEX\tNAME\tUUID\tMEMORY_TOTAL_BYTES\n");
+            for gpu in gpus {
+                writeln!(
+                    output,
+                    "{}\t{}\t{}\t{}",
+                    gpu.device_index,
+                    gpu.name,
+                    gpu.uuid.as_deref().unwrap_or("unknown"),
+                    gpu.memory
+                        .as_ref()
+                        .and_then(|memory| memory.total)
+                        .map_or_else(|| "unknown".to_owned(), |value| value.to_string())
+                )
+                .expect("write to String");
+            }
+            output
+        }
+    };
+    Ok(Execution {
+        output,
+        exit_code: EXIT_SUCCESS,
+    })
 }
 
 #[derive(Serialize)]
@@ -291,6 +398,7 @@ fn render_config_table(result: &ConfigValidation<'_>) -> String {
     )
     .expect("write to String");
     writeln!(output, "worker_port: {}", config.worker_port).expect("write to String");
+    writeln!(output, "metrics_port: {}", config.metrics_port).expect("write to String");
     writeln!(output, "data_dir: {}", config.data_dir.display()).expect("write to String");
     writeln!(output, "log_dir: {}", config.log_dir.display()).expect("write to String");
     writeln!(output, "docker_socket: {}", config.docker_socket.display()).expect("write to String");
@@ -389,6 +497,53 @@ fn render_control_plane_summary(
     })
 }
 
+fn render_resource_api_summary(
+    output_format: OutputFormat,
+    summary: &ResourceApiSummary,
+) -> Result<Execution, CliError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(summary)?,
+        OutputFormat::Table => format!(
+            concat!(
+                "mode: {}\n",
+                "server_version: {}\n",
+                "server_git_commit: {}\n",
+                "worker_id: {}\n",
+                "worker_name: {}\n",
+                "worker_uuid: {}\n",
+                "worker_address: {}\n",
+                "metrics_address: {}\n",
+                "gpu_count: {}\n",
+                "shutdown_signal: {}\n",
+                "heartbeat_ok: {}\n",
+                "status_ok: {}\n",
+                "full_sync_ok: {}\n",
+                "watch_connected: {}\n",
+                "reconnect_attempts: {}\n"
+            ),
+            summary.mode,
+            summary.server_version,
+            summary.server_git_commit,
+            summary.worker_id,
+            summary.worker_name,
+            summary.worker_uuid,
+            summary.worker_address,
+            summary.metrics_address,
+            summary.gpu_count,
+            summary.shutdown_signal,
+            summary.heartbeat_ok,
+            summary.status_ok,
+            summary.full_sync_ok,
+            summary.watch_connected,
+            summary.reconnect_attempts,
+        ),
+    };
+    Ok(Execution {
+        output,
+        exit_code: EXIT_SUCCESS,
+    })
+}
+
 fn to_json(value: &impl Serialize) -> Result<String, serde_json::Error> {
     serde_json::to_string_pretty(value).map(|output| format!("{output}\n"))
 }
@@ -402,6 +557,36 @@ mod tests {
     #[test]
     fn command_definition_is_valid() {
         Cli::command().debug_assert();
+    }
+
+    #[tokio::test]
+    async fn worker_config_get_returns_only_the_public_whitelist() {
+        let cli =
+            Cli::try_parse_from(["gpustack-rs", "--output", "json", "worker", "config", "get"])
+                .expect("parse CLI");
+
+        let execution = execute(cli).await.expect("execute config get");
+
+        assert!(execution.output.contains("disable_builtin_observability"));
+        assert!(!execution.output.contains("token"));
+        assert!(!execution.output.contains("docker"));
+    }
+
+    #[test]
+    fn worker_gpu_list_and_resource_mode_are_explicit_commands() {
+        Cli::try_parse_from(["gpustack-rs", "worker", "gpu", "list"]).expect("parse GPU list");
+        Cli::try_parse_from(["gpustack-rs", "worker", "run", "--resource-api-only"])
+            .expect("parse resource mode");
+        assert!(
+            Cli::try_parse_from([
+                "gpustack-rs",
+                "worker",
+                "run",
+                "--control-plane-only",
+                "--resource-api-only",
+            ])
+            .is_err()
+        );
     }
 
     #[tokio::test]

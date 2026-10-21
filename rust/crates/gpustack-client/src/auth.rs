@@ -3,6 +3,7 @@
 use std::{fmt, io};
 
 use serde::{Deserialize, Deserializer};
+use subtle::ConstantTimeEq;
 use thiserror::Error;
 
 const REDACTED: &str = "<redacted-token>";
@@ -35,6 +36,16 @@ impl SecretToken {
         // Deliberate write-only exposure lets the Worker persist an issued
         // credential without making raw token access generally available.
         writer.write_all(self.0.as_bytes())
+    }
+
+    /// Compares a caller-provided credential without early-exit byte comparisons.
+    #[must_use]
+    pub fn constant_time_matches(&self, candidate: &str) -> bool {
+        let expected = self.0.as_bytes();
+        let candidate = candidate.as_bytes();
+        // Length is not secret, but equal-length candidates must stay on one
+        // byte-comparison path so an HTTP caller cannot learn a matching prefix.
+        expected.len() == candidate.len() && bool::from(expected.ct_eq(candidate))
     }
 
     pub(crate) fn redact(&self, value: &str) -> String {
@@ -83,5 +94,8 @@ mod tests {
         assert!(!format!("{token:?}").contains("secret-value"));
         assert!(!token.to_string().contains("secret-value"));
         assert_eq!(token.redact("error secret-value"), "error <redacted-token>");
+        assert!(token.constant_time_matches("secret-value"));
+        assert!(!token.constant_time_matches("secret-valuE"));
+        assert!(!token.constant_time_matches("short"));
     }
 }

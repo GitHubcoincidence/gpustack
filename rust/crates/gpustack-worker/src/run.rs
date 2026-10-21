@@ -617,6 +617,7 @@ mod tests {
             worker_ip: Some("127.0.0.1".parse().expect("test IP")),
             worker_ifname: Some("lo".to_owned()),
             worker_port: 20150,
+            metrics_port: 20151,
             token_file: Some(data_dir.join("registration-token")),
             data_dir,
             log_dir: PathBuf::from("/tmp/gpustack-rust-test-logs"),
