@@ -21,6 +21,11 @@ GPUStack `v2.2.3`，源码 commit
 - `worker-maintenance-me.response.json`：2026-10-20 根据固定 commit 的
   `WorkerPublic` 与 `Maintenance` schema 离线构造，用于证明 M3-D Worker 在启动控制
   循环前会重新确认 Server 保存的 maintenance 门禁；它不是一次真实注册响应。
+- `worker-status-resource.request.json`：2026-10-21 根据固定 commit 的
+  `WorkerStatusStored`、`WorkerStatus`、GPU 与文件系统 schema，以及 90 主机只读资源
+  identity 构造。瞬时利用率、温度、uptime、文件系统用量和 machine ID 使用 synthetic
+  值；两张 A100 的名称、UUID、总显存、compute capability、driver 和 runtime baseline
+  来自只读现场检查。
 
 这些 synthetic 样本固定字段名、默认值、null、enum 拼写和事件编码，但不声称
 是一次真实注册或模型部署的捕获。注册请求使用的候选 UUID 以 `...0001` 结尾，
@@ -41,6 +46,7 @@ GPUStack `v2.2.3`，源码 commit
 | `worker-maintenance-me.response.json` | M3-D maintenance Worker 的 `me=true` synthetic 响应体 |
 | `worker-heartbeat.request.json` | `POST /v2/worker-heartbeat` 请求体；成功 body 为空、status 为 204 |
 | `worker-status.request.json` | `POST /v2/worker-status` 请求体；成功 body 为空、status 为 204 |
+| `worker-status-resource.request.json` | M4 类型化双 A100 `POST /v2/worker-status` 请求体；成功 body 为空、status 为 204 |
 | `models-full-sync.response.json` | `GET /v2/models?page=-1` 响应体 |
 | `model-instances-full-sync.response.json` | `GET /v2/model-instances?page=-1` 响应体 |
 | `model-instance-update.request.json` | `PUT /v2/model-instances/{id}` 的完整更新请求体 |

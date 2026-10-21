@@ -1,0 +1,47 @@
+{
+  "unauthorized": {
+    "code": 401,
+    "reason": "Unauthorized",
+    "message": "Invalid authentication credentials"
+  },
+  "bad_request": {
+    "code": 400,
+    "reason": "BadRequest",
+    "message": "Invalid request"
+  },
+  "forbidden": {
+    "code": 403,
+    "reason": "Forbidden",
+    "message": "Access denied"
+  },
+  "not_found": {
+    "code": 404,
+    "reason": "NotFound",
+    "message": "Resource not found"
+  },
+  "payload_too_large": {
+    "code": 413,
+    "reason": "PayloadTooLarge",
+    "message": "Model config file is too large"
+  },
+  "method_not_allowed": {
+    "code": 405,
+    "reason": "MethodNotAllowed",
+    "message": "Method not allowed"
+  },
+  "invalid": {
+    "code": 422,
+    "reason": "Invalid",
+    "message": "Request validation failed"
+  },
+  "not_supported": {
+    "code": 501,
+    "reason": "NotSupported",
+    "message": "Container logs are unavailable in resource-api-only mode"
+  },
+  "service_unavailable": {
+    "code": 503,
+    "reason": "ServiceUnavailable",
+    "message": "Worker runtime is not ready in resource-api-only mode"
+  }
+}

@@ -1,0 +1,64 @@
+# HELP gpustack:worker_node_os_info Operating system information.
+# TYPE gpustack:worker_node_os_info gauge
+gpustack:worker_node_os_info{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",name="Ubuntu",version="24.04.4 LTS (Noble Numbat)"} 1
+# HELP gpustack:worker_node_kernel_info Kernel information.
+# TYPE gpustack:worker_node_kernel_info gauge
+gpustack:worker_node_kernel_info{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",name="Linux",release="6.8.0-147-generic",version="#147-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep 24 11:33:16 UTC 2026",architecture="x86_64"} 1
+# TYPE gpustack:worker_node_uptime_seconds gauge
+gpustack:worker_node_uptime_seconds{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa"} 86400
+# TYPE gpustack:worker_node_cpu_cores gauge
+gpustack:worker_node_cpu_cores{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa"} 96
+# TYPE gpustack:worker_node_cpu_utilization_rate gauge
+gpustack:worker_node_cpu_utilization_rate{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa"} 0.2
+# TYPE gpustack:worker_node_memory_total_bytes gauge
+gpustack:worker_node_memory_total_bytes{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa"} 809601908736
+# TYPE gpustack:worker_node_memory_used_bytes gauge
+gpustack:worker_node_memory_used_bytes{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa"} 22264052408
+# TYPE gpustack:worker_node_memory_utilization_rate gauge
+gpustack:worker_node_memory_utilization_rate{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa"} 2.75
+# TYPE worker_node_gpu_info gauge
+worker_node_gpu_info{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="0",gpu_name="NVIDIA A100 80GB PCIe"} 1
+worker_node_gpu_info{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="1",gpu_name="NVIDIA A100 80GB PCIe"} 1
+# TYPE gpustack:worker_node_gpu_cores gauge
+gpustack:worker_node_gpu_cores{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="0",gpu_name="NVIDIA A100 80GB PCIe"} 6912
+gpustack:worker_node_gpu_cores{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="1",gpu_name="NVIDIA A100 80GB PCIe"} 6912
+# TYPE gpustack:worker_node_gpu_utilization_rate gauge
+gpustack:worker_node_gpu_utilization_rate{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="0",gpu_name="NVIDIA A100 80GB PCIe"} 0
+gpustack:worker_node_gpu_utilization_rate{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="1",gpu_name="NVIDIA A100 80GB PCIe"} 0
+# TYPE gpustack:worker_node_gpu_temperature_celsius gauge
+gpustack:worker_node_gpu_temperature_celsius{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="0",gpu_name="NVIDIA A100 80GB PCIe"} 31
+gpustack:worker_node_gpu_temperature_celsius{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="1",gpu_name="NVIDIA A100 80GB PCIe"} 30
+# TYPE gpustack:worker_node_gram_total_bytes gauge
+gpustack:worker_node_gram_total_bytes{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="0",gpu_name="NVIDIA A100 80GB PCIe"} 85899345920
+gpustack:worker_node_gram_total_bytes{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="1",gpu_name="NVIDIA A100 80GB PCIe"} 85899345920
+# TYPE gpustack:worker_node_gram_allocated_bytes gauge
+# TYPE gpustack:worker_node_gram_used_bytes gauge
+gpustack:worker_node_gram_used_bytes{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="0",gpu_name="NVIDIA A100 80GB PCIe"} 0
+gpustack:worker_node_gram_used_bytes{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="1",gpu_name="NVIDIA A100 80GB PCIe"} 0
+# TYPE gpustack:worker_node_gram_utilization_rate gauge
+gpustack:worker_node_gram_utilization_rate{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="0",gpu_name="NVIDIA A100 80GB PCIe"} 0
+gpustack:worker_node_gram_utilization_rate{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",gpu_chip_index="0",gpu_index="1",gpu_name="NVIDIA A100 80GB PCIe"} 0
+# TYPE gpustack:worker_node_filesystem_total_bytes gauge
+gpustack:worker_node_filesystem_total_bytes{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",mountpoint="/home"} 15393162788864
+# TYPE gpustack:worker_node_filesystem_used_bytes gauge
+gpustack:worker_node_filesystem_used_bytes{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",mountpoint="/home"} 8573157376000
+# TYPE gpustack:worker_node_filesystem_utilization_rate gauge
+gpustack:worker_node_filesystem_utilization_rate{instance="10.213.80.90",worker_id="2",worker_name="rust-m3d-r760xa",mountpoint="/home"} 55.7
+# TYPE gpustack:rust_worker_mode_info gauge
+gpustack:rust_worker_mode_info{mode="resource_api_only"} 1
+# TYPE gpustack:rust_worker_ready gauge
+gpustack:rust_worker_ready 0
+# TYPE gpustack:rust_worker_server_connected gauge
+gpustack:rust_worker_server_connected 1
+# TYPE gpustack:rust_worker_heartbeat_success gauge
+gpustack:rust_worker_heartbeat_success 1
+# TYPE gpustack:rust_worker_status_success gauge
+gpustack:rust_worker_status_success 1
+# TYPE gpustack:rust_worker_watch_connected gauge
+gpustack:rust_worker_watch_connected{resource="models"} 1
+gpustack:rust_worker_watch_connected{resource="model_instances"} 1
+gpustack:rust_worker_watch_connected{resource="model_files"} 1
+# TYPE gpustack:rust_worker_watch_reconnects_total counter
+gpustack:rust_worker_watch_reconnects_total{resource="models"} 0
+gpustack:rust_worker_watch_reconnects_total{resource="model_instances"} 0
+gpustack:rust_worker_watch_reconnects_total{resource="model_files"} 0

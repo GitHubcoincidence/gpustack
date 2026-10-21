@@ -1,0 +1,19 @@
+{
+  "restarts": [
+    {
+      "previous": false,
+      "started_at": "2026-10-21T04:20:00Z",
+      "containers": [
+        "default",
+        "ray-head"
+      ]
+    },
+    {
+      "previous": true,
+      "started_at": "2026-10-21T04:10:00Z",
+      "containers": [
+        "default"
+      ]
+    }
+  ]
+}

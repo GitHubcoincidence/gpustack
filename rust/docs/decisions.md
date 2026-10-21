@@ -144,3 +144,13 @@ D053 只覆盖本次 M3-D.2 剩余执行；后续真实部署、维护窗口和�
 | D060 | M4 依赖策略 | 依赖类别冻结为 `axum`、`nvml-wrapper`、`sysinfo`、`prometheus-client` 和 `subtle`；准确版本只有在 Cargo cache、Rust 1.99.1/MSRV 和 locked/offline build 审计通过后才能写入锁文件 | 先固定职责而不猜测版本，避免在 90 网络受限环境引入不可离线复现或不兼容工具链的依赖。 |
 
 M4-D 的维护窗口必须另获用户对精确 stop/start 命令的明确授权。接受这些决策只允许进入 M4-A；不授权 M4-B 代码实现、M4-C 真实 NVML 读取、停止 Python Worker、启动 resource-api-only 或任何 Docker/vLLM/GPU 工作负载。
+
+## 2026-10-21 M4-A 精确契约与依赖版本冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D061 | Worker API 精确兼容边界 | 固定 route、query、响应 schema、日志文件规则、配置白名单和 Python 资源 metric 名称；接受 Bearer 与 `X-API-Key` 两种传输但只校验 per-Worker token。相对路径为 400，根目录或 symlink 越界为 403，安全根目录内不存在为 404，`file-exists` 的安全未存在目标为 200/false；model config 上限固定 16 MiB。容器日志在 resource-api-only 返回 501，PUT config 返回 405，其他延后 route 返回 404 | 把兼容性、安全增强和不支持边界变成可测试契约，避免 M4-B 在实现时从模糊设计自行选择行为。 |
+| D062 | M4 依赖准确版本 | M4-B 输入固定为 `axum 0.8.9`（`http1,json,query,tokio`）、`nvml-wrapper 0.13.0`、`sysinfo 0.39.6`（`disk,system`）、`prometheus-client 0.25.1` 和 `subtle 2.6.1`，不启用未列出的 default feature。版本已在独立 scratch crate 中用 Rust 1.99.1 完成 online locked check 和断网 locked/offline check；M4-B 仍须在实际 workspace 更新 lock 后重复全部门禁 | 证明准确版本在 90 的 cache、固定工具链和离线模式可用，同时不让一次 scratch 结果替代真实 workspace 依赖集成。 |
+| D063 | 资源和 readiness 失败语义 | 资源 rate 固定为 `0..=100` 百分比；GPU 与文件系统改为固定 v2.2.3 类型，GPU memory 使用 bytes。NVML 初始化、双 A100 枚举或关键 identity 失败时 resource-api-only fail closed；`/healthz` 仍可表示存活，但 `/readyz` 和 `gpustack:rust_worker_ready` 固定不可用/0 | 空 GPU 上报会把资源采集失败伪装成成功，且与 M3-D 的 control-plane-only 隔离语义混淆；明确单位可避免 dashboard 和 Server 资源值出现百倍偏差。 |
+
+D061–D063 当前随 M4-A 一并处于 `ready_for_review`，尚未标记为 `accepted`。它们不授权修改 Rust runtime、读取真实 Worker token、启动 resource-api-only、访问真实 NVML、更新 Server、停止 Python Worker 或执行 Docker/vLLM/GPU 工作负载。

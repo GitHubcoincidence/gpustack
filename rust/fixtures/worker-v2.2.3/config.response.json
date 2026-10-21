@@ -1,0 +1,9 @@
+{
+  "debug": false,
+  "system_default_container_registry": null,
+  "server_external_url": null,
+  "grafana_url": null,
+  "disable_builtin_observability": false,
+  "grafana_worker_dashboard_uid": null,
+  "grafana_model_dashboard_uid": null
+}

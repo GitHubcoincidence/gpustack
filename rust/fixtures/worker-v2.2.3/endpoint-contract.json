@@ -1,0 +1,127 @@
+{
+  "baseline": {
+    "version": "v2.2.3",
+    "git_commit": "1cfcbbff02aacdb51f0a390378dd7bcddd9bf365",
+    "openapi_sha256": "a02743d483120ccd52179cdfb329fbc47d05503be6f2b455b341aeb31f5aa455"
+  },
+  "worker_api": {
+    "address": "10.213.80.90:20150",
+    "routes": [
+      {
+        "method": "GET",
+        "path": "/healthz",
+        "auth": "public",
+        "success_status": 200,
+        "content_type": "application/json"
+      },
+      {
+        "method": "GET",
+        "path": "/readyz",
+        "auth": "public",
+        "success_status": null,
+        "resource_api_only_status": 503,
+        "content_type": "application/json"
+      },
+      {
+        "method": "GET",
+        "path": "/version",
+        "auth": "public",
+        "success_status": 200,
+        "content_type": "application/json"
+      },
+      {
+        "method": "GET",
+        "path": "/token-auth",
+        "auth": "worker",
+        "success_status": 200,
+        "content_type": "application/json"
+      },
+      {
+        "method": "GET",
+        "path": "/files/file-exists",
+        "auth": "worker",
+        "success_status": 200,
+        "content_type": "application/json",
+        "query": {
+          "path": "required absolute string"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/files/model-config",
+        "auth": "worker",
+        "success_status": 200,
+        "content_type": "application/json",
+        "query": {
+          "path": "required absolute string"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/files/model-weight-size",
+        "auth": "worker",
+        "success_status": 200,
+        "content_type": "application/json",
+        "query": {
+          "path": "required absolute string"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/serveLogOptions/{id}",
+        "auth": "worker",
+        "success_status": 200,
+        "content_type": "application/json"
+      },
+      {
+        "method": "GET",
+        "path": "/serveLogs/{id}",
+        "auth": "worker",
+        "success_status": 200,
+        "content_type": "application/octet-stream",
+        "query": {
+          "model_instance_name": "string default empty",
+          "model_file_id": "optional integer",
+          "container_name": "optional string",
+          "tail": "integer default -1",
+          "follow": "boolean default false",
+          "previous": "boolean default false"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/v2/config",
+        "auth": "worker",
+        "success_status": 200,
+        "content_type": "application/json"
+      }
+    ]
+  },
+  "metrics_api": {
+    "address": "10.213.80.90:20151",
+    "method": "GET",
+    "path": "/metrics",
+    "auth": "public",
+    "success_status": 200,
+    "content_type": "text/plain; version=0.0.4"
+  },
+  "credential_transport": {
+    "accepted_headers": [
+      "Authorization: Bearer <token>",
+      "X-API-Key: <token>"
+    ],
+    "precedence": "Authorization Bearer",
+    "accepted_secret": "persisted per-Worker token only",
+    "cluster_registration_token": false,
+    "server_fallback": false
+  },
+  "postponed": [
+    "PUT /v2/config",
+    "POST /files/parse-gguf",
+    "benchmark logs",
+    "cache logs",
+    "debug API",
+    "inference proxy",
+    "cluster proxy"
+  ]
+}

@@ -4,7 +4,7 @@
 
 R1 以 90 服务器上已经运行的 GPUStack `v2.2.3` 为准确目标，源码 commit 固定为 `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`。部署 image tag、digest 与环境身份见 `environment-baseline.md`。R1 实现和验证期间不升级 Server。
 
-M3 的准确 endpoint、schema、认证、分页、watch framing、错误和 fixture 见 `server-contract-v2.2.3.md` 与 `rust/fixtures/server-v2.2.3/`。设计阶段检查过的其他 commit 不再是兼容性证据。
+M3 的准确 endpoint、schema、认证、分页、watch framing、错误和 fixture 见 `server-contract-v2.2.3.md` 与 `rust/fixtures/server-v2.2.3/`。M4 的精确 Worker HTTP、资源上报、metrics、安全差异和依赖输入见 `worker-contract-v2.2.3.md` 与 `rust/fixtures/worker-v2.2.3/`。设计阶段检查过的其他 commit 不再是兼容性证据。
 
 ## Worker 到 Server 的操作
 

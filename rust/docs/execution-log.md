@@ -425,6 +425,20 @@
 - 当前停止位置：M4 设计为 `frozen`，实现尚未开始；Rust 进程和 `20150/20151` 必须保持停止，Python Server/Worker 保持原状。
 - 下一项允许执行的工作：只进入 M4-A 的固定 v2.2.3 源码/响应契约、静态 fixture 和依赖版本审计；M4-B、M4-C、M4-D 分别需要完成前一门禁和相应授权。
 
+### 2026-10-21：M4-A Worker 资源/API 契约与依赖审计待审阅
+
+- 结果：M4-A 状态为 `ready_for_review`。新增固定 v2.2.3 的 Worker 精确契约、Worker API/错误/metrics fixture 和类型化双 A100 status request；没有修改 Rust 源码、crate manifest 或 workspace `Cargo.lock`。
+- 固定源码与现场只读证据：兼容源码仍为 `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`；现场 Python Worker 的 health/ready/version/通用 401 已捕获，Worker OpenAPI SHA-256 为 `a02743d483120ccd52179cdfb329fbc47d05503be6f2b455b341aeb31f5aa455`，metrics SHA-256 为 `bb5f0bb0271f2969d8ceda5904ac30b64735d30a10fe692886e25767ae02f4d4`。
+- HTTP 与认证：精确固定 public probe、per-Worker token 保护 route、Bearer 与 `X-API-Key` 传输、Bearer 优先、无 Cluster token/Server fallback、通用 401、`application/octet-stream` 日志、read-only config 和延后 route 的 404/405/501 行为。
+- 文件与日志安全：模型根目录固定为 `/home/wujiaxing2/flowscale-system-validation/models`；绝对路径、canonicalization、未存在目标祖先检查、symlink containment、八个配置文件 basename、16 MiB 上限、四种权重扩展、普通 LLM 与 diffusion 组件目录规则，以及 serve log 文件名/restart/tail/follow/previous 语义均已冻结。
+- 资源与 metrics：status fixture 覆盖 96 逻辑 CPU、memory/swap、`/home` 文件系统、OS/kernel/uptime、双 A100 UUID/name/80 GiB/core/driver/CUDA/compute capability，并固定 `metrics_port=20151`。资源 metric 名称/label 对齐 Python Worker，新增 Rust mode/readiness/control-loop 指标；rate 使用百分比。
+- 依赖审计：scratch crate 固定 `axum 0.8.9`、`nvml-wrapper 0.13.0`、`sysinfo 0.39.6`、`prometheus-client 0.25.1`、`subtle 2.6.1`，解析 89 个 package；Rust 1.99.1 下 online `cargo check --locked` 和关闭临时代理后的 `CARGO_NET_OFFLINE=true cargo check --locked --offline` 均通过。scratch lock SHA-256 为 `957d7f5b36b82a086c327c26f8ace641201578fd1f1fed7fa12839c8c9715d67`，workspace lock 保持 `b6c0de0cbc158818868a749558fe9ca1aa4ca633c2eb3ef367929fe9d34b0eae`。
+- 网络与隔离：仅为依赖下载临时建立 `127.0.0.1:17897` 反向代理，完成后已关闭并确认无监听。没有读取 per-Worker token、启动 Rust Worker、发送 Server 写请求、停止或修改 Python Worker，也没有创建 Docker workload、vLLM 或 GPU 任务。
+- 漂移审计：实现范围仍是 resource-api-only；M3-D control-plane-only、maintenance Worker ID 2、状态所有权、M4-C/M4-D 门禁和 R1 范围均未改变。对 Python v2.2.3 的差异仅为已经接受的严格路径 containment、per-Worker-only auth 和 readiness 503。
+- 解释：本阶段证明契约可追溯、fixture 可用于离线实现且候选依赖可在固定工具链上离线构建；不证明 Rust API、资源采集、NVML、metrics、真实 status 或 Server 可见双 A100 已实现。
+- 当前停止位置：M4-A 等待聊天中的详细报告和用户共同验收；M4-B 尚未授权。
+- 下一项允许执行的工作：完成详细报告与审阅；若用户接受，再把 D061–D063 和 M4-A 标记为 `accepted` 并进入 M4-B mock/fake 驱动离线实现。M4-C、M4-D、服务维护、Docker、vLLM 和 GPU 工作负载仍不允许。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。

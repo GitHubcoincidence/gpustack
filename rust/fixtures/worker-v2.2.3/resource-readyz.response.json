@@ -1,0 +1,5 @@
+{
+  "code": 503,
+  "reason": "ServiceUnavailable",
+  "message": "Worker runtime is not ready in resource-api-only mode"
+}

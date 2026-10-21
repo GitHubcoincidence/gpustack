@@ -1,0 +1,112 @@
+{
+  "advertise_address": null,
+  "gateway_endpoint": null,
+  "hostname": "r760xa",
+  "ifname": "eno8403",
+  "ip": "10.213.80.90",
+  "machine_id": "contract-machine-id",
+  "metrics_port": 20151,
+  "port": 20150,
+  "proxy_mode": "worker",
+  "state_message": null,
+  "status": {
+    "cpu": {
+      "total": 96,
+      "utilization_rate": 0.2
+    },
+    "filesystem": [
+      {
+        "name": "contract-home-volume",
+        "mount_point": "/home",
+        "mount_from": "/dev/mapper/contract-home",
+        "total": 15393162788864,
+        "used": 8573157376000,
+        "free": 6819997067264,
+        "available": 6819997067264
+      }
+    ],
+    "gpu_devices": [
+      {
+        "vendor": "NVIDIA",
+        "type": "cuda",
+        "index": 0,
+        "device_index": 0,
+        "device_chip_index": 0,
+        "arch_family": "Ampere",
+        "name": "NVIDIA A100 80GB PCIe",
+        "uuid": "GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3",
+        "driver_version": "580.178.04",
+        "runtime_version": "13.0",
+        "compute_capability": "8.0",
+        "core": {
+          "total": 6912,
+          "utilization_rate": 0.0
+        },
+        "memory": {
+          "allocated": null,
+          "is_unified_memory": false,
+          "total": 85899345920,
+          "used": 0,
+          "utilization_rate": 0.0
+        },
+        "temperature": 31.0,
+        "network": null
+      },
+      {
+        "vendor": "NVIDIA",
+        "type": "cuda",
+        "index": 1,
+        "device_index": 1,
+        "device_chip_index": 0,
+        "arch_family": "Ampere",
+        "name": "NVIDIA A100 80GB PCIe",
+        "uuid": "GPU-b1f89e65-e9c4-26f5-a306-8a520df07708",
+        "driver_version": "580.178.04",
+        "runtime_version": "13.0",
+        "compute_capability": "8.0",
+        "core": {
+          "total": 6912,
+          "utilization_rate": 0.0
+        },
+        "memory": {
+          "allocated": null,
+          "is_unified_memory": false,
+          "total": 85899345920,
+          "used": 0,
+          "utilization_rate": 0.0
+        },
+        "temperature": 30.0,
+        "network": null
+      }
+    ],
+    "kernel": {
+      "architecture": "x86_64",
+      "name": "Linux",
+      "release": "6.8.0-147-generic",
+      "version": "contract"
+    },
+    "memory": {
+      "allocated": null,
+      "is_unified_memory": false,
+      "total": 809601908736,
+      "used": 22264052408,
+      "utilization_rate": 2.75
+    },
+    "os": {
+      "name": "Ubuntu",
+      "version": "24.04.4 LTS"
+    },
+    "rpc_servers": null,
+    "swap": {
+      "total": 8589934592,
+      "used": 0,
+      "utilization_rate": 0.0
+    },
+    "uptime": {
+      "boot_time": "2026-10-20T04:20:00Z",
+      "uptime": 86400.0
+    }
+  },
+  "system_reserved": null,
+  "worker_uuid": "00000000-0000-4000-8000-000000000002"
+}
