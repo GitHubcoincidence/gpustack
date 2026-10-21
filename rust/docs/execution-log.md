@@ -752,6 +752,9 @@
 - 回归验证：新增预留块语义和失败回退两项测试；`gpustack-worker` 47 项、全 workspace
   65 项测试全部通过，fmt、全 workspace/all targets/all features Clippy
   `-D warnings`、locked/offline build 和 diff check 均通过。
+- 实现身份：代码提交为
+  `ad4ebfa39234de22690f8a28ee79b273eb3acc7d`；更新后的 `Cargo.lock` SHA-256 为
+  `09d6abfb78214378deeb274ba6dc0f1e0b71e994759f6c13e2bfc7f30308849e`。
 - 隔离：本次只修改、编译和测试 90 主工作树，没有启动 Rust Worker、停止容器、调用
   Server 写接口或使用 GPU。现有 Python Server/Worker 不属于本次变更对象。
 - 结果：M4-D.1 状态为 `ready_for_review`。原 M4-D 的身份、API、GPU、控制面、隔离和
