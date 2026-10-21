@@ -854,6 +854,33 @@
   M4-D.1、M4-D.2、M4-D 和 M4 为 `accepted`，再讨论下一里程碑；不得把本次结果解释为
   Docker/vLLM 或模型推理能力已经实现。
 
+### 2026-10-21：M4-D 文件系统闭环与 M4 正式接受
+
+- 结果：用户审阅 M4-D.1 文件系统语义修正、M4-D.2 在线复核、正式证据和服务隔离
+  报告后确认无问题；M4-D.1、M4-D.2、M4-D 与整个 M4 均由
+  `ready_for_review` 更新为 `accepted`，M4 阶段完成。
+- 接受范围：Rust Worker 已通过固定 v2.2.3 Server 的 maintenance
+  resource-api-only 集成，包含双 A100 资源上报、Worker API、per-Worker token 认证、
+  文件/日志/配置读取、Prometheus metrics、控制面保活、路径与脱敏边界以及 Python
+  Worker 回滚。根文件系统的 `free`、`available` 和 `used = total - free` 已与 Linux
+  `statvfs` 语义对齐，并由 Server、metrics 与宿主机同点采样交叉验证。
+- 接受证据：主要 M4-D 正式证据目录为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m4d-formal-a3283b66-retry-1`；
+  文件系统闭环证据目录为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m4d2-filesystem-online-f6faa63e-retry-2`。
+  文件系统修正代码提交为
+  `ad4ebfa39234de22690f8a28ee79b273eb3acc7d`，在线复核记录提交为
+  `61c760a07c73975b3182604e557106d6c488bf94`；无效和失败尝试继续保持原状态，
+  不提升为接受证据。
+- 明确非结论：M4 没有实现或验证 Docker workload、vLLM 模型启动、Lab 推理、Managed
+  ModelInstance 状态推进、跨 Worker 分布式推理或 Rust Worker 容器化；M4 的接受不授权
+  任何新的维护窗口、停止 Python Worker、创建容器或使用 GPU。
+- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 已停止，`20150/20151`
+  空闲；远端分支和 origin 同步，工作树干净。
+- 下一项允许执行的工作：进入 M5 Docker runtime 与 Lab 的设计讨论，细化 Docker
+  原语、所有权标签、WorkloadSpec、vLLM builder、本地状态、CLI、健康、日志与清理门禁。
+  设计经用户冻结后才能开始离线实现；真实 Docker/vLLM/GPU 验证仍须单独维护授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。

@@ -199,4 +199,8 @@ M4-C 已使用来自干净 `c76fa3903b3b` 的 CLI 真实读取 NVML，并与 `nv
 
 M4-D.0 只读预检已在 `fb6412611c5e` 上通过：Server 与 Python Worker 健康，保留的 Worker ID 2 唯一且处于 maintenance，目标 Worker 没有 ModelInstance 或 ModelFile，两张 A100 空闲，Rust 进程和 `20150/20151` 监听均不存在，模型根目录与网络身份符合冻结配置。预检只使用 per-Worker token 发起认证 GET，未输出 token、写入 Server 或改变服务。
 
-M4-D 尝试 1 在 `a80922abd0ed` 上真实发现 Worker HTTP `/version` 未获得 build identity，状态保持 `failed`；退出 trap 已恢复 Python Worker。修复 commit `a3283b665a63` 为 Worker crate 增加独立 build script 和回归测试。尝试 2 使用来自该干净 commit 的二进制完成 231 秒正式运行：Server 持续看到同一 maintenance Worker ID 2、两张 A100 和 `metrics_port=20151`，完整 Worker API/认证/文件/日志/配置/metrics 门禁通过，三次 heartbeat 前进，ModelInstance 与 ModelFile 保持为 0，容器身份无变化，GPU 无计算负载；Rust 优雅停止后 Python Worker 恢复并通过独立复核。结果当前为 `ready_for_review`，须在聊天中完成详细报告和用户验收后才能标记为 `accepted`。Docker workload、vLLM 和任何模型执行仍不属于 M4。
+M4-D 尝试 1 在 `a80922abd0ed` 上真实发现 Worker HTTP `/version` 未获得 build identity，状态保持 `failed`；退出 trap 已恢复 Python Worker。修复 commit `a3283b665a63` 为 Worker crate 增加独立 build script 和回归测试。尝试 2 使用来自该干净 commit 的二进制完成 231 秒正式运行：Server 持续看到同一 maintenance Worker ID 2、两张 A100 和 `metrics_port=20151`，完整 Worker API/认证/文件/日志/配置/metrics 门禁通过，三次 heartbeat 前进，ModelInstance 与 ModelFile 保持为 0，容器身份无变化，GPU 无计算负载；Rust 优雅停止后 Python Worker 恢复并通过独立复核。
+
+M4-D 审阅中发现的根文件系统字段语义已在 commit `ad4ebfa39234de22690f8a28ee79b273eb3acc7d` 修正：Unix 使用 `statvfs` 区分 `free` 与 `available`，并按 `used = total - free` 上报。M4-D.2 从干净 `f6faa63e9c03` 构建并在线复核，Server、Rust metrics 与宿主机同点采样一致；Python Worker 全程运行，测试后无 Rust 进程、端口、容器或 GPU 负载残留。用户已审阅详细报告并接受 M4-D.1、M4-D.2、M4-D 和整个 M4。
+
+当前停止位置为 M4 `accepted`：Python Server/Worker 正常运行，Rust Worker 停止，`20150/20151` 空闲。下一项只允许讨论并冻结 M5 Docker runtime 与 Lab 的分段设计、接口、所有权和验收门禁；M4 的接受不授权停止 Python Worker、创建 Docker/vLLM workload 或使用 GPU。Docker workload、vLLM 和任何模型执行仍不属于 M4。
