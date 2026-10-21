@@ -570,6 +570,23 @@
   精确维护窗口、预检、stop/start 和回滚命令；未获得单独明确授权前不得停止 Python
   Worker 或运行 `--resource-api-only`。
 
+### 2026-10-21：M4-C 宿主机只读 GPU 冒烟接受
+
+- 结果：用户审阅双 A100 逐字段对比、构建与证据身份、无效尝试恢复链、服务隔离结果
+  和 M4-C 非正式集成边界后确认无问题；M4-C 由 `ready_for_review` 更新为
+  `accepted`。
+- 接受范围：生产 NVML collector 能在 90 宿主机准确读取两张 A100 的 index、UUID、
+  名称、显存和 driver，并与同一时点的 `nvidia-smi` 一致；无效证据继续保持
+  `invalidated`，不提升为结论。
+- 明确非结论：M4-C 不证明 resource-api-only 已与真实 Server 集成，也不证明在线
+  Worker API、metrics、maintenance 保持、服务切换或回滚；整个 M4 仍须通过 M4-D
+  才能接受。
+- 当前停止位置：Rust Worker 已停止，`20150/20151` 无监听，Python Server/Worker
+  保持健康；M4-D 尚未获得执行授权。
+- 下一项允许执行的工作：只讨论并冻结 M4-D 的精确维护窗口、预检、Python Worker
+  stop/start、resource-api-only 启停、验证与回滚步骤。讨论通过后仍须由用户单独明确
+  授权实际维护操作。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
