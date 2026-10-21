@@ -203,4 +203,4 @@ M4-D 尝试 1 在 `a80922abd0ed` 上真实发现 Worker HTTP `/version` 未获�
 
 M4-D 审阅中发现的根文件系统字段语义已在 commit `ad4ebfa39234de22690f8a28ee79b273eb3acc7d` 修正：Unix 使用 `statvfs` 区分 `free` 与 `available`，并按 `used = total - free` 上报。M4-D.2 从干净 `f6faa63e9c03` 构建并在线复核，Server、Rust metrics 与宿主机同点采样一致；Python Worker 全程运行，测试后无 Rust 进程、端口、容器或 GPU 负载残留。用户已审阅详细报告并接受 M4-D.1、M4-D.2、M4-D 和整个 M4。
 
-当前停止位置为 M4 `accepted`：Python Server/Worker 正常运行，Rust Worker 停止，`20150/20151` 空闲。下一项只允许讨论并冻结 M5 Docker runtime 与 Lab 的分段设计、接口、所有权和验收门禁；M4 的接受不授权停止 Python Worker、创建 Docker/vLLM workload 或使用 GPU。Docker workload、vLLM 和任何模型执行仍不属于 M4。
+当前停止位置为 M4 `accepted`：Python Server/Worker 正常运行，Rust Worker 停止，`20150/20151` 空闲。M5 已确认保留 `worker lab` 作为共享生产 runtime 的薄适配层：Lab 使用隔离本地状态演示 Docker/vLLM 能力，`model deploy` 仍只调用 Server 并留待 M6 验证完整 Managed 状态链；两者复用路径解析、WorkloadSpec、planner、runtime、日志、健康与清理原语，不形成两套执行实现。下一项只允许讨论并冻结 M5 的详细 Docker/runtime 契约、分段计划、所有权和验收门禁；该确认不授权停止 Python Worker、创建 Docker/vLLM workload 或使用 GPU。Docker workload、vLLM 和任何模型执行仍不属于已接受的 M4。

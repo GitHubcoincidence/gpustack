@@ -881,6 +881,28 @@
   原语、所有权标签、WorkloadSpec、vLLM builder、本地状态、CLI、健康、日志与清理门禁。
   设计经用户冻结后才能开始离线实现；真实 Docker/vLLM/GPU 验证仍须单独维护授权。
 
+### 2026-10-21：M5 Lab 与 Managed 核心边界确认
+
+- 结果：用户确认继续采用既有 D019、D020、D021 与 D038；M5 保留
+  `worker lab`，但它只是共享生产 runtime 的薄适配层，不发展为第二套模型管理或生产
+  控制面。该核心边界状态为 `accepted`，没有修改 M4 结论。
+- CLI 边界：`worker lab deploy` 直接驱动隔离的本地期望状态，用于演示和诊断 Rust
+  Worker 的 Docker/vLLM 执行能力；`model deploy` 必须调用 Server API，由 Server
+  创建 Model/ModelInstance/ModelFile 并保持期望状态权威。两种命令不得自动回退或
+  静默切换模式，Lab 推理继续使用显式 `worker lab infer`。
+- 复用约束：Lab 与 Managed 必须共用模型路径校验、分片解析、WorkloadSpec、planner、
+  Docker runtime、日志、健康检查和清理原语。Lab 只增加本地状态 adapter、`mode=lab`
+  所有权标签及 CLI 参数转换；不注册 Server、不使用 Worker/user token、不创建
+  Server 数据库记录或 gateway route。
+- 证据边界：M5 Lab 证据只证明 runtime 的 diagnostic/smoke 能力；M6 仍须通过
+  `model deploy`、完整 ModelFile/ModelInstance 状态链和 Managed 推理单独验收。Lab
+  成功不得提升为 Managed 兼容结论。
+- 当前停止位置：M5 的 Lab/Managed 角色、共享实现原则和 CLI 分流已确认，具体
+  Docker/runtime 契约与实现分段尚未冻结，也尚未开始编码。
+- 下一项允许执行的工作：继续讨论并冻结 M5 的 WorkloadSpec、所有权标签、Runner/vLLM
+  参数、GPU/端口/路径分配、本地状态、CLI 行为、健康与日志、幂等清理以及离线和真实
+  Docker 验收门禁。当前确认不授权创建容器、停止 Python Worker 或使用 GPU。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
