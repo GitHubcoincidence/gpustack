@@ -262,7 +262,7 @@ impl<'a, T: Transport> IdentityBootstrap<'a, T> {
         let record = WorkerIdentityRecord::from_registration(&worker)?;
 
         // The durable Server identity is published before the token. A crash between
-        // these writes is recoverable by re-registering with the saved Server UUID.
+        // the two writes is recoverable by re-registering with the saved Server UUID.
         self.worker_identity.persist_new(&record)?;
         self.worker_credentials.persist_new(&worker.token)?;
         Ok(record.into_identity(worker.token, IdentitySource::Registered))
