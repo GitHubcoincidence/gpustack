@@ -764,6 +764,39 @@
 - 下一项允许执行的工作：提交并推送该修正。用户接受离线实现后，单独讨论最小维护
   复核；再次停止 `gpustack-worker` 或启动 Rust Worker 仍须新的明确维护授权。
 
+### 2026-10-21：M4-D.2 文件系统在线复核只读预检通过
+
+- 结果：只读预检状态为 `passed`，M4-D.2 在线运行尚未执行。源码、HEAD 与 origin
+  均为治理检查点 `91cf21df79225e4d7b11dacf60c72c20fd5bd387`，工作树干净；从该
+  HEAD locked/offline 重建的 binary 内嵌 commit 为 `91cf21df7922`，SHA-256 为
+  `27604b4f9e47bd274a2356bde32368c0f835aae34ef5507829167b018f9a47c0`。
+- 身份与任务隔离：per-Worker 身份仍唯一映射到 Worker ID 2
+  `rust-m3d-r760xa`，maintenance 为 true；目标 Worker 的 ModelInstance 和
+  ModelFile 数量均为 0。token 文件保持普通文件、单硬链接和 `0600`，只通过 curl
+  标准输入构造内存配置，未进入参数、输出或证据。
+- 服务与设备：Server、Python Worker health 和 Python metrics 均为 HTTP 200；Rust
+  进程为 0，`20150/20151` 无监听；`gpustack` 与 `gpustack-worker` 容器继续运行。
+  两张 A100 的显存占用和利用率均为 0，没有 compute process。
+- 文件系统基线：同一时点宿主机 `/` 的 total、used、free、available 分别为
+  `15590638252032`、`127894986752`、`15462743265280`、`14828061691904`
+  bytes；新口径利用率为 `0.820331950%`，UI 四舍五入预期为 `1%`。
+- 有效证据：Git 外目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m4d2-filesystem-preflight-91cf21df`
+  为 `0700`，文件为 `0600`；`result.txt` SHA-256 为
+  `11f9af98a6bd8dc7d7ee17c3abdcb1b4a4e6123f3b1cf1a88a9dfde66e557e23`，
+  `build-identity.txt` 为
+  `3a0aa8ffadfbdee5dd7fa59d8d6533e16dcd8e4ab4172407e3232f14ac3c01aa`，
+  `root-statvfs.txt` 为
+  `b34c2921940bc69d2cadcb6b2efebf4e14bb741e0af6e78a58a757bc360f26b6`；
+  header/secret marker 扫描为 0。
+- 安全边界：本次只重建二进制并执行只读查询，没有启动 Rust Worker、停止或重启
+  Python Worker、调用 Server 写接口、创建容器或使用 GPU。
+- 当前停止位置：M4-D.2 已通过启动前门禁，Rust Worker 仍停止；M4-D/M4 仍未接受。
+- 下一项允许执行的工作：用户明确授权后，短时启动 maintenance
+  `resource-api-only`，捕获 Server 根挂载快照与 Rust metrics，并与同一时点
+  `statvfs/df` 比较后优雅停止。未经授权不得启动 Rust Worker；若选择再次停止
+  `gpustack-worker`，还须明确包含该操作的维护授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
