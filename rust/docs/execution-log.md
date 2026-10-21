@@ -400,6 +400,17 @@
 - 当前停止位置：M3-D.2 已接受；Rust Worker 已停止，但 maintenance Worker ID 2 和本地 per-Worker 身份按 D046 保留，Cluster token 本地副本保持不存在。
 - 下一项允许执行的工作：讨论并冻结 M4 Worker HTTP API 的范围、端口、认证、离线测试和真实验证门禁。任何 Docker、GPU、vLLM 或 Python Worker 维护操作仍需单独授权并安排维护窗口。
 
+### 2026-10-21：M3-D.2 测试手册整理
+
+- 目的：在进入 M4 讨论前，把已接受的真实集成测试整理为可人工复用的分组命令、通过标准和停止条件，避免后续只能从聊天或长命令块恢复测试方法。
+- 分级：A 级只读复核现有证据；B 级使用 Worker ID 2 的完整 per-Worker identity 做 130 秒恢复复测；C 级使用全新隔离身份做首次注册复现。B 级是日常回归首选，C 级仍需单独真实写入批准。
+- 安全边界：B 级会更新真实 Server 的 heartbeat/status，但不使用 Cluster token、不创建 Worker、不启动 Docker、GPU 或 vLLM；C 级禁止清空或复用现有 Worker ID 2、名称和数据目录，也不自动删除新建 Server row。
+- 命令纠偏：手册固定顶层选项 → `worker` → Worker 配置选项 → `run --control-plane-only` 的层级，明确禁止再次把 `--server-url` 等参数放在 `worker` 之前。
+- 核验：正式 run 命令已通过 CLI parser 的只读 `--help` 检查；per-Worker token 经标准输入传给 curl 的 `me=true` 查询已返回唯一 maintenance Worker，token 未进入命令参数或输出；没有启动 Rust Worker 或执行新的 Server 写入。
+- 结果：新增 `m3d-integration-runbook.md` 并加入文档索引。该手册整理既不新增 M3-D.2 证据，也不扩大 M4、Docker、GPU、vLLM 或 Python Worker 的授权范围。
+- 当前停止位置：M3-D.2 保持 `accepted`，M4 尚未开始。
+- 下一项允许执行的工作：共同讨论并冻结 M4 Worker HTTP API 的范围和门禁。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。

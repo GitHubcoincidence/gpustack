@@ -15,6 +15,7 @@
 - [environment-baseline.md](environment-baseline.md)：M1 验证过的 90 主机、GPU、Docker、部署、镜像、模型与网络身份。
 - [decisions.md](decisions.md)：已接受的架构决策与被否决的替代方案。
 - [execution-log.md](execution-log.md)：关键检查点、当前停止位置与下一项允许执行的工作。
+- [m3d-integration-runbook.md](m3d-integration-runbook.md)：M3-D.2 真实控制面测试的分组命令、判定标准与安全边界。
 
 ## 文档语言
 
