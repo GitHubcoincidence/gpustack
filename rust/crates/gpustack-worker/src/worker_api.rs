@@ -29,6 +29,9 @@ use crate::config::WorkerConfig;
 use crate::resources::unix_seconds_to_rfc3339;
 
 const MAX_MODEL_CONFIG_BYTES: u64 = 16 * 1024 * 1024;
+// Build-script variables are package-scoped, so the Worker crate owns the API identity.
+const BUILD_GIT_COMMIT: &str = env!("GPUSTACK_GIT_COMMIT");
+const BUILD_TARGET: &str = env!("GPUSTACK_BUILD_TARGET");
 const MODEL_CONFIG_NAMES: [&str; 8] = [
     "config.json",
     "model_index.json",
@@ -134,11 +137,8 @@ async fn version() -> Json<VersionResponse<'static>> {
     Json(VersionResponse {
         name: "gpustack-rs",
         version: env!("CARGO_PKG_VERSION"),
-        git_commit: option_env!("GPUSTACK_GIT_COMMIT").unwrap_or("unknown"),
-        target: option_env!("GPUSTACK_BUILD_TARGET").map_or_else(
-            || format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS),
-            str::to_owned,
-        ),
+        git_commit: BUILD_GIT_COMMIT,
+        target: BUILD_TARGET.to_owned(),
         rust_toolchain: "1.99.1",
         server_baseline: ServerBaseline {
             version: SERVER_BASELINE_VERSION,
@@ -772,6 +772,19 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
+
+    #[tokio::test]
+    async fn version_uses_worker_crate_build_identity() {
+        let Json(response) = version().await;
+
+        assert_eq!(response.git_commit, env!("GPUSTACK_GIT_COMMIT"));
+        assert_eq!(response.target, env!("GPUSTACK_BUILD_TARGET"));
+        assert_eq!(response.server_baseline.version, SERVER_BASELINE_VERSION);
+        assert_eq!(
+            response.server_baseline.git_commit,
+            SERVER_BASELINE_GIT_COMMIT
+        );
+    }
 
     fn allowed_root(directory: &TempDir) -> AllowedRoot {
         AllowedRoot {

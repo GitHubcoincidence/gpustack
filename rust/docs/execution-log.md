@@ -640,6 +640,43 @@
   `gpustack-worker` stop/start、resource-api-only 启停、在线 API/metrics、Server 双
   A100 上报、失败恢复和结束复核命令。实际执行须由用户另行明确批准。
 
+### 2026-10-21：M4-D 正式集成尝试 1 失败并完成恢复
+
+- 结果：状态为 `failed`，不是 `invalidated`。用户明确授权维护后，脚本通过最终预检，
+  只停止 `gpustack-worker`，并以保留的 Worker ID 2 成功启动 resource-api-only；
+  Rust 绑定 `20150/20151`、恢复持久化身份、枚举两张 GPU，heartbeat、status、
+  full sync 和三资源 watch 均成功。在线 API 的 `/version` 身份门禁随后发现
+  `git_commit="unknown"`，因此在进入 190 秒观察前停止。
+- 失败原因：`GPUSTACK_GIT_COMMIT` 和 `GPUSTACK_BUILD_TARGET` 只由
+  `gpustack-cli/build.rs` 注入 CLI package。Cargo build-script 环境变量不会传递给
+  依赖 package，`gpustack-worker` 中的 `option_env!` 因而退回 `unknown`。CLI
+  `version` 正确报告 `a80922abd0ed`，但 Worker HTTP `/version` 没有获得同一身份。
+- 恢复结果：退出 trap 向 Rust 发送 SIGINT，Rust 摘要报告 Worker ID 2、同一 UUID、
+  两张 GPU、四个控制面健康位为 true、重连次数 0 和 `shutdown_signal=interrupt`；
+  随后恢复原 `gpustack-worker`。复核 Server、Python Worker health 和 Python metrics
+  均为 HTTP 200，Rust 进程为 0，`20150/20151` 无监听。独立 480 秒 watchdog 观察到
+  主流程已完成，没有触发第二次恢复。
+- 失败证据：Git 外目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m4d-formal-a80922ab`
+  为 `0700`，文件为 `0600`。`FAILED.txt` SHA-256 为
+  `f1c1ea6fc72edf73d40e9cd5fffdd4f72351d8a333b9afbc4f9190b44ef0b443`，
+  `run-summary.json` 为
+  `4cf99582bfa9f5a7821a5d818e03e819aad5258cddf4064c40fffc8f6c67766b`，
+  `cleanup-result.txt` 为
+  `281d5755036ccfa2e330ebc1b389ce5026be6ae3f6949e75659286fef8c513cf`。
+- 修复：为 `gpustack-worker` 增加自身 build script，并在 Worker API 中使用强制存在的
+  package build identity；新增测试验证 HTTP version 使用 Worker package 的 commit、
+  target 和固定 Server baseline。关键注释说明 build-script 变量的 package 作用域，
+  没有增加逐行或历史叙述注释。
+- 修复验证：Rust 1.99.1 下 fmt、全 workspace/all targets/all features Clippy
+  `-D warnings`、全部 63 项测试、locked/offline build 和 diff check 均通过；其中
+  `gpustack-worker` 从 44 项增加到 45 项。修复尚未获得第二次真实维护集成证据，
+  不能据此把 M4-D 标记为通过。
+- 当前停止位置：Python Server/Worker 已恢复，Rust Worker 已停止，修复待提交；
+  M4-D 仍为未接受。
+- 下一项允许执行的工作：提交并推送修复，从新的干净 HEAD 生成新二进制和证据目录；
+  再次停止 Python Worker 前确认维护授权仍适用于重试。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
