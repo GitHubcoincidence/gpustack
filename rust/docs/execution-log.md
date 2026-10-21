@@ -797,6 +797,63 @@
   `statvfs/df` 比较后优雅停止。未经授权不得启动 Rust Worker；若选择再次停止
   `gpustack-worker`，还须明确包含该操作的维护授权。
 
+### 2026-10-21：M4-D.2 文件系统语义在线复核通过并待审阅
+
+- 结果：状态为 `ready_for_review`。在 Python Worker 保持运行的前提下，短时启动
+  maintenance `resource-api-only`，成功捕获 Server Worker 快照、Rust metrics 与同一
+  时点宿主机 `df/statvfs` 结果，随后优雅停止 Rust Worker。M4-D.1、M4-D 和整个 M4
+  仍等待聊天中的详细报告与用户共同验收，暂不标记 `accepted`。
+- 输入身份：正式运行源码与 origin 均为
+  `f6faa63e9c03dba91f25b14f10fa1a4eeb53a52c`，工作树干净；locked/offline 重建
+  binary 内嵌 commit `f6faa63e9c03`，SHA-256 为
+  `00de77e7943a0a1a6396ec4ab98d91f4394e291c23e11b38212083bbdaa37a15`；
+  `Cargo.lock` SHA-256 为
+  `09d6abfb78214378deeb274ba6dc0f1e0b71e994759f6c13e2bfc7f30308849e`。
+  文件系统语义修正对应代码提交
+  `ad4ebfa39234de22690f8a28ee79b273eb3acc7d`。
+- 在线资源结果：Server 根挂载的 total、used、free、available 分别为
+  `15590638252032`、`127895011328`、`15462743240704`、
+  `14828061667328` bytes，满足 `total = used + free`；利用率为
+  `0.820332107%`，Web UI 按现有显示逻辑四舍五入为 `1%`。同一时点宿主机值仅有
+  `12288` bytes 的采样期间写入差，Rust metrics 的 total 与 used 也与宿主机采样一致。
+- 差异结论：Rust Worker 的根挂载继续表示宿主机 15 TB 逻辑卷，因此修正后的页面值
+  应为约 `1%`；Python Worker 容器的 `/` 是 Docker overlay，页面约 `56%`。本次修正
+  对齐的是 `free`、`available`、`used` 字段语义，不跨 mount namespace 伪造相同容量。
+- 控制面：Worker ID 2、名称 `rust-m3d-r760xa` 和既有 UUID 均从持久化身份恢复；两张
+  A100 被正常枚举，heartbeat、status、full sync 和 watch 均成功，重连次数为 0。
+  运行期间目标 Worker 的 ModelInstance 与 ModelFile 数量均为 0，没有调度或模型工作负载。
+- 共存与隔离：本次没有停止或重启 Python Worker；Rust 运行期间 Server、Python Worker
+  health 和 Python metrics 均为 HTTP 200。容器 ID/name/image 前后 diff 为空，没有创建
+  Docker/vLLM 容器；两张 A100 前后均为 0 MiB、0%，没有 compute process。
+- 结束状态：Rust 收到 SIGINT 后优雅停止，`gpustack-rs` 进程为 0，`20150/20151`
+  无监听；Server、Python Worker health 和 Python metrics 继续为 HTTP 200。
+- 凭据边界：注册 bootstrap token 文件当前不存在；正式运行使用
+  `data_dir/managed/worker-token` 中权限为 `0600` 的持久化 per-Worker 凭据，运行事件
+  报告 `identity_source=persisted`。真实 token 值和 Authorization/X-API-Key header
+  对正式证据目录的扫描均为 0 命中。
+- 有效证据：Git 外目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m4d2-filesystem-online-f6faa63e-retry-2`
+  为 `0700`，全部文件为 `0600`，完整 `SHA256SUMS` 校验通过。`result.txt` SHA-256 为
+  `52c149afda586f1530405dc770fd68c88d58c72acc228b0f9a53f7e9d893d2d9`，
+  `filesystem-comparison.txt` 为
+  `f5d84ef2fcc937333148536b9b8c654feaa553eb43a9f492ca8ecbde9a722697`，
+  `worker-online.json` 为
+  `8f4600bff21159956040f192b0a047b9e1eee331bcc1de7743652c33a45b4f0e`，
+  `rust-metrics.prom` 为
+  `ab051f29fc028679879936ed0338b85b2f9c84f9985a96353046f2413c2ee01f`，
+  `final-isolation.txt` 为
+  `7fa837729a8fbc05865092f526f5d494f3502b1d3bbddd7231f716ad778d58f7`。
+- 无效尝试：首次脚本错误轮询 `127.0.0.1`，而 Rust 仅绑定
+  `10.213.80.90`；第二次脚本把顶层 `metrics_port` 错写成
+  `status.metrics_port`。两次均在 Rust 成功启动并优雅停止后留下
+  `INVALIDATED.txt`，Server/Python 服务保持 200 且没有残留进程或端口；这些目录只用于
+  说明测试工具错误，不作为正式通过证据。
+- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 已停止，`20150/20151`
+  空闲；M4-D.2、M4-D.1、M4-D 与 M4 等待详细报告和用户审阅。
+- 下一项允许执行的工作：直接交付本次实现与验证报告。用户接受后记录
+  M4-D.1、M4-D.2、M4-D 和 M4 为 `accepted`，再讨论下一里程碑；不得把本次结果解释为
+  Docker/vLLM 或模型推理能力已经实现。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
