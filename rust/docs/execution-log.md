@@ -450,6 +450,55 @@
 - 当前停止位置：M4-A 已接受，M4-B 尚未产生代码。
 - 下一项允许执行的工作：实现 M4-B，并在提交代码和详细实现报告后停在 `ready_for_review`；用户再次接受前不得进入 M4-C。
 
+### 2026-10-21：M4-B resource-api-only 离线实现待审阅
+
+- 结果：M4-B 状态为 `ready_for_review`。代码检查点
+  `994b820cba795b0bbfa25d23a8d55e2e2f470915` 已实现资源采集、Worker API、
+  metrics、显式 resource-api-only supervisor 和两项只读 CLI；尚未标记为
+  `accepted`。
+- 资源采集：新增可替换的 system/GPU probe 和固定 v2.2.3 类型。生产 probe
+  使用 `sysinfo` 两次 CPU 采样与单例 NVML 句柄，输出 bytes 和百分比；M4
+  supervisor 对 machine ID、至少两张 GPU、关键 GPU identity 和模型根目录 mount
+  coverage 执行 fail-closed 校验。
+- HTTP 与认证：`axum` router 实现 public health/ready/version、per-Worker token
+  保护的 token-auth/files/logs/config，以及独立 metrics router。Bearer 优先于
+  `X-API-Key`，使用 `subtle` constant-time 比较；错误体、503 readiness、501
+  container log 和 405 config PUT 对齐已接受 fixture。
+- 文件、日志和配置：路径解析要求绝对路径，并以 canonical root、最近存在祖先和
+  symlink containment 阻止越界；配置文件限制八个 basename 和 16 MiB；权重统计区分
+  LLM 直接文件与 diffusion 组件目录；日志支持 restart/current/previous/tail/follow，
+  只读取受控 serve 文件名；配置输出固定为非敏感白名单。
+- metrics 与控制面：使用 `prometheus-client` 输出 19 个 Python-compatible 资源指标和
+  7 类 Rust mode/readiness/control 指标；resource-api-only readiness 始终为 0。
+  supervisor 只恢复已经持久化的 Worker identity，验证 Server maintenance，提交类型化
+  status，并运行既有 heartbeat/status 与三资源 full-sync/watch；没有 workload 或模型
+  状态写入路径。
+- CLI：新增 `worker gpu list`、`worker config get` 和互斥的
+  `worker run --resource-api-only`。GPU CLI 与 status 共用 NVML 类型；config CLI 与
+  HTTP 使用同一白名单。实际执行只验证了无副作用的 `worker config get` 和帮助输出，
+  没有运行真实 GPU list 或 resource-api-only。
+- 依赖与锁文件：实际 workspace 写入 D062 的五项准确依赖和 feature，更新后的
+  `Cargo.lock` SHA-256 为
+  `ad5fabd70e55fcbee197c3a644b8acf530ba943ca385c9344e7e6cfb06cb19c3`；全部构建与测试
+  使用固定 Rust 1.99.1 和 `--locked --offline`。
+- 自动化证据：workspace 62 项测试通过，其中 CLI 5 项、client 13 项、Worker 44
+  项；`cargo fmt --check`、locked/offline check、test、build、全 workspace/all targets
+  Clippy `-D warnings`、diff check 和 secret scan 均通过。新增测试覆盖 typed 双 GPU、
+  auth header 优先级、错误 fixture、路径 traversal/symlink、未存在路径、16 MiB 边界、
+  LLM/diffusion 权重、restart/previous/tail/follow、container 501、配置脱敏和 metrics。
+- 现场无副作用核验：Server、Python Worker health 和 Python metrics 均为 HTTP 200；
+  `gpustack` 与 `gpustack-worker` 容器保持 Up 5 days；没有 `gpustack-rs` 进程，
+  `20150/20151` 无监听。本阶段没有读取真实 Worker token、访问真实 NVML、启动 Rust
+  Worker、更新 Server、停止 Python Worker 或执行 Docker/vLLM/GPU 工作负载。
+- 漂移审计：实现保持固定 v2.2.3、maintenance、单 Worker、本地 Docker/vLLM-only
+  R1 和完整 Managed 状态所有权；M3-D control-plane-only 未扩展。实际实现只到 M4-B
+  离线边界，没有提前执行 M4-C 或 M4-D。
+- 当前停止位置：M4-B 等待聊天中的详细实现报告和用户共同验收；代码已提交但尚未
+  push。M4-C 真实 NVML smoke、M4-D 维护窗口和任何服务/GPU 操作仍未授权。
+- 下一项允许执行的工作：直接交付 M4-B 详细实现报告；若用户接受，再记录 M4-B
+  `accepted` 并单独讨论 M4-C 的只读 GPU 命令。用户接受前不得运行 `worker gpu list`
+  或 `--resource-api-only`。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
