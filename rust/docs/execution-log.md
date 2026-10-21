@@ -941,6 +941,42 @@
   transitive dependency、Rust 1.99.1/MSRV 和 90 主机 Cargo cache/offline 可用性；
   审计通过后只实现 fake/mock 可验证的 runtime 基础。真实 Docker 仍未授权。
 
+### 2026-10-22：M5-B Docker runtime 离线实现
+
+- 结果：M5-B 状态为 `ready_for_review`。代码检查点
+  `fbaf1a0426c02b82028aa1b836d42ea0138340cd` 实现 `WorkloadSpecV1`、规范化
+  SHA-256、完整所有权标签核验、受控 vLLM command/container plan，以及可替换的
+  Docker Engine API runtime 边界；尚未进入 M5-C。
+- 依赖审计：独立 scratch crate 固定 `bollard 0.21.1`，关闭 default features 并只启用
+  `pipe`，同时固定 `sha2 0.10.9`。Rust 1.99.1 的 online check、完整 offline
+  metadata 和 clean target locked/offline check 均通过；可选 feature 图未启用 TLS、
+  SSH、BuildKit 或 websocket。实际 workspace `Cargo.lock` SHA-256 为
+  `fff13ee7507e6dc5874fad87931e5a5c4da98782ca8c6c9fa3dd825108799afe`。
+- runtime 实现：`gpustack-runtime::docker` 定义 daemon/image/container/log 类型和
+  object-safe `ContainerRuntime`，并用 Bollard 映射 ping/version、image inspect、
+  label-filtered list、create/start/inspect/stop/remove 和 stdout/stderr log stream。
+  create body 在发出请求前验证必要字段和绝对 mount，并显式映射 host network、bind
+  mounts、NVIDIA DeviceRequest、restart `no`、非 privileged、security options、shm
+  与 stop timeout。
+- workload 实现：`gpustack-worker::workload` 只允许 M5 单 GPU 和 TP=1，要求稳定 NVIDIA
+  UUID 与不可变 image digest，区分 Lab/Managed 标签和 bind address，固定模型只读、
+  cache 可写、10 GiB shm、`no-new-privileges` 与 vLLM 健康契约。受保护的 endpoint、
+  并行度、模型、cache、TLS 与认证参数不能通过 extra args 覆盖。
+- 身份不变量：spec hash 对显式版本化、确定性排序后的结构计算，并排除 hash 自身；
+  hash 随端口等身份输入变化。危险操作的共享前置检查要求实际容器逐项匹配 implementation、
+  schema、mode、owner、component、deployment 和 spec hash，名称或本地记录不能替代标签。
+- 自动化：`cargo fmt --all --check`、全 workspace/all-targets/all-features 的离线 locked
+  Clippy（`-D warnings`）、78 个测试和 release build 全部通过；本阶段新增 13 个测试，
+  覆盖 Docker 请求映射、日志、失败关闭、hash、命令、参数保护、所有权和安全默认值。
+- 注释审阅：只保留 3 条解释可替换 I/O 边界、完整标签核验和 hash 自排除原因的关键注释；
+  没有逐字段、逐行或修改历史式注释。
+- 安全边界：没有连接真实 Docker socket、创建或删除 container、停止 Python Worker、
+  使用 GPU、加载 Runner/模型或调用 Server 写接口。M5-D/M5-E 授权边界保持不变。
+- 隔离复核：Server `/healthz`、Python Worker `/healthz` 与 metrics 均返回 200；
+  `gpustack-rs` 进程为 0，`20150/20151` 仍无监听。
+- 当前停止位置：M5-B 等待详细实现报告和用户共同验收；D072 同为
+  `ready_for_review`。用户接受前不得实现 M5-C。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
