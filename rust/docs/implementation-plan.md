@@ -10,7 +10,10 @@
 | M3-A–C.1 Server 控制面基础 | 版本检查、类型化 client、注册身份持久化、heartbeat/status、Model/ModelInstance watch 与 full sync | 已冻结 Server fixture | 已接受的离线控制循环与 Server 权威 Worker 身份 | fixture、mock transport、恢复和重连测试 |
 | M3-C.2 ModelFile 控制协议 | ModelFile schema/fixture、按 Worker list/watch、按 ID 刷新、完整 update、desired state 与 full-sync 恢复 | M3-C.1 与固定 v2.2.3 源码复核 | 不启动模型的完整 Managed 控制资源缓存 | 所有权过滤、字段保留、断线恢复、状态值和 ID-only delete 离线测试 |
 | M3-D 隔离真实 Server 集成 | 隔离身份注册、身份落盘、heartbeat/status、Model/ModelInstance/ModelFile list/watch/full-sync | M3-C.2 接受且真实写路径另行批准 | Rust Worker 在 Server 可见且稳定，但不可调度、不启动模型 | 真实响应与 fixture 对比、运行时长、Server 可见性、清理与回滚证据 |
-| M4 资源盘点与 Worker API | NVML/系统上报、文件系统 API、日志、读取配置、metrics 与认证 | M3-D | Server 能看到两张 A100，并能调用所需 Worker API | Python/Rust fixture 对比、路径安全测试、HTTP auth test、A100 证据 |
+| M4-A 资源与 Worker API 契约 | 冻结 schema、endpoint、认证、错误、fixture、依赖与 MSRV/cache 证据 | M3-D | 可离线实现的固定 v2.2.3 契约 | Python 源码/响应 oracle、静态 fixture、依赖审计；无真实写入 |
+| M4-B 离线实现 | NVML/系统抽象、Worker HTTP API、文件/日志/配置读取、metrics、CLI | M4-A | 可用 mock/fake 验证的 resource-api-only 实现 | format、Clippy、locked/offline test/build、契约与安全测试、详细实现报告 |
+| M4-C 宿主机只读 GPU 冒烟 | CLI 读取真实 NVML 并与 `nvidia-smi` 交叉验证 | M4-B | 不注册 Server 的两张 A100 本地盘点证据 | index、UUID、名称、显存逐项一致；Python Worker 保持运行 |
+| M4-D 维护窗口正式集成 | 停止 Python Worker 后，以保留身份运行 resource-api-only，验证 Server 资源状态和完整 Worker API | M4-C 与单独维护窗口授权 | Server 可见两张 A100、metrics 及 API，且仍不可调度、不启动模型 | Server 行、认证/API/路径/日志/metrics、无 Docker/vLLM/GPU 任务、Python Worker 回滚证据 |
 | M5 Docker runtime 与 Lab | Docker 原语、所有权标签、WorkloadSpec、vLLM builder、本地 Lab 状态、Lab 命令、日志、健康与清理 | M4 与维护窗口 | 完全通过 CLI 完成单 GPU Lab 推理，不创建 Server ModelInstance/ModelFile | unit plan、Docker smoke、vLLM response、log stream、清理与非所有权测试 |
 | M6-A Managed 文件准备 | `SCHEDULED -> INITIALIZING`、ModelFile 本地路径校验/分片解析、完整结果上报，并等待 Server `STARTING` | M5 与 M3-C.2 | Managed 实例按原状态所有权完成本地模型准备，不提前启动容器 | 状态所有权、ModelFile ready/error、路径安全和“STARTING 前无容器”测试 |
 | M6-B Managed 单 GPU runtime | `STARTING` 后 reconciler 启动/接管 vLLM，健康后上报 `RUNNING`，并支持 model CLI、推理与删除 | M6-A | 完全通过 CLI 完成 Server 托管单 GPU 推理 | 完整命令记录、全状态链、响应、日志、健康门禁和删除后无孤儿资源 |
@@ -58,6 +61,45 @@ M3-D 分成三个独立门禁：
 M3-D.2 按 D049–D052 分段执行。用户是唯一命令执行者，助手只提供当前已解锁的一段命令、解释并审阅非敏感输出；token 值不得进入聊天。正式证据目录固定为 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m3d2-formal`，权限为 `0700`，位于 Git 工作树外，文件不得包含 token 或 Authorization header。Server 容器到 `10.213.80.90:20150/healthz` 使用一次只读 `docker exec gpustack` HTTP probe 验证。
 
 执行顺序固定为：只读预检；从干净冻结 HEAD 重新构建并记录 binary identity；隐藏输入 Cluster token；首次 370 秒运行并在约 60 秒和 330 秒观测；确认两份身份文件；无论首次注册尝试成功或失败都删除本地 Cluster token 副本；查询并保存脱敏 Server 证据；缺少 token file 的第二次 130 秒恢复运行；最终核验和保留状态。任一门禁失败都停止，不自动删除身份文件或 Server row；重试首次注册需要重新隐藏输入。
+
+## M4 资源盘点与 Worker API 门禁
+
+M4 新增显式 `gpustack-rs worker run --resource-api-only`。该模式复用 M3-D 保留的 Worker ID 2 和 per-Worker token，继续提交 `maintenance.enabled=true`，但启用真实 NVML/系统资源盘点、完整 M4 Worker HTTP API 和 metrics。它不初始化 Docker client、ModelFile manager、ModelInstance reconciler 或 vLLM，也不执行模型状态写入。M3-D 的 `--control-plane-only` 语义保持不变，不能因 M4 实现而隐式获得 GPU、metrics 或其他 API。
+
+固定运行参数为：Worker API `10.213.80.90:20150`、metrics `10.213.80.90:20151`、允许模型根目录 `/home/wujiaxing2/flowscale-system-validation/models`。现有 Python Worker 继续使用 `10150/10151`。端口在每次启动前仍须检查空闲；模型根目录必须 canonicalize，任何请求解析后的路径都不得越界。
+
+M4 分成四个独立门禁：
+
+1. **M4-A 契约与 fixture 冻结**：从固定 v2.2.3 Python 源码和只读响应冻结 endpoint、schema、认证、错误和静态 fixture；完成依赖、离线缓存与 Rust 1.99.1 兼容性审计。不得读取真实 Worker token、向 Server 写入或启动真实 Worker。
+2. **M4-B 离线实现**：实现 HTTP/auth/files/logs/config/metrics、类型化资源结构、collector 抽象以及 fake/mock NVML 和系统数据；提供 `worker gpu list` 与 `worker config get`。只允许 fixture、临时目录和 mock transport，完成全部 Rust 门禁并直接交付 D033 规定的详细实现报告。
+3. **M4-C 宿主机只读冒烟**：只运行 `worker gpu list --output json`，把真实 NVML 结果与 `nvidia-smi` 的两张 A100 index、UUID、名称和显存交叉验证。不注册 Worker、不更新 Server、不绑定正式 Worker API 端口；Python Worker 保持运行。该结果只属于 diagnostic/smoke，不能满足 M4 正式验收。
+4. **M4-D 维护窗口正式集成**：必须另获用户对精确窗口和 stop/start 命令的明确授权。先确认无 ModelInstance、GPU 空闲和无工作负载，再停止 Python Worker；以保留的 Worker ID 2 启动 `--resource-api-only`，验证 Server 可见两张 A100、maintenance 保持开启、`metrics_port=20151`，并验证 Server 到 Worker 的认证、文件、日志、配置、probe 和 metrics。结束时停止 Rust Worker、确认 `20150/20151` 关闭，随后恢复 Python Worker 并复核 `10150/10151` 与 Server 状态。
+
+资源上报至少使用类型化结构覆盖：
+
+- CPU 数量和利用率，内存与 swap，文件系统；
+- OS、kernel、boot time、uptime 与 machine ID；
+- GPU index、device index、chip index、UUID、名称、NVIDIA vendor 与 CUDA 类型；
+- driver、CUDA runtime、compute capability、GPU core utilization；
+- GPU memory total/used/utilization、`unified=false` 与 temperature；
+- `metrics_port=20151`，且 Worker 继续处于 maintenance。
+
+NVML 初始化失败时 resource-api-only 必须 fail closed，不得伪造空 GPU 或健康状态。单个瞬时可选指标可以显式表示缺失或降级，但 M4 正式验收要求两张 GPU 的身份和关键容量字段完整且与 `nvidia-smi` 一致。
+
+M4 Worker API 范围固定为：
+
+- 公开 `GET /healthz`、`GET /readyz`、`GET /version`；
+- 只接受持久化 per-Worker token 的 `GET /token-auth`、`GET /files/file-exists`、`GET /files/model-config`、`GET /files/model-weight-size`、`GET /serveLogOptions/{id}`、`GET /serveLogs/{id}` 和 `GET /v2/config`；
+- 独立 `20151` 端口上无需认证的 Prometheus `GET /metrics`；
+- 明确不实现 `PUT /v2/config`、`/files/parse-gguf`、benchmark/cache 日志、debug API、inference proxy、cluster proxy 和动态配置写入。
+
+resource-api-only 因没有 Docker 和 reconciler，`/readyz` 固定返回 503；未来完整 Managed 只有在 runtime 先决条件和首次权威收敛完成后才返回 200。该行为有意强于固定 Python v2.2.3 始终返回 200 的实现，但不影响 Server 的 `/healthz` reachability 检查。
+
+认证只接受注册后持久化的 per-Worker token，不接受已经删除的 Cluster registration token；凭据比较必须 constant-time，401 信息保持通用，日志和证据不得包含 secret。文件接口必须拒绝相对路径、symlink 越界和允许根目录外路径；model config 使用文件名白名单和大小上限；权重统计遵循固定版本的 `.safetensors`、`.bin`、`.pt`、`.pth` 本地目录语义；日志 ID 和名称必须约束在 Worker 日志目录内；配置接口只返回非敏感白名单字段。
+
+M4-A 只冻结依赖类别，不提前锁定未经审计的版本：HTTP router/middleware 使用 `axum`，NVML 使用动态初始化的 `nvml-wrapper`，系统信息使用 `sysinfo`，metrics 使用 `prometheus-client`，constant-time 比较使用 `subtle`。准确版本必须先证明 Cargo cache 可用、支持固定 Rust 1.99.1，并写入 `Cargo.lock`；离线构建通过前不得接受 M4-B。
+
+M4 正式接受必须同时具备：精确 Rust/Server/Cargo.lock identity；Python/Rust fixture 对比；认证与通用 401；路径 traversal、symlink 和越界测试；配置脱敏；日志查询/流语义；Prometheus 格式；全部 Rust 自动化；M4-C 的 NVML 对比；以及 M4-D 的 Server 双 A100、maintenance、metrics、API、无 Docker/vLLM/GPU 任务和 Python Worker 恢复证据。接受本设计不授权停止 Python Worker 或执行 M4-D。
 
 ## 验证策略
 
@@ -151,4 +193,4 @@ M1 环境基线、M2 Rust workspace/CLI 骨架、M3-B client、M3-C 控制循环
 
 M3-D.1 与 D047–D048 的 M3-D.1.1 离线实现均已接受，M3-D.1.1 代码检查点为 `99e9fdb9`。M3-D.2 已使用来自干净 `e30e7bd4` 的固定二进制在真实 v2.2.3 Server 上接受：370 秒首次注册和 130 秒无 Cluster token 恢复均保持 maintenance、空 GPU、持续 heartbeat/status/full-sync/watch，并复用同一 Worker ID/UUID。正式证据位于 Git 外 `m3d2-formal/`，其中参数层级错误且未触发网络写入的首次 CLI 调用保留为 `invalidated`。
 
-当前允许进入 M4 Worker HTTP API 的讨论与离线实现门禁；M3-D 保留的 Worker ID 2 和本地 per-Worker 身份供后续阶段复用。Docker workload、GPU、vLLM 和 Python Worker 仍未进入本阶段验收，相关真实操作必须等待单独维护窗口。
+M4 设计和 M4-A～M4-D 门禁已经冻结。当前只允许进入 M4-A 契约、fixture 与依赖审计；尚未授权 M4-B 实现、M4-C 真实 NVML 冒烟或 M4-D 停止 Python Worker。Docker workload、vLLM 和任何模型执行仍不属于 M4。

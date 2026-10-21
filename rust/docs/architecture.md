@@ -78,6 +78,20 @@ RUNNING -> STOPPED
 
 该模式用于把真实 Server 协议证据与 Docker/GPU/runtime 证据分离。M4 以后逐步启用的能力不能在 M3-D 中被隐式探测或自动开启；完整 Managed 启动路径仍以下述生命周期为目标。
 
+### M4 resource-api-only 验证模式
+
+`gpustack-rs worker run --resource-api-only` 是 M4 的显式受限启动配置。它复用已持久化的 Server Worker 身份和 per-Worker token，继续注册或恢复为 maintenance；启用 NVML/系统资源盘点、完整 M4 Worker HTTP API 和独立 metrics listener，但不构造 Docker client、ModelFile manager、ModelInstance reconciler 或 vLLM runtime，也不发送任何模型状态更新。
+
+三个运行配置的能力边界如下：
+
+| 启动配置 | 资源上报 | Worker API | metrics | Docker/vLLM | 调度状态 |
+|---|---|---|---|---|---|
+| `--control-plane-only` | 空 GPU | 仅 `/healthz` | 无 | 禁用 | maintenance |
+| `--resource-api-only` | 真实系统/NVML | M4 完整只读 API | `20151` | 禁用 | maintenance |
+| 未来普通 `worker run` | 真实系统/NVML | 完整 R1 API | 启用 | 启用 | 首次收敛后按 Managed 状态 |
+
+resource-api-only 使用 Worker API `10.213.80.90:20150`、metrics `10.213.80.90:20151` 和模型根目录 `/home/wujiaxing2/flowscale-system-validation/models`。`/healthz` 只证明 listener 存活；该模式缺少 Docker 和协调器，因此 `/readyz` 固定返回 503。完整 Managed 的 readiness 仍遵循下述生命周期。M4 不能修改 control-plane-only 的空 GPU、无 metrics 和最小 API 语义。
+
 ## 状态所有权
 
 | 状态 | 权威来源 |

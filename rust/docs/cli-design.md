@@ -37,6 +37,27 @@ gpustack-rs worker run --config <path> --control-plane-only
 
 注册凭据仍只能来自权限受限的 token 文件，不能作为命令行值传入。进程收到 `SIGINT` 或 `SIGTERM` 后停止后台循环和 health listener，保留 Server identity 与本地状态供下一次启动核验。M3-D 不提供自助删除 Server Worker 的 CLI；精确身份删除属于单独的破坏性操作门禁。
 
+## M4 resource-api-only 启动与资源 CLI
+
+M4 为 `worker run` 增加第二个显式受限配置：
+
+```text
+gpustack-rs worker run --config <path> --resource-api-only
+```
+
+该命令复用持久化 per-Worker 身份，启用真实系统/NVML 资源盘点、`20150` 上的 M4 Worker API 和 `20151` 上的 metrics；仍为 maintenance，且不初始化 Docker、ModelFile manager、ModelInstance reconciler 或 vLLM。`--control-plane-only` 与 `--resource-api-only` 互斥，二者都不能静默退化成普通 Managed Worker。
+
+M4 同时实现以下只读 CLI：
+
+```text
+gpustack-rs worker gpu list --output table|json
+gpustack-rs worker config get --output table|json
+```
+
+`worker gpu list` 直接调用与 status 上报相同的 resource collector，稳定 JSON 至少包含 index、UUID、名称、vendor/type、driver/CUDA/compute capability、core utilization、显存和温度；采集失败返回非零退出码，不伪造空列表。`worker config get` 使用与 `GET /v2/config` 相同的非敏感白名单和脱敏规则。
+
+M4-C 只运行 `worker gpu list --output json` 与 `nvidia-smi` 做宿主机只读对比，不读取 Worker token、不连接 Server、不绑定正式 API 端口。启动 `--resource-api-only` 会更新真实 Server status，只能在 M4-D 的独立维护窗口授权后执行。
+
 ## Managed 模型命令
 
 `model deploy` 使用运维人员身份认证，并通过 Server API 创建模型。它不直接访问 Docker 或 Worker。R1 强制显式指定目标 Worker，避免测试任务被调度到 Python Worker。

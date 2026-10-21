@@ -131,3 +131,16 @@ D047 修订 D044 中“专用 cluster registration token”和读取 Python Work
 | D054 | CLI 参数层级错误的处置 | 第一次调用因把 Worker 配置参数放在顶层解析器而以退出码 2 结束；该目录保留为 `invalidated`，不覆盖、不计入正式结果。确认没有 Server 写入或本地身份后，通过官方登录端点重新获取 Cluster token，在 `validate-config` 验证 `gpustack-rs [global] worker [worker options] run --control-plane-only` 后使用新证据目录重试 | 区分运行手册命令错误与 Worker 实现失败，保留失败链，并遵守 D051 在首次尝试退出时删除 Cluster token 的要求。 |
 
 D053 只覆盖本次 M3-D.2 剩余执行；后续真实部署、维护窗口和破坏性操作仍需按各自门禁单独授权。D054 没有改变 370/130 秒时序或验收口径，旧 `first-run/` 证据不得作为成功证据，正式首次结果位于 `first-run-retry-1/`。
+
+## 2026-10-21 M4 资源盘点与 Worker API 设计冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D055 | M4 运行模式 | 新增显式 `worker run --resource-api-only`；启用真实系统/NVML、M4 Worker API 和 metrics，继续 maintenance，并禁止 Docker、ModelFile/ModelInstance reconciler 与 vLLM；M3-D control-plane-only 语义保持不变 | 把资源/API 兼容证据与模型 runtime 风险分开，并避免已有安全模式随实现扩展而漂移。 |
+| D056 | 固定端口与模型根目录 | Worker API 使用 `10.213.80.90:20150`，metrics 使用 `10.213.80.90:20151`，允许模型根目录为 `/home/wujiaxing2/flowscale-system-validation/models`；Python Worker 继续使用 `10150/10151` | 已只读确认候选端口空闲，并与现有服务隔离；固定根目录使文件 API 可以执行严格 containment。 |
+| D057 | Worker API 认证与安全增强 | 注册完成后的 API 只接受持久化 per-Worker token，使用 constant-time 比较和通用 401；不接受 Cluster registration token。文件路径必须为绝对路径并 canonicalize 到允许根目录内，配置和日志只暴露受控白名单 | Cluster token 是共享 bootstrap secret，已按生命周期删除；Python v2.2.3 缺少 base-path containment，Rust 有意收紧而不影响合法路径。 |
+| D058 | Readiness 兼容偏差 | resource-api-only 的 `/readyz` 固定返回 503；未来完整 Managed 只有 runtime 先决条件和首次权威收敛后才返回 200。`/healthz` 继续用于 Server reachability | 固定 Python v2.2.3 的 readyz 常量 200 不能表达 M4 尚无 Docker/reconciler；有意义的 readiness 能防止把资源/API 测试误报为完整 Worker。 |
+| D059 | M4 分段验收与维护窗口 | M4-A 冻结契约/fixture/依赖，M4-B 离线实现，M4-C 宿主机只读 NVML smoke，M4-D 停止 Python Worker 后做正式 Server 集成并恢复；只有 M4-D 通过才接受 M4 | 只读采集可与 Python Worker 共存，但两个 Worker 同时向 Server 声明相同物理 GPU 会造成资源重复；正式上报必须使用维护窗口。 |
+| D060 | M4 依赖策略 | 依赖类别冻结为 `axum`、`nvml-wrapper`、`sysinfo`、`prometheus-client` 和 `subtle`；准确版本只有在 Cargo cache、Rust 1.99.1/MSRV 和 locked/offline build 审计通过后才能写入锁文件 | 先固定职责而不猜测版本，避免在 90 网络受限环境引入不可离线复现或不兼容工具链的依赖。 |
+
+M4-D 的维护窗口必须另获用户对精确 stop/start 命令的明确授权。接受这些决策只允许进入 M4-A；不授权 M4-B 代码实现、M4-C 真实 NVML 读取、停止 Python Worker、启动 resource-api-only 或任何 Docker/vLLM/GPU 工作负载。

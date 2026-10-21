@@ -411,10 +411,24 @@
 - 当前停止位置：M3-D.2 保持 `accepted`，M4 尚未开始。
 - 下一项允许执行的工作：共同讨论并冻结 M4 Worker HTTP API 的范围和门禁。
 
+### 2026-10-21：M4 资源盘点与 Worker API 设计冻结
+
+- 结果：用户接受 M4 的模式、端口、认证、安全边界和 M4-A～M4-D 分段门禁；本检查点只冻结设计，没有修改 Rust 实现、读取 Worker token、启动 Rust Worker、更新 Server 或操作现有服务。
+- 运行模式：新增显式 `worker run --resource-api-only` 设计；复用保留的 Worker ID 2 和 per-Worker token，启用系统/NVML、完整 M4 Worker API 与 metrics，继续 maintenance，并严格禁止 Docker、ModelFile/ModelInstance reconciler、vLLM 和模型状态写入。M3-D `--control-plane-only` 继续为空 GPU、无 metrics、仅最小 `/healthz`。
+- 固定拓扑：Rust Worker API `10.213.80.90:20150`，metrics `10.213.80.90:20151`，模型根目录 `/home/wujiaxing2/flowscale-system-validation/models`；现有 Python Worker 继续使用 `10150/10151`。此前只读检查确认 `20150`～`20159` 无监听。
+- API 范围：公开 health/readiness/version；per-Worker token 保护 token-auth、文件检查、模型配置、权重大小、日志选项/流与只读 config；`20151/metrics` 无认证。PUT config、GGUF、benchmark/cache/debug、inference/cluster proxy 和动态写配置明确延后。
+- 安全与兼容差异：不接受 Cluster registration token；constant-time 比较、通用 401、绝对路径、canonicalization、symlink 和允许根目录 containment、配置/日志白名单为硬门禁。resource-api-only 的 `/readyz` 固定 503，而固定 Python v2.2.3 为常量 200；这是防止把无 Docker/reconciler 的 M4 误报为完整 Worker 的有意增强，Server reachability 仍使用 `/healthz`。
+- 资源契约：类型化上报 CPU、memory/swap、filesystem、OS/kernel/uptime/machine ID，以及两张 GPU 的 index/UUID/name/vendor/type、driver/CUDA/compute capability、core/memory/temperature，并提交 `metrics_port=20151`。NVML 失败时 fail closed，不伪造空 GPU。
+- 依赖方向：M4-A 审计 `axum`、`nvml-wrapper`、`sysinfo`、`prometheus-client` 和 `subtle`；准确版本只有在 Cargo cache、Rust 1.99.1/MSRV 与 locked/offline build 通过后冻结。
+- 分段门禁：M4-A 只做契约/fixture/依赖审计；M4-B 才做 mock/fake 驱动的离线实现和详细报告；M4-C 只用资源 CLI 与 `nvidia-smi` 做宿主机只读 GPU smoke；M4-D 才在另获授权的维护窗口停止 Python Worker、运行 resource-api-only、验证 Server/API/metrics，并恢复 Python Worker。
+- 验收边界：M4-C 是 diagnostic/smoke，不能代替正式验收；只有 M4-D 同时证明 Server 精确可见两张 A100、maintenance、metrics、API、安全路径、无 Docker/vLLM/GPU 任务以及 Python Worker 回滚，M4 才能标记为 accepted。
+- 当前停止位置：M4 设计为 `frozen`，实现尚未开始；Rust 进程和 `20150/20151` 必须保持停止，Python Server/Worker 保持原状。
+- 下一项允许执行的工作：只进入 M4-A 的固定 v2.2.3 源码/响应契约、静态 fixture 和依赖版本审计；M4-B、M4-C、M4-D 分别需要完成前一门禁和相应授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
-- Rust Worker API、metrics 和 inference 的准确端口尚未冻结；必须避开现有 80、3000、10150、10151 和其他已监听端口，并在每次启动前检查冲突。
+- Rust Worker API 与 metrics 已分别冻结为 `20150` 和 `20151`；inference 端口仍待 M5/M6 冻结。每次启动前仍须检查端口冲突。
 - 真实 drain、停止 Python Worker 与回滚流程尚未执行；`docker stop/start gpustack-worker` 只作为已识别的容器级回滚路径，正式演练需维护窗口。
 - Rust 容器最终 user/group 仍需在 M8 根据 Docker socket、NVML 与持久化目录要求验证；宿主机开发用户已确认具备 `docker` group 权限。
 - 90 主机到 GitHub 的小规模 fetch/push 可用，但大对象传输吞吐过低；bootstrap 和发布 tag 增量 bundle 是当前已验证的补充路径。
