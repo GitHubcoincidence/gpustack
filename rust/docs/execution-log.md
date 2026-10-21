@@ -493,8 +493,9 @@
 - 漂移审计：实现保持固定 v2.2.3、maintenance、单 Worker、本地 Docker/vLLM-only
   R1 和完整 Managed 状态所有权；M3-D control-plane-only 未扩展。实际实现只到 M4-B
   离线边界，没有提前执行 M4-C 或 M4-D。
-- 当前停止位置：M4-B 等待聊天中的详细实现报告和用户共同验收；代码已提交但尚未
-  push。M4-C 真实 NVML smoke、M4-D 维护窗口和任何服务/GPU 操作仍未授权。
+- 当前停止位置：M4-B 等待聊天中的详细实现报告和用户共同验收；代码与治理检查点
+  均已提交并推送。M4-C 真实 NVML smoke、M4-D 维护窗口和任何服务/GPU 操作仍未
+  授权。
 - 下一项允许执行的工作：直接交付 M4-B 详细实现报告；若用户接受，再记录 M4-B
   `accepted` 并单独讨论 M4-C 的只读 GPU 命令。用户接受前不得运行 `worker gpu list`
   或 `--resource-api-only`。
