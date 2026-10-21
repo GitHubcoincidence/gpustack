@@ -28,9 +28,9 @@
 ## 当前状态
 
 - 设计状态：`frozen`
-- 实现状态：M2、M3-B、M3-C、M3-C.1、M3-C.2、M3-D.1、M3-D.1.1、M3-D.2、M4-A、M4-B 与 M4-C 均为 `accepted`。M4-B 代码检查点为 `994b820c`，M4-C 有效二进制来自 `c76fa390`；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言保持 `invalidated`。
+- 实现状态：M2、M3-B、M3-C、M3-C.1、M3-C.2、M3-D.1、M3-D.1.1、M3-D.2、M4-A、M4-B 与 M4-C 均为 `accepted`。M4-D.0 只读预检为 `passed`，但 M4-D 正式维护集成尚未执行。M4-B 代码检查点为 `994b820c`，M4-C 有效二进制来自 `c76fa390`；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言保持 `invalidated`。
 - 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
-- 当前停止位置：M4-C 已接受；maintenance Worker `rust-m3d-r760xa`（ID 2）和本地 per-Worker 身份保留供 M4-D 复用，Cluster registration token 本地副本已删除，Rust 进程与 `20150/20151` 监听保持停止。
-- 下一项允许执行的工作：讨论并冻结 M4-D 的精确维护窗口、预检、Python Worker stop/start、resource-api-only 启停、验证和回滚步骤。讨论和文档不授权实际停止服务；执行仍需单独明确批准。
+- 当前停止位置：M4-D.0 只读预检已通过；maintenance Worker `rust-m3d-r760xa`（ID 2）和本地 per-Worker 身份可供 M4-D 复用，Cluster registration token 本地副本已删除，Rust 进程与 `20150/20151` 监听保持停止，Python Server/Worker 保持健康运行。
+- 下一项允许执行的工作：讨论并冻结 M4-D 的精确维护窗口、最终构建、即时复检、Python Worker stop/start、resource-api-only 启停、验证、失败恢复和证据命令。讨论和文档不授权实际停止服务；执行仍需用户单独明确批准。
 
 当前检查点包含 Rust CLI/Worker 基础源码、已接受的离线契约 fixture、类型化 Server client、身份持久化、控制循环、显式 control-plane-only 与 resource-api-only supervisor、M4 Worker API、metrics、系统/NVML 资源采集，以及真实 v2.2.3 Server 控制面和只读双 A100 CLI 证据；尚不包含 resource-api-only 的真实 Server 上报/API 集成、Docker workload、GPU 任务、vLLM 推理或 Python Worker 维护切换。

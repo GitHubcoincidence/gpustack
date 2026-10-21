@@ -587,6 +587,59 @@
   stop/start、resource-api-only 启停、验证与回滚步骤。讨论通过后仍须由用户单独明确
   授权实际维护操作。
 
+### 2026-10-21：M4-D.0 只读预检通过
+
+- 结果：M4-D.0 状态为 `passed`。本阶段只验证正式维护集成的前置条件，没有停止或
+  启动任何服务，也没有向 Server 写入状态；M4-D 本身仍为未执行、未授权。
+- 源码与锁文件：分支 `codex/rust-worker` 的 HEAD 与 origin 均为
+  `fb6412611c5ebd371e7848baea8f8fdccec9fae0`，工作树干净；`Cargo.lock`
+  SHA-256 保持
+  `ad5fabd70e55fcbee197c3a644b8acf530ba943ca385c9344e7e6cfb06cb19c3`。
+- Server 与身份：真实 Server 为 v2.2.3、commit `1cfcbbf`；本地持久化 Worker
+  identity 为 ID 2、UUID `f38b7c2c-90f7-4a76-a2c5-dfe1ff63fea0`、名称
+  `rust-m3d-r760xa`。Cluster registration token 文件保持不存在；per-Worker token
+  文件权限为 `0600`，只在内存中用于认证只读 GET，没有打印、复制到证据或写入 Git。
+- 控制面：认证 `GET /v2/workers?me=true` 只返回目标 Worker，maintenance 为 true，
+  当前 Server 记录仍是 M3-D control-plane-only 的 `gpu_count=0` 和空
+  `metrics_port`。目标 Worker 的 ModelInstance 与 ModelFile 数量均为 0。
+- 服务隔离：Server、Python Worker health 和 Python metrics 均为 HTTP 200；
+  `gpustack` 与 `gpustack-worker` 容器继续运行。精确 `gpustack-rs` 进程数为 0，
+  `20150/20151` 监听数均为 0。
+- GPU 与主机：两张 `NVIDIA A100 80GB PCIe` 的 UUID 分别为
+  `GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3` 和
+  `GPU-b1f89e65-e9c4-26f5-a306-8a520df07708`；两卡显存占用和利用率均为 0，
+  没有 compute process。模型根目录
+  `/home/wujiaxing2/flowscale-system-validation/models` 可 canonicalize；接口
+  `eno8403` 为 UP，地址为 `10.213.80.90/20`。
+- 有效证据：Git 外目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m4d0-preflight-fb641261-retry-2`
+  为 `0700`，文件为 `0600`。`gates.txt` SHA-256 为
+  `021d4821f08736ab9cc264c897128aad5652252633f95aece416f771e21c7142`，
+  `result.txt` 为
+  `a59452548d4f0f6bfb001780082a5786c30c2077cd68cd2e4a9d6854a3ca5738`，
+  `gpu-baseline.csv` 为
+  `36d92ef6cf851b1ec44b755a4c78298e6b8f6ea6e333954fc5edeee122049c4e`，
+  `worker-me-summary.json` 为
+  `5b1b3f42135961c849b52cbf5a916def6c9fa0f64fadcd1356c9709f0e8b4e8a`，
+  `container-baseline.txt` 为
+  `d89be5d2a7c98162562d899f41a4a826fff443d953fd774af54b130b379d05a7`。
+- 安全检查：证据中未发现真实 token 值或 Authorization header，临时认证配置已删除；
+  预检仅执行 health、version、Worker/ModelInstance/ModelFile 查询和宿主机只读命令。
+- 无效尝试：`m4d0-preflight-fb641261/` 使用了错误的 `/v2/version` 路径，在收到
+  404 后即停止；`m4d0-preflight-fb641261-retry-1/` 将 `pgrep` 的正常“零进程”退出码
+  与 `pipefail` 组合误判为失败。两目录均写入 `INVALIDATED.txt`，不得作为通过证据；
+  两次尝试都没有改变 Server、Worker、容器、端口或 GPU 状态。
+- 二进制边界：当前构建产物 SHA-256 为
+  `fa645ae457c656039e2a75fbf28cce96888e7503de15d4007946a7fde09b3ece`，
+  内嵌 M4-C commit `c76fa3903b3b`，不是当前文档 HEAD。正式 M4-D 必须在最终干净
+  HEAD 上重新离线构建并重新记录 binary identity，随后进行即时复检，不能把本次已有
+  binary 当作正式维护集成产物。
+- 当前停止位置：Python Server/Worker 保持运行，Rust Worker 保持停止，
+  `20150/20151` 空闲。M4-D 没有因预检通过而自动获得授权。
+- 下一项允许执行的工作：讨论并冻结最终构建、即时复检、精确
+  `gpustack-worker` stop/start、resource-api-only 启停、在线 API/metrics、Server 双
+  A100 上报、失败恢复和结束复核命令。实际执行须由用户另行明确批准。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。

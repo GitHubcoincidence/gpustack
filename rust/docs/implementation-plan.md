@@ -195,4 +195,8 @@ M3-D.1 与 D047–D048 的 M3-D.1.1 离线实现均已接受，M3-D.1.1 代码�
 
 M4 设计和 M4-A～M4-D 门禁已经冻结。M4-A 契约/fixture/依赖审计与 M4-B resource-api-only 离线实现均已在详细报告后获用户接受；M4-B 代码检查点为 `994b820cba795b0bbfa25d23a8d55e2e2f470915`，workspace `Cargo.lock` SHA-256 为 `ad5fabd70e55fcbee197c3a644b8acf530ba943ca385c9344e7e6cfb06cb19c3`。
 
-M4-C 已使用来自干净 `c76fa3903b3b` 的 CLI 真实读取 NVML，并与 `nvidia-smi` 对两张 A100 的 index、UUID、名称、显存和驱动逐项一致，经用户审阅后标记为 `accepted`。该 smoke 没有启动 Worker、连接 Server 或绑定端口，不能替代 M4-D。下一项只允许讨论并冻结 M4-D 的精确维护与回滚步骤；停止 Python Worker 和启动 resource-api-only 仍须另获明确执行授权。Docker workload、vLLM 和任何模型执行仍不属于 M4。
+M4-C 已使用来自干净 `c76fa3903b3b` 的 CLI 真实读取 NVML，并与 `nvidia-smi` 对两张 A100 的 index、UUID、名称、显存和驱动逐项一致，经用户审阅后标记为 `accepted`。该 smoke 没有启动 Worker、连接 Server 或绑定端口，不能替代 M4-D。
+
+M4-D.0 只读预检已在 `fb6412611c5e` 上通过：Server 与 Python Worker 健康，保留的 Worker ID 2 唯一且处于 maintenance，目标 Worker 没有 ModelInstance 或 ModelFile，两张 A100 空闲，Rust 进程和 `20150/20151` 监听均不存在，模型根目录与网络身份符合冻结配置。预检只使用 per-Worker token 发起认证 GET，未输出 token、写入 Server 或改变服务。现有 M4-C 二进制内嵌 `c76fa3903b3b`；正式 M4-D 必须从执行前最终干净 HEAD 重新构建并记录新 binary identity，不得直接复用旧二进制。
+
+当前只允许继续讨论并冻结 M4-D 的精确维护与回滚步骤；停止 Python Worker 和启动 resource-api-only 仍须另获明确执行授权。Docker workload、vLLM 和任何模型执行仍不属于 M4。
