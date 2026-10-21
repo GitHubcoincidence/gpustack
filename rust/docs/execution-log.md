@@ -968,6 +968,8 @@
 - 自动化：`cargo fmt --all --check`、全 workspace/all-targets/all-features 的离线 locked
   Clippy（`-D warnings`）、78 个测试和 release build 全部通过；本阶段新增 13 个测试，
   覆盖 Docker 请求映射、日志、失败关闭、hash、命令、参数保护、所有权和安全默认值。
+  仓库级 `make lint` 已尝试，但 90 未安装 `uv`，在启动 pre-commit 前以 127 退出且没有
+  修改文件；因此本检查点不宣称 Python/pre-commit 全仓 lint 已通过。
 - 注释审阅：只保留 3 条解释可替换 I/O 边界、完整标签核验和 hash 自排除原因的关键注释；
   没有逐字段、逐行或修改历史式注释。
 - 安全边界：没有连接真实 Docker socket、创建或删除 container、停止 Python Worker、
