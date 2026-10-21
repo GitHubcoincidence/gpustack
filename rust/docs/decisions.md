@@ -153,4 +153,4 @@ M4-D 的维护窗口必须另获用户对精确 stop/start 命令的明确授权
 | D062 | M4 依赖准确版本 | M4-B 输入固定为 `axum 0.8.9`（`http1,json,query,tokio`）、`nvml-wrapper 0.13.0`、`sysinfo 0.39.6`（`disk,system`）、`prometheus-client 0.25.1` 和 `subtle 2.6.1`，不启用未列出的 default feature。版本已在独立 scratch crate 中用 Rust 1.99.1 完成 online locked check 和断网 locked/offline check；M4-B 仍须在实际 workspace 更新 lock 后重复全部门禁 | 证明准确版本在 90 的 cache、固定工具链和离线模式可用，同时不让一次 scratch 结果替代真实 workspace 依赖集成。 |
 | D063 | 资源和 readiness 失败语义 | 资源 rate 固定为 `0..=100` 百分比；GPU 与文件系统改为固定 v2.2.3 类型，GPU memory 使用 bytes。NVML 初始化、双 A100 枚举或关键 identity 失败时 resource-api-only fail closed；`/healthz` 仍可表示存活，但 `/readyz` 和 `gpustack:rust_worker_ready` 固定不可用/0 | 空 GPU 上报会把资源采集失败伪装成成功，且与 M3-D 的 control-plane-only 隔离语义混淆；明确单位可避免 dashboard 和 Server 资源值出现百倍偏差。 |
 
-D061–D063 当前随 M4-A 一并处于 `ready_for_review`，尚未标记为 `accepted`。它们不授权修改 Rust runtime、读取真实 Worker token、启动 resource-api-only、访问真实 NVML、更新 Server、停止 Python Worker 或执行 Docker/vLLM/GPU 工作负载。
+D061–D063 已随 M4-A 获用户接受。该接受允许进入 M4-B 的 mock/fake 驱动离线实现，但不授权读取真实 Worker token、启动 resource-api-only、访问真实 NVML、更新 Server、停止 Python Worker 或执行 Docker/vLLM/GPU 工作负载。

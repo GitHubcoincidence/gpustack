@@ -28,9 +28,9 @@
 ## 当前状态
 
 - 设计状态：`frozen`
-- 实现状态：M2、M3-B、M3-C、M3-C.1、M3-C.2、M3-D.1、M3-D.1.1 与 M3-D.2 均为 `accepted`；M4 设计和门禁为 `frozen`，M4-A 精确契约、fixture 与依赖审计为 `ready_for_review`，M4-B 尚未授权。M3-D.1.1 代码检查点为 `99e9fdb9`，M3-D.2 正式二进制来自 `e30e7bd4`；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言保持 `invalidated`。
+- 实现状态：M2、M3-B、M3-C、M3-C.1、M3-C.2、M3-D.1、M3-D.1.1、M3-D.2 与 M4-A 均为 `accepted`；M4 设计和门禁为 `frozen`，M4-B 已获准进入离线实现。M3-D.1.1 代码检查点为 `99e9fdb9`，M3-D.2 正式二进制来自 `e30e7bd4`，M4-A 契约检查点为 `e5362c57`；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言保持 `invalidated`。
 - 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
-- 当前停止位置：M4-A 已完成固定 v2.2.3 的精确 Worker API/resource schema、fixture 和依赖可构建性审计，等待详细报告和共同验收；maintenance Worker `rust-m3d-r760xa`（ID 2）和本地 per-Worker 身份保留供 M4-D 复用，Cluster registration token 本地副本已删除，Rust 进程与 `20150/20151` 监听均应保持停止。
-- 下一项允许执行的工作：只审阅并验收 M4-A。用户接受后才能进入 M4-B 的 mock/fake 驱动离线实现；M4-C 真实 NVML 冒烟、M4-D 停止 Python Worker，以及任何 Docker/vLLM/模型任务都尚未授权。
+- 当前停止位置：M4-A 已接受；maintenance Worker `rust-m3d-r760xa`（ID 2）和本地 per-Worker 身份保留供 M4-D 复用，Cluster registration token 本地副本已删除，Rust 进程与 `20150/20151` 监听均应保持停止。
+- 下一项允许执行的工作：进入 M4-B 的 mock/fake 驱动离线实现并提交详细报告。M4-C 真实 NVML 冒烟、M4-D 停止 Python Worker，以及任何 Docker/vLLM/模型任务都尚未授权。
 
 当前检查点包含 Rust CLI/Worker 基础源码、已接受的离线契约 fixture、类型化 Server client、身份持久化、控制循环、显式 control-plane-only supervisor、最小 `/healthz`，以及真实 v2.2.3 Server 上的注册、持续控制循环和无 Cluster token 身份恢复证据；M4 的 resource-api-only/API/metrics/资源采集仍只有设计，不包含实现或运行证据，也不包含 Docker workload、GPU 任务、vLLM 推理或 Python Worker 变更。

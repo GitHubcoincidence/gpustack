@@ -439,6 +439,17 @@
 - 当前停止位置：M4-A 等待聊天中的详细报告和用户共同验收；M4-B 尚未授权。
 - 下一项允许执行的工作：完成详细报告与审阅；若用户接受，再把 D061–D063 和 M4-A 标记为 `accepted` 并进入 M4-B mock/fake 驱动离线实现。M4-C、M4-D、服务维护、Docker、vLLM 和 GPU 工作负载仍不允许。
 
+### 2026-10-21：M4-A Worker 资源/API 契约与依赖审计接受
+
+- 结果：用户在收到 HTTP/auth、文件和日志安全、类型化资源、Prometheus、依赖版本、验证结果和安全边界的详细报告后确认无问题；M4-A 与 D061–D063 由 `ready_for_review` 更新为 `accepted`。
+- 接受范围：固定 v2.2.3 Worker route/query/response/error、per-Worker-only auth、严格路径 containment、日志和配置白名单、双 A100 status schema、Python-compatible 资源 metric 和五项准确依赖版本。
+- 证据：M4-A 契约与 fixture 提交 `e5362c573c1f004cb3aab50f8f026fdff95c09bb`；类型化 status fixture 通过固定 v2.2.3 Pydantic schema，Prometheus fixture 可解析且 Python 资源 metric 名称集合一致，Rust workspace 42 项测试以及 fmt、Clippy、locked/offline build 通过。
+- 已知门禁限制：顶层 `make lint` 因 90 主机缺少 `uv` 在启动 Python pre-commit 前退出；这不是 lint 失败。M4-B 仍须运行 Rust 全门禁和适用于新增 fixture/文档的检查。
+- 明确非结论：接受 M4-A 只证明契约、fixture 和候选依赖可用，不证明 Rust Worker API、资源采集、NVML、metrics 或真实 Server 双 A100 上报已经实现。
+- 安全边界：接受结果只授权 M4-B 的离线代码与 mock/fake 测试；M4-C 真实 NVML、M4-D 服务切换、真实 Worker token、Server 写入、Docker、vLLM 和 GPU 工作负载仍未授权。
+- 当前停止位置：M4-A 已接受，M4-B 尚未产生代码。
+- 下一项允许执行的工作：实现 M4-B，并在提交代码和详细实现报告后停在 `ready_for_review`；用户再次接受前不得进入 M4-C。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
