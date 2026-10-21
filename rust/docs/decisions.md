@@ -176,11 +176,11 @@ Python Worker、加载 Runner、访问 GPU 或运行模型；M5-D 和 M5-E 分�
 
 ## 2026-10-22 M5-B 精确依赖与离线实现决策
 
-| ID | 决策项 | 待接受方案 | 理由 |
+| ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D072 | Docker client 与 hash 依赖 | 固定 `bollard 0.21.1`，关闭 default features，仅启用本地 Unix socket 所需的 `pipe`；固定 `sha2 0.10.9` 生成 normalized spec SHA-256。两个版本均写入 workspace `Cargo.lock` | `bollard` 直接提供类型化 Docker Engine API，避免执行 `docker` CLI；最小 feature 集不引入 TLS、SSH、BuildKit 或 websocket。`sha2` 只承担本地规范化身份计算，不改变网络或运行时权限。 |
 
 D072 已在独立 scratch crate 和实际 workspace 中通过固定 Rust 1.99.1 的 locked/offline
-检查，当前状态为 `ready_for_review`。该决策只覆盖 M5-B 源码和离线测试，不授权连接
-真实 Docker socket、创建或删除 container、停止 Python Worker、访问 GPU 或运行模型；
-用户接受前不得进入 M5-C。
+检查，并在 M5-B 详细实现报告后获用户接受。该决策只覆盖 M5-B 源码和离线测试，不授权
+连接真实 Docker socket、创建或删除 container、停止 Python Worker、访问 GPU 或运行
+模型；接受结果只解锁 M5-C 离线实现。

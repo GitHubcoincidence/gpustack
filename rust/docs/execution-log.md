@@ -20,19 +20,20 @@
 ## 当前状态
 
 - 状态：`ready`
-- 当前阶段：M3-D.2 真实集成分段执行准备
-- 本地检查过的源码基线：`76dc841916ff8fed4068a1ab99d178d2e27a4a06`
-- 分支：`codex/rust-worker`
-- 初始英文设计检查点：`74ef8977`（`docs(worker): define rust worker rewrite plan`）
+- 当前阶段：M5-B 已接受，M5-C 离线实现待开始。
+- 分支：`codex/rust-worker`；M5-B 接受前治理基线为
+  `fc0b5408093efe39cddb60f567e9520670fd8730`。
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
-- 90 主机身份：`wujiaxing2@r760xa`；仓库路径：`/home/wujiaxing2/workspaces/gpustack`。
-- 90 主机 Git 工具：Git `2.43.0`；OpenSSH `9.6p1`；账号级 SSH 已认证为 `GitHubcoincidence`。
-- 90 主机源码状态：M3-D.1.1 设计检查点为 `eb5a9c2d80d1e191f9030808e1dcc80e7a217445`，代码检查点为 `99e9fdb9038f65c480371005fb62fe1c1d6b1c72`，接受检查点为 `ee701a075d921c95e33e29ea232a0dd1ffd291bb`。
-- 实现状态：四 crate Rust workspace、类型化 Server client、Server 权威 Worker 身份两文件状态机、Model/ModelInstance/ModelFile 三资源控制循环，以及显式 `worker run --control-plane-only` supervisor 和最小 `/healthz` 已经建立；尚未执行真实 Server 集成、ModelFile 本地准备、Docker 工作负载、GPU 盘点或 vLLM 路径。
-- 中文治理文档检查点：`78d46176`（`docs(worker): translate rust worker plan to Chinese`）
-- 中文状态检查点：`d3623bfb`（`docs(worker): record Chinese documentation checkpoint`）
-- 当前停止位置：M3-D.2 运行手册已冻结；用户选择亲自执行全部命令，助手按门禁逐段交付。旧 UUID 等值语义和“本地模型跳过 DOWNLOADING”的设计语义保持 `invalidated`。现有 Python Server/Worker 继续运行，Rust Worker 尚未连接真实 Server，也未读取 token。
-- 下一项允许执行的工作：用户执行第 0 段只读预检并返回完整非敏感输出；只有该段通过审阅后才允许干净构建，凭据准备和真实写路径继续锁定。
+- 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
+  `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
+- 实现状态：M1～M4 已接受；M5-A 契约和 M5-B 离线 runtime 已接受。代码检查点
+  `fbaf1a0426c02b82028aa1b836d42ea0138340cd` 提供 `WorkloadSpecV1`、规范化
+  hash、完整所有权验证、vLLM plan 和可替换 Docker runtime 边界。
+- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；没有执行真实
+  Docker、Runner、vLLM 或 GPU 工作负载。历史失败和 `invalidated` 证据保持原状态。
+- 下一项允许执行的工作：M5-C 只使用 fake/mock 边界实现 Lab owner/deployment
+  状态、排他锁、端口/GPU 选择、健康、reconciler 与 `worker lab` CLI。M5-D/M5-E
+  的真实 Docker 和 GPU 操作仍需分别获得明确授权。
 
 ## 里程碑
 
@@ -978,6 +979,25 @@
   `gpustack-rs` 进程为 0，`20150/20151` 仍无监听。
 - 当前停止位置：M5-B 等待详细实现报告和用户共同验收；D072 同为
   `ready_for_review`。用户接受前不得实现 M5-C。
+
+### 2026-10-22：M5-B Docker runtime 离线实现接受
+
+- 结果：用户审阅 M5-B 的依赖、runtime、workload planner、所有权、测试、隔离与限制
+  详细报告后确认无问题；M5-B 与 D072 由 `ready_for_review` 更新为 `accepted`。
+- 接受证据：代码检查点为 `fbaf1a0426c02b82028aa1b836d42ea0138340cd`，接受前
+  治理 HEAD 为 `fc0b5408093efe39cddb60f567e9520670fd8730`，`Cargo.lock`
+  SHA-256 为 `fff13ee7507e6dc5874fad87931e5a5c4da98782ca8c6c9fa3dd825108799afe`；
+  78 个测试、离线 locked Clippy 和 release build 结果继续作为本阶段证据。
+- 接受范围：M5-B 只证明 `WorkloadSpecV1`、Docker API 类型与调用边界、vLLM container
+  plan、规范化 hash 和所有权失败关闭的离线正确性。没有把编译通过提升为真实 Docker、
+  Runner、模型健康、推理或 Managed 兼容证据。
+- 漂移审计：目标、v2.2.3 Server、单 GPU M5 范围、固定 Runner、Lab/Managed 分离、
+  完整所有权标签和分段授权均未改变；结论为 `aligned`。
+- 当前停止位置：M5-B 已接受，M5-C 尚未开始。Python Server/Worker 保持运行，Rust
+  Worker 停止。
+- 下一项允许执行的工作：进入 M5-C Lab adapter 与 CLI 的 fake/mock 离线实现；不得
+  连接真实 Docker socket、创建或删除 container、停止 Python Worker、访问 GPU 或
+  运行模型。
 
 ## 未解决风险与待确认事项
 
