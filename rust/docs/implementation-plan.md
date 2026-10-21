@@ -14,7 +14,7 @@
 | M4-B 离线实现 | NVML/系统抽象、Worker HTTP API、文件/日志/配置读取、metrics、CLI | M4-A | 可用 mock/fake 验证的 resource-api-only 实现 | format、Clippy、locked/offline test/build、契约与安全测试、详细实现报告 |
 | M4-C 宿主机只读 GPU 冒烟 | CLI 读取真实 NVML 并与 `nvidia-smi` 交叉验证 | M4-B | 不注册 Server 的两张 A100 本地盘点证据 | index、UUID、名称、显存逐项一致；Python Worker 保持运行 |
 | M4-D 维护窗口正式集成 | 停止 Python Worker 后，以保留身份运行 resource-api-only，验证 Server 资源状态和完整 Worker API | M4-C 与单独维护窗口授权 | Server 可见两张 A100、metrics 及 API，且仍不可调度、不启动模型 | Server 行、认证/API/路径/日志/metrics、无 Docker/vLLM/GPU 任务、Python Worker 回滚证据 |
-| M5 Docker runtime 与 Lab | Docker 原语、所有权标签、WorkloadSpec、vLLM builder、本地 Lab 状态、Lab 命令、日志、健康与清理 | M4 与维护窗口 | 完全通过 CLI 完成单 GPU Lab 推理，不创建 Server ModelInstance/ModelFile | unit plan、Docker smoke、vLLM response、log stream、清理与非所有权测试 |
+| M5-A～E Docker runtime 与 Lab | Docker 原语、所有权标签、WorkloadSpec、vLLM builder、本地 Lab 状态、Lab 命令、日志、健康与清理 | M4；真实运行另需对应授权 | 完全通过 CLI 完成单 GPU Lab 推理，不创建 Server ModelInstance/ModelFile | unit plan、Docker smoke、vLLM response、log stream、清理与非所有权测试 |
 | M6-A Managed 文件准备 | `SCHEDULED -> INITIALIZING`、ModelFile 本地路径校验/分片解析、完整结果上报，并等待 Server `STARTING` | M5 与 M3-C.2 | Managed 实例按原状态所有权完成本地模型准备，不提前启动容器 | 状态所有权、ModelFile ready/error、路径安全和“STARTING 前无容器”测试 |
 | M6-B Managed 单 GPU runtime | `STARTING` 后 reconciler 启动/接管 vLLM，健康后上报 `RUNNING`，并支持 model CLI、推理与删除 | M6-A | 完全通过 CLI 完成 Server 托管单 GPU 推理 | 完整命令记录、全状态链、响应、日志、健康门禁和删除后无孤儿资源 |
 | M7 恢复与双 GPU 路径 | 接管、事件/full-sync 恢复、重启策略、Server/Docker 故障、双 A100 tensor parallelism | M6-B | 宿主机进程形式的 Worker 行为可靠 | 重启、断连、故障、未知容器与双 GPU 证据 |
@@ -100,6 +100,49 @@ resource-api-only 因没有 Docker 和 reconciler，`/readyz` 固定返回 503�
 M4-A 只冻结依赖类别，不提前锁定未经审计的版本：HTTP router/middleware 使用 `axum`，NVML 使用动态初始化的 `nvml-wrapper`，系统信息使用 `sysinfo`，metrics 使用 `prometheus-client`，constant-time 比较使用 `subtle`。准确版本必须先证明 Cargo cache 可用、支持固定 Rust 1.99.1，并写入 `Cargo.lock`；离线构建通过前不得接受 M4-B。
 
 M4 正式接受必须同时具备：精确 Rust/Server/Cargo.lock identity；Python/Rust fixture 对比；认证与通用 401；路径 traversal、symlink 和越界测试；配置脱敏；日志查询/流语义；Prometheus 格式；全部 Rust 自动化；M4-C 的 NVML 对比；以及 M4-D 的 Server 双 A100、maintenance、metrics、API、无 Docker/vLLM/GPU 任务和 Python Worker 恢复证据。接受本设计不授权停止 Python Worker 或执行 M4-D。
+
+## M5 Docker runtime 与 Lab 门禁
+
+M5 以 `WorkloadSpecV1` 为 Lab 和后续 Managed 的共享运行时契约。M5 只完成单 GPU
+Lab 路径，不创建或更新 Server Model、ModelInstance、ModelFile 或 gateway route，
+也不能把 Lab 结果解释为 Managed 兼容证据。
+
+M5 分成五个独立门禁：
+
+1. **M5-A 契约与依赖类别冻结**：冻结 WorkloadSpec、spec hash、所有权标签、Docker
+   原语、Runner/vLLM 参数、GPU/端口/路径、本地状态、CLI、健康、日志和清理语义；
+   对固定 Python Worker、第三方 runtime 和 Runner image 做只读 oracle 审计。只允许
+   文档和只读检查，不连接 Docker socket 或执行模型。
+2. **M5-B Docker runtime 离线实现**：实现版本化 spec、规范化 hash、Docker client
+   抽象、image/container/log 类型、所有权验证和 vLLM plan builder。先审计准确 Rust
+   Docker client 版本，再更新 lock；测试只使用 fake transport、fixture 和临时目录，
+   不访问真实 Docker、网络或 GPU。
+3. **M5-C Lab adapter 与 CLI 离线实现**：实现 owner/deployment 原子存储、排他锁、
+   Lab 状态机、幂等 deploy、list/status/logs/infer/stop/remove/cleanup、端口分配、健康
+   检查与故障诊断。所有 Docker、HTTP、clock、GPU 和 filesystem 边界可注入 fake；
+   完成全部 Rust 门禁和 D033 详细实现报告。
+4. **M5-D 无 GPU Docker 集成**：另获明确授权后，在不停止 Python Worker 的前提下
+   连接真实 Docker socket，验证 daemon/version、固定 image inspect、owned label
+   create/inspect/log/stop/remove、未知和冲突标签拒绝、最终零残留。测试 workload
+   不申请 GPU、不运行 vLLM，不使用模型；如果安全的已缓存无 GPU command 无法从
+   固定环境构造，则停止并讨论，不临时拉取未冻结镜像。
+5. **M5-E 单 GPU Lab smoke**：另获维护窗口授权后，只停止 `gpustack-worker`，确认
+   Server 继续健康、无现有 ModelInstance/GPU workload 且目标 GPU 空闲；使用固定
+   Runner digest、本地 Qwen-7B、单 GPU 和 loopback endpoint 完成 deploy、list、
+   status、logs、infer、stop、remove、cleanup。无论成功失败都只清理完整 owned tuple，
+   恢复原 Python Worker 并独立验证服务、端口、容器和 GPU 无残留。
+
+M5-B 和 M5-C 的每个实现阶段都必须分别交付详细实现报告并由用户接受，不能因为最终
+计划做真实 smoke 就降低离线测试。准确 Docker client 依赖只有在固定 Rust 1.99.1、
+90 Cargo cache 和 workspace locked/offline 构建全部通过后才可接受；M5-A 不预先猜测
+crate 版本。
+
+M5-D 的通过只证明 Docker 原语和所有权防护；M5-E 的通过才证明 Lab 单 GPU vLLM
+smoke。M5 正式接受还要求：`/v1/models` 含期望模型后才报告 RUNNING；OpenAI-
+compatible 推理返回有效内容；日志流可读；同 spec 幂等、异 spec 冲突；失败现场
+保留；stop/remove/cleanup 行为符合所有权 tuple；Server 没有新增 Lab ModelInstance
+或 ModelFile；Python Worker 恢复；Rust container、端口、GPU process 和 cache 清理
+结果均有证据。
 
 ## 验证策略
 
@@ -203,4 +246,11 @@ M4-D 尝试 1 在 `a80922abd0ed` 上真实发现 Worker HTTP `/version` 未获�
 
 M4-D 审阅中发现的根文件系统字段语义已在 commit `ad4ebfa39234de22690f8a28ee79b273eb3acc7d` 修正：Unix 使用 `statvfs` 区分 `free` 与 `available`，并按 `used = total - free` 上报。M4-D.2 从干净 `f6faa63e9c03` 构建并在线复核，Server、Rust metrics 与宿主机同点采样一致；Python Worker 全程运行，测试后无 Rust 进程、端口、容器或 GPU 负载残留。用户已审阅详细报告并接受 M4-D.1、M4-D.2、M4-D 和整个 M4。
 
-当前停止位置为 M4 `accepted`：Python Server/Worker 正常运行，Rust Worker 停止，`20150/20151` 空闲。M5 已确认保留 `worker lab` 作为共享生产 runtime 的薄适配层：Lab 使用隔离本地状态演示 Docker/vLLM 能力，`model deploy` 仍只调用 Server 并留待 M6 验证完整 Managed 状态链；两者复用路径解析、WorkloadSpec、planner、runtime、日志、健康与清理原语，不形成两套执行实现。下一项只允许讨论并冻结 M5 的详细 Docker/runtime 契约、分段计划、所有权和验收门禁；该确认不授权停止 Python Worker、创建 Docker/vLLM workload 或使用 GPU。Docker workload、vLLM 和任何模型执行仍不属于已接受的 M4。
+当前停止位置为 M5-A `accepted`：M4 结论保持有效，Python Server/Worker 正常运行，
+Rust Worker 停止。`WorkloadSpecV1`、原生 Docker Engine API 子集、完整所有权 tuple、
+Lab loopback 与独立端口范围、固定 Runner 安全基线、状态/健康/日志/幂等清理语义和
+M5-B～E 门禁已经冻结。
+
+下一项只允许进入 M5-B：先完成 Docker Rust client 的 cache/MSRV/feature/offline
+依赖审计，再实现和测试不访问真实 Docker socket 的 runtime 基础。M5-A 的接受不授权
+M5-D/M5-E，不授权创建或删除 container、停止 Python Worker、使用 GPU 或运行模型。

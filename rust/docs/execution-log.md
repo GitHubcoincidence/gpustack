@@ -903,10 +903,50 @@
   参数、GPU/端口/路径分配、本地状态、CLI 行为、健康与日志、幂等清理以及离线和真实
   Docker 验收门禁。当前确认不授权创建容器、停止 Python Worker 或使用 GPU。
 
+### 2026-10-21：M5-A Docker runtime 与 Lab 契约接受
+
+- 结果：用户审阅并接受 M5 Docker/runtime 详细设计；M5-A 状态为 `accepted`，允许
+  进入 M5-B 离线 runtime 实现，但没有授予任何真实 Docker、GPU 或服务切换权限。
+- 冻结架构：Lab 与 Managed 共用 `WorkloadSpecV1`、planner、reconciler、Docker
+  runtime、健康、日志和清理，只保留不同的 desired-state adapter 与状态回写目标。
+  Rust 通过 Docker Engine API 原生实现 R1 子集，不依赖 Python runtime 或调用
+  `docker` CLI。
+- 工作负载契约：normalized spec 使用规范化 JSON SHA-256；所有容器带 Rust、schema、
+  mode、local owner、component、deployment 和 spec hash 标签。每次 stop/remove/
+  cleanup 前重新验证完整 tuple，任何 Python、Managed、未知或冲突资源均不得修改。
+- Lab 契约：单 GPU、tensor parallel size 1、loopback `127.0.0.1`、自动端口范围
+  `42000-42063`。同名同 spec 幂等，同名异 spec 拒绝；Docker running 不等于就绪，
+  `/v1/models` 必须包含 served model 才进入 RUNNING；失败保留现场，stop 不删除，
+  cleanup 默认 dry-run。
+- Runner 安全基线：使用 M1 固定 digest 和 `pull=never`，host network、10 GiB shm、
+  NVIDIA DeviceRequest、只读模型 mount、独立 cache、restart policy `no`、
+  `no-new-privileges`，默认非 privileged。若真实 smoke 证明需要放宽，必须作为设计
+  修订先讨论，不能在实现或测试中静默改变。
+- 只读 oracle：固定 Python Server/Worker commit
+  `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365` 的 vLLM 路径使用 `vllm serve`、host
+  network、无 Docker restart 和 `/v1/models` 健康判定；固定 Runner digest
+  `sha256:f9c58b163ec7eb537404c7d268f3d96e101cbf19e05acb8df6b7637f9e64c3af`
+  的 entrypoint 为 `tini --`。Python `gpustack-runtime 0.2.1` 和
+  `gpustack-runner 0.1.27.post4` 只作为 oracle，不成为 Rust 依赖。
+- 分段门禁：M5-B 是 fake/mock Docker runtime 离线实现；M5-C 是 Lab adapter/CLI
+  离线实现；M5-D 需另行授权无 GPU Docker 集成；M5-E 需单独维护窗口完成 Qwen-7B
+  单 GPU smoke 并恢复 Python Worker。M5-D 不能替代 M5-E，Lab smoke 不能替代 M6
+  Managed 验收。
+- 本次安全边界：只进行源码、安装包和 image metadata 的只读检查以及治理文档更新，
+  没有连接 Docker socket 执行变更、创建或删除 container、停止 Python Worker、
+  使用 GPU、加载模型或调用 Server 写接口。
+- 当前停止位置：M5-A 契约已经冻结，M5 尚未开始代码实现；现有 Python Server/Worker
+  保持原运行状态，Rust Worker 停止。
+- 下一项允许执行的工作：进入 M5-B，先审计 Rust Docker client 的准确版本、feature、
+  transitive dependency、Rust 1.99.1/MSRV 和 90 主机 Cargo cache/offline 可用性；
+  审计通过后只实现 fake/mock 可验证的 runtime 基础。真实 Docker 仍未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
-- Rust Worker API 与 metrics 已分别冻结为 `20150` 和 `20151`；inference 端口仍待 M5/M6 冻结。每次启动前仍须检查端口冲突。
+- Rust Worker API 与 metrics 已分别冻结为 `20150` 和 `20151`；Lab 自动 inference
+  端口已冻结为 `42000-42063`，Managed 仍使用 Server 分配端口。每次启动前仍须检查
+  实际端口冲突。
 - M4-D 已真实执行 `gpustack-worker` stop/start、失败 trap、独立 watchdog 和正常恢复；该证据只证明 M4 资源/API 维护切换，不替代后续 Docker/vLLM 工作负载阶段各自的 drain 与回滚门禁。
 - Rust 容器最终 user/group 仍需在 M8 根据 Docker socket、NVML 与持久化目录要求验证；宿主机开发用户已确认具备 `docker` group 权限。
 - 90 主机到 GitHub 的小规模 fetch/push 可用，但大对象传输吞吐过低；bootstrap 和发布 tag 增量 bundle 是当前已验证的补充路径。

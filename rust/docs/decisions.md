@@ -154,3 +154,22 @@ M4-D 的维护窗口必须另获用户对精确 stop/start 命令的明确授权
 | D063 | 资源和 readiness 失败语义 | 资源 rate 固定为 `0..=100` 百分比；GPU 与文件系统改为固定 v2.2.3 类型，GPU memory 使用 bytes。NVML 初始化、双 A100 枚举或关键 identity 失败时 resource-api-only fail closed；`/healthz` 仍可表示存活，但 `/readyz` 和 `gpustack:rust_worker_ready` 固定不可用/0 | 空 GPU 上报会把资源采集失败伪装成成功，且与 M3-D 的 control-plane-only 隔离语义混淆；明确单位可避免 dashboard 和 Server 资源值出现百倍偏差。 |
 
 D061–D063 已随 M4-A 获用户接受。该接受允许进入 M4-B 的 mock/fake 驱动离线实现，但不授权读取真实 Worker token、启动 resource-api-only、访问真实 NVML、更新 Server、停止 Python Worker 或执行 Docker/vLLM/GPU 工作负载。
+
+## 2026-10-21 M5-A Docker runtime 与 Lab 契约冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D064 | 共享部署契约 | `gpustack-worker` 生成版本化 `WorkloadSpecV1`，Lab 与 Managed 共用 planner、reconciler、Docker runtime、健康、日志和清理；只有期望状态 adapter 与状态回写目标不同 | 让 Lab 验证的执行实现可以直接进入 M6，而不形成第二套 Worker 或生产控制面。 |
+| D065 | Docker 实现边界 | Rust 通过 Unix socket 原生调用 Docker Engine API，不执行 `docker` CLI，也不依赖 Python `gpustack-runtime`；M5 只实现单 vLLM container 所需子集 | 保持独立 Rust Worker，同时避免复制第三方 runtime 的 Kubernetes、Podman、pause container 和多组件抽象。 |
+| D066 | Workload identity | normalized spec 使用规范化 JSON 的 SHA-256；所有变更前必须重新匹配 implementation、schema、mode、local owner、deployment 与 spec hash。Lab owner 独立原子持久化，不依赖 Server identity 或 token | 使幂等接管和危险操作有不可混淆的身份边界，并保护 Python、Managed 和未知容器。 |
+| D067 | M5 Runner 安全基线 | 正式 smoke 使用 M1 固定 Runner digest、`pull=never`、host network、10 GiB shared memory、NVIDIA DeviceRequest、只读模型 mount、独立可写 cache、restart policy `no`、`no-new-privileges` 且默认非 privileged | 对齐固定 Runner 的必要运行方式，同时坚持最小权限；若 smoke 证明需要放宽，必须先讨论并记录修订。 |
+| D068 | Lab 网络与端口 | Lab vLLM 只绑定 `127.0.0.1`，自动端口范围为 `42000-42063`；Managed 后续绑定 Worker IP 并使用 Server 分配端口 | Lab 只由本机 CLI 验证，不应暴露到局域网；独立端口范围降低与 Python/Managed 分配冲突。 |
+| D069 | Lab 生命周期与幂等性 | 状态保持 `CREATED/PREPARING/STARTING/RUNNING/FAILED/STOPPED`；只有 `/v1/models` 返回期望模型才进入 RUNNING。同名同 spec 可返回、重启或重建，同名异 spec 必须冲突；失败保留现场，stop 不删除，cleanup 默认 dry-run | Docker running 不是模型可用证据；保留现场和拒绝隐式替换使诊断、恢复和清理可审计。 |
+| D070 | M5 单 GPU 约束 | M5 只允许一张 GPU 和 tensor parallel size 1；CLI index 必须解析为稳定 UUID，活跃或不能可靠确认空闲的 GPU 拒绝使用，不提供强制抢占 | 先验证最小完整 vLLM 路径，并防止与现有 Worker 或其他任务争用物理 GPU。 |
+| D071 | M5 分段门禁 | M5-A 冻结契约；M5-B 离线 runtime；M5-C 离线 Lab CLI/reconciler；M5-D 获批后做无 GPU Docker 集成；M5-E 单独维护窗口完成 Qwen-7B 单 GPU Lab smoke 并恢复 Python Worker | 把代码正确性、Docker 变更和 GPU 风险分离，任何阶段失败都能停在明确边界。 |
+
+M5-A 接受只允许进入 M5-B 的离线代码实现和 mock/fake 测试。准确 Docker Rust client
+版本必须先通过 Cargo cache、Rust 1.99.1/MSRV、locked/offline 与依赖范围审计后才能
+写入 workspace。M5-A 不授权连接真实 Docker socket、创建或删除 container、停止
+Python Worker、加载 Runner、访问 GPU 或运行模型；M5-D 和 M5-E 分别需要新的明确
+授权。

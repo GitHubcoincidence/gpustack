@@ -207,6 +207,135 @@ spec hash
 
 结构化选项包括 tensor parallel size、maximum model length、GPU memory utilization、dtype、served model name、trust remote code 与 eager execution。允许重复传入受控的原始 vLLM 参数，但这些参数不能覆盖由 Worker 管理的模型路径、服务端口、GPU 分配、容器身份或 mount。
 
+### M5 WorkloadSpecV1 精确契约
+
+M5 把语义计划和 Docker 实现分开。`gpustack-worker` 生成版本化的
+`WorkloadSpecV1`，`gpustack-runtime` 只把该计划转换成 Docker Engine API 操作。
+Lab 与 Managed 使用同一结构；两者只有期望状态来源和状态回写目标不同。
+
+规范化结构至少包含：
+
+```text
+schema_version
+mode and owner identity
+deployment identity
+canonical model path and served model name
+requested image and resolved immutable digest
+ordered GPU UUIDs and host indexes
+bind address and service port
+tensor parallel size
+structured and controlled raw vLLM arguments
+sorted environment and mounts
+shared-memory and network settings
+health path, interval and deadline
+ownership labels
+spec hash
+```
+
+M5 只允许单 GPU 和 tensor parallel size 1，但 GPU 字段保持有序数组，为后续双卡
+扩展保留稳定接口。用户 raw arguments 不能覆盖模型路径、监听地址、端口、GPU、容器
+名称、所有权标签、network 或 mount。
+
+`spec_hash` 是规范化 JSON 的 SHA-256。结构字段顺序固定；语义无序的 map 和集合在
+计算前排序，GPU 和 vLLM 参数等语义有序字段保留顺序。resolved image digest、模型
+路径、GPU UUID、端口、参数、环境、mount、network 和安全设置参与计算；时间戳、
+container ID、实时状态、错误文本以及 `spec-hash` 标签本身不参与计算。
+
+### Docker runtime 边界
+
+M5 的 `gpustack-runtime` 通过 `/var/run/docker.sock` 直接调用 Docker Engine API，
+不执行 `docker` CLI，也不依赖 Python `gpustack-runtime`、subprocess、PyO3 或 FFI。
+其 R1 子集包括 daemon/version 探测、image inspect/resolve、按标签枚举、container
+create/start/inspect/stop/remove、stdout/stderr log stream，以及把 Docker 状态转换为
+稳定内部类型。镜像拉取策略支持 `never`、`if-missing` 和 `always`，正式 M5 smoke
+固定为 `never` 并要求冻结 digest 已存在。
+
+Python Worker 和已安装的第三方 `gpustack-runtime` 只作为行为 oracle。M5 不复制其
+Kubernetes、Podman、pause container、多组件 workload、CDI 抽象或不健康辅助容器；
+单个 vLLM 容器由 Rust reconciler 负责健康判断和生命周期。
+
+### M5 容器契约与所有权
+
+所有 Rust 容器都携带：
+
+```text
+io.gpustack.implementation=rust
+io.gpustack.schema-version=1
+io.gpustack.mode=lab|managed
+io.gpustack.owner-id=<local-owner-id>
+io.gpustack.component=vllm
+io.gpustack.spec-hash=<sha256>
+```
+
+Lab 增加 `io.gpustack.lab-id=<uuid>`；Managed 增加既有的
+`io.gpustack.worker-uuid` 和 `io.gpustack.model-instance-id`。Lab 的 owner ID 在数据
+根目录首次初始化时生成并以 `0600` 原子持久化，不依赖 Server Worker identity 或
+任何 token。
+
+stop、remove、replace 和 cleanup 在每次变更前必须重新 inspect，并同时匹配
+implementation、schema version、mode、owner ID、deployment ID 和 spec hash。缺失、
+冲突或属于 Python/未知 scope 的资源只能报告，不能修改。容器名称由 mode 和不可变
+deployment ID 派生；用户显示名称保存在 manifest，不作为唯一所有权依据。
+
+Runner 容器固定使用 host network、10 GiB shared memory、Docker restart policy
+`no`、NVIDIA DeviceRequest 和只读模型 mount。默认不启用 privileged，并设置
+`no-new-privileges`；只有获批 smoke 证明固定 Runner 必须增加权限时，才能先讨论再
+修订。模型之外的编译和运行缓存写入每个 deployment 的独立可写 cache 目录。
+
+Lab 默认只监听 `127.0.0.1`，自动端口范围为 `42000-42063`；它只服务宿主机上的
+`worker lab infer`，不创建 gateway route。Managed 后续监听配置的 Worker IP，并
+使用 Server 分配的端口。端口分配在数据目录排他锁下记录，并在 container start 前
+再次进行 bind 检查；发现占用时失败，不能终止占用者。
+
+GPU 的用户输入可以是宿主机 index，但 planner 必须先解析并记录稳定 UUID，Docker
+DeviceRequest 也使用 UUID。M5 拒绝多于一张 GPU、活跃 compute process、已被 Rust
+记录占用或无法可靠确认空闲的目标 GPU，并且不提供强制抢占选项。
+
+### M5 vLLM、健康与日志契约
+
+固定 Runner 的 entrypoint 为 `tini --`，M5 生成的 command 形如：
+
+```text
+vllm serve <canonical-model-path>
+  --host 127.0.0.1
+  --port <allocated-port>
+  --served-model-name <name>
+  --tensor-parallel-size 1
+```
+
+maximum model length、GPU memory utilization、dtype、trust remote code 和 eager
+execution 通过结构化选项加入。模型路径以宿主机和容器内相同的绝对路径只读挂载。
+
+container running 只表示进程存在。Lab 必须在 deadline 内轮询 `/v1/models`，只有
+HTTP 200 且响应包含期望 served model name 时才能进入 `RUNNING`。容器提前退出时
+进入 `FAILED`，保存 exit code、脱敏错误和有限日志尾部；超时同样进入 `FAILED`，且
+默认保留容器供诊断。`worker lab logs` 直接读取 Docker stdout/stderr，并支持 tail、
+since 和 follow；M5 不把整份容器日志复制进 manifest。
+
+### Lab 本地状态与幂等性
+
+Lab 数据根目录为 `0700`，owner、deployment manifest 和锁文件为 `0600`，通过临时
+文件、fsync 和原子 rename 更新。目录结构为：
+
+```text
+lab/
+  owner.json
+  deployments/<lab-id>.json
+  cache/<lab-id>/
+  lab.lock
+```
+
+manifest 保存 normalized spec、spec hash、container ID、resolved image digest、GPU
+UUID、port、状态、脱敏错误和时间戳。manifest 是恢复辅助；Docker 标签仍是实际工作
+负载所有权证据。`status` 每次重新 inspect Docker 并执行健康检查，不能只回显记录。
+
+同名且相同 spec 的 deploy 是幂等操作：运行中的 workload 直接返回当前状态，已停止
+的 owned workload 可以重新启动，container 丢失时可以按相同 spec 重建。同名但
+spec 不同必须报告冲突并要求先 stop/remove，不能自动替换。stop 使用 30 秒优雅期限
+并保留容器；remove 只接受 STOPPED 或 FAILED 的完整 owned tuple。cleanup 默认
+dry-run，只列出当前 owner 的 Lab 容器、记录和 cache；执行清理必须显式确认，且不能
+触及 Managed、Python 或未知资源。
+
 ## 路径契约
 
 Docker bind source 由宿主机 Docker daemon 解释，而不是由 Worker 容器解释。因此，R1 要求配置的模型根目录在宿主机和 Worker 容器中使用相同路径，例如：

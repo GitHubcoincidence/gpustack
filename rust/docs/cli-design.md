@@ -95,6 +95,37 @@ Lab 对 `local_path` 直接执行允许根目录校验、symlink canonicalizatio
 
 Lab cleanup 只处理标签匹配的资源，默认使用 `--dry-run`。R1 不提供强制抢占 GPU 或删除未知容器的参数。
 
+### M5 Lab 命令精确语义
+
+`worker lab deploy` 接收部署名称、本地模型目录、固定 digest 的 Runner image、一张
+GPU、可选端口和受支持的结构化 vLLM 参数。省略端口时只从 `42000-42063` 分配；Lab
+服务只绑定 `127.0.0.1`。命令必须依次完成路径、镜像、GPU、端口和所有权预检，原子
+保存本地期望状态，创建并启动容器，并等待 `/v1/models` 返回期望模型后才报告
+`RUNNING`。启动失败保留 owned container 和脱敏诊断，不自动删除现场。
+
+同名且 normalized spec 相同的 deploy 是幂等操作；运行中的 workload 返回当前状态，
+已停止的 workload 可以重新启动，丢失的 container 可以按同一 spec 重建。同名但
+spec 不同返回冲突，要求用户先 stop/remove，不提供隐式替换。
+
+`worker lab list` 枚举当前本地 owner 的记录，并与带完整所有权标签的 Docker 实际
+状态合并；默认不采用未知容器。`worker lab status` 每次重新 inspect container 并
+执行 vLLM 健康检查，稳定输出至少包含 mode、Lab ID、名称、Lab 状态、container
+状态与 ID、spec hash、image digest、GPU UUID、endpoint 和最近错误。
+
+`worker lab logs` 直接读取 owned container 的 stdout/stderr，并支持 `--tail`、
+`--since` 和 `--follow`。`worker lab infer` 只调用该部署记录的 loopback OpenAI-
+compatible endpoint，支持 chat 和 completion 请求；它不读取 context 的 Server
+endpoint，也不自动回退到 Managed inference。
+
+`worker lab stop` 在重新验证完整所有权 tuple 后执行 30 秒 graceful stop，保留
+container、记录和日志。`worker lab remove` 只删除 STOPPED 或 FAILED 的 owned
+container 及对应本地记录和 deployment cache；RUNNING 必须先 stop。交互式删除要求
+确认，自动化使用 `--yes`。
+
+`worker lab cleanup` 默认只输出 dry-run 清单。执行模式要求显式确认，并且只处理
+当前 owner 的 Lab 资源；标签缺失、spec hash 冲突、Managed、Python 或未知 scope
+全部拒绝修改。所有 Lab JSON 输出明确包含 `mode=lab`，诊断信息写 stderr。
+
 ## 认证
 
 - `worker run` 使用注册凭据以及注册后获得的 Worker 系统凭据。
