@@ -197,6 +197,6 @@ M4 设计和 M4-A～M4-D 门禁已经冻结。M4-A 契约/fixture/依赖审计�
 
 M4-C 已使用来自干净 `c76fa3903b3b` 的 CLI 真实读取 NVML，并与 `nvidia-smi` 对两张 A100 的 index、UUID、名称、显存和驱动逐项一致，经用户审阅后标记为 `accepted`。该 smoke 没有启动 Worker、连接 Server 或绑定端口，不能替代 M4-D。
 
-M4-D.0 只读预检已在 `fb6412611c5e` 上通过：Server 与 Python Worker 健康，保留的 Worker ID 2 唯一且处于 maintenance，目标 Worker 没有 ModelInstance 或 ModelFile，两张 A100 空闲，Rust 进程和 `20150/20151` 监听均不存在，模型根目录与网络身份符合冻结配置。预检只使用 per-Worker token 发起认证 GET，未输出 token、写入 Server 或改变服务。现有 M4-C 二进制内嵌 `c76fa3903b3b`；正式 M4-D 必须从执行前最终干净 HEAD 重新构建并记录新 binary identity，不得直接复用旧二进制。
+M4-D.0 只读预检已在 `fb6412611c5e` 上通过：Server 与 Python Worker 健康，保留的 Worker ID 2 唯一且处于 maintenance，目标 Worker 没有 ModelInstance 或 ModelFile，两张 A100 空闲，Rust 进程和 `20150/20151` 监听均不存在，模型根目录与网络身份符合冻结配置。预检只使用 per-Worker token 发起认证 GET，未输出 token、写入 Server 或改变服务。
 
-当前只允许继续讨论并冻结 M4-D 的精确维护与回滚步骤；停止 Python Worker 和启动 resource-api-only 仍须另获明确执行授权。Docker workload、vLLM 和任何模型执行仍不属于 M4。
+M4-D 尝试 1 在 `a80922abd0ed` 上真实发现 Worker HTTP `/version` 未获得 build identity，状态保持 `failed`；退出 trap 已恢复 Python Worker。修复 commit `a3283b665a63` 为 Worker crate 增加独立 build script 和回归测试。尝试 2 使用来自该干净 commit 的二进制完成 231 秒正式运行：Server 持续看到同一 maintenance Worker ID 2、两张 A100 和 `metrics_port=20151`，完整 Worker API/认证/文件/日志/配置/metrics 门禁通过，三次 heartbeat 前进，ModelInstance 与 ModelFile 保持为 0，容器身份无变化，GPU 无计算负载；Rust 优雅停止后 Python Worker 恢复并通过独立复核。结果当前为 `ready_for_review`，须在聊天中完成详细报告和用户验收后才能标记为 `accepted`。Docker workload、vLLM 和任何模型执行仍不属于 M4。

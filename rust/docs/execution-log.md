@@ -677,11 +677,64 @@
 - 下一项允许执行的工作：提交并推送修复，从新的干净 HEAD 生成新二进制和证据目录；
   再次停止 Python Worker 前确认维护授权仍适用于重试。
 
+### 2026-10-21：M4-D 正式集成重试通过并待审阅
+
+- 结果：状态为 `ready_for_review`。用户单独授权第二次维护后，修复后的
+  resource-api-only 在真实 v2.2.3 Server 上持续运行 231 秒，全部冻结门禁和独立结束
+  复核通过；M4-D 和整个 M4 尚待聊天中的详细报告与用户共同验收，暂不标记
+  `accepted`。
+- 输入身份：源码与 origin 均为
+  `a3283b665a63f7cd46e1f0c5d270cbd42f05be95`，工作树干净；CLI/Worker 二进制
+  SHA-256 为
+  `b8695eab4aecd38e98c1dc99e292a5e688738fd2a067667376361e4c533a7468`，
+  内嵌 commit `a3283b665a63`；`Cargo.lock` SHA-256 为
+  `ad5fabd70e55fcbee197c3a644b8acf530ba943ca385c9344e7e6cfb06cb19c3`。
+- 服务切换：最终预检通过后只停止容器 `gpustack-worker`，Server 始终为 HTTP 200，
+  Python `10150/10151` 停止后才启动 Rust。独立 480 秒 watchdog 与退出 trap 同时
+  生效；正式流程完成后 watchdog 未触发兜底恢复。
+- Worker API：宿主机和 Server 容器到 Rust `/healthz` 均为 200；`/readyz` 按设计为
+  503；修复后的 `/version` 返回 `a3283b665a63` 和固定 Server baseline。无凭据
+  `/token-auth` 为 401，per-Worker token 为 200；模型目录 exists、`config.json` 和
+  权重大小接口均为 200，Qwen-7B 固定权重结果为 `15442677288` bytes；含 `..` 的路径
+  为 400，根目录外路径为 403。日志 options 为 200、缺失 serve log 为 404；只读配置
+  为 200 且无 secret/Docker socket，PUT 为 405。
+- 资源与 metrics：Server 三次快照均保持 Worker ID 2、name/UUID 不变、maintenance
+  true、`metrics_port=20151`、两张 A100 的固定 UUID、名称、`85899345920` bytes 显存、
+  compute capability 8.0 和 6912 cores。heartbeat 依次为
+  `13:00:47Z`、`13:01:48Z`、`13:03:48Z`。最终 metrics 同时证明 mode、ready=0、
+  Server connected、heartbeat/status success 和三资源 watch connected。
+- 隔离与状态：运行前、运行中和恢复后两张 GPU 的显存占用与利用率均为 0，没有
+  compute process；目标 Worker 的 ModelInstance 和 ModelFile 始终为 0；容器 ID/name/
+  image 的前中后 diff 均为空，没有创建 Docker/vLLM workload。Rust SIGINT 摘要报告
+  heartbeat、status、full sync、watch 均成功，重连次数为 0。
+- 恢复：Rust 优雅停止后 `gpustack-rs` 进程为 0，`20150/20151` 无监听；原
+  `gpustack-worker` 以相同 container ID、image 和 `unless-stopped` policy 恢复运行。
+  Server、Python Worker health 和 Python metrics 均为 200；恢复后两张 GPU 仍为空闲。
+- 证据安全：证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m4d-formal-a3283b66-retry-1`
+  为 `0700`，全部文件为 `0600`，完整 manifest 校验通过；真实 per-Worker token 和
+  Authorization/X-API-Key header 扫描均未命中。
+- 关键证据哈希：`integration-result.txt` 为
+  `6a5356cb01688b4e91cda78d13b6b45ae96cd1616a9c328250e0bac389fbb137`，
+  `run-summary.json` 为
+  `4cf99582bfa9f5a7821a5d818e03e819aad5258cddf4064c40fffc8f6c67766b`，
+  `worker-final.json` 为
+  `9ecbde4bc4cedcb23c8e45f69efc7607fc84669c284a26822f22eed4e279aed0`，
+  `metrics-final.prom` 为
+  `83a5857cd0d476d4dfb56bd4dc1ae1510ea646a882f240ab9799732da6d01371`，
+  `final-isolation.txt` 为
+  `aab26c52c0cc7f9ff1051ec0b33134d60935b61b266b26f45d477354ca341a69`。
+- 当前停止位置：Python Server/Worker 已恢复，Rust Worker 已停止，`20150/20151`
+  空闲；M4-D 等待详细报告和用户审阅。
+- 下一项允许执行的工作：直接交付 M4-D 详细实现与验证报告。用户接受后记录
+  M4-D/M4 `accepted`，再讨论下一里程碑；不得把本结果解释为 Docker/vLLM 或模型推理
+  能力已经实现。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
 - Rust Worker API 与 metrics 已分别冻结为 `20150` 和 `20151`；inference 端口仍待 M5/M6 冻结。每次启动前仍须检查端口冲突。
-- 真实 drain、停止 Python Worker 与回滚流程尚未执行；`docker stop/start gpustack-worker` 只作为已识别的容器级回滚路径，正式演练需维护窗口。
+- M4-D 已真实执行 `gpustack-worker` stop/start、失败 trap、独立 watchdog 和正常恢复；该证据只证明 M4 资源/API 维护切换，不替代后续 Docker/vLLM 工作负载阶段各自的 drain 与回滚门禁。
 - Rust 容器最终 user/group 仍需在 M8 根据 Docker socket、NVML 与持久化目录要求验证；宿主机开发用户已确认具备 `docker` group 权限。
 - 90 主机到 GitHub 的小规模 fetch/push 可用，但大对象传输吞吐过低；bootstrap 和发布 tag 增量 bundle 是当前已验证的补充路径。
 - 90 主机 `127.0.0.1:17897` 与 `[::1]:17897` 曾存在未归因监听，M3-C 完成核验时已无监听；本项目没有停止它。未来复用或处置同端口监听前仍须确认所有者，自动化 SSH 命令继续显式使用 `ClearAllForwardings=yes`，避免自动创建额外转发。
