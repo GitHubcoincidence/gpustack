@@ -26,6 +26,7 @@ tempfile = "3.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+rustix.workspace = true
 
 [lints]
 workspace = true

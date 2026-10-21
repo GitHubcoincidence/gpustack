@@ -730,6 +730,37 @@
   M4-D/M4 `accepted`，再讨论下一里程碑；不得把本结果解释为 Docker/vLLM 或模型推理
   能力已经实现。
 
+### 2026-10-21：M4-D.1 文件系统空间语义修正待审阅
+
+- 触发原因：M4-D 审阅时，Web 节点列表中 Rust Worker 的磁盘为 5%，Python Worker
+  为 56%。UI 代码固定查找 `mount_point == "/"` 并显示 `used / total` 的四舍五入
+  百分比。M4-D 保存的 Rust 根挂载快照为 `4.891248%`，Python Worker 当前根挂载
+  metrics 为 `55.7049%`，两者与页面精确对应。
+- 解释边界：Rust 作为宿主机进程时，`/` 是 15 TB 的系统逻辑卷；Python Worker
+  容器中的 `/` 是位于 `/dev/sda1` 上的 Docker overlay。该差异来自第一阶段冻结的
+  部署方式和 Linux mount namespace，不把宿主机 `/var` 或数据盘伪装成 `/`。未来
+  Rust Worker 容器化后再按相同容器挂载验证展示一致性。
+- 发现的兼容缺陷：Rust 原实现把 sysinfo 的 `available_space` 同时填入 `free` 和
+  `available`，并用 `total - available` 计算 `used`；这会把 ext4 为特权用户保留的
+  空间计为已用，与 Python/Fastfetch 的 `free`、`available` 和 `used` 语义不一致。
+  因此旧 M4-D 文件系统数值不能作为字段兼容性通过证据。
+- 修正：Unix 平台通过安全的 `rustix::fs::statvfs` 分别读取 `f_bfree` 和
+  `f_bavail`，按 `used = total - free` 生成四个容量字段；零 block size 或无法查询的
+  异常挂载点保留 sysinfo 回退，避免单个失效 overlay 路径阻断整次资源采集。`rustix`
+  已存在于冻结锁文件中，本次仅将同一版本提升为 Worker 的直接 `fs` 依赖，没有升级
+  或下载依赖。
+- 回归验证：新增预留块语义和失败回退两项测试；`gpustack-worker` 47 项、全 workspace
+  65 项测试全部通过，fmt、全 workspace/all targets/all features Clippy
+  `-D warnings`、locked/offline build 和 diff check 均通过。
+- 隔离：本次只修改、编译和测试 90 主工作树，没有启动 Rust Worker、停止容器、调用
+  Server 写接口或使用 GPU。现有 Python Server/Worker 不属于本次变更对象。
+- 结果：M4-D.1 状态为 `ready_for_review`。原 M4-D 的身份、API、GPU、控制面、隔离和
+  恢复证据继续有效，但文件系统字段门禁被本次发现阻止；在新二进制完成一次在线资源
+  快照复核前，M4-D 和整个 M4 都不得标记 `accepted`。
+- 当前停止位置：实现和离线验证完成，等待详细报告与用户审阅；Rust Worker 保持停止。
+- 下一项允许执行的工作：提交并推送该修正。用户接受离线实现后，单独讨论最小维护
+  复核；再次停止 `gpustack-worker` 或启动 Rust Worker 仍须新的明确维护授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。

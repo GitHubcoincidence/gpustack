@@ -81,6 +81,14 @@ pub struct SysinfoProbe {
     system: System,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FilesystemSpace {
+    total: u64,
+    used: u64,
+    free: u64,
+    available: u64,
+}
+
 impl SysinfoProbe {
     pub fn new() -> Self {
         let mut system = System::new_all();
@@ -111,16 +119,19 @@ impl SystemProbe for SysinfoProbe {
             .list()
             .iter()
             .map(|disk| {
-                let total = disk.total_space();
-                let available = disk.available_space();
+                let space = filesystem_space(
+                    disk.mount_point(),
+                    disk.total_space(),
+                    disk.available_space(),
+                );
                 MountPointInfo {
                     name: disk.name().to_string_lossy().into_owned(),
                     mount_point: disk.mount_point().to_string_lossy().into_owned(),
                     mount_from: disk.name().to_string_lossy().into_owned(),
-                    total,
-                    used: total.saturating_sub(available),
-                    free: available,
-                    available,
+                    total: space.total,
+                    used: space.used,
+                    free: space.free,
+                    available: space.available,
                 }
             })
             .collect();
@@ -161,6 +172,61 @@ impl SystemProbe for SysinfoProbe {
                 uptime: uptime as f64,
             },
         })
+    }
+}
+
+#[cfg(unix)]
+fn filesystem_space(mount_point: &Path, total: u64, available: u64) -> FilesystemSpace {
+    rustix::fs::statvfs(mount_point)
+        .ok()
+        .and_then(|stats| {
+            let block_size = if stats.f_frsize == 0 {
+                stats.f_bsize
+            } else {
+                stats.f_frsize
+            };
+            (block_size != 0).then(|| {
+                filesystem_space_from_blocks(
+                    stats.f_blocks,
+                    stats.f_bfree,
+                    stats.f_bavail,
+                    block_size,
+                )
+            })
+        })
+        .unwrap_or_else(|| filesystem_space_fallback(total, available))
+}
+
+#[cfg(not(unix))]
+fn filesystem_space(_mount_point: &Path, total: u64, available: u64) -> FilesystemSpace {
+    filesystem_space_fallback(total, available)
+}
+
+fn filesystem_space_from_blocks(
+    blocks: u64,
+    blocks_free: u64,
+    blocks_available: u64,
+    block_size: u64,
+) -> FilesystemSpace {
+    // Fastfetch distinguishes all free blocks from blocks available to an
+    // unprivileged process, and derives used space from the former.
+    let total = blocks.saturating_mul(block_size);
+    let free = blocks_free.saturating_mul(block_size);
+    let available = blocks_available.saturating_mul(block_size);
+    FilesystemSpace {
+        total,
+        used: total.saturating_sub(free),
+        free,
+        available,
+    }
+}
+
+fn filesystem_space_fallback(total: u64, available: u64) -> FilesystemSpace {
+    FilesystemSpace {
+        total,
+        used: total.saturating_sub(available),
+        free: available,
+        available,
     }
 }
 
@@ -419,5 +485,25 @@ mod tests {
         assert_eq!(unix_seconds_to_rfc3339(0), "1970-01-01T00:00:00Z");
         assert_eq!(format_cuda_version(13_000), "13.0");
         assert_eq!(infer_nvidia_arch("NVIDIA A100 80GB PCIe"), Some("Ampere"));
+    }
+
+    #[test]
+    fn filesystem_space_distinguishes_free_from_available() {
+        let space = filesystem_space_from_blocks(100, 40, 25, 4096);
+
+        assert_eq!(space.total, 409_600);
+        assert_eq!(space.used, 245_760);
+        assert_eq!(space.free, 163_840);
+        assert_eq!(space.available, 102_400);
+    }
+
+    #[test]
+    fn filesystem_space_fallback_preserves_sysinfo_semantics() {
+        let space = filesystem_space_fallback(100, 25);
+
+        assert_eq!(space.total, 100);
+        assert_eq!(space.used, 75);
+        assert_eq!(space.free, 25);
+        assert_eq!(space.available, 25);
     }
 }

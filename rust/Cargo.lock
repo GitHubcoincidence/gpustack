@@ -565,6 +565,7 @@ dependencies = [
  "libc",
  "nvml-wrapper",
  "prometheus-client",
+ "rustix",
  "serde",
  "serde-saphyr",
  "serde_json",
