@@ -1,4 +1,14 @@
-# M5-E ChatML fixture
+# M5-E 固定输入 fixture
+
+`qwen2.5-0.5b-instruct-7ae557604adf.sha256` 固定
+`Qwen/Qwen2.5-0.5B-Instruct` revision
+`7ae557604adf67be50417f59c2c2f167def9a775` 的 10 个顶层文件。清单覆盖
+999,604,126 bytes；下载端和 90 主机最终模型目录都必须逐项通过 `sha256sum --check`。
+清单文件自身的 SHA-256 为
+`645a03c556c40adb3d2d8e48e76c3aedd8875bcf84ee78b0778b9cdd24a0d4f6`。
+
+以下旧 Qwen-7B ChatML fixture 作为前一次固定输入和失败证据继续保留，不用于新的
+Qwen2.5 smoke。
 
 `qwen-7b-chatml.jinja` 固定 90 主机 Qwen-7B 的原生 ChatML 语义，用于 M5-E
 单 GPU Lab smoke。模型自身的 `qwen_generation_utils.py::make_context` 会始终先生成

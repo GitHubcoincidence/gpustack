@@ -36,9 +36,8 @@
   默认拒绝执行的 M5-D example probe。
 - 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；失败
   Lab 的 container、manifest、cache、42000 listener、Rust process、watchdog 和 GPU0
-  compute process 均为 0，Server 资源前后保持 Models 6、ModelInstances 0、ModelFiles 6。
-- 下一项允许执行的工作：按 D084 固定 revision 在本机 VPN 链路下载
-  `Qwen2.5-0.5B-Instruct`，生成完整 SHA-256 manifest，再经局域网传到 90 并逐文件复核。新的 GPU
+  compute process 均为 0；D084 模型已安装到 90 的固定最终路径且完整性验证通过。
+- 下一项允许执行的工作：为新模型完成 M5-E.1 只读即时预检并冻结新的正式 run identity；新的 GPU
   运行必须在无 GPU 回归和模型完整性门禁通过并重新获得维护授权后才能执行；不得自动
   第三次重试。
 
@@ -1593,7 +1592,7 @@
 ### 2026-10-22：D085 cache ownership 与回滚重入修复通过
 
 - 目的：消除正式 M5-E.1 重试暴露的 root-owned cache 和“容器已删、manifest 尚存”时
-  rollback 不能重入的两个缺陷，且在再次申请 GPU 维护窗口前完成无 GPU证明。
+  rollback 不能重入的两个缺陷，且在再次申请 GPU 维护窗口前完成无 GPU 证明。
 - 实现：共享契约升级到 `WorkloadSpecV2`/schema `2`。LabEnvironment 用安全的 Rustix API
   读取 Worker 有效 UID:GID，workload 把它写入规范化 spec、spec hash 与 Docker create
   body 的 `user`；同时强制 `USER=gpustack`、`LOGNAME=gpustack`、deployment cache 下的
@@ -1607,14 +1606,35 @@
   检查点为 `cadbc826a40e8dd8766f9d1f797ed4741e621170`；release binary SHA-256 为
   `108f10af170bc268feadc293a2409c5867525b8c5b49d9908d52b5865df4e309`，`Cargo.lock`
   SHA-256 保持 `9093caad63df8eab5b0a59801e3f92dc0f4f145e1bc066bf9854a3647d049a56`。
-- 真实无 GPU探针：固定 Runner digest 以 `1004:1004`、network none、无 GPU、无端口、
+- 真实无 GPU 探针：固定 Runner digest 以 `1004:1004`、network none、无 GPU、无端口、
   无模型 mount 启动；vLLM 0.25.1 导入成功，`USER=gpustack` 和 cache 下 HOME 生效，所有
   新建条目 `foreign_owner_entries=0`。唯一探针容器与临时目录已删除。
 - 隔离：探针前后未停止 Python Worker、未申请 GPU、未运行 vLLM server 或模型；最终
   Server、Python Worker health/metrics 均为 200，远程 Git 工作树干净且无探针容器残留。
-- 当前停止位置：D085 无 GPU修复已通过；Qwen2.5 模型尚未下载，M5-E 仍未通过。
+- 当前停止位置：D085 无 GPU 修复已通过；Qwen2.5 模型尚未下载，M5-E 仍未通过。
 - 下一项允许执行的工作：按 D084 在本机下载固定 revision，生成完整 manifest，经局域网
   传输到 90 并复核；任何 GPU workload 或 Python Worker 维护仍须新的明确授权。
+
+### 2026-10-22：Qwen2.5-0.5B-Instruct 固定 revision 已安装并验证
+
+- 下载：本机直连 Hugging Face 在 TLS 阶段被重置，改用已知本机 VPN HTTP proxy
+  `127.0.0.1:7897` 后完成固定 revision 下载；下载器支持断点续传，未使用 90 主机低速
+  外网链路。解析出的 commit 与 D084 完全一致。
+- 本机门禁：模型目录只含 10 个预期普通文件、总计 999,604,126 bytes；完整 SHA-256
+  清单保存为 `rust/fixtures/m5e/qwen2.5-0.5b-instruct-7ae557604adf.sha256`。权重 hash 为
+  `fdf756fa7fcbe7404d5c60e26bff1a0c8b8aa1f72ced49e7dd0210fe288fb7fe`，与冻结的上游
+  LFS identity 一致；配置声明 `Qwen2ForCausalLM`，tokenizer chat template 非空。
+- 传输与安装：经 `10.213.80.90` 局域网 SSH 以约 85 MiB/s 传入唯一 staging 目录，
+  manifest 独立传输。90 主机复核文件数 10、子目录数 0、总字节数、manifest 自身 hash
+  `645a03c556c40adb3d2d8e48e76c3aedd8875bcf84ee78b0778b9cdd24a0d4f6` 和全部 10 项
+  SHA-256 后，才原子重命名为
+  `/home/wujiaxing2/flowscale-system-validation/models/Qwen2.5-0.5B-Instruct`。
+- 权限与隔离：最终目录为 `0700`、模型文件为 `0600`，与将运行容器的 `1004:1004`
+  身份一致。下载、传输和安装期间未停止 Python Worker、未创建 Lab 容器、未申请 GPU；
+  完成后 Server、Python Worker health/metrics 均为 200。
+- 当前停止位置：固定模型已就绪，M5-E 仍未通过，也没有新的 GPU 运行结论。
+- 下一项允许执行的工作：执行不改变服务或 GPU 的新模型 M5-E.1 只读预检并准备正式
+  runbook；停止 Python Worker、创建 vLLM container 和申请 GPU0 仍须新的明确授权。
 
 ## 未解决风险与待确认事项
 
