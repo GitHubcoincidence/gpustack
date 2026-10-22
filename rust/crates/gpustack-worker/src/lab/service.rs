@@ -756,11 +756,7 @@ impl LabEnvironment {
 fn current_container_user() -> Result<String, LabError> {
     use rustix::process::{getegid, geteuid};
 
-    Ok(format!(
-        "{}:{}",
-        geteuid().as_raw(),
-        getegid().as_raw()
-    ))
+    Ok(format!("{}:{}", geteuid().as_raw(), getegid().as_raw()))
 }
 
 #[cfg(not(unix))]

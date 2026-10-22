@@ -876,7 +876,10 @@ mod tests {
             .find(|mount| mount.source == Path::new("/models/Qwen-7B"))
             .expect("model mount");
         assert!(model_mount.read_only);
-        assert_eq!(container.environment.get("USER").map(String::as_str), Some("gpustack"));
+        assert_eq!(
+            container.environment.get("USER").map(String::as_str),
+            Some("gpustack")
+        );
         assert_eq!(
             container.environment.get("LOGNAME").map(String::as_str),
             Some("gpustack")
