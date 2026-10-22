@@ -20,8 +20,8 @@
 ## 当前状态
 
 - 状态：`ready`
-- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受。M5-D.2 的首次阻断、
-  命令校正和非评分断言均按原始证据保留。
+- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0/M5-E.1 方案已
+  冻结，M5-E.0 只读就绪检查已授权但尚未执行。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -34,9 +34,9 @@
 - 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；M5-D.2 创建的唯一
   无 GPU 诊断容器已通过 Rust runtime 正常停止并删除，没有容器、进程、端口或 GPU0
   残留。没有运行 vLLM、模型或推理。
-- 下一项允许执行的工作：讨论并冻结 M5-E 单 GPU Lab smoke 的精确操作方案；不得自动
-  执行。停止 Python Worker、创建 vLLM 容器、挂载模型或申请 GPU0 仍需新的明确维护
-  窗口授权。
+- 下一项允许执行的工作：执行 M5-E.0 只读就绪检查并在完成后停在
+  `ready_for_review`。停止 Python Worker、创建 vLLM 容器、挂载模型、申请 GPU0 或
+  运行推理仍需新的明确 M5-E.1 维护窗口授权。
 
 ## 里程碑
 
@@ -1339,6 +1339,26 @@
 - 下一项允许执行的工作：只讨论并冻结 M5-E 的模型 identity、Runner/vLLM 参数、GPU0
   与端口门禁、Lab 命令序列、证据、失败清理和 Python Worker 回滚方案。实际停止服务、
   创建模型容器、挂载模型或申请 GPU0 前必须另获明确维护窗口授权。
+
+### 2026-10-22：M5-E 单 GPU Lab smoke 设计冻结与 M5-E.0 授权
+
+- 结果：用户接受 D078–D081。M5-E 分为不改变 workload 的 M5-E.0 只读就绪检查和需
+  另行维护授权的 M5-E.1 正式 smoke；当前只授权执行 M5-E.0。
+- 固定输入：Qwen-7B 路径、固定 Runner digest、GPU0 完整 UUID、loopback 端口 42000、
+  served name `qwen-7b-m5e`、tensor parallel 1、2048 context、0.5 GPU memory、dtype
+  auto、trust remote code 和 eager execution。禁止 pull、GPU1、privileged、force remove
+  和正式 run 中临时换输入。
+- 正式验收序列：M5-E.1 将覆盖 deploy/list/status/logs、`/v1/models` readiness、同 spec
+  幂等、异 spec 冲突、completion/chat、stop/remove 与 cleanup，并证明 Server 没有新增
+  Lab 资源、Python Worker 恢复和最终零残留。
+- 失败策略：只处置可重新证明完整 ownership tuple 的资源；ownership 或 GPU0 残留不可
+  归因时失败关闭，不让 Python Worker 与未知 GPU workload 并行，保留 Server 并请求人工
+  决策。正常路径使用独立 watchdog 提供有界回滚。
+- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；尚未创建 M5-E 配置、
+  证据、容器或 GPU workload。
+- 下一项允许执行的工作：执行 M5-E.0，只读复核 source/binary/model/Runner/Server/
+  service/GPU/port/residue identity，并建立 Git 外 0700/0600 配置与证据。M5-E.1 仍未
+  授权。
 
 ## 未解决风险与待确认事项
 

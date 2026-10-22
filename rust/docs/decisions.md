@@ -206,3 +206,17 @@ stop/restart/remove、`docker exec`、服务变更、模型加载或推理；M5-
 首次 M5-D.1 因 GPU1 上已识别的外部 vLLM 任务在原“全卡空闲”门禁停止后，用户接受
 D077，明确把未来目标固定为 GPU0，并允许 GPU1 外部任务保持运行时重试 M5-D.1。
 该修订不授权当前无 GPU阶段使用 GPU，也不授权 M5-D.2 或 M5-E。
+
+## 2026-10-22 M5-E 单 GPU Lab smoke 设计冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D078 | M5-E 分段门禁 | M5-E.0 在 Python Worker 运行时只读验证源码/二进制、模型 identity、固定 Runner、Server 资源、服务、GPU0、GPU1 外部 principal、端口和历史残留；M5-E.1 另获明确维护授权后才停止 Python Worker、创建 vLLM container、挂载模型和申请 GPU0 | 把会改变服务和 GPU 状态的正式 smoke 与可提前发现阻断条件的只读检查分离，避免在维护窗口内临时修订输入。 |
+| D079 | 固定 smoke 输入 | 使用 `/home/wujiaxing2/flowscale-system-validation/models/Qwen-7B`、固定 Runner digest、GPU0 完整 UUID、`127.0.0.1:42000`、served name `qwen-7b-m5e`、tensor parallel 1、maximum model length 2048、GPU memory utilization 0.5、dtype auto、trust remote code 和 eager execution；模型只读、独立 cache 可写，禁止 pull、GPU1、privileged 和 force remove | 固定最小单卡配置和可复现实验 identity，降低显存、图编译与网络变量，同时仍验证真实 Qwen-7B/vLLM 路径。 |
+| D080 | 正式 CLI 与验收序列 | M5-E.1 依次验证 deploy/list/status/logs、`/v1/models` readiness、同 spec 幂等、异 spec 冲突、completion 与 chat 非空响应、stop/remove、cleanup dry-run/execute；前后 Server Model/ModelInstance/ModelFile 不增加，最终恢复 Python Worker 且无 Rust container、端口、cache、进程或 GPU0 残留 | 让 smoke 覆盖用户可观察的完整 Lab CLI，而不把单次容器启动误当成 M5 完成。 |
+| D081 | 失败关闭与回滚 | 正常和失败清理都只操作可重新证明完整 ownership tuple 的资源，不在同一正式 run 中换镜像、模型、GPU、放宽权限或使用强制删除。独立 watchdog 负责有界回滚；若所有权无法证明或 GPU0 残留不可归因，则停止自动处置且不让 Python Worker 与未知 GPU workload 并行，保留 Server 并请求人工决策 | 在优先恢复现有 Worker 的同时，避免为了自动回滚而删除未知资源或制造 GPU 争用。 |
+
+用户接受 D078–D081 并授权执行 M5-E.0。该授权允许只读连接现有 Server、Docker 与
+NVML，并允许在 Git 外建立受保护的配置和证据目录；不授权停止或重启 Python Worker、
+创建/启动/停止/删除 container、挂载模型、申请 GPU、运行 vLLM 或推理。M5-E.1 必须在
+M5-E.0 通过并交付审阅后获得新的明确维护窗口授权。

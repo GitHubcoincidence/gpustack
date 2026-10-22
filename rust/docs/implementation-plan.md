@@ -129,11 +129,15 @@ M5 分成五个独立门禁：
    的有界诊断容器，验证 owned label create/inspect/log/stop/remove、错误 owner 和现有
    Python 容器拒绝、服务前中后不变以及最终零残留。任何预检失败均停止，不 pull 镜像，
    不运行 vLLM 或模型，不使用名称或 force 作为正常清理依据。
-5. **M5-E 单 GPU Lab smoke**：另获维护窗口授权后，只停止 `gpustack-worker`，确认
-   Server 继续健康、无现有 ModelInstance/GPU workload 且目标 GPU 空闲；使用固定
-   Runner digest、本地 Qwen-7B、单 GPU 和 loopback endpoint 完成 deploy、list、
-   status、logs、infer、stop、remove、cleanup。无论成功失败都只清理完整 owned tuple，
-   恢复原 Python Worker 并独立验证服务、端口、容器和 GPU 无残留。
+5. **M5-E 单 GPU Lab smoke**：M5-E.0 先在 Python Worker 保持运行时只读验证固定
+   source/binary、Qwen-7B identity、缓存 Runner、Server 资源、服务、GPU0、GPU1 外部
+   principal、`127.0.0.1:42000` 和历史残留，并建立 Git 外受保护的运行配置与证据目录。
+   M5-E.1 另获维护窗口授权后，只停止 `gpustack-worker`；使用固定 Runner digest、本地
+   Qwen-7B、GPU0 完整 UUID、tensor parallel 1、2048 context、0.5 GPU memory、dtype
+   auto、trust remote code 和 eager execution 完成 deploy/list/status/logs、readiness、
+   同 spec 幂等、异 spec 冲突、completion/chat、stop/remove 与 cleanup。无论成功失败
+   都只清理完整 owned tuple，恢复原 Python Worker 并独立验证 Server 资源、服务、端口、
+   容器、cache 和 GPU 无残留；所有权或 GPU0 残留不可归因时失败关闭并请求人工处置。
 
 M5-B 和 M5-C 的每个实现阶段都必须分别交付详细实现报告并由用户接受，不能因为最终
 计划做真实 smoke 就降低离线测试。准确 Docker client 依赖只有在固定 Rust 1.99.1、
@@ -280,3 +284,8 @@ M5-D.2 和整个 M5-D；接受记录检查点为
 request，也不证明 vLLM、模型、GPU 推理或 Managed 兼容。下一步只允许讨论并冻结
 M5-E；实际 smoke 仍须另获维护窗口授权，只允许精确分配 GPU0，且仍须停止 Python
 Worker。
+
+M5-E 的 D078–D081 已获用户接受。M5-E.0 已授权，只允许在 Python Worker 保持运行时
+执行只读 Server/Docker/NVML/文件/端口检查，并在 Git 外创建受保护的配置和证据目录；
+不得创建或改变 container、服务、GPU workload、模型 mount 或 Server 资源。M5-E.1
+的维护窗口仍未授权，必须在 M5-E.0 结果完成详细报告和用户审阅后另行批准。
