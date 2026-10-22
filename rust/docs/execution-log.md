@@ -37,9 +37,9 @@
 - 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；失败
   Lab 的 container、manifest、cache、42000 listener、Rust process、watchdog 和 GPU0
   compute process 均为 0；D084 模型已安装到 90 的固定最终路径且完整性验证通过。
-- 下一项允许执行的工作：为新模型完成 M5-E.1 只读即时预检并冻结新的正式 run identity；新的 GPU
-  运行必须在无 GPU 回归和模型完整性门禁通过并重新获得维护授权后才能执行；不得自动
-  第三次重试。
+- 下一项允许执行的工作：新模型的 M5-E.1 只读即时预检与正式 run identity 已冻结并通过；
+  只有重新获得明确维护授权后，才能停止 Python Worker、创建唯一 Lab container 并向
+  GPU0 发出精确 UUID request。不得自动执行。
 
 ## 里程碑
 
@@ -1635,6 +1635,40 @@
 - 当前停止位置：固定模型已就绪，M5-E 仍未通过，也没有新的 GPU 运行结论。
 - 下一项允许执行的工作：执行不改变服务或 GPU 的新模型 M5-E.1 只读预检并准备正式
   runbook；停止 Python Worker、创建 vLLM container 和申请 GPU0 仍须新的明确授权。
+
+### 2026-10-22：Qwen2.5 M5-E.1 只读即时预检通过
+
+- 源码与二进制：本地、origin 和 90 均为干净 HEAD
+  `56c632472116e50c064ba9c89627a0b3a5dfb60a`；从该 HEAD 强制重建 release binary，内嵌
+  commit `56c632472116`，SHA-256 为
+  `bfa6ab9b21e99d50144c4b1f13579b5d389dd89c71e27e7ed76eebf8c8a90312`。
+  `Cargo.lock` SHA-256 仍为
+  `9093caad63df8eab5b0a59801e3f92dc0f4f145e1bc066bf9854a3647d049a56`。
+- 配置与 runtime：`worker validate-config` 返回 `valid=true`，`worker doctor` 返回
+  `healthy=true`；唯一 warning 是 log dir 尚未创建，Worker 启动时会创建。Docker 为
+  29.1.3、API 1.52，固定 Runner digest 解析为同一 image ID、Linux amd64、entrypoint
+  `tini --`。最终模型目录再次逐项通过仓库 fixture 的 10 项 SHA-256。
+- 隔离与端口：Server、Python Worker health/metrics 均为 200；Python Worker 原容器
+  `68cd9a516eb2` 正常运行。Rust container、Rust process、Lab deployment 和 Lab cache
+  均为 0。`127.0.0.1:42000` 无 listener，短生命周期真实 bind 成功。
+- GPU：Rust `worker gpu list` 和 `nvidia-smi` 均识别 GPU0
+  `GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3` 与 GPU1
+  `GPU-b1f89e65-e9c4-26f5-a306-8a520df07708` 为 A100 80GB；两卡当前 used memory 和
+  utilization 均为 0，compute process 列表为空。正式 run 仍只允许请求 GPU0 完整 UUID。
+- Server 基线：Models 8、ModelInstances 0、ModelFiles 6、Workers 2；Python Worker
+  `r760xa=ready`，Rust Worker `rust-m3d-r760xa=maintenance`。后续验收必须以前后相同基线
+  为准，不能沿用早期 Models 6 的历史快照。
+- 固定 deploy：Lab name `m5e-qwen25-05b-gpu0`，served name
+  `qwen2.5-0.5b-m5e`，模型为已验证最终路径；Runner、GPU0、42000、TP=1、max model
+  length 2048、GPU memory utilization 0.5、dtype auto、eager 均按 D084。不传
+  `--trust-remote-code`，不传 D082 ChatML，也不传任何 `--vllm-extra-arg`。
+- 维护与验收序列：继续采用 D081/D083 的独立 watchdog、停止前与 drain 后真实 bind、
+  第二次 bind 后立即 deploy，以及完整 ownership rollback。成功路径依次验证
+  deploy/list/status/logs、`/v1/models`、同 spec 幂等、异 spec 冲突、completion、chat、
+  stop/remove、cleanup dry-run/execute，最后恢复原 Python Worker 并复核 Server 基线与
+  container/process/port/cache/GPU0 零残留。
+- 当前停止位置：只读门禁通过，但没有停止服务、创建 container、挂载模型、申请 GPU 或
+  运行推理。新的正式 run 必须获得用户对本次 Qwen2.5 维护窗口的明确授权。
 
 ## 未解决风险与待确认事项
 
