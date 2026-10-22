@@ -389,21 +389,7 @@ impl WorkloadSpecV1 {
         &self,
         actual: &BTreeMap<String, String>,
     ) -> Result<(), OwnershipError> {
-        for (label, expected) in &self.labels {
-            let Some(actual) = actual.get(label) else {
-                return Err(OwnershipError::Missing {
-                    label: label.clone(),
-                });
-            };
-            if actual != expected {
-                return Err(OwnershipError::Mismatch {
-                    label: label.clone(),
-                    expected: expected.clone(),
-                    actual: actual.clone(),
-                });
-            }
-        }
-        Ok(())
+        verify_ownership_labels(&self.labels, actual)
     }
 
     /// The hash input omits its own value so identity remains stable after the label is attached.
@@ -437,6 +423,28 @@ impl WorkloadSpecV1 {
         let encoded = serde_json::to_vec(&input)?;
         Ok(hex_lower(&Sha256::digest(encoded)))
     }
+}
+
+/// Mutating callers provide the complete expected tuple instead of selecting trusted labels.
+pub fn verify_ownership_labels(
+    expected: &BTreeMap<String, String>,
+    actual: &BTreeMap<String, String>,
+) -> Result<(), OwnershipError> {
+    for (label, expected_value) in expected {
+        let Some(actual_value) = actual.get(label) else {
+            return Err(OwnershipError::Missing {
+                label: label.clone(),
+            });
+        };
+        if actual_value != expected_value {
+            return Err(OwnershipError::Mismatch {
+                label: label.clone(),
+                expected: expected_value.clone(),
+                actual: actual_value.clone(),
+            });
+        }
+    }
+    Ok(())
 }
 
 #[derive(Serialize)]

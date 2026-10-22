@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use gpustack_runtime::docker::{ContainerRuntime, DockerDaemonInfo, DockerRuntime, RuntimeError};
 use gpustack_worker::lab::{
     LabCleanupPlan, LabDeployRequest, LabEnvironment, LabError, LabInferRequest, LabInferenceKind,
     LabInferenceResponse, LabLogLine, LabState, LabStatus,
@@ -113,8 +114,20 @@ pub enum WorkerCommand {
     Doctor,
     Gpu(WorkerGpuCommand),
     Lab(WorkerLabCommand),
+    Runtime(WorkerRuntimeCommand),
     Run(WorkerRunArgs),
     ValidateConfig,
+}
+
+#[derive(Debug, Args)]
+pub struct WorkerRuntimeCommand {
+    #[command(subcommand)]
+    pub command: WorkerRuntimeSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum WorkerRuntimeSubcommand {
+    Info,
 }
 
 #[derive(Debug, Args)]
@@ -298,6 +311,8 @@ pub enum CliError {
     WorkerRun(#[from] WorkerRunError),
     #[error(transparent)]
     Lab(#[from] LabError),
+    #[error(transparent)]
+    Runtime(#[from] RuntimeError),
     #[error("invalid CLI argument: {0}")]
     InvalidArgument(String),
     #[error("destructive Lab command requires confirmation or --yes")]
@@ -320,7 +335,7 @@ impl CliError {
             Self::WorkerRun(_) => EXIT_CONTROL_PLANE,
             Self::Resource(_) => EXIT_RUNTIME,
             Self::ResourceRun(_) => EXIT_CONTROL_PLANE,
-            Self::Lab(_) => EXIT_RUNTIME,
+            Self::Lab(_) | Self::Runtime(_) => EXIT_RUNTIME,
             Self::Serialization(_) => EXIT_INTERNAL,
         }
     }
@@ -372,6 +387,10 @@ async fn execute_inner(
                     )
                     .await?
                 }
+                WorkerCommand::Runtime(arguments) => {
+                    run_runtime_command(output_format, cli.timeout, &loaded.config, arguments)
+                        .await?
+                }
                 WorkerCommand::Run(arguments) => {
                     if !arguments.control_plane_only && !arguments.resource_api_only {
                         return Err(CliError::ControlPlaneOnlyRequired);
@@ -405,6 +424,24 @@ async fn execute_inner(
         })
     } else {
         Ok(execution)
+    }
+}
+
+async fn run_runtime_command(
+    output_format: OutputFormat,
+    timeout_secs: u64,
+    config: &WorkerConfig,
+    arguments: WorkerRuntimeCommand,
+) -> Result<Execution, CliError> {
+    let runtime = DockerRuntime::connect(
+        &config.docker_socket,
+        Duration::from_secs(timeout_secs.max(1)),
+    )?;
+    match arguments.command {
+        WorkerRuntimeSubcommand::Info => {
+            let info = runtime.daemon_info().await?;
+            render_runtime_info(output_format, &info)
+        }
     }
 }
 
@@ -750,6 +787,35 @@ fn render_gpu_inventory(
     })
 }
 
+fn render_runtime_info(
+    output_format: OutputFormat,
+    info: &DockerDaemonInfo,
+) -> Result<Execution, CliError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(info)?,
+        OutputFormat::Table => format!(
+            concat!(
+                "ping: {}\n",
+                "version: {}\n",
+                "api_version: {}\n",
+                "min_api_version: {}\n",
+                "os: {}\n",
+                "arch: {}\n"
+            ),
+            info.ping,
+            info.version,
+            info.api_version,
+            info.min_api_version.as_deref().unwrap_or("unknown"),
+            info.os.as_deref().unwrap_or("unknown"),
+            info.arch.as_deref().unwrap_or("unknown"),
+        ),
+    };
+    Ok(Execution {
+        output,
+        exit_code: EXIT_SUCCESS,
+    })
+}
+
 #[derive(Serialize)]
 struct VersionInfo<'a> {
     name: &'a str,
@@ -1049,6 +1115,31 @@ mod tests {
             ])
             .is_err()
         );
+    }
+
+    #[test]
+    fn worker_runtime_info_has_stable_offline_rendering() {
+        Cli::try_parse_from(["gpustack-rs", "worker", "runtime", "info"])
+            .expect("parse runtime info");
+        let info = DockerDaemonInfo {
+            ping: "OK".to_string(),
+            version: "29.1.3".to_string(),
+            api_version: "1.52".to_string(),
+            min_api_version: Some("1.24".to_string()),
+            os: Some("linux".to_string()),
+            arch: Some("amd64".to_string()),
+        };
+
+        let execution =
+            render_runtime_info(OutputFormat::Json, &info).expect("render runtime info");
+        let value: serde_json::Value =
+            serde_json::from_str(&execution.output).expect("parse runtime info");
+
+        assert_eq!(value["ping"], "OK");
+        assert_eq!(value["version"], "29.1.3");
+        assert_eq!(value["api_version"], "1.52");
+        assert_eq!(value["os"], "linux");
+        assert_eq!(value["arch"], "amd64");
     }
 
     #[test]
