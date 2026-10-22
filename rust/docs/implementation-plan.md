@@ -103,7 +103,7 @@ M4 正式接受必须同时具备：精确 Rust/Server/Cargo.lock identity；Pyt
 
 ## M5 Docker runtime 与 Lab 门禁
 
-M5 以 `WorkloadSpecV1` 为 Lab 和后续 Managed 的共享运行时契约。M5 只完成单 GPU
+M5 以 `WorkloadSpecV2` 为 Lab 和后续 Managed 的共享运行时契约。M5 只完成单 GPU
 Lab 路径，不创建或更新 Server Model、ModelInstance、ModelFile 或 gateway route，
 也不能把 Lab 结果解释为 Managed 兼容证据。
 
@@ -130,11 +130,11 @@ M5 分成五个独立门禁：
    Python 容器拒绝、服务前中后不变以及最终零残留。任何预检失败均停止，不 pull 镜像，
    不运行 vLLM 或模型，不使用名称或 force 作为正常清理依据。
 5. **M5-E 单 GPU Lab smoke**：M5-E.0 先在 Python Worker 保持运行时只读验证固定
-   source/binary、Qwen-7B identity、缓存 Runner、Server 资源、服务、GPU0、GPU1 外部
+   source/binary、固定 Qwen2.5-0.5B-Instruct identity、缓存 Runner、Server 资源、服务、GPU0、GPU1 外部
    principal、`127.0.0.1:42000` 和历史残留，并建立 Git 外受保护的运行配置与证据目录。
    M5-E.1 另获维护窗口授权后，只停止 `gpustack-worker`；使用固定 Runner digest、本地
-   Qwen-7B、GPU0 完整 UUID、tensor parallel 1、2048 context、0.5 GPU memory、dtype
-   auto、trust remote code、eager execution，以及 D082 冻结的显式 Qwen ChatML template
+   Qwen2.5-0.5B-Instruct、GPU0 完整 UUID、tensor parallel 1、2048 context、0.5 GPU memory、dtype
+   auto 和 eager execution，并使用模型内置 chat template
    完成 deploy/list/status/logs、readiness、同 spec 幂等、异 spec 冲突、completion/chat、
    stop/remove 与 cleanup。template 必须通过单个 `--vllm-extra-arg` 进入结构化参数和独立
    container argv，不使用 `eval`、可写模型目录或额外 mount。无论成功失败都只清理完整

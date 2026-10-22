@@ -269,3 +269,14 @@ D084 模型 revision 由 10 个顶层文件组成，总计 999,604,126 bytes；
 `fdf756fa7fcbe7404d5c60e26bff1a0c8b8aa1f72ced49e7dd0210fe288fb7fe`。正式下载须固定
 revision，并对全部文件生成本地 SHA-256 manifest。优先经本机 VPN 下载后通过局域网 SSH
 传输；下载、传输和完整性检查均不授权停止 Python Worker、创建 Lab 容器或使用 GPU。
+
+## 2026-10-22 M5-E 清理与回滚修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D085 | 容器运行身份与回滚重入 | 共享 workload 契约升级为 `WorkloadSpecV2` 和 schema label `2`；把 Worker 进程的有效数字 `UID:GID` 作为 `container_user` 写入规范化 spec、spec hash 和 Docker `user`，并由 Worker 固定 `USER=gpustack`、`LOGNAME=gpustack`、`HOME=<deployment-cache>/home` 及四个 cache 环境变量。`lab stop` 在记录的容器已经缺失或没有 container ID 时直接收敛为 `STOPPED`，不执行 Docker 变更；容器仍存在时继续要求完整 ownership tuple 后才能 stop | 让 Runner 写入的 cache 与宿主 Rust Worker 属主一致，消除需要 root 修复容器的清理路径；同时使 `status → stop → remove` 能在中断后安全重入，而不降低对仍存在容器的失败关闭边界。运行身份会改变容器行为，因此必须进入 spec hash 并显式升级 schema。 |
+
+D085 实施时 Lab 中没有 deployment、container 或 cache，只有可继续使用的本地 owner 记录，
+因此没有迁移活动 workload。旧 schema manifest 在读取时继续失败关闭，不做静默转换。
+该修订只授权无 GPU、无网络、无模型 mount 的 Runner 探针；不授权停止 Python Worker、
+申请 GPU 或重新运行 M5-E.1。

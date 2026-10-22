@@ -207,10 +207,10 @@ spec hash
 
 结构化选项包括 tensor parallel size、maximum model length、GPU memory utilization、dtype、served model name、trust remote code 与 eager execution。允许重复传入受控的原始 vLLM 参数，但这些参数不能覆盖由 Worker 管理的模型路径、服务端口、GPU 分配、容器身份或 mount。
 
-### M5 WorkloadSpecV1 精确契约
+### M5 WorkloadSpecV2 精确契约
 
 M5 把语义计划和 Docker 实现分开。`gpustack-worker` 生成版本化的
-`WorkloadSpecV1`，`gpustack-runtime` 只把该计划转换成 Docker Engine API 操作。
+`WorkloadSpecV2`，`gpustack-runtime` 只把该计划转换成 Docker Engine API 操作。
 Lab 与 Managed 使用同一结构；两者只有期望状态来源和状态回写目标不同。
 
 规范化结构至少包含：
@@ -224,6 +224,7 @@ requested image and resolved immutable digest
 ordered GPU UUIDs and host indexes
 bind address and service port
 tensor parallel size
+container numeric UID:GID
 structured and controlled raw vLLM arguments
 sorted environment and mounts
 shared-memory and network settings
@@ -238,7 +239,7 @@ M5 只允许单 GPU 和 tensor parallel size 1，但 GPU 字段保持有序数�
 
 `spec_hash` 是规范化 JSON 的 SHA-256。结构字段顺序固定；语义无序的 map 和集合在
 计算前排序，GPU 和 vLLM 参数等语义有序字段保留顺序。resolved image digest、模型
-路径、GPU UUID、端口、参数、环境、mount、network 和安全设置参与计算；时间戳、
+路径、GPU UUID、端口、容器 UID:GID、参数、环境、mount、network 和安全设置参与计算；时间戳、
 container ID、实时状态、错误文本以及 `spec-hash` 标签本身不参与计算。
 
 ### Docker runtime 边界
@@ -260,7 +261,7 @@ Kubernetes、Podman、pause container、多组件 workload、CDI 抽象或不健
 
 ```text
 io.gpustack.implementation=rust
-io.gpustack.schema-version=1
+io.gpustack.schema-version=2
 io.gpustack.mode=lab|managed
 io.gpustack.owner-id=<local-owner-id>
 io.gpustack.component=vllm
@@ -280,7 +281,10 @@ deployment ID 派生；用户显示名称保存在 manifest，不作为唯一所
 Runner 容器固定使用 host network、10 GiB shared memory、Docker restart policy
 `no`、NVIDIA DeviceRequest 和只读模型 mount。默认不启用 privileged，并设置
 `no-new-privileges`；只有获批 smoke 证明固定 Runner 必须增加权限时，才能先讨论再
-修订。模型之外的编译和运行缓存写入每个 deployment 的独立可写 cache 目录。
+修订。容器使用启动 Rust Worker 的有效数字 `UID:GID`；Worker 固定容器内的
+`USER`、`LOGNAME`、`HOME` 和 cache 环境，避免镜像中没有宿主 UID 的 passwd 项时身份
+解析失败。模型之外的编译和运行缓存写入每个 deployment 的独立可写 cache 目录，且由
+宿主 Worker 用户直接拥有和清理。
 
 Lab 默认只监听 `127.0.0.1`，自动端口范围为 `42000-42063`；它只服务宿主机上的
 `worker lab infer`，不创建 gateway route。Managed 后续监听配置的 Worker IP，并
