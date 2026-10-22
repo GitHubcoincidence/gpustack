@@ -20,20 +20,21 @@
 ## 当前状态
 
 - 状态：`ready`
-- 当前阶段：M5-B 已接受，M5-C 离线实现待开始。
-- 分支：`codex/rust-worker`；M5-B 接受前治理基线为
-  `fc0b5408093efe39cddb60f567e9520670fd8730`。
+- 当前阶段：M5-D.0 离线准备已接受，M5-D.1 只读 Docker 预检待讨论和单独授权。
+- 分支：`codex/rust-worker`；M5-D.0 代码检查点为
+  `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
+  `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
   `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
-- 实现状态：M1～M4 已接受；M5-A 契约和 M5-B 离线 runtime 已接受。代码检查点
-  `fbaf1a0426c02b82028aa1b836d42ea0138340cd` 提供 `WorkloadSpecV1`、规范化
-  hash、完整所有权验证、vLLM plan 和可替换 Docker runtime 边界。
+- 实现状态：M1～M4、M5-A、M5-B、M5-C 和 M5-D.0 已接受。当前代码提供
+  `WorkloadSpecV1`、Lab CLI/协调层、可替换 Docker runtime、`worker runtime info` 和
+  默认拒绝执行的 M5-D example probe。
 - 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；没有执行真实
   Docker、Runner、vLLM 或 GPU 工作负载。历史失败和 `invalidated` 证据保持原状态。
-- 下一项允许执行的工作：M5-C 只使用 fake/mock 边界实现 Lab owner/deployment
-  状态、排他锁、端口/GPU 选择、健康、reconciler 与 `worker lab` CLI。M5-D/M5-E
-  的真实 Docker 和 GPU 操作仍需分别获得明确授权。
+- 下一项允许执行的工作：讨论并冻结 M5-D.1 只读 Docker 预检的输入、证据和停止条件；
+  连接 Docker 前仍须获得明确授权。M5-D.2 容器变更和 M5-E GPU smoke 继续需要各自
+  独立授权。
 
 ## 里程碑
 
@@ -1118,6 +1119,25 @@
   均未授权。
 - 下一项允许执行的工作：直接交付 M5-D.0 详细实现与验证报告。用户接受后才能讨论并
   单独授权 M5-D.1 只读 Docker 预检；不得自动连接 Docker 或进入容器生命周期测试。
+
+### 2026-10-22：M5-D.0 Docker 集成离线准备接受
+
+- 结果：用户审阅 `worker runtime info`、共享完整 label 校验、受保护 example probe、
+  生命周期不变量、失败关闭清理、测试和隔离报告后确认无问题；M5-D.0 由
+  `ready_for_review` 更新为 `accepted`。
+- 接受证据：代码检查点为 `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前
+  治理 HEAD 为 `3f02c644d5928c7ae54ae8ca697d79a483dfe115`，`Cargo.lock`
+  SHA-256 为 `9093caad63df8eab5b0a59801e3f92dc0f4f145e1bc066bf9854a3647d049a56`；
+  104 个测试、locked/offline check、两组 Clippy、release build 和默认拒绝执行结果继续
+  作为本阶段证据。
+- 接受范围：M5-D.0 只接受 CLI/runtime 接线、共享所有权检查和诊断 probe 的离线实现。
+  它不证明真实 daemon/image/container API、Runner、vLLM、模型、GPU 或 Managed 兼容。
+- 漂移审计：M5 单 GPU 范围、固定 Runner、Lab/Managed 分离、完整 ownership tuple、
+  分段授权和 M5-E/M6 解释边界均未改变；结论为 `aligned`。
+- 当前停止位置：M5-D.0 已接受。Python Server/Worker 保持运行，Rust Worker 停止；
+  本阶段没有连接 Docker、创建容器或产生 GPU/端口残留。
+- 下一项允许执行的工作：讨论并冻结 M5-D.1 只读 Docker 预检；实际连接 Docker socket
+  前仍须用户单独明确授权。M5-D.2 容器变更和 M5-E GPU smoke 均继续禁止。
 
 ## 未解决风险与待确认事项
 
