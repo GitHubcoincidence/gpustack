@@ -5,6 +5,7 @@ pub mod control;
 pub mod doctor;
 pub mod health;
 pub mod identity;
+pub mod lab;
 pub mod metrics;
 pub mod resource_run;
 pub mod resources;

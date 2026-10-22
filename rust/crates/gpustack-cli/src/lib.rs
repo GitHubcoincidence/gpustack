@@ -1,11 +1,18 @@
 //! CLI grammar, stable exit codes, and output rendering for `gpustack-rs`.
 
 use std::fmt::Write as _;
+use std::io;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use gpustack_worker::lab::{
+    LabCleanupPlan, LabDeployRequest, LabEnvironment, LabError, LabInferRequest, LabInferenceKind,
+    LabInferenceResponse, LabLogLine, LabState, LabStatus,
+};
 use gpustack_worker::resources::{ResourceError, collect_gpu_inventory};
 use gpustack_worker::worker_api::public_config_view;
+use gpustack_worker::workload::{VllmDtype, VllmExtraArg, VllmOptions};
 use gpustack_worker::{
     ConfigError, ConfigOverrides, ControlPlaneOnlySummary, DoctorReport, ResourceApiRunError,
     ResourceApiSummary, WorkerConfig, WorkerRunError, load_config, run_control_plane_only,
@@ -105,8 +112,134 @@ pub enum WorkerCommand {
     Config(WorkerConfigCommand),
     Doctor,
     Gpu(WorkerGpuCommand),
+    Lab(WorkerLabCommand),
     Run(WorkerRunArgs),
     ValidateConfig,
+}
+
+#[derive(Debug, Args)]
+pub struct WorkerLabCommand {
+    #[command(subcommand)]
+    pub command: WorkerLabSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum WorkerLabSubcommand {
+    Deploy(LabDeployArgs),
+    List,
+    Status(LabNameArgs),
+    Logs(LabLogsArgs),
+    Infer(LabInferArgs),
+    Stop(LabNameArgs),
+    Remove(LabRemoveArgs),
+    Cleanup(LabCleanupArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct LabDeployArgs {
+    pub name: String,
+    #[arg(long)]
+    pub model_path: PathBuf,
+    #[arg(long)]
+    pub image: String,
+    #[arg(long)]
+    pub gpu: String,
+    #[arg(long)]
+    pub port: Option<u16>,
+    #[arg(long)]
+    pub served_model_name: Option<String>,
+    #[arg(long)]
+    pub max_model_len: Option<u32>,
+    #[arg(long)]
+    pub gpu_memory_utilization: Option<f64>,
+    #[arg(long, value_enum)]
+    pub dtype: Option<CliVllmDtype>,
+    #[arg(long)]
+    pub trust_remote_code: bool,
+    #[arg(long)]
+    pub enforce_eager: bool,
+    #[arg(long = "vllm-extra-arg", allow_hyphen_values = true)]
+    pub extra_args: Vec<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct LabNameArgs {
+    pub name: String,
+}
+
+#[derive(Debug, Args)]
+pub struct LabLogsArgs {
+    pub name: String,
+    #[arg(long, default_value = "100")]
+    pub tail: String,
+    #[arg(long, default_value_t = 0)]
+    pub since: i32,
+    #[arg(long)]
+    pub follow: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct LabInferArgs {
+    pub name: String,
+    #[arg(long, value_enum, default_value_t = CliInferenceKind::Chat)]
+    pub kind: CliInferenceKind,
+    #[arg(long)]
+    pub prompt: String,
+    #[arg(long)]
+    pub max_tokens: Option<u32>,
+}
+
+#[derive(Debug, Args)]
+pub struct LabRemoveArgs {
+    pub name: String,
+    #[arg(long)]
+    pub yes: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct LabCleanupArgs {
+    #[arg(long)]
+    pub execute: bool,
+    #[arg(long, requires = "execute")]
+    pub yes: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum CliInferenceKind {
+    Chat,
+    Completion,
+}
+
+impl From<CliInferenceKind> for LabInferenceKind {
+    fn from(value: CliInferenceKind) -> Self {
+        match value {
+            CliInferenceKind::Chat => Self::Chat,
+            CliInferenceKind::Completion => Self::Completion,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum CliVllmDtype {
+    Auto,
+    Half,
+    Float16,
+    Bfloat16,
+    Float,
+    Float32,
+}
+
+impl From<CliVllmDtype> for VllmDtype {
+    fn from(value: CliVllmDtype) -> Self {
+        match value {
+            CliVllmDtype::Auto => Self::Auto,
+            CliVllmDtype::Half => Self::Half,
+            CliVllmDtype::Float16 => Self::Float16,
+            CliVllmDtype::Bfloat16 => Self::Bfloat16,
+            CliVllmDtype::Float => Self::Float,
+            CliVllmDtype::Float32 => Self::Float32,
+        }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -163,6 +296,14 @@ pub enum CliError {
     ResourceRun(#[from] ResourceApiRunError),
     #[error(transparent)]
     WorkerRun(#[from] WorkerRunError),
+    #[error(transparent)]
+    Lab(#[from] LabError),
+    #[error("invalid CLI argument: {0}")]
+    InvalidArgument(String),
+    #[error("destructive Lab command requires confirmation or --yes")]
+    ConfirmationRequired,
+    #[error("failed to read interactive confirmation: {0}")]
+    ConfirmationIo(String),
     #[error("failed to serialize command output")]
     Serialization(#[from] serde_json::Error),
 }
@@ -171,10 +312,15 @@ impl CliError {
     #[must_use]
     pub const fn exit_code(&self) -> u8 {
         match self {
-            Self::Config(_) | Self::ControlPlaneOnlyRequired => EXIT_CONFIG,
+            Self::Config(_)
+            | Self::ControlPlaneOnlyRequired
+            | Self::InvalidArgument(_)
+            | Self::ConfirmationRequired
+            | Self::ConfirmationIo(_) => EXIT_CONFIG,
             Self::WorkerRun(_) => EXIT_CONTROL_PLANE,
             Self::Resource(_) => EXIT_RUNTIME,
             Self::ResourceRun(_) => EXIT_CONTROL_PLANE,
+            Self::Lab(_) => EXIT_RUNTIME,
             Self::Serialization(_) => EXIT_INTERNAL,
         }
     }
@@ -182,6 +328,21 @@ impl CliError {
 
 /// Executes an already parsed command without directly accessing process streams.
 pub async fn execute(cli: Cli) -> Result<Execution, CliError> {
+    execute_inner(cli, None).await
+}
+
+/// Executes a command and emits Docker log frames as they arrive.
+pub async fn execute_with_lab_log_sink(
+    cli: Cli,
+    sink: &mut dyn FnMut(&LabLogLine),
+) -> Result<Execution, CliError> {
+    execute_inner(cli, Some(sink)).await
+}
+
+async fn execute_inner(
+    cli: Cli,
+    lab_log_sink: Option<&mut dyn FnMut(&LabLogLine)>,
+) -> Result<Execution, CliError> {
     let quiet = cli.quiet;
     let output_format = cli.output;
     let execution = match cli.command {
@@ -201,6 +362,16 @@ pub async fn execute(cli: Cli) -> Result<Execution, CliError> {
                         render_gpu_inventory(output_format, &collect_gpu_inventory()?)?
                     }
                 },
+                WorkerCommand::Lab(arguments) => {
+                    run_lab_command(
+                        output_format,
+                        cli.timeout,
+                        &loaded.config,
+                        arguments,
+                        lab_log_sink,
+                    )
+                    .await?
+                }
                 WorkerCommand::Run(arguments) => {
                     if !arguments.control_plane_only && !arguments.resource_api_only {
                         return Err(CliError::ControlPlaneOnlyRequired);
@@ -234,6 +405,297 @@ pub async fn execute(cli: Cli) -> Result<Execution, CliError> {
         })
     } else {
         Ok(execution)
+    }
+}
+
+impl Cli {
+    /// Prompts only for destructive Lab commands that did not receive `--yes`.
+    pub fn confirm_destructive_lab_command(&mut self) -> Result<(), CliError> {
+        let Command::Worker(worker) = &mut self.command else {
+            return Ok(());
+        };
+        let WorkerCommand::Lab(lab) = &mut worker.command else {
+            return Ok(());
+        };
+        let (prompt, confirmed) = match &mut lab.command {
+            WorkerLabSubcommand::Remove(arguments) if !arguments.yes => (
+                format!(
+                    "Remove stopped/failed Lab deployment '{}'? Type 'yes' to continue: ",
+                    arguments.name
+                ),
+                &mut arguments.yes,
+            ),
+            WorkerLabSubcommand::Cleanup(arguments) if arguments.execute && !arguments.yes => (
+                "Execute cleanup for all removable resources owned by this Lab owner? Type 'yes' to continue: "
+                    .to_string(),
+                &mut arguments.yes,
+            ),
+            _ => return Ok(()),
+        };
+        eprint!("{prompt}");
+        std::io::Write::flush(&mut io::stderr())
+            .map_err(|error| CliError::ConfirmationIo(error.to_string()))?;
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .map_err(|error| CliError::ConfirmationIo(error.to_string()))?;
+        if input.trim() != "yes" {
+            return Err(CliError::ConfirmationRequired);
+        }
+        *confirmed = true;
+        Ok(())
+    }
+}
+
+async fn run_lab_command(
+    output_format: OutputFormat,
+    timeout_secs: u64,
+    config: &WorkerConfig,
+    arguments: WorkerLabCommand,
+    lab_log_sink: Option<&mut dyn FnMut(&LabLogLine)>,
+) -> Result<Execution, CliError> {
+    match &arguments.command {
+        WorkerLabSubcommand::Remove(arguments) if !arguments.yes => {
+            return Err(CliError::ConfirmationRequired);
+        }
+        WorkerLabSubcommand::Cleanup(arguments) if arguments.execute && !arguments.yes => {
+            return Err(CliError::ConfirmationRequired);
+        }
+        _ => {}
+    }
+    let environment = LabEnvironment::new(config, Duration::from_secs(timeout_secs.max(1)))?;
+    let service = environment.service();
+    match arguments.command {
+        WorkerLabSubcommand::Deploy(arguments) => {
+            let status = service.deploy(build_lab_deploy_request(arguments)?).await?;
+            render_lab_status(output_format, &status)
+        }
+        WorkerLabSubcommand::List => {
+            let statuses = service.list().await?;
+            render_lab_statuses(output_format, &statuses)
+        }
+        WorkerLabSubcommand::Status(arguments) => {
+            let status = service.status(&arguments.name).await?;
+            render_lab_status(output_format, &status)
+        }
+        WorkerLabSubcommand::Logs(arguments) => {
+            if let Some(sink) = lab_log_sink {
+                service
+                    .stream_logs(
+                        &arguments.name,
+                        arguments.follow,
+                        arguments.since,
+                        arguments.tail,
+                        |line| sink(&line),
+                    )
+                    .await?;
+                return Ok(Execution {
+                    output: String::new(),
+                    exit_code: EXIT_SUCCESS,
+                });
+            }
+            let lines = service
+                .logs(
+                    &arguments.name,
+                    arguments.follow,
+                    arguments.since,
+                    arguments.tail,
+                )
+                .await?;
+            render_lab_logs(output_format, &lines)
+        }
+        WorkerLabSubcommand::Infer(arguments) => {
+            let response = service
+                .infer(&LabInferRequest {
+                    name: arguments.name,
+                    kind: arguments.kind.into(),
+                    prompt: arguments.prompt,
+                    max_tokens: arguments.max_tokens,
+                })
+                .await?;
+            render_lab_inference(output_format, &response)
+        }
+        WorkerLabSubcommand::Stop(arguments) => {
+            let status = service.stop(&arguments.name).await?;
+            render_lab_status(output_format, &status)
+        }
+        WorkerLabSubcommand::Remove(arguments) => {
+            let status = service.remove(&arguments.name).await?;
+            render_lab_status(output_format, &status)
+        }
+        WorkerLabSubcommand::Cleanup(arguments) => {
+            let plan = service.cleanup(arguments.execute).await?;
+            render_lab_cleanup(output_format, &plan)
+        }
+    }
+}
+
+fn build_lab_deploy_request(arguments: LabDeployArgs) -> Result<LabDeployRequest, CliError> {
+    let extra_args = arguments
+        .extra_args
+        .into_iter()
+        .map(|argument| {
+            let (flag, value) = argument
+                .split_once('=')
+                .map_or((argument.as_str(), None), |(flag, value)| {
+                    (flag, Some(value.to_string()))
+                });
+            if !flag.starts_with("--") {
+                return Err(CliError::InvalidArgument(
+                    "--vllm-extra-arg must contain --flag or --flag=value".to_string(),
+                ));
+            }
+            Ok(VllmExtraArg {
+                flag: flag.to_string(),
+                value,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(LabDeployRequest {
+        name: arguments.name,
+        model_path: arguments.model_path,
+        image: arguments.image,
+        gpu: arguments.gpu,
+        port: arguments.port,
+        served_model_name: arguments.served_model_name,
+        vllm: VllmOptions {
+            max_model_len: arguments.max_model_len,
+            gpu_memory_utilization: arguments.gpu_memory_utilization,
+            dtype: arguments.dtype.map(Into::into),
+            trust_remote_code: arguments.trust_remote_code,
+            enforce_eager: arguments.enforce_eager,
+            extra_args,
+        },
+        environment: Default::default(),
+    })
+}
+
+fn render_lab_status(
+    output_format: OutputFormat,
+    status: &LabStatus,
+) -> Result<Execution, CliError> {
+    if output_format == OutputFormat::Json {
+        return Ok(Execution {
+            output: to_json(status)?,
+            exit_code: EXIT_SUCCESS,
+        });
+    }
+    render_lab_statuses(output_format, std::slice::from_ref(status))
+}
+
+fn render_lab_statuses(
+    output_format: OutputFormat,
+    statuses: &[LabStatus],
+) -> Result<Execution, CliError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(&statuses)?,
+        OutputFormat::Table => {
+            let mut output =
+                String::from("MODE\tNAME\tSTATE\tCONTAINER\tGPU\tENDPOINT\tSPEC_HASH\tERROR\n");
+            for status in statuses {
+                writeln!(
+                    output,
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    status.mode,
+                    status.name,
+                    lab_state_name(status.state),
+                    status.container_id.as_deref().unwrap_or("none"),
+                    status.gpu_uuid,
+                    status.endpoint,
+                    status.spec_hash,
+                    status.last_error.as_deref().unwrap_or("none")
+                )
+                .expect("write to String");
+            }
+            output
+        }
+    };
+    Ok(Execution {
+        output,
+        exit_code: EXIT_SUCCESS,
+    })
+}
+
+fn render_lab_logs(
+    output_format: OutputFormat,
+    lines: &[LabLogLine],
+) -> Result<Execution, CliError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(&lines)?,
+        OutputFormat::Table => lines
+            .iter()
+            .map(|line| format!("[{}] {}", line.stream, line.message))
+            .collect(),
+    };
+    Ok(Execution {
+        output,
+        exit_code: EXIT_SUCCESS,
+    })
+}
+
+fn render_lab_inference(
+    output_format: OutputFormat,
+    response: &LabInferenceResponse,
+) -> Result<Execution, CliError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(response)?,
+        OutputFormat::Table => format!(
+            "mode: {}\nlab_id: {}\nendpoint: {}\nresponse: {}\n",
+            response.mode,
+            response.lab_id,
+            response.endpoint,
+            serde_json::to_string_pretty(&response.response)?
+        ),
+    };
+    Ok(Execution {
+        output,
+        exit_code: EXIT_SUCCESS,
+    })
+}
+
+fn render_lab_cleanup(
+    output_format: OutputFormat,
+    plan: &LabCleanupPlan,
+) -> Result<Execution, CliError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(plan)?,
+        OutputFormat::Table => format!(
+            concat!(
+                "mode: {}\n",
+                "dry_run: {}\n",
+                "deployments: {}\n",
+                "containers: {}\n",
+                "caches: {}\n",
+                "blocked: {}\n",
+                "removed_deployments: {}\n",
+                "removed_containers: {}\n",
+                "removed_caches: {}\n"
+            ),
+            plan.mode,
+            plan.dry_run,
+            plan.deployment_ids.join(","),
+            plan.container_ids.join(","),
+            plan.cache_ids.join(","),
+            plan.blocked.join("; "),
+            plan.removed_deployments,
+            plan.removed_containers,
+            plan.removed_caches,
+        ),
+    };
+    Ok(Execution {
+        output,
+        exit_code: EXIT_SUCCESS,
+    })
+}
+
+fn lab_state_name(state: LabState) -> &'static str {
+    match state {
+        LabState::Created => "CREATED",
+        LabState::Preparing => "PREPARING",
+        LabState::Starting => "STARTING",
+        LabState::Running => "RUNNING",
+        LabState::Failed => "FAILED",
+        LabState::Stopped => "STOPPED",
     }
 }
 
@@ -587,6 +1049,62 @@ mod tests {
             ])
             .is_err()
         );
+    }
+
+    #[test]
+    fn complete_lab_command_surface_parses_without_touching_real_resources() {
+        for command in [
+            vec![
+                "gpustack-rs",
+                "worker",
+                "lab",
+                "deploy",
+                "demo",
+                "--model-path",
+                "/models/demo",
+                "--image",
+                "runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "--gpu",
+                "0",
+                "--max-model-len",
+                "4096",
+            ],
+            vec!["gpustack-rs", "worker", "lab", "list"],
+            vec!["gpustack-rs", "worker", "lab", "status", "demo"],
+            vec!["gpustack-rs", "worker", "lab", "logs", "demo", "--follow"],
+            vec![
+                "gpustack-rs",
+                "worker",
+                "lab",
+                "infer",
+                "demo",
+                "--prompt",
+                "hello",
+            ],
+            vec!["gpustack-rs", "worker", "lab", "stop", "demo"],
+            vec!["gpustack-rs", "worker", "lab", "remove", "demo", "--yes"],
+            vec!["gpustack-rs", "worker", "lab", "cleanup"],
+            vec![
+                "gpustack-rs",
+                "worker",
+                "lab",
+                "cleanup",
+                "--execute",
+                "--yes",
+            ],
+        ] {
+            Cli::try_parse_from(command).expect("parse Lab command");
+        }
+    }
+
+    #[tokio::test]
+    async fn destructive_lab_commands_require_explicit_confirmation_in_library_mode() {
+        let cli = Cli::try_parse_from(["gpustack-rs", "worker", "lab", "remove", "demo"])
+            .expect("parse remove");
+
+        let error = execute(cli).await.expect_err("confirmation is required");
+
+        assert!(matches!(error, CliError::ConfirmationRequired));
     }
 
     #[tokio::test]

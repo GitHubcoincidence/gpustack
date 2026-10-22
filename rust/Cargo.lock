@@ -665,6 +665,7 @@ dependencies = [
  "libc",
  "nvml-wrapper",
  "prometheus-client",
+ "reqwest",
  "rustix",
  "serde",
  "serde-saphyr",

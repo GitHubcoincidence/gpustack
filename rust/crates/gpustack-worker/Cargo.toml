@@ -13,6 +13,7 @@ gpustack-client = { path = "../gpustack-client" }
 gpustack-runtime = { path = "../gpustack-runtime" }
 nvml-wrapper.workspace = true
 prometheus-client.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde-saphyr.workspace = true

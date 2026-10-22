@@ -33,6 +33,8 @@ pub enum RuntimeError {
         #[source]
         source: BollardError,
     },
+    #[error("Docker {operation} target was not found")]
+    NotFound { operation: &'static str },
     #[error("Docker {operation} response is missing {field}")]
     MissingField {
         operation: &'static str,
@@ -363,7 +365,17 @@ impl ContainerRuntime for DockerRuntime {
 }
 
 fn request_error(operation: &'static str, source: BollardError) -> RuntimeError {
-    RuntimeError::Request { operation, source }
+    if matches!(
+        source,
+        BollardError::DockerResponseServerError {
+            status_code: 404,
+            ..
+        }
+    ) {
+        RuntimeError::NotFound { operation }
+    } else {
+        RuntimeError::Request { operation, source }
+    }
 }
 
 fn map_daemon_info(ping: String, version: SystemVersion) -> Result<DockerDaemonInfo, RuntimeError> {
@@ -652,5 +664,23 @@ mod tests {
         let error = map_image_identity(ImageInspect::default()).expect_err("missing ID");
 
         assert!(error.to_string().contains("Id"));
+    }
+
+    #[test]
+    fn docker_404_is_a_typed_missing_resource_result() {
+        let error = request_error(
+            "container inspect",
+            BollardError::DockerResponseServerError {
+                status_code: 404,
+                message: "missing".to_string(),
+            },
+        );
+
+        assert!(matches!(
+            error,
+            RuntimeError::NotFound {
+                operation: "container inspect"
+            }
+        ));
     }
 }

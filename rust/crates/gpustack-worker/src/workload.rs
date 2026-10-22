@@ -340,6 +340,50 @@ impl WorkloadSpecV1 {
         }
     }
 
+    /// Verifies that persisted workload identity still matches its normalized contents.
+    pub fn verify_integrity(&self) -> Result<(), WorkloadError> {
+        if self.schema_version != WORKLOAD_SCHEMA_VERSION {
+            return invalid("workload schema version is unsupported");
+        }
+        let required = [
+            (LABEL_IMPLEMENTATION, "rust".to_string()),
+            (LABEL_SCHEMA_VERSION, WORKLOAD_SCHEMA_VERSION.to_string()),
+            (LABEL_MODE, self.mode.as_str().to_string()),
+            (LABEL_OWNER_ID, self.owner_id.clone()),
+            (LABEL_COMPONENT, "vllm".to_string()),
+            (LABEL_SPEC_HASH, self.spec_hash.clone()),
+        ];
+        for (label, expected) in required {
+            if self.labels.get(label) != Some(&expected) {
+                return invalid(format!(
+                    "persisted workload label {label} does not match normalized identity"
+                ));
+            }
+        }
+        match self.mode {
+            WorkloadMode::Lab => {
+                if self.labels.get(LABEL_LAB_ID) != Some(&self.deployment_id)
+                    || self.labels.contains_key(LABEL_WORKER_UUID)
+                    || self.labels.contains_key(LABEL_MODEL_INSTANCE_ID)
+                {
+                    return invalid("persisted Lab workload labels are inconsistent");
+                }
+            }
+            WorkloadMode::Managed => {
+                if self.labels.get(LABEL_MODEL_INSTANCE_ID) != Some(&self.deployment_id)
+                    || self.labels.contains_key(LABEL_LAB_ID)
+                    || !self.labels.contains_key(LABEL_WORKER_UUID)
+                {
+                    return invalid("persisted Managed workload labels are inconsistent");
+                }
+            }
+        }
+        if self.compute_spec_hash()? != self.spec_hash {
+            return invalid("persisted workload spec hash does not match normalized contents");
+        }
+        Ok(())
+    }
+
     /// Mutations compare every identity-bearing label instead of trusting a name or local record.
     pub fn verify_ownership(
         &self,
@@ -721,6 +765,22 @@ mod tests {
             spec.verify_ownership(&actual),
             Err(OwnershipError::Missing { label }) if label == LABEL_SPEC_HASH
         ));
+    }
+
+    #[test]
+    fn persisted_spec_integrity_rejects_content_or_identity_label_drift() {
+        let spec = WorkloadSpecV1::build(request()).expect("valid Lab spec");
+        spec.verify_integrity().expect("intact spec");
+
+        let mut content_drift = spec.clone();
+        content_drift.service_port += 1;
+        assert!(content_drift.verify_integrity().is_err());
+
+        let mut label_drift = spec;
+        label_drift
+            .labels
+            .insert(LABEL_OWNER_ID.to_string(), "another-owner".to_string());
+        assert!(label_drift.verify_integrity().is_err());
     }
 
     #[test]
