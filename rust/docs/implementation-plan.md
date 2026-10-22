@@ -274,6 +274,9 @@ identity、受保护容器和服务不变、GPU0 空闲、GPU1 外部 principal 
 启动、停止并删除一个无 GPU 诊断容器，且不得停止 Python Worker。M5-D.2 已从干净源码
 `25df8bbbd2a95ba7b1b9144ced30ebe24167104d` 完成：固定 Runner 的 Rust runtime
 create/inspect/start/log/stop/remove、完整 ownership tuple、错误 owner 和受保护容器拒绝、
-真实安全字段、服务前中后不变以及最终零残留门禁均通过，状态为 `ready_for_review`，尚未
-接受。该结果没有 pull、mount、网络、端口或 GPU request。M5-E 仍须另获维护窗口授权，
-只允许精确分配 GPU0，且仍须停止 Python Worker。
+真实安全字段、服务前中后不变以及最终零残留门禁均通过。用户审阅详细报告后已接受
+M5-D.2 和整个 M5-D；接受记录检查点为
+`f4d2c6b488e9fddfab75838395a411f17be9b919`。该结果没有 pull、mount、网络、端口或 GPU
+request，也不证明 vLLM、模型、GPU 推理或 Managed 兼容。下一步只允许讨论并冻结
+M5-E；实际 smoke 仍须另获维护窗口授权，只允许精确分配 GPU0，且仍须停止 Python
+Worker。

@@ -19,23 +19,24 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
-- 当前阶段：M5-D.0 和 M5-D.1 已接受；M5-D.2 无 GPU Docker 生命周期正式门禁已通过，
-  等待用户审阅。首次阻断、命令校正和非评分断言均已保留。
+- 状态：`ready`
+- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受。M5-D.2 的首次阻断、
+  命令校正和非评分断言均按原始证据保留。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
   `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
-- 实现状态：M1～M4、M5-A、M5-B、M5-C 和 M5-D.0 已接受。当前代码提供
+- 实现状态：M1～M4、M5-A、M5-B、M5-C 和整个 M5-D 已接受。当前代码提供
   `WorkloadSpecV1`、Lab CLI/协调层、可替换 Docker runtime、`worker runtime info` 和
   默认拒绝执行的 M5-D example probe。
 - 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；M5-D.2 创建的唯一
   无 GPU 诊断容器已通过 Rust runtime 正常停止并删除，没有容器、进程、端口或 GPU0
   残留。没有运行 vLLM、模型或推理。
-- 下一项允许执行的工作：交付 M5-D.2 详细报告并等待用户审阅；不得自动进入 M5-E。
-  M5-E 单 GPU smoke 仍需独立维护窗口授权。
+- 下一项允许执行的工作：讨论并冻结 M5-E 单 GPU Lab smoke 的精确操作方案；不得自动
+  执行。停止 Python Worker、创建 vLLM 容器、挂载模型或申请 GPU0 仍需新的明确维护
+  窗口授权。
 
 ## 里程碑
 
@@ -1316,6 +1317,28 @@
   Rust Worker 停止，诊断容器已删除，GPU0 空闲，GPU1 外部任务未被本项目修改。
 - 下一项允许执行的工作：直接交付 M5-D.2 详细报告并等待审阅。用户接受后才能把
   M5-D.2 和整个 M5-D 标记为 `accepted` 并开始讨论 M5-E；不得自动进入 GPU smoke。
+
+### 2026-10-22：M5-D.2 与整个 M5-D 正式接受
+
+- 结果：用户审阅 M5-D.2 的生命周期、安全字段、所有权拒绝、Python 服务保护、共享
+  GPU 隔离、清理和证据说明后确认无问题；M5-D.2 与整个 M5-D 由
+  `ready_for_review` 更新为 `accepted`。
+- 接受证据：正式结果记录检查点为
+  `f4d2c6b488e9fddfab75838395a411f17be9b919`；测试源码、二进制、Runner、run ID、
+  container ID、证据目录及哈希保持上一里程碑记录，不因接受而改写首次阻断、命令校正
+  或 `invalid_non_scoring` 断言。
+- 接受范围：M5-D 只证明 Rust Docker daemon 读取、固定 Runner identity、无 GPU
+  container create/inspect/start/log/stop/remove、完整 ownership tuple、错误所有者和受
+  保护容器拒绝、真实隔离字段、服务保护与零残留。它不证明 Runner vLLM entrypoint、
+  Qwen-7B 加载、GPU 推理、Lab 完整 CLI smoke 或 Managed 控制链。
+- 漂移审计：M5-A 的共享 runtime、固定 digest、单 GPU、loopback、Lab 状态机、失败
+  保留与所有权清理契约，以及 D077 的 GPU0 精确 UUID/GPU1 外部任务隔离均未改变；
+  结论为 `aligned`。
+- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；M5-D.2 诊断容器已
+  删除，没有本项目容器、进程、端口或 GPU0 残留。M5-E 尚未获得执行授权。
+- 下一项允许执行的工作：只讨论并冻结 M5-E 的模型 identity、Runner/vLLM 参数、GPU0
+  与端口门禁、Lab 命令序列、证据、失败清理和 Python Worker 回滚方案。实际停止服务、
+  创建模型容器、挂载模型或申请 GPU0 前必须另获明确维护窗口授权。
 
 ## 未解决风险与待确认事项
 
