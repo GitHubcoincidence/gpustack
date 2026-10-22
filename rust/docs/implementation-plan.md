@@ -324,3 +324,10 @@ M5-E 下一步拆为两个前置工作：先在无 GPU 条件下修复 cache own
 完成离线与无 GPU Docker 回归；再共同冻结 D079 的兼容性修订，可选方向为保留 Qwen-7B
 并选用兼容 Runner，或保留当前 Runner 并选择受支持模型。未完成这两项并重新获得维护
 授权前，不得自动发起第三次 GPU smoke。
+
+用户已通过 D084 选择保留当前 Runner，并把新 smoke 模型固定为
+`Qwen/Qwen2.5-0.5B-Instruct` revision
+`7ae557604adf67be50417f59c2c2f167def9a775`。新 spec 不再传旧 Qwen-7B ChatML 或
+`--trust-remote-code`，其余 GPU、端口和资源边界保持不变。实现顺序固定为：先修复 cache
+ownership 与回滚重入并完成无 GPU 回归，再经本机 VPN 下载约 1 GB 的精确 revision、通过
+局域网 SSH 传到 90、核对全文件 manifest，最后才讨论新的 GPU0 维护授权。

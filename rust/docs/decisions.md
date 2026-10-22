@@ -257,3 +257,15 @@ Runner 组合不能通过 M5-E。该事实不自动修改 D079；后续须以新
 改用兼容 Runner”和“保留当前 Runner、改用受支持模型”之间取舍。正式失败还证明 Lab
 cache ownership 与回滚重入需要代码修复；二者完成无 GPU 验证前，不得请求新的 GPU
 维护窗口。
+
+## 2026-10-22 M5-E 模型兼容性修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D084 | 新单 GPU smoke 模型 | 保留 D079 的固定 Runner digest，模型改为 `Qwen/Qwen2.5-0.5B-Instruct` revision `7ae557604adf67be50417f59c2c2f167def9a775`，目标路径为 `/home/wujiaxing2/flowscale-system-validation/models/Qwen2.5-0.5B-Instruct`。Lab name 使用 `m5e-qwen25-05b-gpu0`，served name 使用 `qwen2.5-0.5b-m5e`；GPU0、42000、TP=1、max model length 2048、GPU memory utilization 0.5、dtype auto 与 eager 不变。使用模型内置 chat template，不传旧 Qwen-7B ChatML 或 `--trust-remote-code` | 该公开非 gated 模型仅约 1 GB，架构为当前 vLLM 支持的 `Qwen2ForCausalLM`，能同时覆盖 models、completion 和 chat 验收，并避免为了旧 `QWenLMHeadModel` 降级 Runner。固定 revision 和本地 manifest 防止上游 main 漂移。 |
+
+D084 模型 revision 由 10 个顶层文件组成，总计 999,604,126 bytes；
+`model.safetensors` 为 988,097,824 bytes，其上游 LFS SHA-256 为
+`fdf756fa7fcbe7404d5c60e26bff1a0c8b8aa1f72ced49e7dd0210fe288fb7fe`。正式下载须固定
+revision，并对全部文件生成本地 SHA-256 manifest。优先经本机 VPN 下载后通过局域网 SSH
+传输；下载、传输和完整性检查均不授权停止 Python Worker、创建 Lab 容器或使用 GPU。

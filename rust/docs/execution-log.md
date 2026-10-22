@@ -19,7 +19,7 @@
 
 ## 当前状态
 
-- 状态：`ready_for_decision`
+- 状态：`ready`
 - 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
   M5-E.0.1 已接受。M5-E.1 尝试 1 保持 `invalidated_non_scoring`；按 D083 执行的同
   spec 正式重试已穿过端口、容器和 GPU0 门禁，但固定 Runner 内 vLLM 0.25.1 明确拒绝
@@ -36,10 +36,10 @@
 - 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；失败
   Lab 的 container、manifest、cache、42000 listener、Rust process、watchdog 和 GPU0
   compute process 均为 0，Server 资源前后保持 Models 6、ModelInstances 0、ModelFiles 6。
-- 下一项允许执行的工作：先修复并验证 root-owned Lab cache 清理与回滚重入缺陷，同时
-  共同冻结 D079 的兼容性修订：保留 Qwen-7B 时改用兼容 Runner，或保留当前 Runner 时
-  更换为受支持模型。新的 GPU 运行必须在修订接受、无 GPU 回归通过并重新获得维护授权后
-  才能执行；不得自动第三次重试。
+- 下一项允许执行的工作：D084 已选择并固定 `Qwen2.5-0.5B-Instruct`；先修复并验证
+  root-owned Lab cache 清理与回滚重入缺陷，再按固定 revision 下载和传输模型。新的 GPU
+  运行必须在无 GPU 回归和模型完整性门禁通过并重新获得维护授权后才能执行；不得自动
+  第三次重试。
 
 ## 里程碑
 
@@ -1565,11 +1565,35 @@
 - 下一项允许执行的工作：先对两个清理/回滚缺陷做无 GPU 实现与回归，再共同接受新的
   模型/Runner 兼容性决策；任何新维护窗口均须重新明确授权。
 
+### 2026-10-22：D084 选择 Qwen2.5-0.5B-Instruct 作为新 smoke 模型
+
+- 决策：用户选择保留当前固定 Runner，并把 M5-E 模型改为公开、非 gated 的
+  `Qwen/Qwen2.5-0.5B-Instruct`。固定 Hugging Face revision 为
+  `7ae557604adf67be50417f59c2c2f167def9a775`，模型架构为 `Qwen2ForCausalLM`。
+- 下载 identity：官方 revision 有 10 个顶层文件，总计 999,604,126 bytes；其中
+  `model.safetensors` 为 988,097,824 bytes，LFS SHA-256 为
+  `fdf756fa7fcbe7404d5c60e26bff1a0c8b8aa1f72ced49e7dd0210fe288fb7fe`。正式落盘后仍须
+  为全部文件生成本地 SHA-256 manifest，不能只验证权重。
+- 新 spec：目标路径固定为
+  `/home/wujiaxing2/flowscale-system-validation/models/Qwen2.5-0.5B-Instruct`，Lab name
+  为 `m5e-qwen25-05b-gpu0`，served name 为 `qwen2.5-0.5b-m5e`。Runner digest、GPU0
+  UUID、`127.0.0.1:42000`、tensor parallel 1、maximum model length 2048、GPU memory
+  utilization 0.5、dtype auto 和 eager execution 保持不变。
+- 模板与代码信任：使用模型 revision 自带的 `tokenizer_config.json` chat template，不再
+  传 D082 的 Qwen-7B ChatML extra arg，也不传 `--trust-remote-code`。D082 fixture 和测试
+  作为旧模型输入的历史证据保留，不删除、不改写为 Qwen2.5 语义。
+- 传输门禁：为避免 90 主机外网吞吐问题，先在本机 VPN 链路下载精确 revision，再通过
+  局域网 SSH 传入 90 的唯一 staging 目录；两端核对文件列表、总字节数和 SHA-256 后才
+  原子落到最终路径。下载和传输不授权停止 Python Worker 或运行 GPU workload。
+- 当前停止位置：D084 只冻结输入，没有下载模型、修改服务或使用 GPU。
+- 下一项允许执行的工作：先实现 Lab cache ownership 清理和回滚重入修复，完成离线及
+  无 GPU Docker 回归后建立代码检查点；随后执行模型下载和完整性验证。
+
 ## 未解决风险与待确认事项
 
-- 固定 Runner v0.25.1 与 Qwen-7B 已被正式运行证明不兼容：当前 vLLM 拒绝
-  `QWenLMHeadModel`。D082 的 ChatML 内容和 argv 传递仍有效，但没有机会进入 chat
-  inference；D079 必须通过新决策修改 Runner 或模型，不能静默改动后重试。
+- 固定 Runner v0.25.1 与 Qwen-7B 已被正式运行证明不兼容；D084 已选择受支持架构的
+  `Qwen2.5-0.5B-Instruct` 替代它。新模型仍须经过固定 revision 下载、完整性检查和真实
+  vLLM smoke，不能从官方支持声明直接推断本机运行通过。
 - Lab cache 目前可能被 root 容器写成宿主机非 root 用户不可删除的属主，且既有回滚脚本
   在容器已删、deployment 尚存时不能幂等重入；二者必须在下一次 GPU 运行前完成无 GPU
   修复与回归。
