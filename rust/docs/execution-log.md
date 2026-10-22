@@ -19,9 +19,10 @@
 
 ## 当前状态
 
-- 状态：`ready`
-- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0/M5-E.1 方案已
-  冻结，M5-E.0 只读就绪检查已授权但尚未执行。
+- 状态：`stopped_precondition`
+- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0 已执行。除
+  chat template 外的只读基础设施门禁均通过，但固定 Qwen-7B 没有声明
+  `chat_template`，与 M5-E.1 必须通过 chat 推理的门禁冲突。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -31,12 +32,12 @@
 - 实现状态：M1～M4、M5-A、M5-B、M5-C 和整个 M5-D 已接受。当前代码提供
   `WorkloadSpecV1`、Lab CLI/协调层、可替换 Docker runtime、`worker runtime info` 和
   默认拒绝执行的 M5-D example probe。
-- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；M5-D.2 创建的唯一
-  无 GPU 诊断容器已通过 Rust runtime 正常停止并删除，没有容器、进程、端口或 GPU0
-  残留。没有运行 vLLM、模型或推理。
-- 下一项允许执行的工作：执行 M5-E.0 只读就绪检查并在完成后停在
-  `ready_for_review`。停止 Python Worker、创建 vLLM 容器、挂载模型、申请 GPU0 或
-  运行推理仍需新的明确 M5-E.1 维护窗口授权。
+- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；没有 Rust 容器、
+  进程、端口、cache 或 GPU0 残留，也没有运行 vLLM、挂载模型或发起推理。M5-E.1
+  尚未授权且因 chat template 前置条件不得执行。
+- 下一项允许执行的工作：讨论并明确冻结 Qwen ChatML template 的内容、identity 和
+  传递方式，形成 D079/D080 的有意修订。修订被用户接受且只读门禁复核后，才能另行
+  请求 M5-E.1 维护窗口授权。
 
 ## 里程碑
 
@@ -1360,9 +1361,59 @@
   service/GPU/port/residue identity，并建立 Git 外 0700/0600 配置与证据。M5-E.1 仍未
   授权。
 
+### 2026-10-22：M5-E.0 只读就绪检查在 chat template 前置条件停止
+
+- 目的：在不停止 Python Worker、不创建或改变容器、不申请 GPU 和不写 Server 资源的
+  条件下，确认 M5-E.1 的固定输入、隔离条件、回滚材料与证据链是否完整。
+- 结果：状态为 `stopped_precondition`。source/binary、模型 identity、固定 Runner、
+  Server 资源、现有服务、GPU、端口、历史残留、回滚脚本和证据安全门禁均通过；但
+  Qwen-7B 的 `tokenizer_config.json` 中 `chat_template` 为 `null`，顶层也没有 template
+  文件。vLLM 0.25.1 要求 tokenizer 自带或启动时显式提供 chat template，因此当前冻结
+  输入不能满足 D080 的 chat 非空响应门禁。
+- 输入 identity：源码与 origin 均为
+  `d19b784b296b192983180e4f40bf6f556f132916`；locked/offline release 二进制 SHA-256
+  为 `3788a39ca59b38be97d0ae976b4f7e8c39b6faa574c2e4947608da2b47c49bfe`，
+  `Cargo.lock` SHA-256 为
+  `9093caad63df8eab5b0a59801e3f92dc0f4f145e1bc066bf9854a3647d049a56`。
+  Qwen-7B 顶层文件名/大小 manifest SHA-256 为
+  `03f9cb2ad053674b076b5f93ef5389bfb482c01b5de1a603dd2909ba8bc9bc62`；固定
+  Runner digest、内嵌 vLLM `v0.25.1`、CUDA `13.0.1` 与 M1/D079 一致。
+- 环境与隔离：Rust CLI 和 `nvidia-smi` 均识别两张固定 UUID 的 A100；GPU0 为 0 MiB、
+  0% 且无 compute process，GPU1 采样时同样空闲。Server、Python Worker health 与
+  metrics 均为 200；两个受保护容器保持 running、restart count 0。Server 资源前后为
+  Models 6、ModelInstances 0、ModelFiles 6；端口 42000 空闲，Rust container/process
+  均为 0，预留 data/log 路径不存在。
+- 回滚准备：Git 外证据中保存 ownership 失败关闭 rollback 与 1200 秒 watchdog；其
+  SHA-256 分别为
+  `27b9a1a2448c9638153fa24fb0f754e91366151a65b587747f812352b56644d7` 和
+  `53648f837ef71a4db9074ff67875051c7f248193d963577571435a7e240013c3`。本阶段没有
+  启动 watchdog，也没有执行任何 stop/remove/cleanup。
+- 无效与非正式尝试：错误 Cargo 工作目录导致的 stale binary、管道子 shell 丢变量的
+  source gate、递归模型 manifest、错误 `/v1/version` 与未处理空 `pgrep`、未加 `/v2`
+  的资源路径、把现有 6 个 ModelFile 错判为必须为零、已删除历史 token、交互登录空输入、
+  origin 展示污染和审计输出自检查权限均已分类为 `invalidated` 或
+  `invalid_non_scoring`，未被提升为通过证据；正式替代文件均保存在同一证据目录。
+- 证据：run ID 为 `e0-20261022-125241`；Git 外目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m5e0-readiness-20261022-125241/`
+  为 0700，共 58 个文件且均为 0600，临时登录文件已删除，secret scan 和 manifest
+  自校验通过。`manifest.sha256` 自身 SHA-256 为
+  `fcc3e8c34fc929319dd4851f787a6a757e9c48eb907a4e202dfd430dcc8032cc`，
+  `result.txt` SHA-256 为
+  `a6a4291baa9186f1457dbdba6307200c468bc046e9d66f74ddae76ed566a7601`。
+- 漂移裁定：D079 未冻结 template，而 D080 要求 chat 成功；继续使用原命令并把 chat
+  失败留到维护窗口会降低已冻结验收门禁。结论为 `intentional change pending`，不得
+  静默增加参数或自动进入 M5-E.1。
+- 当前停止位置：M5-E.0 已完整执行并封存，但未通过进入维护窗口的总体前置门禁。Python
+  Server/Worker 保持原状态，Rust Worker 停止，系统无本阶段 workload 或 GPU0 残留。
+- 下一项允许执行的工作：向用户报告并讨论是否以模型原生 ChatML 语义冻结一份显式
+  template，通过现有 `--vllm-extra-arg` 传给 `--chat-template`。只有修订被接受并完成
+  对应只读复核后，才可单独请求 M5-E.1 维护窗口授权。
+
 ## 未解决风险与待确认事项
 
-- 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
+- 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；此外模型没有声明
+  `chat_template`，必须先冻结显式 Qwen ChatML template，不能把预期 chat 失败留到
+  维护窗口，也不能从历史 v0.2.2 容器结果推断通过。
 - Rust Worker API 与 metrics 已分别冻结为 `20150` 和 `20151`；Lab 自动 inference
   端口已冻结为 `42000-42063`，Managed 仍使用 Server 分配端口。每次启动前仍须检查
   实际端口冲突。

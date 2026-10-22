@@ -289,3 +289,10 @@ M5-E 的 D078–D081 已获用户接受。M5-E.0 已授权，只允许在 Python
 执行只读 Server/Docker/NVML/文件/端口检查，并在 Git 外创建受保护的配置和证据目录；
 不得创建或改变 container、服务、GPU workload、模型 mount 或 Server 资源。M5-E.1
 的维护窗口仍未授权，必须在 M5-E.0 结果完成详细报告和用户审阅后另行批准。
+
+M5-E.0 已执行：基础设施、模型文件 identity、Runner、Server 资源、服务、GPU0、端口、
+零残留与回滚材料门禁均通过，但固定 Qwen-7B 没有 `chat_template`。vLLM 0.25.1 在模型
+未声明 template 时要求显式提供，而 M5-E.1 又必须验收 chat 非空响应，因此总体状态为
+`stopped_precondition`。下一步只允许讨论并冻结显式 Qwen ChatML template 的内容、hash
+和通过现有 `--vllm-extra-arg` 传递给 `--chat-template` 的方式；未获得用户接受前不得改写
+D079/D080，也不得请求或执行 M5-E.1 维护窗口。
