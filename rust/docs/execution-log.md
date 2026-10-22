@@ -1060,6 +1060,28 @@
   所有权标签、失败 trap、清理证据和停止条件；连接真实 Docker socket 或创建容器前
   仍须获得用户的单独明确授权。M5-E GPU smoke 继续需要更严格的独立维护窗口授权。
 
+### 2026-10-22：M5-D 无 GPU Docker 集成设计冻结
+
+- 结果：用户接受 M5-D.0/M5-D.1/M5-D.2 分段、诊断容器契约、所有权拒绝、失败清理和
+  证据方案；D073–D075 状态为 `accepted`。本次接受只授权 M5-D.0 离线准备。
+- M5-D.0：实现冻结 CLI 中缺失的 `worker runtime info`，抽取生产 WorkloadSpec 与诊断
+  probe 共用的完整 label 校验函数，并新增不随正式 CLI 发布、默认拒绝执行的 Rust
+  example probe。所有行为通过 fake/mock 和静态门禁验证，不连接 Docker socket。
+- M5-D.1：另获授权后只读连接 Docker，验证 daemon/API、固定缓存 Runner identity、
+  Server/Python Worker/GPU 基线和无历史 M5-D 残留；失败时不进入容器创建。
+- M5-D.2：再获授权后只创建一个唯一身份、network-none、无 GPU、无 mount、无端口、
+  非 privileged 且最多运行 120 秒的固定 Runner 诊断容器；通过 Rust runtime 验证完整
+  生命周期、日志、正确 tuple 和错误 owner 拒绝，并只读证明现有 Python 容器不归属。
+- 清理与证据：正常路径不使用 force，任何 stop/remove 前都重新核验完整 tuple；失败时
+  只有 tuple 完整匹配才自动清理。证据位于 Git 外 0700/0600 目录，必须记录源码、
+  Cargo.lock、二进制、Docker/image、步骤、服务和最终零残留 identity，且不保存 secret。
+- 解释边界：M5-D 只证明 Docker 原语和所有权防护，不能证明 vLLM、模型、GPU 或
+  Managed 兼容；M5-E/M6 验收边界不变。漂移审计结论为 `aligned`。
+- 当前停止位置：M5-D 设计已冻结，尚未开始 M5-D.0 源码实现；没有连接 Docker、读取
+  GPU、创建容器或改变服务。
+- 下一项允许执行的工作：实施并验证 M5-D.0，交付详细实现报告。M5-D.1 的 Docker
+  只读访问和 M5-D.2 的容器变更仍未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。

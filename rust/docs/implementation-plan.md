@@ -121,11 +121,14 @@ M5 分成五个独立门禁：
    Lab 状态机、幂等 deploy、list/status/logs/infer/stop/remove/cleanup、端口分配、健康
    检查与故障诊断。所有 Docker、HTTP、clock、GPU 和 filesystem 边界可注入 fake；
    完成全部 Rust 门禁和 D033 详细实现报告。
-4. **M5-D 无 GPU Docker 集成**：另获明确授权后，在不停止 Python Worker 的前提下
-   连接真实 Docker socket，验证 daemon/version、固定 image inspect、owned label
-   create/inspect/log/stop/remove、未知和冲突标签拒绝、最终零残留。测试 workload
-   不申请 GPU、不运行 vLLM，不使用模型；如果安全的已缓存无 GPU command 无法从
-   固定环境构造，则停止并讨论，不临时拉取未冻结镜像。
+4. **M5-D 无 GPU Docker 集成**：M5-D.0 先离线补齐 `worker runtime info`、共享 label
+   校验和受显式执行门禁保护的 Rust example probe；它必须通过 fake/mock 测试和全部
+   Rust 门禁，不连接 Docker。M5-D.1 另获授权后，在不停止 Python Worker 的前提下
+   只读验证 daemon/version、固定 image inspect、服务/GPU 基线和无历史残留。
+   M5-D.2 再获授权后使用固定缓存 Runner 创建 network-none、无 mount、无 GPU、无端口
+   的有界诊断容器，验证 owned label create/inspect/log/stop/remove、错误 owner 和现有
+   Python 容器拒绝、服务前中后不变以及最终零残留。任何预检失败均停止，不 pull 镜像，
+   不运行 vLLM 或模型，不使用名称或 force 作为正常清理依据。
 5. **M5-E 单 GPU Lab smoke**：另获维护窗口授权后，只停止 `gpustack-worker`，确认
    Server 继续健康、无现有 ModelInstance/GPU workload 且目标 GPU 空闲；使用固定
    Runner digest、本地 Qwen-7B、单 GPU 和 loopback endpoint 完成 deploy、list、
@@ -252,6 +255,8 @@ Server/Worker 正常运行，Rust Worker 停止。代码检查点
 可注入协调服务、完整 CLI、状态机、幂等恢复、loopback 健康/推理、日志和所有权失败
 关闭已经完成离线验证、详细报告与用户验收。
 
-下一项只允许讨论并冻结 M5-D 无 GPU Docker 集成方案。M5-C 的接受不授权连接真实
-Docker socket、创建或删除 container，也不授权 M5-E 停止 Python Worker、使用 GPU
-或运行模型；M5-D 和 M5-E 必须分别获得明确授权。
+当前 M5-D 设计和 D073–D075 已获用户接受，只允许进入 M5-D.0 的离线实现。M5-D.0
+必须补齐 `worker runtime info`、共享 label 校验和 Rust example probe，并完成详细实现
+报告；它不授权连接真实 Docker socket、读取 daemon/image、创建或删除 container。
+M5-D.1、M5-D.2 与 M5-E 必须分别获得明确授权，M5-E 才允许停止 Python Worker、使用
+GPU 或运行模型。
