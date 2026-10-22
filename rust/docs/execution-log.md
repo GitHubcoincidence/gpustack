@@ -19,9 +19,9 @@
 
 ## 当前状态
 
-- 状态：`ready`
+- 状态：`ready_for_review`
 - 当前阶段：M5-D.0 已接受；M5-D.1 首次预检的阻断证据已保留，D077 共享 GPU 主机
-  隔离修订已获用户接受，允许按精确 GPU0 门禁重试 M5-D.1。
+  隔离修订已获用户接受；修订后的 M5-D.1 只读预检已通过并等待用户审阅。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -31,11 +31,11 @@
 - 实现状态：M1～M4、M5-A、M5-B、M5-C 和 M5-D.0 已接受。当前代码提供
   `WorkloadSpecV1`、Lab CLI/协调层、可替换 Docker runtime、`worker runtime info` 和
   默认拒绝执行的 M5-D example probe。
-- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；没有执行真实
-  Docker、Runner、vLLM 或 GPU 工作负载。历史失败和 `invalidated` 证据保持原状态。
-- 下一项允许执行的工作：按 D077 重试 M5-D.1，只读验证 Docker、Runner、服务和精确
-  GPU0 空闲，同时证明 GPU1 外部任务前后未被影响。不得停止未知进程或容器；M5-D.2
-  容器变更和 M5-E GPU smoke 继续需要各自独立授权。
+- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；M5-D.1 只读访问了
+  Docker daemon 和固定 Runner 元数据，但没有执行 probe、pull、容器变更、vLLM、模型
+  或 GPU 工作负载。历史失败和 `invalidated` 证据保持原状态。
+- 下一项允许执行的工作：交付 M5-D.1 详细报告并等待用户审阅；不得自动进入 M5-D.2。
+  M5-D.2 容器变更和 M5-E GPU smoke 继续需要各自独立授权。
 
 ## 里程碑
 
@@ -1207,6 +1207,47 @@
 - 当前停止位置：M5-D.1 可按修订门禁重试，M5-D.2/M5-E 仍未授权。
 - 下一项允许执行的工作：记录干净源码和二进制 identity，确认 GPU0 空闲及 GPU1 外部
   任务可归因后，完成 M5-D.1 的 Rust daemon 与固定 Runner 只读查询和前后对照。
+
+### 2026-10-22：M5-D.1 修订后只读预检通过并待审阅
+
+- 结果：修订后的 M5-D.1 只读门禁通过，状态为 `ready_for_review`，尚未标记
+  `accepted`。源码与 origin 均为
+  `34ac580699013d0cd06719cff21296e2969c96d3`；release 二进制 SHA-256 为
+  `9b52f7f2dc55fa00ccc20a39d139a7c6a2915e5ddfdab8cad0f518a2733501c0`，内嵌 commit
+  为 `34ac58069901`；`Cargo.lock` SHA-256 为
+  `9093caad63df8eab5b0a59801e3f92dc0f4f145e1bc066bf9854a3647d049a56`。
+- Docker 与 Runner：`worker runtime info` 成功完成 daemon ping，报告 Engine
+  `29.1.3`、API `1.52`、最低 API `1.44`、`linux/amd64`。缓存 Runner
+  `quay.io/gpustack/runner@sha256:f9c58b163ec7eb537404c7d268f3d96e101cbf19e05acb8df6b7637f9e64c3af`
+  的 image ID、repo digest、平台和 `tini --` 入口与固定 identity 一致；没有 pull。
+- GPU 隔离：GPU0 `GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3` 前后均为 0 MiB、
+  0% 且无计算进程。GPU1
+  `GPU-b1f89e65-e9c4-26f5-a306-8a520df07708` 的外部任务在采样期间由 PID 变化且显存
+  从 47988 MiB 变为 15994 MiB，但稳定 principal 均为 `liuwang` 的
+  `VLLM::EngineCore`；容器清单完全一致且本项目只执行 daemon/version 与 image inspect
+  读取，因此变化可归因于外部任务自身，不是本项目操作。
+- 服务与残留：Server、Python Worker health 和 metrics 前后均为 200；完整受限容器清单
+  前后相同，`gpustack` 与 `gpustack-worker` 的 identity、运行状态、restart count 和
+  started-at 完全一致。M5-D 历史容器残留、`gpustack-rs` 进程及 `20150/20151` 监听
+  前后均为 0；Rust Worker 保持停止。
+- 执行校正：首次 CLI 调用把 `--docker-socket` 放在顶层，被 Clap 在初始化 runtime 前
+  拒绝；随后按 `worker --docker-socket ... runtime info` 正确执行。首次 `jq` 断言把
+  image inspect 对象误当数组，正确断言后通过。最初要求 GPU1 PID 完全相同的断言比
+  D077 的“可归因且本项目不得修改”门禁更严格，因此保留为无效断言；按 UUID、用户和
+  进程类型组成的稳定外部 principal 复核通过。这三项均保存在证据中，不计作通过步骤。
+- 安全边界：没有执行 example probe，没有 pull、create、start、stop、restart、remove、
+  exec、容器日志或完整 inspect，没有停止服务、发送 Server 写请求、加载模型或申请
+  GPU。结果只证明 Rust Docker daemon 读取路径、固定 Runner identity 和 M5-D.2 的环境
+  前置条件，不证明容器生命周期、Runner shell、vLLM、模型、GPU 推理或 Managed 兼容。
+- 证据：Git 外目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m5d1-readonly-retry-20261022T121520+0800/`
+  为 0700，30 个文件均为 0600，secret scan 通过；`manifest.sha256` 自身 SHA-256 为
+  `805aa4425e1113a2b8d8d463d36ef7cd2648a94605b9fb278c09a3249059e012`，`result.txt`
+  SHA-256 为 `a76fa70e28c746e06a097030d612d36f00c2258806f1bc4cbe68fa6ac16c5685`。
+- 当前停止位置：M5-D.1 等待详细报告和用户共同验收；Python Server/Worker 正常运行，
+  Rust Worker 停止，GPU0 空闲，GPU1 外部工作负载未被本项目修改。
+- 下一项允许执行的工作：直接交付 M5-D.1 详细报告并等待审阅。M5-D.2 的无 GPU 容器
+  生命周期变更和 M5-E 的 GPU0 smoke 仍需分别讨论并获得明确授权。
 
 ## 未解决风险与待确认事项
 

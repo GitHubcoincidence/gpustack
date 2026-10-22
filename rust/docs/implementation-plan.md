@@ -267,5 +267,9 @@ socket、读取 daemon/image、创建或删除 container。M5-D.1 只读预检�
 门禁处以 `stopped_precondition` 停止，尚未运行 `worker runtime info` 或 inspect Runner。
 随后用户接受共享主机隔离修订：M5-D.1/D.2 不申请任何 GPU，只要求未来目标 GPU0 按
 稳定 UUID 保持空闲；允许已识别的 GPU1 外部任务运行，但其前后 identity 和资源快照
-必须可归因且本项目不得修改。M5-D.1 可按修订门禁重试但尚未接受；M5-D.2 与 M5-E
-仍须分别获得明确授权，M5-E 只允许精确分配 GPU0，且仍须停止 Python Worker。
+必须可归因且本项目不得修改。修订后的 M5-D.1 已从干净源码
+`34ac580699013d0cd06719cff21296e2969c96d3` 完成：Rust CLI daemon 查询、固定 Runner
+identity、受保护容器和服务不变、GPU0 空闲、GPU1 外部 principal 可归因以及最终零残留
+门禁均通过，状态为 `ready_for_review`，尚未接受。该结果没有执行 probe、pull 或任何
+容器变更。M5-D.2 与 M5-E 仍须分别获得明确授权，M5-E 只允许精确分配 GPU0，且仍须
+停止 Python Worker。
