@@ -19,8 +19,9 @@
 
 ## 当前状态
 
-- 状态：`ready`
-- 当前阶段：M5-D.0 和 M5-D.1 已接受；首次预检的阻断证据和修订后通过证据均已保留。
+- 状态：`ready_for_review`
+- 当前阶段：M5-D.0 和 M5-D.1 已接受；M5-D.2 无 GPU Docker 生命周期正式门禁已通过，
+  等待用户审阅。首次阻断、命令校正和非评分断言均已保留。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -30,11 +31,11 @@
 - 实现状态：M1～M4、M5-A、M5-B、M5-C 和 M5-D.0 已接受。当前代码提供
   `WorkloadSpecV1`、Lab CLI/协调层、可替换 Docker runtime、`worker runtime info` 和
   默认拒绝执行的 M5-D example probe。
-- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；M5-D.1 只读访问了
-  Docker daemon 和固定 Runner 元数据，但没有执行 probe、pull、容器变更、vLLM、模型
-  或 GPU 工作负载。历史失败和 `invalidated` 证据保持原状态。
-- 下一项允许执行的工作：讨论并冻结 M5-D.2 的精确执行门禁。M5-D.2 容器变更和
-  M5-E GPU smoke 继续需要各自独立授权。
+- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；M5-D.2 创建的唯一
+  无 GPU 诊断容器已通过 Rust runtime 正常停止并删除，没有容器、进程、端口或 GPU0
+  残留。没有运行 vLLM、模型或推理。
+- 下一项允许执行的工作：交付 M5-D.2 详细报告并等待用户审阅；不得自动进入 M5-E。
+  M5-E 单 GPU smoke 仍需独立维护窗口授权。
 
 ## 里程碑
 
@@ -1265,6 +1266,56 @@
 - 下一项允许执行的工作：讨论并冻结 M5-D.2 的精确 preflight、唯一 run identity、
   probe 执行、失败关闭清理、前中后服务/GPU 对照和证据封存步骤。实际运行带
   `--execute` 的 probe 前仍须用户单独明确授权；M5-E 继续未授权。
+
+### 2026-10-22：M5-D.2 无 GPU Docker 生命周期诊断待审阅
+
+- 结果：用户明确授权只创建、启动、停止并删除一个无 GPU 诊断容器且不得停止 Python
+  Worker；正式门禁通过，状态为 `ready_for_review`，尚未标记 `accepted`。run ID 为
+  `d2-20261022-123342`，container ID 为
+  `f8e31cc2a4478e8aaa5b82160aab2141af79a993699753960e0a70729fed83f1`。
+- 输入 identity：源码与 origin 均为
+  `25df8bbbd2a95ba7b1b9144ced30ebe24167104d`，工作树干净；locked/offline release
+  example 二进制 SHA-256 为
+  `7aa48fb60e56f21cdf9c602a4aa0374927a168702392f0fae68750aa0249f613`，
+  `Cargo.lock` SHA-256 为
+  `9093caad63df8eab5b0a59801e3f92dc0f4f145e1bc066bf9854a3647d049a56`；固定 Runner
+  digest 与 M1/M5-D.1 一致且前后未变，没有 pull。
+- 生命周期：probe 在约 0.5 秒内通过 Rust runtime 完成 `created → running → exited →
+  removed`，读取到 `m5d-ready`，Docker events 为
+  `create,start,kill,stop,die,destroy`；其中 `kill` 是正常 stop 发出的 SIGTERM，不是
+  force remove。最终按 container ID inspect 返回 not found，名称和 ownership tuple
+  查询均为零残留。
+- 安全契约：运行中受限 inspect 证明 `network=none`、mount/bind/device request/port
+  binding 均为空、`privileged=false`、`no-new-privileges=true`、auto-remove false、
+  restart policy `no`，命令只输出 readiness marker 并 sleep 120 秒。正确完整 tuple
+  通过；错误 owner 被共享校验拒绝后诊断容器仍为 running。
+- Python 服务保护：probe 在诊断容器 running 后、stop 前验证 `gpustack-worker` 不匹配
+  M5-D ownership，随后按 ID/state 复核未变化；旁路观察也捕获两台受保护容器的
+  ID、running、restart count 和 started-at 与前后完全相同。Server、Python Worker 和
+  metrics 执行前、观察点和执行后均为 200；连续 45 组采样全部为 200。
+- GPU 隔离：GPU0 前中后均为 0 MiB、0% 且无计算进程，实际诊断容器
+  `device_requests=[]`。GPU1 在执行前空闲，执行中由外部用户 `liuwang` 启动
+  `VLLM::EngineCore`；执行后该 principal 可识别。由于诊断容器没有 GPU request、GPU0
+  保持空闲且所有项目操作只针对唯一 Docker tuple，该变化按 D077 归因于外部任务，本
+  项目没有停止、信号或修改它。
+- 执行校正：首次 Runner 只读格式化命令假设镜像存在 `Config.Cmd` 键，被 Docker Go
+  template 拒绝，发生在任何容器变更前；空输出和校正说明已保留，随后用可选字段 `jq`
+  复核通过。另一个要求 HTTP 样本时间戳必须落在 164 ms 容器存活区间的断言得到 0 个
+  样本；该要求不是冻结门禁且比“服务前中后状态不变”更严格，保留为
+  `invalid_non_scoring`。正式中段证据使用 Rust probe 的有序 protected-container inspect，
+  不用该时间重叠断言替代或提升结果。
+- 证据：Git 外目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m5d2-lifecycle-20261022T123342+0800/`
+  为 0700，66 个文件均为 0600，secret scan 通过；`manifest.sha256` 自身 SHA-256 为
+  `71f3f6200b2ab7e073d333dcfff753855e8b07a749de6e0a8b8036a64af25759`，`result.txt`
+  SHA-256 为 `36fe4783251c928ef873afcd7e3e78e048b6e261b139ce5df6b45f1d564f2425`。
+- 解释边界：该 diagnostic 只证明固定 Runner 下的 Docker 生命周期、日志、实际隔离字段、
+  ownership 拒绝、服务保护和清理，不证明 Runner vLLM entrypoint、模型加载、GPU 推理或
+  Managed 控制链。漂移审计结论为 `aligned`。
+- 当前停止位置：M5-D.2 等待详细报告和用户共同验收。Python Server/Worker 正常运行，
+  Rust Worker 停止，诊断容器已删除，GPU0 空闲，GPU1 外部任务未被本项目修改。
+- 下一项允许执行的工作：直接交付 M5-D.2 详细报告并等待审阅。用户接受后才能把
+  M5-D.2 和整个 M5-D 标记为 `accepted` 并开始讨论 M5-E；不得自动进入 GPU smoke。
 
 ## 未解决风险与待确认事项
 

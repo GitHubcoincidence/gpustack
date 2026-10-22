@@ -270,6 +270,10 @@ socket、读取 daemon/image、创建或删除 container。M5-D.1 只读预检�
 必须可归因且本项目不得修改。修订后的 M5-D.1 已从干净源码
 `34ac580699013d0cd06719cff21296e2969c96d3` 完成：Rust CLI daemon 查询、固定 Runner
 identity、受保护容器和服务不变、GPU0 空闲、GPU1 外部 principal 可归因以及最终零残留
-门禁均通过；用户审阅详细报告后已接受 M5-D.1。该结果没有执行 probe、pull 或任何
-容器变更。当前只允许讨论并冻结 M5-D.2 的精确执行门禁；创建诊断容器仍需单独明确
-授权。M5-E 同样须另获授权，只允许精确分配 GPU0，且仍须停止 Python Worker。
+门禁均通过；用户审阅详细报告后已接受 M5-D.1。随后用户明确授权 M5-D.2，只允许创建、
+启动、停止并删除一个无 GPU 诊断容器，且不得停止 Python Worker。M5-D.2 已从干净源码
+`25df8bbbd2a95ba7b1b9144ced30ebe24167104d` 完成：固定 Runner 的 Rust runtime
+create/inspect/start/log/stop/remove、完整 ownership tuple、错误 owner 和受保护容器拒绝、
+真实安全字段、服务前中后不变以及最终零残留门禁均通过，状态为 `ready_for_review`，尚未
+接受。该结果没有 pull、mount、网络、端口或 GPU request。M5-E 仍须另获维护窗口授权，
+只允许精确分配 GPU0，且仍须停止 Python Worker。
