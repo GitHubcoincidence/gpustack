@@ -1082,6 +1082,43 @@
 - 下一项允许执行的工作：实施并验证 M5-D.0，交付详细实现报告。M5-D.1 的 Docker
   只读访问和 M5-D.2 的容器变更仍未授权。
 
+### 2026-10-22：M5-D.0 Docker 集成离线准备
+
+- 结果：M5-D.0 状态为 `ready_for_review`。代码检查点
+  `0fbc8d14b1792210e52aab782f92b15bc1fd9a32` 实现产品 CLI 的
+  `worker runtime info`、生产 WorkloadSpec 与诊断 probe 共用的完整 label 校验，以及
+  不随正式 CLI 发布的受保护 Rust example probe；尚未进入真实 Docker 读取或变更。
+- CLI 与 runtime：`worker runtime info` 从有效配置取得 Docker socket 和 CLI timeout，
+  通过现有 `ContainerRuntime::daemon_info` 返回 ping、Engine/API 最低版本、OS 和架构，
+  支持稳定 table/JSON 输出；连接与 daemon 错误继续映射为 runtime 退出码。
+- 诊断 probe：example 要求不可变 `repository@sha256` 镜像、受限 run ID 和显式
+  `--execute`。执行门禁在 runtime 初始化前失败关闭；冻结 container spec 为
+  network-none、无 mount、无 GPU、无端口、无环境变量、非 privileged、
+  `no-new-privileges`、restart no 和 120 秒有界 shell。
+- 所有权与清理：共享校验逐项要求完整 expected tuple。probe 在每次 stop/remove 和
+  失败清理前重新 inspect 并核验完整标签，名称或 container ID 不作为所有权证明；正常
+  清理不使用 force，冲突、未知或 transitional 状态均失败关闭。错误 owner 拒绝、现有
+  Python 容器拒绝和最终 typed not-found/零过滤残留已编码为后续集成断言。
+- 自动化：`cargo fmt --all -- --check`、workspace/all-targets 的 locked/offline check、
+  两组 Clippy（含 all-features，均 `-D warnings`）、release build、example release build
+  和 104 个测试全部通过。首次增量 check 因传输保留时间戳复用了旧 package artifact；
+  仅清理 `gpustack-worker`/`gpustack-cli` 构建产物后，完整 locked/offline 门禁重跑通过。
+  `Cargo.lock` SHA-256 为
+  `9093caad63df8eab5b0a59801e3f92dc0f4f145e1bc066bf9854a3647d049a56`。
+- 默认拒绝证据：只运行了 CLI help 和未携带 `--execute` 的 example；后者在连接 runtime
+  前以明确错误退出。没有运行 `worker runtime info`，也没有执行带 `--execute` 的 probe。
+- 仓库门禁限制：已运行 `make lint`，但 90 主机没有 `uv`，命令在 pre-commit 启动前
+  退出且未修改文件；因此不宣称 Python/pre-commit 全仓 lint 已通过。变更没有修改
+  Python、数据库、route、generated client 或服务配置。
+- 隔离复核：Server、Python Worker health 和 metrics 均返回 200；`gpustack-rs` 进程为
+  0，`20150/20151` 无监听。阶段内未访问 Docker socket、daemon/image/container API、
+  NVML/GPU、模型或 Server 写接口，未停止或重启任何现有服务。
+- 当前停止位置：M5-D.0 等待详细实现报告和用户共同验收。代码已推送，90 工作树在代码
+  检查点后干净；M5-D.1 的 Docker 只读访问、M5-D.2 的容器变更和 M5-E 的 GPU smoke
+  均未授权。
+- 下一项允许执行的工作：直接交付 M5-D.0 详细实现与验证报告。用户接受后才能讨论并
+  单独授权 M5-D.1 只读 Docker 预检；不得自动连接 Docker 或进入容器生命周期测试。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。

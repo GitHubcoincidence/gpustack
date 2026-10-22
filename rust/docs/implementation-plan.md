@@ -255,8 +255,10 @@ Server/Worker 正常运行，Rust Worker 停止。代码检查点
 可注入协调服务、完整 CLI、状态机、幂等恢复、loopback 健康/推理、日志和所有权失败
 关闭已经完成离线验证、详细报告与用户验收。
 
-当前 M5-D 设计和 D073–D075 已获用户接受，只允许进入 M5-D.0 的离线实现。M5-D.0
-必须补齐 `worker runtime info`、共享 label 校验和 Rust example probe，并完成详细实现
-报告；它不授权连接真实 Docker socket、读取 daemon/image、创建或删除 container。
-M5-D.1、M5-D.2 与 M5-E 必须分别获得明确授权，M5-E 才允许停止 Python Worker、使用
+当前 M5-D 设计和 D073–D075 已获用户接受。M5-D.0 已在代码检查点
+`0fbc8d14b1792210e52aab782f92b15bc1fd9a32` 完成 `worker runtime info`、共享完整
+label 校验和受显式执行门禁保护的 Rust example probe，状态为 `ready_for_review`。
+该阶段仅完成离线构建、测试和静态执行门禁验证，没有连接真实 Docker socket、读取
+daemon/image、创建或删除 container。用户接受详细实现报告前不得进入 M5-D.1；
+M5-D.1、M5-D.2 与 M5-E 仍须分别获得明确授权，M5-E 才允许停止 Python Worker、使用
 GPU 或运行模型。
