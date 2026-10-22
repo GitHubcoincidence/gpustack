@@ -19,9 +19,8 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
-- 当前阶段：M5-D.0 已接受；M5-D.1 首次预检的阻断证据已保留，D077 共享 GPU 主机
-  隔离修订已获用户接受；修订后的 M5-D.1 只读预检已通过并等待用户审阅。
+- 状态：`ready`
+- 当前阶段：M5-D.0 和 M5-D.1 已接受；首次预检的阻断证据和修订后通过证据均已保留。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -34,8 +33,8 @@
 - 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；M5-D.1 只读访问了
   Docker daemon 和固定 Runner 元数据，但没有执行 probe、pull、容器变更、vLLM、模型
   或 GPU 工作负载。历史失败和 `invalidated` 证据保持原状态。
-- 下一项允许执行的工作：交付 M5-D.1 详细报告并等待用户审阅；不得自动进入 M5-D.2。
-  M5-D.2 容器变更和 M5-E GPU smoke 继续需要各自独立授权。
+- 下一项允许执行的工作：讨论并冻结 M5-D.2 的精确执行门禁。M5-D.2 容器变更和
+  M5-E GPU smoke 继续需要各自独立授权。
 
 ## 里程碑
 
@@ -1248,6 +1247,24 @@
   Rust Worker 停止，GPU0 空闲，GPU1 外部工作负载未被本项目修改。
 - 下一项允许执行的工作：直接交付 M5-D.1 详细报告并等待审阅。M5-D.2 的无 GPU 容器
   生命周期变更和 M5-E 的 GPU0 smoke 仍需分别讨论并获得明确授权。
+
+### 2026-10-22：M5-D.1 修订后只读预检接受
+
+- 结果：用户审阅 Docker daemon、固定 Runner、服务、容器、GPU 隔离、零残留、执行
+  校正和解释边界报告后确认无问题；M5-D.1 由 `ready_for_review` 更新为 `accepted`。
+- 接受证据：正式结果记录检查点为
+  `f561204852cf5fbd0628462bb090f8b6e031ded6`；正式证据目录、identity 和哈希保持上一
+  里程碑记录，不因接受而重写首次阻断或无效断言。
+- 接受范围：只证明真实 Docker daemon 读取路径、固定缓存 Runner identity、受保护
+  服务不变、共享 GPU 主机隔离和 M5-D.2 环境前置条件；不证明 container lifecycle、
+  Runner shell、vLLM、模型、GPU 推理或 Managed 兼容。
+- 漂移审计：固定 Runner、无 GPU M5-D、完整 ownership tuple、Python 服务保护、分段
+  授权和 M5-E/M6 解释边界均未改变；结论为 `aligned`。
+- 当前停止位置：M5-D.1 已接受。Python Server/Worker 正常运行，Rust Worker 停止；
+  没有本项目创建的容器、GPU 工作负载或端口残留。
+- 下一项允许执行的工作：讨论并冻结 M5-D.2 的精确 preflight、唯一 run identity、
+  probe 执行、失败关闭清理、前中后服务/GPU 对照和证据封存步骤。实际运行带
+  `--execute` 的 probe 前仍须用户单独明确授权；M5-E 继续未授权。
 
 ## 未解决风险与待确认事项
 
