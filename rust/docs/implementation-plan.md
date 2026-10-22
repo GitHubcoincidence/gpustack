@@ -246,12 +246,12 @@ M4-D 尝试 1 在 `a80922abd0ed` 上真实发现 Worker HTTP `/version` 未获�
 
 M4-D 审阅中发现的根文件系统字段语义已在 commit `ad4ebfa39234de22690f8a28ee79b273eb3acc7d` 修正：Unix 使用 `statvfs` 区分 `free` 与 `available`，并按 `used = total - free` 上报。M4-D.2 从干净 `f6faa63e9c03` 构建并在线复核，Server、Rust metrics 与宿主机同点采样一致；Python Worker 全程运行，测试后无 Rust 进程、端口、容器或 GPU 负载残留。用户已审阅详细报告并接受 M4-D.1、M4-D.2、M4-D 和整个 M4。
 
-当前停止位置为 M5-C `ready_for_review`：M4、M5-A 与 M5-B 结论保持有效，Python
+当前停止位置为 M5-C `accepted`：M4、M5-A 与 M5-B 结论保持有效，Python
 Server/Worker 正常运行，Rust Worker 停止。代码检查点
-`4cfd7d86af0eff7b36ac615266a7d3a7c98ac7f6` 已完成 Lab 本地原子状态、排他锁、
+`4cfd7d86af0eff7b36ac615266a7d3a7c98ac7f6` 的 Lab 本地原子状态、排他锁、
 可注入协调服务、完整 CLI、状态机、幂等恢复、loopback 健康/推理、日志和所有权失败
-关闭，并通过 100 个离线测试及全部 Rust 门禁。
+关闭已经完成离线验证、详细报告与用户验收。
 
-下一项只允许交付 M5-C 详细实现报告并等待用户共同验收。M5-C 的离线实现不授权
-M5-D/M5-E，也不授权连接真实 Docker socket、创建或删除 container、停止 Python
-Worker、使用 GPU 或运行模型；M5-D 必须在 M5-C 接受后另行讨论和明确授权。
+下一项只允许讨论并冻结 M5-D 无 GPU Docker 集成方案。M5-C 的接受不授权连接真实
+Docker socket、创建或删除 container，也不授权 M5-E 停止 Python Worker、使用 GPU
+或运行模型；M5-D 和 M5-E 必须分别获得明确授权。

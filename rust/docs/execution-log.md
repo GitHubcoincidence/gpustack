@@ -1039,6 +1039,27 @@
   `accepted`，再单独讨论并授权 M5-D 无 GPU Docker 集成；不得自动进入真实 Docker
   或 GPU 测试。
 
+### 2026-10-22：M5-C Lab adapter 与 CLI 离线实现接受
+
+- 结果：用户审阅 M5-C 的本地状态、协调服务、CLI、状态机、幂等恢复、所有权保护、
+  故障诊断、测试、隔离与限制报告后确认无问题；M5-C 由 `ready_for_review` 更新为
+  `accepted`。
+- 接受证据：代码检查点为 `4cfd7d86af0eff7b36ac615266a7d3a7c98ac7f6`，接受前
+  治理 HEAD 为 `0a4642a6bd91adebd3d45bde5b7a59ac2af080d1`，`Cargo.lock`
+  SHA-256 为 `8f86dfe7559d710f2abb5ec950cc047b19f383738961a0c839902406041362b2`；
+  100 个测试、locked/offline check、Clippy（`-D warnings`）、格式和 release build
+  结果继续作为本阶段证据。
+- 接受范围：M5-C 只接受 Lab adapter/CLI 和共享 runtime 边界的离线实现。它不证明
+  Docker daemon/image/container 原语在真实环境可用，也不证明 Runner、vLLM、模型
+  健康、GPU 推理或 Managed 工作流兼容。
+- 漂移审计：M5 单 GPU 范围、固定 Runner、Lab/Managed 分离、loopback、完整所有权
+  tuple、两阶段清理与分段授权均未改变；结论为 `aligned`。
+- 当前停止位置：M5-C 已接受。Python Server/Worker 保持运行，Rust Worker 停止，
+  没有本阶段创建的容器、GPU 进程或 `127.0.0.1` Lab 端口监听。
+- 下一项允许执行的工作：讨论并冻结 M5-D 无 GPU Docker 集成的准确命令、临时资源、
+  所有权标签、失败 trap、清理证据和停止条件；连接真实 Docker socket 或创建容器前
+  仍须获得用户的单独明确授权。M5-E GPU smoke 继续需要更严格的独立维护窗口授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
