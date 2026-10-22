@@ -19,10 +19,11 @@
 
 ## 当前状态
 
-- 状态：`stopped_precondition`
+- 状态：`ready`
 - 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
   M5-E.0.1 已接受。M5-E.1 首次正式尝试在创建容器前因 `127.0.0.1:42000` 瞬时
-  bind 冲突停止，已分类为 `invalidated_non_scoring`，不能作为模型加载或推理证据。
+  bind 冲突停止，已分类为 `invalidated_non_scoring`，不能作为模型加载或推理证据；
+  D083 真实 bind 双门禁已接受，同 spec 重试已获新的明确维护授权。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -35,9 +36,9 @@
 - 当前停止位置：Python Server/Worker 已恢复正常，Rust Worker 停止；没有 Rust 容器、
   进程、监听端口、cache、deployment 或 GPU0 残留，Server 模型资源前后不变。本次没有
   创建 vLLM 容器、挂载模型、申请 GPU 或发起推理。
-- 下一项允许执行的工作：讨论并冻结紧邻 deploy 的真实 bind 门禁；D079 的端口和其余
-  输入暂不改变。只有修订获用户接受并获得新的明确维护窗口授权后，才可用同一 spec
-  重试 M5-E.1。
+- 下一项允许执行的工作：从新治理 HEAD 重建 release binary，复核服务、资源和尝试 1
+  留下的空 Lab ownership 元数据；D083 两次真实 bind 均通过后，用完全相同的 D079–D082
+  spec 重试 M5-E.1。任一 bind 失败都按 D083 停止或回滚。
 
 ## 里程碑
 
@@ -1508,6 +1509,19 @@
 - 下一项允许执行的工作：讨论是否增加“停止 Worker 前和 deploy 紧邻时均以真实 bind
   验证固定端口”的操作门禁。该修订获接受后，仍须重新获得维护授权才可用同一固定 spec
   重试；当前不得自动重开维护窗口。
+
+### 2026-10-22：D083 bind 双门禁与 M5-E.1 同 spec 重试获授权
+
+- 决策：用户接受 D083。固定端口保持 `127.0.0.1:42000`；停止 Python Worker 前和
+  drain 后各执行一次短生命周期真实 bind，第二次成功后不插入其他网络操作并立即 deploy。
+- 不变项：模型、Runner digest、GPU0 UUID、served name、context、GPU memory、dtype、
+  trust remote code、eager、ChatML、CLI 验收序列、Server 资源对照和 ownership 回滚均不变。
+- 授权：用户明确允许用相同 spec 重试，允许再次停止和恢复 `gpustack-worker`，并在全部
+  门禁通过后创建、启动、停止和删除唯一 Lab 容器；不得改端口或处置未知 socket。
+- 当前停止位置：Server/Python Worker 正常，GPU0 空闲，无 Rust workload；尝试 1 证据
+  保持非评分且不可覆盖。
+- 下一项允许执行的工作：提交并同步本修订，从该干净 HEAD 重建 binary，建立新的 Git 外
+  证据目录和 watchdog，然后严格按 D083 执行重试。
 
 ## 未解决风险与待确认事项
 

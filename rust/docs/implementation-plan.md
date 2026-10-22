@@ -306,3 +306,9 @@ ESTABLISHED 连接，因此该尝试分类为 `invalidated_non_scoring`，不改
 也不产生模型加载或推理结论。rollback 已恢复同一 Python Worker；服务、Server 资源、
 GPU0 和 Rust 残留门禁通过。下一步只允许讨论并冻结真实 bind 前置门禁；同 spec 重试仍
 需新的明确维护窗口授权。
+
+用户已接受 D083 并明确授权同 spec 重试。重试保持 D079–D082 全部输入和验收规则不变；
+在停止 Python Worker 前执行真实短生命周期 bind，drain 后完成服务/GPU 检查并再次真实
+bind，第二次成功后不插入其他网络命令而立即 deploy。任一 bind 失败均不得继续；drain
+后的失败直接运行已验证 rollback。尝试 1 继续保留为 `invalidated_non_scoring`，不得因
+重试结果覆盖或升级。
