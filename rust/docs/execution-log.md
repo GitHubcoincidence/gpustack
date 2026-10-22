@@ -19,10 +19,10 @@
 
 ## 当前状态
 
-- 状态：`stopped_precondition`
-- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0 已执行。除
-  chat template 外的只读基础设施门禁均通过，但固定 Qwen-7B 没有声明
-  `chat_template`，与 M5-E.1 必须通过 chat 推理的门禁冲突。
+- 状态：`ready_for_review`
+- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0 已执行。固定
+  Qwen-7B 缺少 `chat_template` 的阻断已按 D082 冻结为显式模型原生 ChatML fixture，
+  CLI 与 workload argv 逐字传递的离线回归和只读环境复核均已通过。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -34,10 +34,10 @@
   默认拒绝执行的 M5-D example probe。
 - 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；没有 Rust 容器、
   进程、端口、cache 或 GPU0 残留，也没有运行 vLLM、挂载模型或发起推理。M5-E.1
-  尚未授权且因 chat template 前置条件不得执行。
-- 下一项允许执行的工作：讨论并明确冻结 Qwen ChatML template 的内容、identity 和
-  传递方式，形成 D079/D080 的有意修订。修订被用户接受且只读门禁复核后，才能另行
-  请求 M5-E.1 维护窗口授权。
+  尚未授权。
+- 下一项允许执行的工作：交付 D082 与 M5-E.0.1 的详细实现、验证和解释边界报告并等待
+  用户共同验收。验收后只能单独讨论 M5-E.1 维护窗口；不得因本次离线结果自动停止
+  Python Worker、创建容器或申请 GPU0。
 
 ## 里程碑
 
@@ -1409,11 +1409,55 @@
   template，通过现有 `--vllm-extra-arg` 传给 `--chat-template`。只有修订被接受并完成
   对应只读复核后，才可单独请求 M5-E.1 维护窗口授权。
 
+### 2026-10-22：M5-E.0.1 Qwen ChatML 冻结与传递复核待审阅
+
+- 结果：D082 修订方向已获用户同意，fixture、CLI 解析和 workload argv 回归已实现并
+  推送；M5-E.0.1 状态为 `ready_for_review`。本阶段没有进入 M5-E.1，也没有把离线结果
+  提升为模型加载或推理证据。
+- 模型语义来源：90 主机固定 Qwen-7B 的 `qwen_generation_utils.py::make_context` 明确
+  使用 `<|im_start|>/<|im_end|>` ChatML，并在默认 system 为空时仍生成 system 块；该
+  文件 SHA-256 为 `f223e0f1bb987fdb93b7cf80e046d96e9e910650103ef2f136eb04887324de34`。
+  `tokenizer_config.json` 的 `chat_template` 为 null，文件 SHA-256 为
+  `9d4a57f708b43924364068ff3ae5e4c0aa9cf5bdab23d971a0c8f83137b81f52`。
+- template identity：新增 `rust/fixtures/m5e/qwen-7b-chatml.jinja`，只覆盖 string
+  content、system/user/assistant 与 `add_generation_prompt`。文件为 UTF-8 单行、唯一 LF
+  结尾，共 382 bytes，SHA-256 为
+  `0d06c62751b46ff03bde0e08ae4d351f056e95885b3c258382492686965af15d`；正式传递时删除
+  结尾 LF，有效值为 381 bytes，SHA-256 为
+  `74c5628e34e1d05c43a639966d7f5861d01cfd89ebafa39b3976f4d6c12dfd14`。
+- 语义复核：90 主机 Jinja2 3.1.2 对单 user、显式 system 加 user、user/assistant 多轮
+  三个样例逐字渲染均通过，并与固定 `make_context` 的空 system、逐轮换行和 assistant
+  generation prompt 结构一致。vLLM 0.25.1 官方参数契约允许 `--chat-template` 接受单行
+  template，并要求 tokenizer 未定义时显式提供。
+- 传递复核：正式 Bash 命令只允许把有效值组成一个
+  `--vllm-extra-arg=--chat-template=<template>` 参数，禁止 `eval`。现有 CLI 只按第一个
+  `=` 拆分为 `--chat-template` 和完整 template；workload builder 再把二者作为两个独立
+  container argv 元素传入，因此 Jinja 内容不经过容器 shell 二次解析，也不需要改变
+  只读模型 mount。
+- 自动化：代码检查点为 `77b402c41ecdcea377d4c4e8dfab962ff30daa6e`；新增 CLI 与
+  workload 两项回归测试。固定 Rust 1.99.1 下 fmt、workspace/all-targets/all-features
+  locked/offline check、Clippy `-D warnings`、106 项测试、release build 与 Rustdoc
+  `-D warnings` 全部通过。没有新增依赖，`Cargo.lock` SHA-256 保持
+  `9093caad63df8eab5b0a59801e3f92dc0f4f145e1bc066bf9854a3647d049a56`；release binary
+  SHA-256 为 `5578b43b774264bc2747367190f4776c09256226319345cb8a9c5e182b7a51f5`。
+- 注释与实现边界：本次没有修改生产逻辑，只增加固定 fixture、说明和行为回归测试；
+  测试名称已表达不变量，因此没有添加冗余逐行注释或修改历史式注释。
+- 结束复核：source、origin 均为代码检查点且工作树干净；Server、Python Worker health
+  与 metrics 均为 200，两个既有 GPUStack 容器保持运行；Rust 进程和
+  `20150/20151/42000` 监听均为 0，两张 A100 均为 0 MiB、0%。没有连接 Docker 变更
+  路径、创建容器、停止服务、挂载模型、申请 GPU 或运行推理。
+- 漂移裁定：这是对 D079/D080 的 `intentional change accepted`，只补足固定 chat 输入，
+  不改变 Runner、模型、GPU0、端口、资源参数、验收序列和 D081 回滚边界。
+- 当前停止位置：M5-E.0.1 等待本聊天中的详细报告与用户共同验收；M5-E.1 仍未授权。
+- 下一项允许执行的工作：完成报告与审阅。用户接受后才能单独讨论 M5-E.1 的即时预检、
+  维护窗口和精确命令；不得自动停止 Python Worker、创建 vLLM 容器或申请 GPU0。
+
 ## 未解决风险与待确认事项
 
-- 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；此外模型没有声明
-  `chat_template`，必须先冻结显式 Qwen ChatML template，不能把预期 chat 失败留到
-  维护窗口，也不能从历史 v0.2.2 容器结果推断通过。
+- 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；模型没有声明
+  `chat_template`，D082 已冻结显式 Qwen ChatML 输入并完成离线传递复核，但仍须在
+  M5-E.1 由真实 `/v1/chat/completions` 验证，不能从离线渲染或历史 v0.2.2 容器结果
+  推断通过。
 - Rust Worker API 与 metrics 已分别冻结为 `20150` 和 `20151`；Lab 自动 inference
   端口已冻结为 `42000-42063`，Managed 仍使用 Server 分配端口。每次启动前仍须检查
   实际端口冲突。

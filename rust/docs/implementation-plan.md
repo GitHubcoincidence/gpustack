@@ -134,9 +134,11 @@ M5 分成五个独立门禁：
    principal、`127.0.0.1:42000` 和历史残留，并建立 Git 外受保护的运行配置与证据目录。
    M5-E.1 另获维护窗口授权后，只停止 `gpustack-worker`；使用固定 Runner digest、本地
    Qwen-7B、GPU0 完整 UUID、tensor parallel 1、2048 context、0.5 GPU memory、dtype
-   auto、trust remote code 和 eager execution 完成 deploy/list/status/logs、readiness、
-   同 spec 幂等、异 spec 冲突、completion/chat、stop/remove 与 cleanup。无论成功失败
-   都只清理完整 owned tuple，恢复原 Python Worker 并独立验证 Server 资源、服务、端口、
+   auto、trust remote code、eager execution，以及 D082 冻结的显式 Qwen ChatML template
+   完成 deploy/list/status/logs、readiness、同 spec 幂等、异 spec 冲突、completion/chat、
+   stop/remove 与 cleanup。template 必须通过单个 `--vllm-extra-arg` 进入结构化参数和独立
+   container argv，不使用 `eval`、可写模型目录或额外 mount。无论成功失败都只清理完整
+   owned tuple，恢复原 Python Worker 并独立验证 Server 资源、服务、端口、
    容器、cache 和 GPU 无残留；所有权或 GPU0 残留不可归因时失败关闭并请求人工处置。
 
 M5-B 和 M5-C 的每个实现阶段都必须分别交付详细实现报告并由用户接受，不能因为最终
@@ -291,8 +293,9 @@ M5-E 的 D078–D081 已获用户接受。M5-E.0 已授权，只允许在 Python
 的维护窗口仍未授权，必须在 M5-E.0 结果完成详细报告和用户审阅后另行批准。
 
 M5-E.0 已执行：基础设施、模型文件 identity、Runner、Server 资源、服务、GPU0、端口、
-零残留与回滚材料门禁均通过，但固定 Qwen-7B 没有 `chat_template`。vLLM 0.25.1 在模型
-未声明 template 时要求显式提供，而 M5-E.1 又必须验收 chat 非空响应，因此总体状态为
-`stopped_precondition`。下一步只允许讨论并冻结显式 Qwen ChatML template 的内容、hash
-和通过现有 `--vllm-extra-arg` 传递给 `--chat-template` 的方式；未获得用户接受前不得改写
-D079/D080，也不得请求或执行 M5-E.1 维护窗口。
+零残留与回滚材料门禁均通过；唯一阻断项是固定 Qwen-7B 没有 `chat_template`。用户随后
+接受 D082 修订方向，仓库已冻结模型原生 ChatML 语义的单行 fixture，并新增 CLI 解析和
+workload argv 逐字传递回归测试。固定 Rust 1.99.1 下 106 项测试、fmt、locked/offline
+check、Clippy、release build 和 Rustdoc 均通过，现有服务与 GPU 保持不变。当前状态为
+`ready_for_review`；下一步只允许交付 D082/M5-E.0.1 详细报告并共同验收，M5-E.1 仍须
+新的明确维护窗口授权。

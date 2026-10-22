@@ -220,3 +220,15 @@ D077，明确把未来目标固定为 GPU0，并允许 GPU1 外部任务保持�
 NVML，并允许在 Git 外建立受保护的配置和证据目录；不授权停止或重启 Python Worker、
 创建/启动/停止/删除 container、挂载模型、申请 GPU、运行 vLLM 或推理。M5-E.1 必须在
 M5-E.0 通过并交付审阅后获得新的明确维护窗口授权。
+
+## 2026-10-22 M5-E Qwen ChatML 前置条件修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D082 | Qwen ChatML 内容、identity 与传递 | 以固定模型 `qwen_generation_utils.py::make_context` 为语义来源，冻结 `rust/fixtures/m5e/qwen-7b-chatml.jinja`：无显式 system 消息时仍生成空 system 块，随后逐条生成 system/user/assistant ChatML 块，`add_generation_prompt` 时追加 assistant 起始块。fixture 文件 SHA-256 为 `0d06c62751b46ff03bde0e08ae4d351f056e95885b3c258382492686965af15d`；删除唯一结尾 LF 后的有效模板为 381 bytes，SHA-256 为 `74c5628e34e1d05c43a639966d7f5861d01cfd89ebafa39b3976f4d6c12dfd14`。M5-E.1 只能以一个 `--vllm-extra-arg=--chat-template=<template>` CLI 参数传入，Rust 将其保存为结构化 flag/value 并作为两个独立 container argv 元素传给 vLLM；禁止 `eval`、临时修改模型目录或新增模板 mount | 固定模型的 tokenizer 没有 template，而 vLLM 0.25.1 在这种情况下要求显式提供。内联单行模板是 vLLM 的正式输入形式，既不改变只读模型目录和 mount 契约，也避免 shell 在容器内再次解析 Jinja 内容；hash、渲染样例和 argv 回归测试使正式 smoke 输入可复现。 |
+
+D082 是对 D079 固定 smoke 输入和 D080 chat 验收的有意补充，不改变模型、Runner、GPU0、
+端口、显存参数、CLI 序列或回滚边界。该 fixture 只声明 string content 与
+system/user/assistant 消息，不声明 tool calling、多模态消息或其他 Qwen 版本兼容性。
+用户已接受该修订方向；对应 fixture、CLI 解析和 workload argv 回归证据仍须完成详细
+报告与共同审阅。M5-E.1 维护窗口继续需要新的明确授权。
