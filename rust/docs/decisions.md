@@ -192,7 +192,12 @@ D072 已在独立 scratch crate 和实际 workspace 中通过固定 Rust 1.99.1 
 | D073 | M5-D 分段与工具边界 | M5-D.0 只离线实现 `worker runtime info`、共享完整 label 校验函数和不随正式 CLI 发布的 Rust example probe；M5-D.1 另获授权后只读连接 Docker 并完成 daemon/image/service/GPU 预检；M5-D.2 再获授权后才创建诊断容器 | 把产品需要的只读 CLI、可审计验证工具、外部读取和 Docker 变更分开；不向公共 CLI 暴露任意 create/remove 原语。 |
 | D074 | 无 GPU 诊断容器契约 | 使用 M1 固定且已缓存的 Runner digest，禁止 pull、GPU request、mount、端口和网络；容器非 privileged、启用 `no-new-privileges`、restart `no`、auto-remove false，只执行输出 readiness 标记并最多 sleep 120 秒的 `/bin/sh` 命令 | 在复用真实固定镜像和真实 Docker API 的同时排除模型、GPU、网络和宿主机文件变量；有界命令在验证进程异常时也会自行停止。 |
 | D075 | 所有权、失败与证据 | 每个 run 使用唯一 name、owner、run-id 和 spec hash；create/start/inspect/log/stop/remove 全部走 Rust runtime。错误 owner 必须由共享 label 校验拒绝，现有 Python 容器只做只读拒绝验证。失败时仅在完整 tuple 匹配时清理，不使用名称或 `docker rm -f` 正常路径；正式证据写入 Git 外 0700/0600 目录并要求最终零残留和 Python 服务前中后不变 | 让真实变更仍受与生产 workload 相同的失败关闭原则约束，并使成功、失败和清理证据可归因且不泄露凭据。 |
+| D076 | M5-D.1 只读预检门禁 | 使用现有 `worker runtime info` 验证 Rust 到 Docker 的 ping/version 路径，并使用精确格式化的 Docker 只读查询验证固定 Runner、受保护容器和历史残留；前后复核服务、GPU、进程与端口。禁止 probe、pull、exec、日志、完整 inspect 和任何容器变更，Python Worker 全程运行 | 在 M5-D.2 变更前验证真实环境，同时避免扩大公共 CLI 或把只读诊断提升为容器、vLLM、模型和 GPU 兼容证据。 |
 
 用户接受 D073–D075 只授权 M5-D.0 的离线源码、fake/mock 测试和 Rust 门禁，不授权
 连接真实 Docker socket、运行 `worker runtime info`、inspect 真实镜像、创建诊断容器或
 读取 GPU。M5-D.1 和 M5-D.2 必须分别获得新的明确授权；M5-E 维护窗口边界不变。
+
+M5-D.0 接受后，用户另行接受 D076 并明确授权执行 M5-D.1 的只读 Docker、容器元数据和
+GPU 预检。该授权不包含 `m5d_docker_probe --execute`、镜像 pull、容器 create/start/
+stop/restart/remove、`docker exec`、服务变更、模型加载或推理；M5-D.2 仍须单独授权。

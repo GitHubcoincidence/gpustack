@@ -20,7 +20,7 @@
 ## 当前状态
 
 - 状态：`ready`
-- 当前阶段：M5-D.0 离线准备已接受，M5-D.1 只读 Docker 预检待讨论和单独授权。
+- 当前阶段：M5-D.0 已接受，M5-D.1 只读 Docker 预检方案已冻结并获执行授权。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -32,9 +32,9 @@
   默认拒绝执行的 M5-D example probe。
 - 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；没有执行真实
   Docker、Runner、vLLM 或 GPU 工作负载。历史失败和 `invalidated` 证据保持原状态。
-- 下一项允许执行的工作：讨论并冻结 M5-D.1 只读 Docker 预检的输入、证据和停止条件；
-  连接 Docker 前仍须获得明确授权。M5-D.2 容器变更和 M5-E GPU smoke 继续需要各自
-  独立授权。
+- 下一项允许执行的工作：按 D076 执行 M5-D.1，只读取 Docker daemon、固定 Runner、
+  受保护容器和 GPU/服务基线，并交付详细报告。M5-D.2 容器变更和 M5-E GPU smoke
+  继续需要各自独立授权。
 
 ## 里程碑
 
@@ -1138,6 +1138,25 @@
   本阶段没有连接 Docker、创建容器或产生 GPU/端口残留。
 - 下一项允许执行的工作：讨论并冻结 M5-D.1 只读 Docker 预检；实际连接 Docker socket
   前仍须用户单独明确授权。M5-D.2 容器变更和 M5-E GPU smoke 均继续禁止。
+
+### 2026-10-22：M5-D.1 只读 Docker 预检冻结与授权
+
+- 结果：用户接受 D076，并明确授权读取真实 Docker daemon、固定 Runner image、受保护
+  容器元数据和 GPU 状态；M5-D.1 状态为 `ready`，尚未产生运行结果。
+- 固定输入：从干净 `codex/rust-worker` HEAD 构建 release 二进制，Docker socket 为
+  `/var/run/docker.sock`，Runner 固定为 M1 的 `quay.io/gpustack/runner@sha256:` identity，
+  受保护容器为 `gpustack` 和 `gpustack-worker`，GPU UUID 仍为 M1 的两张 A100。
+- 允许操作：运行 `worker runtime info`，使用精确格式的 image/container 只读查询，
+  检查历史 M5-D 名称/标签残留，并在前后采集 Server、Python Worker、GPU、Rust 进程和
+  端口基线；证据写入 Git 外 0700/0600 目录且不得包含 secret。
+- 禁止操作：不得运行带 `--execute` 的 probe，不得 pull、create、start、stop、restart、
+  remove、exec、读取容器日志或完整 inspect，不得停止服务、加载模型、运行推理或调用
+  Server 写接口。任何 identity、健康、残留、GPU 或隔离门禁失败均停止且不现场修复。
+- 解释边界：通过只证明 Rust daemon 读取路径和 M5-D.2 环境前置条件，不证明容器生命
+  周期、Runner shell、vLLM、模型、GPU 推理或 Managed 兼容；漂移审计结论为 `aligned`。
+- 当前停止位置：M5-D.1 已授权但尚未执行；Python Server/Worker 保持运行。
+- 下一项允许执行的工作：执行 M5-D.1 只读预检，完成后停在 `ready_for_review` 并交付
+  详细报告。M5-D.2 继续未授权。
 
 ## 未解决风险与待确认事项
 

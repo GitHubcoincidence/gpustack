@@ -259,6 +259,9 @@ Server/Worker 正常运行，Rust Worker 停止。代码检查点
 `0fbc8d14b1792210e52aab782f92b15bc1fd9a32` 完成 `worker runtime info`、共享完整
 label 校验和受显式执行门禁保护的 Rust example probe，经详细报告和用户审阅后状态为
 `accepted`。该阶段仅完成离线构建、测试和静态执行门禁验证，没有连接真实 Docker
-socket、读取 daemon/image、创建或删除 container。下一项只允许讨论并冻结 M5-D.1
-只读预检；M5-D.1、M5-D.2 与 M5-E 仍须分别获得明确授权，M5-E 才允许停止 Python
-Worker、使用 GPU 或运行模型。
+socket、读取 daemon/image、创建或删除 container。M5-D.1 只读预检方案已经冻结并获
+明确执行授权：保持 Python Worker 运行，使用现有 CLI 和受限格式查询读取 daemon、
+固定 Runner、受保护容器、历史残留、GPU、进程和端口，前后基线必须一致。M5-D.1
+禁止 probe、pull、exec、日志、完整 inspect 和任何容器变更；结果在详细报告和用户验收
+前只能是 `ready_for_review`。M5-D.2 与 M5-E 仍须分别获得明确授权，M5-E 才允许停止
+Python Worker、使用 GPU 或运行模型。
