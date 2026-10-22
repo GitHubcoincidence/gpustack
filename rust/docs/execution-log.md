@@ -19,12 +19,11 @@
 
 ## 当前状态
 
-- 状态：`ready`
+- 状态：`ready_for_review`
 - 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
-  M5-E.0.1 已接受。M5-E.1 尝试 1 保持 `invalidated_non_scoring`；按 D083 执行的同
-  spec 正式重试已穿过端口、容器和 GPU0 门禁，但固定 Runner 内 vLLM 0.25.1 明确拒绝
-  `QWenLMHeadModel`，因此分类为 `formal_failure`。D084 已改选 Qwen2.5-0.5B-Instruct，
-  D085 清理与回滚修复已完成无 GPU 验证；M5-E 尚未通过。
+  M5-E.0.1 已接受。Qwen-7B 的一次无效端口尝试和一次正式不兼容失败保持原分类；D084
+  改选 Qwen2.5-0.5B-Instruct、D085 清理与回滚修复完成后，新模型 M5-E.1 正式 smoke
+  已通过全部运行、推理、清理和恢复门禁，当前等待用户审阅，尚未标记 `accepted`。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -34,12 +33,12 @@
 - 实现状态：M1～M4、M5-A、M5-B、M5-C 和整个 M5-D 已接受。当前代码提供
   `WorkloadSpecV2`、Lab CLI/协调层、可替换 Docker runtime、`worker runtime info` 和
   默认拒绝执行的 M5-D example probe。
-- 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；失败
-  Lab 的 container、manifest、cache、42000 listener、Rust process、watchdog 和 GPU0
-  compute process 均为 0；D084 模型已安装到 90 的固定最终路径且完整性验证通过。
-- 下一项允许执行的工作：新模型的 M5-E.1 只读即时预检与正式 run identity 已冻结并通过；
-  只有重新获得明确维护授权后，才能停止 Python Worker、创建唯一 Lab container 并向
-  GPU0 发出精确 UUID request。不得自动执行。
+- 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；正式
+  Lab 的 container、manifest、cache、42000 listener、watchdog 和 GPU0 compute process
+  均为 0。Server 资源 ID 集保持不变，M5-E.1 结果为 `ready_for_review`。
+- 下一项允许执行的工作：在聊天中交付 M5-E.1 详细实现与验证报告并由用户共同审阅；
+  用户接受后才能把 M5-E 和整个 M5 标为 `accepted`，再讨论 M6-A Managed 文件准备。
+  当前不得自动创建 Managed 资源、更新 ModelInstance/ModelFile 或重开 GPU 维护窗口。
 
 ## 里程碑
 
@@ -1670,13 +1669,65 @@
 - 当前停止位置：只读门禁通过，但没有停止服务、创建 container、挂载模型、申请 GPU 或
   运行推理。新的正式 run 必须获得用户对本次 Qwen2.5 维护窗口的明确授权。
 
+### 2026-10-22：Qwen2.5 M5-E.1 正式 smoke 待审阅
+
+- 目的与授权：用户明确授权本次维护窗口，只允许停止并恢复受保护的
+  `gpustack-worker`，以及在固定 GPU0 UUID 上创建、启动、停止并删除唯一 Qwen2.5 Lab
+  容器；GPU1、Runner、模型 revision、42000 端口和资源参数均不得改变。
+- 无效预检：首个 Git 外目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m5e1-qwen25-formal-20261022-214717-4zQEa2/`
+  因运行手册遗漏 `version` 的 `--output json`，在 `preflight_identity` 阶段立即停止。
+  Python Worker 从未停止，没有 container 或 GPU request；分类为 `invalidated_preflight`。
+  该目录 13 个文件均为 `0600`，清单 SHA-256 为
+  `c276f242f7cb787cd6229d5849df9fd5343c08c504506f257156cc1fa42be13e`。
+- 正式身份：有效运行使用治理 HEAD
+  `81aab8e7aaf10e5caa36a84d6878151d80a8697d`，并证明从二进制代码检查点
+  `56c632472116e50c064ba9c89627a0b3a5dfb60a` 到治理 HEAD 没有 Rust 代码漂移。release
+  binary SHA-256 为
+  `bfa6ab9b21e99d50144c4b1f13579b5d389dd89c71e27e7ed76eebf8c8a90312`，`Cargo.lock`
+  SHA-256 为 `9093caad63df8eab5b0a59801e3f92dc0f4f145e1bc066bf9854a3647d049a56`；
+  10 项模型 manifest 再次全部通过。
+- 维护与启动：独立 1800 秒 watchdog 就绪后，按完整容器 ID
+  `68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165` 停止 Python
+  Worker；Server 保持健康。停止前和 drain 后两次短生命周期真实 bind 均通过，第二次
+  bind 后立即执行固定 deploy。vLLM 在约 75 秒后达到 `/v1/models` readiness。
+- 工作负载证据：Lab ID 为 `8f2cd296-41ac-4b6c-9b45-12355bb73b54`，container ID 为
+  `96d9e1676ab21723640d3fbc9f5b21013702c4cb3cdb040674c78d3a67a4c6f4`，spec hash 为
+  `09cf2988422f6148ac2fe0ad4bfffdee5c15da343e227f0707cac60f5db7dd7c`。捕获的 Docker
+  契约证明只请求 GPU0 完整 UUID，容器用户为 `1004:1004`，固定 cache HOME/环境生效，
+  模型 mount 只读，host network、10 GiB shm、非 privileged 和
+  `no-new-privileges` 生效；argv 不含 `--trust-remote-code` 或旧 ChatML 参数。
+- CLI 验收：deploy/list/status/logs 与 `/v1/models` 通过；同 spec 再次 deploy 返回同一
+  Lab ID、container ID 和 spec hash。把 GPU memory utilization 改为 0.51 的异 spec
+  请求以退出码 50 和 `different normalized spec` 拒绝，运行实例身份未变。completion
+  返回非空文本，chat 对固定提示返回 `测试成功`。
+- 清理与恢复：`lab stop`、`lab remove --yes`、cleanup dry-run/execute 均通过，证明
+  D085 的真实 vLLM cache ownership 正常，不再需要 root 修复。恢复原 Python Worker 后，
+  Server、Worker health 和 metrics 均为 200；Models、ModelInstances、ModelFiles、Workers
+  前后为 8/0/6/2，前三类资源 ID 集不变，Worker 状态恢复为
+  `r760xa=ready`、`rust-m3d-r760xa=maintenance`。
+- 最终隔离：独立语法检查后的事后审计确认 Rust container、Lab deployment/cache、42000
+  listener、watchdog、GPU0 compute process 和显存使用均为 0。事后审计前两条交互命令
+  分别因宽泛进程匹配和 Bash 括号拼写被标记为 `invalidated_diagnostic`；它们只读且没有
+  改变正式运行，最终 `post-audit.sh` 完整通过。
+- 有效证据：Git 外 `0700` 目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m5e1-qwen25-formal-20261022-215207-Mxm3Ak/`
+  含 105 个 `0600` 文件；known Worker token 与 credential-pattern 扫描均为 0 命中，
+  `result.txt` SHA-256 为
+  `679050d4665b61e566ea4801671095a3aa6f016782ff9ae2cc145950adccad5d`，`SHA256SUMS`
+  SHA-256 为 `7126ec45f421e01d144030a8561d3e4cad6016df5e839423e37441cd71a77cb5`。
+- 解释与状态：该结果证明 M5 的宿主机进程形态、单 GPU Lab、固定 Runner/Qwen2.5、CLI
+  推理、幂等、冲突保护、所有权清理和 Python Worker 回滚路径，状态为
+  `ready_for_review`。它仍不是 Managed、双 GPU 或容器化 Rust Worker 证据。
+- 当前停止位置与下一步：系统已回到维护前状态；先在聊天中完成详细报告和用户审阅。
+  用户接受后才记录 M5-E/M5 `accepted` 并讨论 M6-A，不自动执行 Managed 写入或新维护窗口。
+
 ## 未解决风险与待确认事项
 
-- 固定 Runner v0.25.1 与 Qwen-7B 已被正式运行证明不兼容；D084 已选择受支持架构的
-  `Qwen2.5-0.5B-Instruct` 替代它。新模型仍须经过固定 revision 下载、完整性检查和真实
-  vLLM smoke，不能从官方支持声明直接推断本机运行通过。
-- Lab cache ownership 与回滚重入已由 D085 修复并通过真实无 GPU Runner 探针；仍需在
-  下一次获批的完整 Lab smoke 中验证真实 vLLM server 运行和正常 stop/remove 路径。
+- 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
+  `Qwen2.5-0.5B-Instruct` 已完成固定 revision 下载、全文件完整性验证和真实 vLLM smoke。
+- Lab cache ownership 与回滚重入已由 D085 修复，并在无 GPU Runner 探针和本次真实
+  vLLM 正常 stop/remove 中通过；故障中断后的真实 GPU 回滚重入仍留给 M7 恢复阶段覆盖。
 - Rust Worker API 与 metrics 已分别冻结为 `20150` 和 `20151`；Lab 自动 inference
   端口已冻结为 `42000-42063`，Managed 仍使用 Server 分配端口。每次启动前仍须检查
   实际端口冲突。

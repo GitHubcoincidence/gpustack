@@ -136,8 +136,8 @@ M5 分成五个独立门禁：
    Qwen2.5-0.5B-Instruct、GPU0 完整 UUID、tensor parallel 1、2048 context、0.5 GPU memory、dtype
    auto 和 eager execution，并使用模型内置 chat template
    完成 deploy/list/status/logs、readiness、同 spec 幂等、异 spec 冲突、completion/chat、
-   stop/remove 与 cleanup。template 必须通过单个 `--vllm-extra-arg` 进入结构化参数和独立
-   container argv，不使用 `eval`、可写模型目录或额外 mount。无论成功失败都只清理完整
+   stop/remove 与 cleanup。不传旧 Qwen-7B ChatML、`--trust-remote-code` 或其他
+   `--vllm-extra-arg`，也不使用 `eval`、可写模型目录或额外 mount。无论成功失败都只清理完整
    owned tuple，恢复原 Python Worker 并独立验证 Server 资源、服务、端口、
    容器、cache 和 GPU 无残留；所有权或 GPU0 残留不可归因时失败关闭并请求人工处置。
 
@@ -331,3 +331,10 @@ M5-E 下一步拆为两个前置工作：先在无 GPU 条件下修复 cache own
 `--trust-remote-code`，其余 GPU、端口和资源边界保持不变。实现顺序固定为：先修复 cache
 ownership 与回滚重入并完成无 GPU 回归，再经本机 VPN 下载约 1 GB 的精确 revision、通过
 局域网 SSH 传到 90、核对全文件 manifest，最后才讨论新的 GPU0 维护授权。
+
+Qwen2.5 M5-E.1 正式 smoke 已完成全部冻结门禁，当前状态为 `ready_for_review`。有效运行
+证明固定模型/Runner 在 GPU0 上达到 readiness，Lab CLI 的 list/status/logs、同 spec
+幂等、异 spec 冲突、completion/chat、stop/remove/cleanup 全部通过；原 Python Worker
+已恢复，Server 资源 ID 集保持不变，最终容器、端口、cache、watchdog 和 GPU0 均无残留。
+用户审阅详细报告前，M5-E 和整个 M5 尚不标记为 `accepted`；下一项只允许完成报告与
+审阅，接受后再讨论 M6-A Managed 文件准备，不自动执行 Managed 写入或新 GPU 维护窗口。
