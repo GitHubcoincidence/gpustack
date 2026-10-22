@@ -233,3 +233,9 @@ system/user/assistant 消息，不声明 tool calling、多模态消息或其他
 用户审阅 fixture、CLI 解析、workload argv、Jinja 渲染、Rust 门禁和环境隔离报告后，
 已接受 D082 与 M5-E.0.1。该接受只解除 chat template 的设计前置条件，不证明真实模型
 加载或推理，也不授权 M5-E.1；维护窗口继续需要新的明确授权。
+
+用户随后明确授权了 M5-E.1 首次维护窗口。尝试 1 在创建任何 deployment、container、
+cache 或 GPU request 前因 `127.0.0.1:42000` 瞬时 bind 冲突停止并完成回滚；事后直接
+bind 可用，故根因尚不能归于某个持续外部连接。该结果不修改 D079，也不授权自动换端口
+或重试。把端口门禁从 LISTEN 检查加强为紧邻 deploy 的真实 bind 检查目前只是待讨论
+修订，接受前不得写成新的冻结决策。

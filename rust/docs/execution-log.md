@@ -19,10 +19,10 @@
 
 ## 当前状态
 
-- 状态：`accepted`
-- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0 已执行，D082 与
-  M5-E.0.1 已在详细报告后接受。固定 Qwen-7B 缺少 `chat_template` 的阻断已由显式
-  模型原生 ChatML fixture、CLI/workload 逐字传递回归和只读环境复核解除。
+- 状态：`stopped_precondition`
+- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
+  M5-E.0.1 已接受。M5-E.1 首次正式尝试在创建容器前因 `127.0.0.1:42000` 瞬时
+  bind 冲突停止，已分类为 `invalidated_non_scoring`，不能作为模型加载或推理证据。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -32,12 +32,12 @@
 - 实现状态：M1～M4、M5-A、M5-B、M5-C 和整个 M5-D 已接受。当前代码提供
   `WorkloadSpecV1`、Lab CLI/协调层、可替换 Docker runtime、`worker runtime info` 和
   默认拒绝执行的 M5-D example probe。
-- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；没有 Rust 容器、
-  进程、端口、cache 或 GPU0 残留，也没有运行 vLLM、挂载模型或发起推理。M5-E.1
-  尚未授权。
-- 下一项允许执行的工作：讨论并冻结 M5-E.1 的即时预检、维护窗口、正式命令、watchdog、
-  失败恢复、证据和验收顺序。讨论通过后仍须由用户明确授权实际停止 Python Worker、
-  创建 vLLM 容器和申请 GPU0。
+- 当前停止位置：Python Server/Worker 已恢复正常，Rust Worker 停止；没有 Rust 容器、
+  进程、监听端口、cache、deployment 或 GPU0 残留，Server 模型资源前后不变。本次没有
+  创建 vLLM 容器、挂载模型、申请 GPU 或发起推理。
+- 下一项允许执行的工作：讨论并冻结紧邻 deploy 的真实 bind 门禁；D079 的端口和其余
+  输入暂不改变。只有修订获用户接受并获得新的明确维护窗口授权后，才可用同一 spec
+  重试 M5-E.1。
 
 ## 里程碑
 
@@ -1469,6 +1469,45 @@
   端口、cache、模型 mount 或 GPU0 残留。M5-E.1 尚未授权。
 - 下一项允许执行的工作：共同冻结 M5-E.1 的即时预检、服务切换、Lab 命令序列、证据、
   watchdog 与回滚步骤；实际维护操作仍须新的明确授权。
+
+### 2026-10-22：M5-E.1 尝试 1 在容器创建前因瞬时端口冲突停止
+
+- 目的：按 D078–D082 和用户明确维护授权，在 GPU0 上完成固定 Qwen-7B/Runner 的完整
+  Lab CLI smoke，并验证服务切换、失败关闭和恢复证据链。
+- 前置门禁：源码与 origin 均为
+  `1602f3e38b41cb270dfb68af047572f25f27155c`，工作树已跟踪文件干净；Rust fmt、
+  workspace Clippy `-D warnings`、locked/offline 测试和 release build 通过。release
+  binary SHA-256 为
+  `b99a924311265786028813e5f16ecd1c2db4298defdef083582f5ad0a19f2193`；模型、
+  Runner digest、GPU0 UUID、ChatML 双 hash、服务、Server 资源和零残留门禁均通过。
+- 维护动作：独立 1200 秒 watchdog 启动后，只停止了受保护的 `gpustack-worker`；Server
+  保持 200，Worker health/metrics 按预期关闭，GPU0 保持空闲。Python Worker 容器 ID
+  为 `68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165`。
+- 停止事实：固定 spec 的 `worker lab deploy` 在约 12 秒后以退出码 50 返回
+  `Lab port 127.0.0.1:42000 is already in use`。失败发生在 deployment、cache 和
+  container 创建之前；没有模型 mount、GPU request 或推理。事后没有 42000 listener，
+  但观测到本机 `192.168.122.1:42000` 到 `192.168.122.162:3389` 的 ESTABLISHED
+  连接；稍后的直接 `bind(127.0.0.1:42000)` 又成功，因此不能把该连接认定为直接根因，
+  只能确认部署时 Rust 真实收到瞬时端口冲突。
+- 裁定：尝试 1 为 `invalidated_non_scoring`，M5-E.1 未通过。原只读预检只检查 LISTEN，
+  没有执行真实 bind，且与 deploy 之间存在时间窗；不能因事后端口可绑定而把失败改判为
+  成功，也不能静默改端口重试。D079–D082 仍保持不变。
+- 回滚与最终隔离：接受的 rollback 执行成功，cleanup 删除数均为 0；Python Worker 以
+  原容器 ID 恢复，Server/Worker/metrics 均为 200。Server 资源前后均为 Models 6、
+  ModelInstances 0、ModelFiles 6；最终 Rust container/process/42000 listener、GPU0
+  compute process、cache 和 deployment 均为 0。watchdog 租约已撤销，临时登录文件已
+  逐个删除。
+- 证据：run ID `e1-20261022-163941`；Git 外 0700 目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m5e1-formal-20261022-163941/`
+  共 39 个 0600 文件，known-secret 与 credential-pattern 扫描通过。`result.txt`
+  SHA-256 为 `b9bd36f3eece12c58ab41e71b8a9f111e05b008ea95157e6c6b93ac2e53aeeaf`，
+  `manifest.sha256` SHA-256 为
+  `8c4a2b7422b965fa39920ed019efe96476fae8255dd1a87d9d3bdb88db247793`。
+- 当前停止位置：现有 Python 服务完全恢复，系统无本阶段 workload 或 GPU0 残留；正式
+  smoke 尚未产生任何模型加载、readiness、幂等、冲突或推理结论。
+- 下一项允许执行的工作：讨论是否增加“停止 Worker 前和 deploy 紧邻时均以真实 bind
+  验证固定端口”的操作门禁。该修订获接受后，仍须重新获得维护授权才可用同一固定 spec
+  重试；当前不得自动重开维护窗口。
 
 ## 未解决风险与待确认事项
 

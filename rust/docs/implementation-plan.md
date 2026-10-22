@@ -287,16 +287,22 @@ request，也不证明 vLLM、模型、GPU 推理或 Managed 兼容。下一步�
 M5-E；实际 smoke 仍须另获维护窗口授权，只允许精确分配 GPU0，且仍须停止 Python
 Worker。
 
-M5-E 的 D078–D081 已获用户接受。M5-E.0 已授权，只允许在 Python Worker 保持运行时
-执行只读 Server/Docker/NVML/文件/端口检查，并在 Git 外创建受保护的配置和证据目录；
-不得创建或改变 container、服务、GPU workload、模型 mount 或 Server 资源。M5-E.1
-的维护窗口仍未授权，必须在 M5-E.0 结果完成详细报告和用户审阅后另行批准。
+M5-E 的 D078–D081 已获用户接受。M5-E.0 的只读 Server/Docker/NVML/文件/端口检查与
+Git 外证据准备已完成；用户在审阅 M5-E.0.1 后另行明确授权了 M5-E.1 首次维护窗口，
+授权范围只包括停止和恢复 `gpustack-worker`，以及在 GPU0 上创建、启动、停止并删除唯一
+固定 Qwen-7B Lab 容器。
 
 M5-E.0 已执行：基础设施、模型文件 identity、Runner、Server 资源、服务、GPU0、端口、
 零残留与回滚材料门禁均通过；唯一阻断项是固定 Qwen-7B 没有 `chat_template`。用户随后
 接受 D082 修订方向，仓库已冻结模型原生 ChatML 语义的单行 fixture，并新增 CLI 解析和
 workload argv 逐字传递回归测试。固定 Rust 1.99.1 下 106 项测试、fmt、locked/offline
-check、Clippy、release build 和 Rustdoc 均通过，现有服务与 GPU 保持不变。当前状态为
-`accepted`；下一步只允许讨论并冻结 M5-E.1 的即时预检、正式命令、watchdog、失败恢复、
-证据和验收顺序。实际停止 Python Worker、创建 vLLM 容器和申请 GPU0 仍须新的明确
-维护窗口授权。
+check、Clippy、release build 和 Rustdoc 均通过，现有服务与 GPU 保持不变。M5-E.0.1
+状态为 `accepted`。
+
+M5-E.1 尝试 1 从干净 `1602f3e38b41` 完成最终预检、独立 watchdog 和 Python Worker
+drain，但固定 deploy 在任何 deployment/container/cache/GPU request 创建前因
+`127.0.0.1:42000` 瞬时 bind 冲突停止。事后直接 bind 可用，根因不能归于仍可观察的
+ESTABLISHED 连接，因此该尝试分类为 `invalidated_non_scoring`，不改变 D079 固定端口，
+也不产生模型加载或推理结论。rollback 已恢复同一 Python Worker；服务、Server 资源、
+GPU0 和 Rust 残留门禁通过。下一步只允许讨论并冻结真实 bind 前置门禁；同 spec 重试仍
+需新的明确维护窗口授权。
