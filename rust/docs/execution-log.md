@@ -999,6 +999,46 @@
   连接真实 Docker socket、创建或删除 container、停止 Python Worker、访问 GPU 或
   运行模型。
 
+### 2026-10-22：M5-C Lab adapter 与 CLI 离线实现
+
+- 结果：M5-C 状态为 `ready_for_review`。代码检查点
+  `4cfd7d86af0eff7b36ac615266a7d3a7c98ac7f6` 实现隔离的 Lab 本地状态、完整
+  CLI、可注入协调服务与失败关闭的资源操作；尚未进入 M5-D，也未把离线结果提升为
+  真实 Docker、vLLM 或 GPU 证据。
+- 状态与协调：`data_dir/lab` 使用 0700 目录、0600 文件、非阻塞排他锁和
+  temp/fsync/rename 原子持久化 owner、deployment 与 cache；持久化
+  `WorkloadSpecV1` 每次读取均重算 hash 并核验完整身份标签。Lab 在同一 data dir
+  检测到 Managed lock 时拒绝 deploy，同名同 spec 幂等恢复，同名异 spec 冲突。
+- 资源与运行边界：模型路径 canonicalize 后必须位于配置根目录，镜像必须是本地存在的
+  Linux amd64 不可变 digest，GPU 只接受稳定 UUID/index 且在新建或重启前不得存在
+  compute process，端口只绑定 `127.0.0.1` 并在 `42000-42063` 分配。HTTP 客户端显式
+  禁用环境代理，健康只在 `/v1/models` 出现期望模型后进入 `RUNNING`。
+- CLI 与安全行为：实现 `worker lab deploy|list|status|logs|infer|stop|remove|cleanup`；
+  vLLM 参数经过结构化白名单和共享 workload builder，日志支持增量 follow，推理只访问
+  owned loopback deployment。remove 仅允许 `STOPPED/FAILED`，cleanup 默认 dry-run，
+  执行需要 `--execute --yes`；stop/remove/cleanup 均重新核验实际 Docker 标签，未知、
+  冲突、运行中或缺少 manifest 的资源一律阻断。
+- 故障与诊断：状态机完整保存 `CREATED -> PREPARING -> STARTING -> RUNNING` 以及
+  `FAILED/STOPPED`；启动失败保留容器现场，记录有界、脱敏诊断和最多 20 行日志尾部。
+  Docker 404 映射为 typed not-found，用于只重建已确认缺失的 owned container。
+- 自动化：最终 `cargo fmt --all -- --check`、workspace/all-targets 的 locked/offline
+  check、Clippy（`-D warnings`）、release build 与 100 个测试全部通过；M5-C 新增测试
+  覆盖 CLI、原子存储/权限/锁、路径逃逸、GPU/端口冲突、状态推进、幂等、所有权、
+  日志/推理、失败现场和两阶段清理。`Cargo.lock` SHA-256 为
+  `8f86dfe7559d710f2abb5ec950cc047b19f383738961a0c839902406041362b2`。
+- 仓库门禁限制：已运行 `make lint`，但 90 主机没有 `uv`，命令在 pre-commit 启动前
+  以 127 退出且未修改文件；因此不宣称 Python/pre-commit 全仓 lint 已通过。变更没有
+  修改 Python 文件、数据库 schema、route、依赖服务或 generated client。
+- 注释审阅：关键注释只解释可替换 I/O 边界、持久化 identity 校验、完整标签核验与
+  hash 自排除原因；没有逐行复述、修改历史式或无必要注释。
+- 安全边界：本阶段没有连接真实 Docker socket、执行真实 NVML/HTTP 请求、创建或删除
+  container、调用 Server 写接口、停止 Python Worker、使用 GPU、加载模型或发起推理。
+- 当前停止位置：M5-C 等待详细实现报告和用户共同验收。代码已推送，90 工作树在代码
+  检查点后干净；M5-D/M5-E 仍未授权。
+- 下一项允许执行的工作：直接交付 M5-C 详细实现与验证报告。用户接受后记录 M5-C 为
+  `accepted`，再单独讨论并授权 M5-D 无 GPU Docker 集成；不得自动进入真实 Docker
+  或 GPU 测试。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；必须在获批 GPU 窗口内作为 smoke 证据，不能从历史 v0.2.2 容器结果推断通过。
