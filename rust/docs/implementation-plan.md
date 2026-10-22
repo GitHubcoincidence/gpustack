@@ -263,5 +263,7 @@ socket、读取 daemon/image、创建或删除 container。M5-D.1 只读预检�
 明确执行授权：保持 Python Worker 运行，使用现有 CLI 和受限格式查询读取 daemon、
 固定 Runner、受保护容器、历史残留、GPU、进程和端口，前后基线必须一致。M5-D.1
 禁止 probe、pull、exec、日志、完整 inspect 和任何容器变更；结果在详细报告和用户验收
-前只能是 `ready_for_review`。M5-D.2 与 M5-E 仍须分别获得明确授权，M5-E 才允许停止
-Python Worker、使用 GPU 或运行模型。
+前只能是 `ready_for_review`。首次预检在外部用户的 GPU 1 `VLLM::EngineCore` 计算进程
+门禁处以 `stopped_precondition` 停止，尚未运行 `worker runtime info` 或 inspect Runner；
+M5-D.1 未接受。M5-D.2 与 M5-E 仍须分别获得明确授权，M5-E 才允许停止 Python
+Worker、使用 GPU 或运行模型。

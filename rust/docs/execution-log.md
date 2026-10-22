@@ -20,7 +20,8 @@
 ## 当前状态
 
 - 状态：`ready`
-- 当前阶段：M5-D.0 已接受，M5-D.1 只读 Docker 预检方案已冻结并获执行授权。
+- 当前阶段：M5-D.0 已接受；M5-D.1 首次只读预检因外部 GPU 工作负载在前置门禁停止，
+  状态为 `stopped_precondition`，尚未接受。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -32,9 +33,9 @@
   默认拒绝执行的 M5-D example probe。
 - 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；没有执行真实
   Docker、Runner、vLLM 或 GPU 工作负载。历史失败和 `invalidated` 证据保持原状态。
-- 下一项允许执行的工作：按 D076 执行 M5-D.1，只读取 Docker daemon、固定 Runner、
-  受保护容器和 GPU/服务基线，并交付详细报告。M5-D.2 容器变更和 M5-E GPU smoke
-  继续需要各自独立授权。
+- 下一项允许执行的工作：直接报告 M5-D.1 阻断证据；用户确认外部 GPU 1 工作负载已经
+  合法结束且允许重试后，才重新执行相同只读门禁。不得停止未知进程或容器；M5-D.2
+  容器变更和 M5-E GPU smoke 继续需要各自独立授权。
 
 ## 里程碑
 
@@ -1157,6 +1158,38 @@
 - 当前停止位置：M5-D.1 已授权但尚未执行；Python Server/Worker 保持运行。
 - 下一项允许执行的工作：执行 M5-D.1 只读预检，完成后停在 `ready_for_review` 并交付
   详细报告。M5-D.2 继续未授权。
+
+### 2026-10-22：M5-D.1 首次只读预检被 GPU 前置条件阻断
+
+- 结果：M5-D.1 在运行 Rust daemon 查询和 Runner image inspect 前以
+  `stopped_precondition` 停止，不是 Rust runtime 失败，也不是通过结果。
+- 输入 identity：源码与 origin 均为
+  `861c6f47032f8d09726aa11023f2f8be12212357`，release 二进制 SHA-256 为
+  `cea24c586d2688e4ce740ba8b62b16af721b3b8879fc99294a53ced85435a56b`，内嵌 commit
+  为 `861c6f47032f`，`Cargo.lock` SHA-256 仍为
+  `9093caad63df8eab5b0a59801e3f92dc0f4f145e1bc066bf9854a3647d049a56`。
+- 阻断事实：GPU 1 `GPU-b1f89e65-e9c4-26f5-a306-8a520df07708` 在执行前占用约
+  48034 MiB、利用率 100%，存在 PID 2844996、用户 `liuwang` 的
+  `VLLM::EngineCore`；执行后同一进程仍存在。项目没有停止、信号或修改该进程。
+- 已完成只读检查：Server、Python Worker health 和 metrics 前后均为 200；受保护容器
+  identity、running 状态、started-at 和 restart count 前后完全一致；完整受限容器清单
+  一致；M5-D 名称/标签残留、Rust 进程和 `20150/20151` 监听均为 0。
+- 未执行操作：没有运行 `worker runtime info`，没有 inspect 固定 Runner，没有执行
+  probe、pull、create/start/stop/restart/remove/exec、容器日志、服务变更、Server 写入
+  或模型推理；Docker 只读访问仅限容器列表和受保护容器的精确字段。
+- 证据：有效停止记录位于 Git 外
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m5d1-readonly-20261022T115722+0800/`，
+  目录/文件权限为 0700/0600，24 个文件，secret scan 通过；`manifest.sha256` 自身
+  SHA-256 为 `dbc90643583833801418fe89704e864ce925fbd19b18a85754290c30cf0bdac5`。
+- 无效尝试：此前目录 `m5d1-readonly-20261022T115635+0800/` 因在仓库根目录而不是
+  `rust/` 调用 Cargo，随后读取到旧二进制，被标记为 `invalidated`；该尝试没有访问
+  Docker，不能作为 M5-D.1 证据。
+- 解释：空闲 GPU 是 M5-D.1 进入 daemon/image 查询的冻结前置条件。外部用户工作负载
+  使本次停止，不能据此评价 Rust Docker runtime、Runner identity 或 M5-D.2 可行性；
+  漂移审计结论仍为 `aligned`。
+- 当前停止位置：M5-D.1 尚未接受，Python Server/Worker 与外部 GPU 工作负载均保持原状。
+- 下一项允许执行的工作：向用户交付阻断报告。只有在用户确认 GPU 1 工作负载已合法
+  结束并允许重试后，才可重新执行 M5-D.1；不得由本项目清理未知进程或容器。
 
 ## 未解决风险与待确认事项
 
