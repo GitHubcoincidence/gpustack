@@ -1,0 +1,1 @@
+{% if messages and messages[0]['role'] == 'system' %}{% set loop_messages = messages %}{% else %}{% set loop_messages = [{'role': 'system', 'content': ''}] + messages %}{% endif %}{% for message in loop_messages %}{{ '<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>\n' }}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}

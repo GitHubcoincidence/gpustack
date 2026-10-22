@@ -1188,6 +1188,47 @@ mod tests {
         }
     }
 
+    #[test]
+    fn lab_deploy_parses_qwen_chat_template_as_one_extra_argument() {
+        let template = include_str!("../../../fixtures/m5e/qwen-7b-chatml.jinja")
+            .trim_end_matches(['\r', '\n']);
+        let raw_extra_argument = format!("--vllm-extra-arg=--chat-template={template}");
+        let cli = Cli::try_parse_from([
+            "gpustack-rs",
+            "worker",
+            "lab",
+            "deploy",
+            "qwen-7b-m5e",
+            "--model-path",
+            "/models/Qwen-7B",
+            "--image",
+            "runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "--gpu",
+            "GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3",
+            raw_extra_argument.as_str(),
+        ])
+        .expect("parse Qwen Lab deploy");
+        let Command::Worker(worker) = cli.command else {
+            panic!("worker command");
+        };
+        let WorkerCommand::Lab(lab) = worker.command else {
+            panic!("Lab command");
+        };
+        let WorkerLabSubcommand::Deploy(arguments) = lab.command else {
+            panic!("Lab deploy command");
+        };
+
+        let request = build_lab_deploy_request(arguments).expect("build Lab deploy request");
+
+        assert_eq!(
+            request.vllm.extra_args,
+            vec![VllmExtraArg {
+                flag: "--chat-template".to_string(),
+                value: Some(template.to_string()),
+            }]
+        );
+    }
+
     #[tokio::test]
     async fn destructive_lab_commands_require_explicit_confirmation_in_library_mode() {
         let cli = Cli::try_parse_from(["gpustack-rs", "worker", "lab", "remove", "demo"])

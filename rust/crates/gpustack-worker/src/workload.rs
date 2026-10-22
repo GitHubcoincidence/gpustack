@@ -743,6 +743,30 @@ mod tests {
     }
 
     #[test]
+    fn qwen_chat_template_is_preserved_as_one_vllm_argument_value() {
+        let template = include_str!("../../../fixtures/m5e/qwen-7b-chatml.jinja")
+            .trim_end_matches(['\r', '\n']);
+        let mut request = request();
+        request.vllm.extra_args = vec![VllmExtraArg {
+            flag: "--chat-template".to_string(),
+            value: Some(template.to_string()),
+        }];
+
+        let spec = WorkloadSpecV1::build(request).expect("build Qwen workload");
+        let command = spec.vllm_command();
+        let template_position = command
+            .iter()
+            .position(|argument| argument == "--chat-template")
+            .expect("chat template flag");
+
+        assert_eq!(
+            command.get(template_position + 1).map(String::as_str),
+            Some(template)
+        );
+        assert!(spec.verify_integrity().is_ok());
+    }
+
+    #[test]
     fn protected_raw_vllm_flags_fail_closed() {
         let mut request = request();
         request.vllm.extra_args = vec![VllmExtraArg {
