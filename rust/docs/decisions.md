@@ -230,5 +230,6 @@ M5-E.0 通过并交付审阅后获得新的明确维护窗口授权。
 D082 是对 D079 固定 smoke 输入和 D080 chat 验收的有意补充，不改变模型、Runner、GPU0、
 端口、显存参数、CLI 序列或回滚边界。该 fixture 只声明 string content 与
 system/user/assistant 消息，不声明 tool calling、多模态消息或其他 Qwen 版本兼容性。
-用户已接受该修订方向；对应 fixture、CLI 解析和 workload argv 回归证据仍须完成详细
-报告与共同审阅。M5-E.1 维护窗口继续需要新的明确授权。
+用户审阅 fixture、CLI 解析、workload argv、Jinja 渲染、Rust 门禁和环境隔离报告后，
+已接受 D082 与 M5-E.0.1。该接受只解除 chat template 的设计前置条件，不证明真实模型
+加载或推理，也不授权 M5-E.1；维护窗口继续需要新的明确授权。

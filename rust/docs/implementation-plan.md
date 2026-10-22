@@ -297,5 +297,6 @@ M5-E.0 已执行：基础设施、模型文件 identity、Runner、Server 资源
 接受 D082 修订方向，仓库已冻结模型原生 ChatML 语义的单行 fixture，并新增 CLI 解析和
 workload argv 逐字传递回归测试。固定 Rust 1.99.1 下 106 项测试、fmt、locked/offline
 check、Clippy、release build 和 Rustdoc 均通过，现有服务与 GPU 保持不变。当前状态为
-`ready_for_review`；下一步只允许交付 D082/M5-E.0.1 详细报告并共同验收，M5-E.1 仍须
-新的明确维护窗口授权。
+`accepted`；下一步只允许讨论并冻结 M5-E.1 的即时预检、正式命令、watchdog、失败恢复、
+证据和验收顺序。实际停止 Python Worker、创建 vLLM 容器和申请 GPU0 仍须新的明确
+维护窗口授权。

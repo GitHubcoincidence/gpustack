@@ -19,10 +19,10 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
-- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0 已执行。固定
-  Qwen-7B 缺少 `chat_template` 的阻断已按 D082 冻结为显式模型原生 ChatML fixture，
-  CLI 与 workload argv 逐字传递的离线回归和只读环境复核均已通过。
+- 状态：`accepted`
+- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0 已执行，D082 与
+  M5-E.0.1 已在详细报告后接受。固定 Qwen-7B 缺少 `chat_template` 的阻断已由显式
+  模型原生 ChatML fixture、CLI/workload 逐字传递回归和只读环境复核解除。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -35,9 +35,9 @@
 - 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；没有 Rust 容器、
   进程、端口、cache 或 GPU0 残留，也没有运行 vLLM、挂载模型或发起推理。M5-E.1
   尚未授权。
-- 下一项允许执行的工作：交付 D082 与 M5-E.0.1 的详细实现、验证和解释边界报告并等待
-  用户共同验收。验收后只能单独讨论 M5-E.1 维护窗口；不得因本次离线结果自动停止
-  Python Worker、创建容器或申请 GPU0。
+- 下一项允许执行的工作：讨论并冻结 M5-E.1 的即时预检、维护窗口、正式命令、watchdog、
+  失败恢复、证据和验收顺序。讨论通过后仍须由用户明确授权实际停止 Python Worker、
+  创建 vLLM 容器和申请 GPU0。
 
 ## 里程碑
 
@@ -1451,6 +1451,24 @@
 - 当前停止位置：M5-E.0.1 等待本聊天中的详细报告与用户共同验收；M5-E.1 仍未授权。
 - 下一项允许执行的工作：完成报告与审阅。用户接受后才能单独讨论 M5-E.1 的即时预检、
   维护窗口和精确命令；不得自动停止 Python Worker、创建 vLLM 容器或申请 GPU0。
+
+### 2026-10-22：M5-E.0.1 Qwen ChatML 冻结与传递复核接受
+
+- 结果：用户审阅模板语义、双重 SHA-256 identity、CLI 到 container argv 的逐字传递、
+  两项回归测试、106 项 Rust 门禁和服务/GPU 隔离结果后确认无问题；D082 与
+  M5-E.0.1 由 `ready_for_review` 更新为 `accepted`。
+- 接受证据：代码检查点为 `77b402c41ecdcea377d4c4e8dfab962ff30daa6e`，待审阅治理
+  检查点为 `40cc0811cda8184f65e381572e0237cc2a1ba3f2`；fixture、有效模板、模型源文件、
+  `Cargo.lock` 和 release binary identity 保持上一里程碑记录。
+- 接受范围：只接受固定 Qwen ChatML 内容、identity、单个 CLI 参数和独立 container
+  argv 的离线可复现性。它不证明 Runner 能加载 Qwen-7B、chat/completion 能返回内容、
+  GPU0 runtime 可用或 Python Worker 回滚已在本阶段执行。
+- 漂移审计：D082 是已接受的有意补充；Runner、模型、GPU0、端口、资源参数、Lab CLI
+  序列、Server 资源不变和 D081 失败关闭边界均未改变。
+- 当前停止位置：Python Server/Worker 正常运行，Rust Worker 停止；没有本阶段容器、
+  端口、cache、模型 mount 或 GPU0 残留。M5-E.1 尚未授权。
+- 下一项允许执行的工作：共同冻结 M5-E.1 的即时预检、服务切换、Lab 命令序列、证据、
+  watchdog 与回滚步骤；实际维护操作仍须新的明确授权。
 
 ## 未解决风险与待确认事项
 
