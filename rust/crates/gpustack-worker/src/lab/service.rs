@@ -17,7 +17,7 @@ use super::{
 use crate::WorkerConfig;
 use crate::workload::{
     LABEL_IMPLEMENTATION, LABEL_MODE, LABEL_OWNER_ID, WorkloadBuildRequest, WorkloadGpu,
-    WorkloadMode, WorkloadSpecV1,
+    WorkloadMode, WorkloadSpecV2,
 };
 
 const LAB_BIND_ADDRESS: &str = "127.0.0.1";
@@ -33,6 +33,7 @@ pub struct LabService<'a> {
     clock: &'a dyn LabClock,
     ids: &'a dyn LabIdSource,
     model_roots: &'a [PathBuf],
+    container_user: &'a str,
 }
 
 impl<'a> LabService<'a> {
@@ -48,6 +49,7 @@ impl<'a> LabService<'a> {
         clock: &'a dyn LabClock,
         ids: &'a dyn LabIdSource,
         model_roots: &'a [PathBuf],
+        container_user: &'a str,
     ) -> Self {
         Self {
             runtime,
@@ -59,6 +61,7 @@ impl<'a> LabService<'a> {
             clock,
             ids,
             model_roots,
+            container_user,
         }
     }
 
@@ -87,7 +90,7 @@ impl<'a> LabService<'a> {
         };
         validate_explicit_port(port)?;
         let cache_path = session.cache_path(&lab_id)?;
-        let spec = WorkloadSpecV1::build(WorkloadBuildRequest {
+        let spec = WorkloadSpecV2::build(WorkloadBuildRequest {
             mode: WorkloadMode::Lab,
             owner_id: owner.owner_id,
             deployment_id: lab_id.clone(),
@@ -106,6 +109,7 @@ impl<'a> LabService<'a> {
             service_host: LAB_BIND_ADDRESS.to_string(),
             service_port: port,
             tensor_parallel_size: 1,
+            container_user: self.container_user.to_string(),
             vllm: request.vllm,
             environment: request.environment,
         })?;
@@ -240,24 +244,30 @@ impl<'a> LabService<'a> {
     pub async fn stop(&self, name: &str) -> Result<LabStatus, LabError> {
         let mut session = self.store.lock()?;
         let mut deployment = load_by_name(session.as_ref(), name)?;
-        let container_id = deployment.container_id.clone().ok_or_else(|| {
-            LabError::NotFound(format!("deployment '{}' has no container", deployment.name))
-        })?;
-        let details = self.runtime.inspect_container(&container_id).await?;
-        deployment
-            .spec
-            .verify_ownership(&details.labels)
-            .map_err(|error| LabError::Unsafe(error.to_string()))?;
-        if details.state == ContainerState::Running {
-            self.runtime
-                .stop_container(&container_id, STOP_TIMEOUT_SECS)
-                .await?;
-        }
+        let container_state = if let Some(container_id) = deployment.container_id.as_deref()
+            && let Some(details) = self.inspect_optional(container_id).await?
+        {
+            deployment
+                .spec
+                .verify_ownership(&details.labels)
+                .map_err(|error| LabError::Unsafe(error.to_string()))?;
+            if details.state == ContainerState::Running {
+                self.runtime
+                    .stop_container(container_id, STOP_TIMEOUT_SECS)
+                    .await?;
+                Some(ContainerState::Exited)
+            } else {
+                Some(details.state)
+            }
+        } else {
+            // No Docker mutation is needed when the recorded resource is already absent.
+            None
+        };
         deployment.state = LabState::Stopped;
         deployment.last_error = None;
         deployment.updated_at_unix = self.clock.now_unix();
         session.save_deployment(&deployment)?;
-        Ok(status_from(&deployment, Some(ContainerState::Exited)))
+        Ok(status_from(&deployment, container_state))
     }
 
     pub async fn remove(&self, name: &str) -> Result<LabStatus, LabError> {
@@ -706,6 +716,7 @@ pub struct LabEnvironment {
     clock: SystemLabClock,
     ids: KernelUuidSource,
     model_roots: Vec<PathBuf>,
+    container_user: String,
 }
 
 impl LabEnvironment {
@@ -720,6 +731,7 @@ impl LabEnvironment {
             clock: SystemLabClock,
             ids: KernelUuidSource,
             model_roots: config.model_roots.clone(),
+            container_user: current_container_user()?,
         })
     }
 
@@ -735,8 +747,27 @@ impl LabEnvironment {
             &self.clock,
             &self.ids,
             &self.model_roots,
+            &self.container_user,
         )
     }
+}
+
+#[cfg(unix)]
+fn current_container_user() -> Result<String, LabError> {
+    use rustix::process::{getegid, geteuid};
+
+    Ok(format!(
+        "{}:{}",
+        geteuid().as_raw(),
+        getegid().as_raw()
+    ))
+}
+
+#[cfg(not(unix))]
+fn current_container_user() -> Result<String, LabError> {
+    Err(LabError::Invalid(
+        "Lab workloads require a Unix host identity".to_string(),
+    ))
 }
 
 fn ensure_owner(
@@ -905,7 +936,7 @@ fn image_matches(identity: &ImageIdentity, requested: &str, requested_digest: &s
         })
 }
 
-fn endpoint(spec: &WorkloadSpecV1) -> String {
+fn endpoint(spec: &WorkloadSpecV2) -> String {
     format!("http://{}:{}", spec.service_host, spec.service_port)
 }
 
@@ -1385,6 +1416,7 @@ mod tests {
         clock: FakeClock,
         ids: FakeIds,
         roots: Vec<PathBuf>,
+        container_user: String,
     }
 
     impl Fixture {
@@ -1405,6 +1437,7 @@ mod tests {
                     "lab-b".to_string(),
                 ]))),
                 roots: vec![PathBuf::from("/models")],
+                container_user: "1004:1004".to_string(),
             }
         }
 
@@ -1419,6 +1452,7 @@ mod tests {
                 &self.clock,
                 &self.ids,
                 &self.roots,
+                &self.container_user,
             )
         }
     }
@@ -1502,6 +1536,35 @@ mod tests {
         assert_eq!(
             fixture.runtime.state.lock().expect("runtime").create_calls,
             2
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_container_can_be_stopped_and_removed_after_status_reconciliation() {
+        let fixture = Fixture::new();
+        let deployed = fixture.service().deploy(request()).await.expect("deploy");
+        fixture
+            .runtime
+            .state
+            .lock()
+            .expect("runtime")
+            .containers
+            .remove(deployed.container_id.as_deref().expect("container ID"));
+
+        let failed = fixture.service().status("demo").await.expect("status");
+        assert_eq!(failed.state, LabState::Failed);
+
+        let stopped = fixture.service().stop("demo").await.expect("stop");
+        assert_eq!(stopped.state, LabState::Stopped);
+        assert_eq!(stopped.container_state, None);
+
+        fixture.service().remove("demo").await.expect("remove");
+        let data = fixture.store.data.lock().expect("memory store");
+        assert!(data.deployments.is_empty());
+        assert!(data.caches.is_empty());
+        assert_eq!(
+            fixture.runtime.state.lock().expect("runtime").remove_calls,
+            0
         );
     }
 

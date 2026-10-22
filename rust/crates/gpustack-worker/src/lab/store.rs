@@ -469,13 +469,13 @@ mod tests {
 
     use crate::lab::LAB_PORT_START;
     use crate::workload::{
-        VllmOptions, WorkloadBuildRequest, WorkloadGpu, WorkloadMode, WorkloadSpecV1,
+        VllmOptions, WorkloadBuildRequest, WorkloadGpu, WorkloadMode, WorkloadSpecV2,
     };
 
     use super::*;
 
     fn deployment(root: &Path) -> LabDeployment {
-        let spec = WorkloadSpecV1::build(WorkloadBuildRequest {
+        let spec = WorkloadSpecV2::build(WorkloadBuildRequest {
             mode: WorkloadMode::Lab,
             owner_id: "owner-a".to_string(),
             deployment_id: "lab-a".to_string(),
@@ -496,6 +496,7 @@ mod tests {
             service_host: "127.0.0.1".to_string(),
             service_port: LAB_PORT_START,
             tensor_parallel_size: 1,
+            container_user: "1004:1004".to_string(),
             vllm: VllmOptions::default(),
             environment: BTreeMap::new(),
         })

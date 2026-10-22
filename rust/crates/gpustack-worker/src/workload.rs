@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-pub const WORKLOAD_SCHEMA_VERSION: u8 = 1;
+pub const WORKLOAD_SCHEMA_VERSION: u8 = 2;
 pub const LABEL_IMPLEMENTATION: &str = "io.gpustack.implementation";
 pub const LABEL_SCHEMA_VERSION: &str = "io.gpustack.schema-version";
 pub const LABEL_MODE: &str = "io.gpustack.mode";
@@ -111,7 +111,7 @@ pub struct VllmOptions {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct WorkloadSpecV1 {
+pub struct WorkloadSpecV2 {
     pub schema_version: u8,
     pub mode: WorkloadMode,
     pub owner_id: String,
@@ -125,6 +125,7 @@ pub struct WorkloadSpecV1 {
     pub service_host: String,
     pub service_port: u16,
     pub tensor_parallel_size: u32,
+    pub container_user: String,
     pub vllm: VllmOptions,
     pub environment: BTreeMap<String, String>,
     pub mounts: Vec<WorkloadMount>,
@@ -152,6 +153,7 @@ pub struct WorkloadBuildRequest {
     pub service_host: String,
     pub service_port: u16,
     pub tensor_parallel_size: u32,
+    pub container_user: String,
     pub vllm: VllmOptions,
     pub environment: BTreeMap<String, String>,
 }
@@ -176,13 +178,16 @@ pub enum OwnershipError {
     },
 }
 
-impl WorkloadSpecV1 {
+impl WorkloadSpecV2 {
     pub fn build(request: WorkloadBuildRequest) -> Result<Self, WorkloadError> {
         validate_request(&request)?;
 
         let model_path = path_string(&request.model_path, "model path")?;
         let cache_path = path_string(&request.cache_path, "cache path")?;
         let mut environment = request.environment;
+        environment.insert("HOME".to_string(), format!("{cache_path}/home"));
+        environment.insert("LOGNAME".to_string(), "gpustack".to_string());
+        environment.insert("USER".to_string(), "gpustack".to_string());
         environment.insert("HF_HOME".to_string(), format!("{cache_path}/huggingface"));
         environment.insert("TORCH_HOME".to_string(), format!("{cache_path}/torch"));
         environment.insert("VLLM_CACHE_ROOT".to_string(), format!("{cache_path}/vllm"));
@@ -249,6 +254,7 @@ impl WorkloadSpecV1 {
             service_host: request.service_host,
             service_port: request.service_port,
             tensor_parallel_size: request.tensor_parallel_size,
+            container_user: request.container_user,
             vllm: request.vllm,
             environment,
             mounts,
@@ -314,6 +320,7 @@ impl WorkloadSpecV1 {
             name: self.container_name.clone(),
             image: self.resolved_image_digest.clone(),
             command: self.vllm_command(),
+            user: Some(self.container_user.clone()),
             environment: self.environment.clone(),
             labels: self.labels.clone(),
             mounts: self
@@ -410,6 +417,7 @@ impl WorkloadSpecV1 {
             service_host: &self.service_host,
             service_port: self.service_port,
             tensor_parallel_size: self.tensor_parallel_size,
+            container_user: &self.container_user,
             vllm: &self.vllm,
             environment: &self.environment,
             mounts: &self.mounts,
@@ -462,6 +470,7 @@ struct WorkloadHashInput<'a> {
     service_host: &'a str,
     service_port: u16,
     tensor_parallel_size: u32,
+    container_user: &'a str,
     vllm: &'a VllmOptions,
     environment: &'a BTreeMap<String, String>,
     mounts: &'a [WorkloadMount],
@@ -494,6 +503,7 @@ fn validate_request(request: &WorkloadBuildRequest) -> Result<(), WorkloadError>
     if request.service_port == 0 {
         return invalid("service port must be greater than zero");
     }
+    validate_container_user(&request.container_user)?;
     match request.mode {
         WorkloadMode::Lab => {
             if request.service_host != LAB_BIND_ADDRESS {
@@ -527,13 +537,35 @@ fn validate_request(request: &WorkloadBuildRequest) -> Result<(), WorkloadError>
         }
         if matches!(
             key.as_str(),
-            "HF_HOME" | "TORCH_HOME" | "VLLM_CACHE_ROOT" | "XDG_CACHE_HOME"
+            "HOME"
+                | "LOGNAME"
+                | "USER"
+                | "HF_HOME"
+                | "TORCH_HOME"
+                | "VLLM_CACHE_ROOT"
+                | "XDG_CACHE_HOME"
         ) {
-            return invalid("cache environment is controlled by the Worker");
+            return invalid("runtime identity and cache environment are controlled by the Worker");
         }
     }
     for argument in &request.vllm.extra_args {
         validate_extra_arg(argument)?;
+    }
+    Ok(())
+}
+
+fn validate_container_user(value: &str) -> Result<(), WorkloadError> {
+    let Some((uid, gid)) = value.split_once(':') else {
+        return invalid("container user must use numeric UID:GID form");
+    };
+    if uid.is_empty()
+        || gid.is_empty()
+        || !uid.bytes().all(|byte| byte.is_ascii_digit())
+        || !gid.bytes().all(|byte| byte.is_ascii_digit())
+        || uid.parse::<u32>().is_err()
+        || gid.parse::<u32>().is_err()
+    {
+        return invalid("container user must use numeric UID:GID form");
     }
     Ok(())
 }
@@ -659,6 +691,7 @@ mod tests {
             service_host: LAB_BIND_ADDRESS.to_string(),
             service_port: 42000,
             tensor_parallel_size: 1,
+            container_user: "1004:1004".to_string(),
             vllm: VllmOptions {
                 max_model_len: Some(8192),
                 gpu_memory_utilization: Some(0.8),
@@ -679,13 +712,13 @@ mod tests {
 
     #[test]
     fn normalized_hash_is_stable_and_attached_as_an_ownership_label() {
-        let first = WorkloadSpecV1::build(request()).expect("build workload");
+        let first = WorkloadSpecV2::build(request()).expect("build workload");
         let mut reversed = request();
         reversed.environment = BTreeMap::from([
             ("A_KEY".to_string(), "a".to_string()),
             ("B_KEY".to_string(), "b".to_string()),
         ]);
-        let second = WorkloadSpecV1::build(reversed).expect("build workload");
+        let second = WorkloadSpecV2::build(reversed).expect("build workload");
 
         assert_eq!(first.spec_hash, second.spec_hash);
         assert_eq!(first.spec_hash.len(), 64);
@@ -694,17 +727,23 @@ mod tests {
 
     #[test]
     fn identity_changes_change_the_spec_hash() {
-        let first = WorkloadSpecV1::build(request()).expect("build workload");
+        let first = WorkloadSpecV2::build(request()).expect("build workload");
         let mut changed = request();
         changed.service_port = 42001;
-        let changed = WorkloadSpecV1::build(changed).expect("build changed workload");
+        let changed = WorkloadSpecV2::build(changed).expect("build changed workload");
+
+        assert_ne!(first.spec_hash, changed.spec_hash);
+
+        let mut changed = request();
+        changed.container_user = "1005:1005".to_string();
+        let changed = WorkloadSpecV2::build(changed).expect("build changed workload");
 
         assert_ne!(first.spec_hash, changed.spec_hash);
     }
 
     #[test]
     fn spec_hash_does_not_hash_itself() {
-        let mut spec = WorkloadSpecV1::build(request()).expect("build workload");
+        let mut spec = WorkloadSpecV2::build(request()).expect("build workload");
         let original = spec.spec_hash.clone();
         spec.labels
             .insert(LABEL_SPEC_HASH.to_string(), "not-the-real-hash".to_string());
@@ -714,7 +753,7 @@ mod tests {
 
     #[test]
     fn vllm_command_has_one_controlled_model_and_endpoint() {
-        let spec = WorkloadSpecV1::build(request()).expect("build workload");
+        let spec = WorkloadSpecV2::build(request()).expect("build workload");
 
         assert_eq!(
             spec.vllm_command(),
@@ -752,7 +791,7 @@ mod tests {
             value: Some(template.to_string()),
         }];
 
-        let spec = WorkloadSpecV1::build(request).expect("build Qwen workload");
+        let spec = WorkloadSpecV2::build(request).expect("build Qwen workload");
         let command = spec.vllm_command();
         let template_position = command
             .iter()
@@ -774,14 +813,14 @@ mod tests {
             value: Some("9999".to_string()),
         }];
 
-        let error = WorkloadSpecV1::build(request).expect_err("port override must fail");
+        let error = WorkloadSpecV2::build(request).expect_err("port override must fail");
 
         assert!(error.to_string().contains("Worker-controlled"));
     }
 
     #[test]
     fn ownership_requires_every_identity_label_and_hash() {
-        let spec = WorkloadSpecV1::build(request()).expect("build workload");
+        let spec = WorkloadSpecV2::build(request()).expect("build workload");
         let mut actual = spec.labels.clone();
         spec.verify_ownership(&actual).expect("matching labels");
 
@@ -801,7 +840,7 @@ mod tests {
 
     #[test]
     fn persisted_spec_integrity_rejects_content_or_identity_label_drift() {
-        let spec = WorkloadSpecV1::build(request()).expect("valid Lab spec");
+        let spec = WorkloadSpecV2::build(request()).expect("valid Lab spec");
         spec.verify_integrity().expect("intact spec");
 
         let mut content_drift = spec.clone();
@@ -817,10 +856,11 @@ mod tests {
 
     #[test]
     fn container_plan_uses_digest_uuid_and_least_privilege_defaults() {
-        let spec = WorkloadSpecV1::build(request()).expect("build workload");
+        let spec = WorkloadSpecV2::build(request()).expect("build workload");
         let container = spec.container_spec();
 
         assert_eq!(container.image, DIGEST);
+        assert_eq!(container.user.as_deref(), Some("1004:1004"));
         assert_eq!(container.network_mode, "host");
         assert_eq!(container.shm_size_bytes, SHM_SIZE_BYTES);
         assert!(!container.privileged);
@@ -836,17 +876,26 @@ mod tests {
             .find(|mount| mount.source == Path::new("/models/Qwen-7B"))
             .expect("model mount");
         assert!(model_mount.read_only);
+        assert_eq!(container.environment.get("USER").map(String::as_str), Some("gpustack"));
+        assert_eq!(
+            container.environment.get("LOGNAME").map(String::as_str),
+            Some("gpustack")
+        );
+        assert_eq!(
+            container.environment.get("HOME").map(String::as_str),
+            Some("/state/cache/deployment-1/home")
+        );
     }
 
     #[test]
     fn m5_rejects_relative_paths_mutable_images_and_multiple_gpus() {
         let mut relative = request();
         relative.model_path = PathBuf::from("models/Qwen-7B");
-        assert!(WorkloadSpecV1::build(relative).is_err());
+        assert!(WorkloadSpecV2::build(relative).is_err());
 
         let mut mutable = request();
         mutable.resolved_image_digest = "runner:latest".to_string();
-        assert!(WorkloadSpecV1::build(mutable).is_err());
+        assert!(WorkloadSpecV2::build(mutable).is_err());
 
         let mut multi = request();
         multi.gpus.push(WorkloadGpu {
@@ -854,7 +903,11 @@ mod tests {
             host_index: 1,
         });
         multi.tensor_parallel_size = 2;
-        assert!(WorkloadSpecV1::build(multi).is_err());
+        assert!(WorkloadSpecV2::build(multi).is_err());
+
+        let mut named_user = request();
+        named_user.container_user = "gpustack".to_string();
+        assert!(WorkloadSpecV2::build(named_user).is_err());
     }
 
     #[test]
@@ -863,7 +916,7 @@ mod tests {
         request.mode = WorkloadMode::Managed;
         request.managed_worker_uuid = Some("worker-uuid-1".to_string());
         request.service_host = "10.213.80.90".to_string();
-        let spec = WorkloadSpecV1::build(request).expect("managed workload");
+        let spec = WorkloadSpecV2::build(request).expect("managed workload");
 
         assert_eq!(
             spec.labels.get(LABEL_WORKER_UUID).map(String::as_str),

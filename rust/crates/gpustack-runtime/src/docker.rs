@@ -146,6 +146,7 @@ pub struct ContainerSpec {
     pub name: String,
     pub image: String,
     pub command: Vec<String>,
+    pub user: Option<String>,
     pub environment: BTreeMap<String, String>,
     pub labels: BTreeMap<String, String>,
     pub mounts: Vec<BindMountSpec>,
@@ -486,6 +487,7 @@ fn build_create_body(spec: &ContainerSpec) -> Result<ContainerCreateBody, Runtim
     Ok(ContainerCreateBody {
         image: Some(spec.image.clone()),
         cmd: Some(spec.command.clone()),
+        user: spec.user.clone(),
         env: Some(
             spec.environment
                 .iter()
@@ -521,6 +523,15 @@ fn validate_container_spec(spec: &ContainerSpec) -> Result<(), RuntimeError> {
     if spec.network_mode.is_empty() {
         return Err(RuntimeError::InvalidSpec(
             "network mode must be non-empty".to_string(),
+        ));
+    }
+    if spec
+        .user
+        .as_deref()
+        .is_some_and(|user| user.trim().is_empty() || user.contains('\0'))
+    {
+        return Err(RuntimeError::InvalidSpec(
+            "container user must be non-empty and contain no NUL".to_string(),
         ));
     }
     if spec.shm_size_bytes == 0 {
@@ -578,6 +589,7 @@ mod tests {
             image: "runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                 .to_string(),
             command: vec!["vllm".to_string(), "serve".to_string()],
+            user: Some("1004:1004".to_string()),
             environment: BTreeMap::from([
                 ("B_KEY".to_string(), "b".to_string()),
                 ("A_KEY".to_string(), "a".to_string()),
@@ -614,6 +626,7 @@ mod tests {
             body.env,
             Some(vec!["A_KEY=a".to_string(), "B_KEY=b".to_string()])
         );
+        assert_eq!(body.user.as_deref(), Some("1004:1004"));
         let host = body.host_config.expect("host config");
         assert_eq!(host.network_mode.as_deref(), Some("host"));
         assert_eq!(host.shm_size, Some(10 * 1024 * 1024 * 1024));

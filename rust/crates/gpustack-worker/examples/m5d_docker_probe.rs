@@ -402,6 +402,7 @@ fn build_probe_spec(image: &str, run_id: &str) -> Result<ContainerSpec, ProbeErr
         name: format!("gpustack-rs-m5d-{run_id}"),
         image: image.to_string(),
         command,
+        user: None,
         environment: BTreeMap::new(),
         labels,
         mounts: Vec::new(),

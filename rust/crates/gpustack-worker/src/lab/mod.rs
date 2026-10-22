@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
-use crate::workload::{VllmOptions, WorkloadError, WorkloadSpecV1};
+use crate::workload::{VllmOptions, WorkloadError, WorkloadSpecV2};
 
 pub use adapters::{
     FsModelPathResolver, KernelUuidSource, NvmlLabGpuProbe, ReqwestLabHttpClient, SystemLabClock,
@@ -72,7 +72,7 @@ pub struct LabDeployment {
     pub lab_id: String,
     pub name: String,
     pub state: LabState,
-    pub spec: WorkloadSpecV1,
+    pub spec: WorkloadSpecV2,
     pub container_id: Option<String>,
     pub last_error: Option<String>,
     pub created_at_unix: u64,
