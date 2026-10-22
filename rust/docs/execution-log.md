@@ -19,11 +19,12 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
+- 状态：`ready`
 - 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
   M5-E.0.1 已接受。Qwen-7B 的一次无效端口尝试和一次正式不兼容失败保持原分类；D084
   改选 Qwen2.5-0.5B-Instruct、D085 清理与回滚修复完成后，新模型 M5-E.1 正式 smoke
-  已通过全部运行、推理、清理和恢复门禁，当前等待用户审阅，尚未标记 `accepted`。
+  已通过全部运行、推理、清理和恢复门禁。用户审阅详细报告后已接受 M5-E.1、M5-E 和
+  整个 M5。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -35,10 +36,10 @@
   默认拒绝执行的 M5-D example probe。
 - 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；正式
   Lab 的 container、manifest、cache、42000 listener、watchdog 和 GPU0 compute process
-  均为 0。Server 资源 ID 集保持不变，M5-E.1 结果为 `ready_for_review`。
-- 下一项允许执行的工作：在聊天中交付 M5-E.1 详细实现与验证报告并由用户共同审阅；
-  用户接受后才能把 M5-E 和整个 M5 标为 `accepted`，再讨论 M6-A Managed 文件准备。
-  当前不得自动创建 Managed 资源、更新 ModelInstance/ModelFile 或重开 GPU 维护窗口。
+  均为 0。Server 资源 ID 集保持不变，M5-E.1、M5-E 和整个 M5 均为 `accepted`。
+- 下一项允许执行的工作：讨论并冻结 M6-A Managed 本地模型文件准备、状态所有权和验收
+  边界。M6-A 设计与实现门禁获共同接受、真实写入另获明确授权前，不得创建 Managed
+  资源、更新 ModelInstance/ModelFile 或重开 GPU 维护窗口。
 
 ## 里程碑
 
@@ -1721,6 +1722,34 @@
   `ready_for_review`。它仍不是 Managed、双 GPU 或容器化 Rust Worker 证据。
 - 当前停止位置与下一步：系统已回到维护前状态；先在聊天中完成详细报告和用户审阅。
   用户接受后才记录 M5-E/M5 `accepted` 并讨论 M6-A，不自动执行 Managed 写入或新维护窗口。
+
+### 2026-10-22：Qwen2.5 M5-E.1 与整个 M5 接受
+
+- 验收：用户在收到正式 smoke 的功能、实现、运行证据、失败分类、清理和恢复报告后明确
+  接受结果。M5-E.1、M5-E 与整个 M5 状态由 `ready_for_review` 更新为 `accepted`。
+- 接受范围：宿主机进程形态的 Rust CLI 已证明单 GPU Lab 能以固定 Runner 和固定
+  Qwen2.5 revision 完成部署、查询、日志、OpenAI-compatible completion/chat、同 spec
+  幂等、异 spec 冲突保护、停止、删除与 cleanup；D085 的非 root cache ownership 和正常
+  清理路径也已由真实 vLLM workload 验证。
+- 证据身份：有效证据目录为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m5e1-qwen25-formal-20261022-215207-Mxm3Ak/`；
+  `result.txt` SHA-256 为
+  `679050d4665b61e566ea4801671095a3aa6f016782ff9ae2cc145950adccad5d`，`SHA256SUMS`
+  SHA-256 为 `7126ec45f421e01d144030a8561d3e4cad6016df5e839423e37441cd71a77cb5`。
+  待审结果检查点为 `bf86ded9a8560104b36015df727c4a5a9136e7e2`。
+- 分类保留：遗漏 JSON 输出的首次预检继续为 `invalidated_preflight`；两条只读事后审计
+  交互命令继续为 `invalidated_diagnostic`；Qwen-7B 的端口无效尝试和 Runner 不兼容
+  `formal_failure` 也不因本次成功而改写。
+- 非接受范围：本次不证明 Managed Model/ModelInstance/ModelFile 控制链、跨 Worker 或
+  双 GPU 分布式推理、Rust Worker 容器化、故障中断后的 GPU 回滚重入或生产发布门禁。
+- 文档校验：待审检查点的 `git diff --check` 通过；仓库级 `make lint` 因 90 主机没有
+  `uv`、`pre-commit` 或 Python `pre_commit` 模块而无法启动。该检查点只改治理文档，
+  没有生产代码变化。
+- 当前停止位置：Python Server/Worker 健康并以原身份运行，Rust Worker 停止，正式 Lab、
+  container、port、cache、watchdog 和 GPU0 计算进程均无残留。
+- 下一项允许执行的工作：仅讨论并冻结 M6-A Managed 本地模型文件准备、状态所有权与
+  验收设计。M6-A 设计和实现门禁获接受且真实写入另获授权前，不执行 Server Managed
+  资源写入或新的 GPU 维护窗口。
 
 ## 未解决风险与待确认事项
 

@@ -332,9 +332,12 @@ M5-E 下一步拆为两个前置工作：先在无 GPU 条件下修复 cache own
 ownership 与回滚重入并完成无 GPU 回归，再经本机 VPN 下载约 1 GB 的精确 revision、通过
 局域网 SSH 传到 90、核对全文件 manifest，最后才讨论新的 GPU0 维护授权。
 
-Qwen2.5 M5-E.1 正式 smoke 已完成全部冻结门禁，当前状态为 `ready_for_review`。有效运行
+Qwen2.5 M5-E.1 正式 smoke 已完成全部冻结门禁。有效运行
 证明固定模型/Runner 在 GPU0 上达到 readiness，Lab CLI 的 list/status/logs、同 spec
 幂等、异 spec 冲突、completion/chat、stop/remove/cleanup 全部通过；原 Python Worker
 已恢复，Server 资源 ID 集保持不变，最终容器、端口、cache、watchdog 和 GPU0 均无残留。
-用户审阅详细报告前，M5-E 和整个 M5 尚不标记为 `accepted`；下一项只允许完成报告与
-审阅，接受后再讨论 M6-A Managed 文件准备，不自动执行 Managed 写入或新 GPU 维护窗口。
+用户审阅详细报告后已接受 M5-E.1、M5-E 和整个 M5。接受范围是宿主机进程形态的单 GPU
+Lab 与固定 Runner/Qwen2.5 路径，不扩展到 Managed、跨 Worker/双 GPU、Rust Worker
+容器化或生产发布门禁。下一项只允许讨论并冻结 M6-A Managed 本地模型文件准备、状态
+所有权和验收边界；M6-A 设计与实现门禁获共同接受、真实写入另获明确授权前，不执行
+Server Managed 资源写入或新的 GPU 维护窗口。
