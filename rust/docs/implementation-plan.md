@@ -312,3 +312,15 @@ GPU0 和 Rust 残留门禁通过。下一步只允许讨论并冻结真实 bind 
 bind，第二次成功后不插入其他网络命令而立即 deploy。任一 bind 失败均不得继续；drain
 后的失败直接运行已验证 rollback。尝试 1 继续保留为 `invalidated_non_scoring`，不得因
 重试结果覆盖或升级。
+
+同 spec 正式重试已执行。D083 两次真实 bind、容器创建和 GPU0 精确 DeviceRequest 均
+通过，但固定 Runner 内 vLLM 0.25.1 在启动阶段明确拒绝固定 Qwen-7B 的
+`QWenLMHeadModel`，因此本次分类为 `formal_failure`，没有进入 readiness 或推理验收。
+回滚同时暴露两个必须先修复的问题：root 容器写入的 Lab cache 不能由宿主机非 root CLI
+删除，以及回滚脚本不能在容器已删而 deployment 尚存时幂等重入。受控恢复后 Python
+Worker、Server 资源、GPU0、端口和全部 Lab 残留门禁均通过。
+
+M5-E 下一步拆为两个前置工作：先在无 GPU 条件下修复 cache ownership/清理和回滚重入，
+完成离线与无 GPU Docker 回归；再共同冻结 D079 的兼容性修订，可选方向为保留 Qwen-7B
+并选用兼容 Runner，或保留当前 Runner 并选择受支持模型。未完成这两项并重新获得维护
+授权前，不得自动发起第三次 GPU smoke。

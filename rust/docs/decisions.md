@@ -250,3 +250,10 @@ bind 可用，故根因尚不能归于某个持续外部连接。该结果不修
 停止并恢复 `gpustack-worker`，以及在门禁通过后创建、启动、停止和删除唯一 Lab 容器。
 授权不允许更换端口、模型、Runner、GPU、ChatML、显存参数，不允许处置未知 socket，
 也不把尝试 1 提升为正式结果。
+
+同 spec 重试已验证 D083：两次真实 bind 均通过，唯一 Lab 容器也取得了精确 GPU0；但
+固定 Runner 的 vLLM 0.25.1 明确拒绝 `QWenLMHeadModel`，因此 D079 当前冻结的模型与
+Runner 组合不能通过 M5-E。该事实不自动修改 D079；后续须以新的决策在“保留 Qwen-7B、
+改用兼容 Runner”和“保留当前 Runner、改用受支持模型”之间取舍。正式失败还证明 Lab
+cache ownership 与回滚重入需要代码修复；二者完成无 GPU 验证前，不得请求新的 GPU
+维护窗口。

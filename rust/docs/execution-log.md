@@ -19,11 +19,11 @@
 
 ## 当前状态
 
-- 状态：`ready`
+- 状态：`ready_for_decision`
 - 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
-  M5-E.0.1 已接受。M5-E.1 首次正式尝试在创建容器前因 `127.0.0.1:42000` 瞬时
-  bind 冲突停止，已分类为 `invalidated_non_scoring`，不能作为模型加载或推理证据；
-  D083 真实 bind 双门禁已接受，同 spec 重试已获新的明确维护授权。
+  M5-E.0.1 已接受。M5-E.1 尝试 1 保持 `invalidated_non_scoring`；按 D083 执行的同
+  spec 正式重试已穿过端口、容器和 GPU0 门禁，但固定 Runner 内 vLLM 0.25.1 明确拒绝
+  `QWenLMHeadModel`，因此分类为 `formal_failure`，M5-E 尚未通过。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -33,12 +33,13 @@
 - 实现状态：M1～M4、M5-A、M5-B、M5-C 和整个 M5-D 已接受。当前代码提供
   `WorkloadSpecV1`、Lab CLI/协调层、可替换 Docker runtime、`worker runtime info` 和
   默认拒绝执行的 M5-D example probe。
-- 当前停止位置：Python Server/Worker 已恢复正常，Rust Worker 停止；没有 Rust 容器、
-  进程、监听端口、cache、deployment 或 GPU0 残留，Server 模型资源前后不变。本次没有
-  创建 vLLM 容器、挂载模型、申请 GPU 或发起推理。
-- 下一项允许执行的工作：从新治理 HEAD 重建 release binary，复核服务、资源和尝试 1
-  留下的空 Lab ownership 元数据；D083 两次真实 bind 均通过后，用完全相同的 D079–D082
-  spec 重试 M5-E.1。任一 bind 失败都按 D083 停止或回滚。
+- 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；失败
+  Lab 的 container、manifest、cache、42000 listener、Rust process、watchdog 和 GPU0
+  compute process 均为 0，Server 资源前后保持 Models 6、ModelInstances 0、ModelFiles 6。
+- 下一项允许执行的工作：先修复并验证 root-owned Lab cache 清理与回滚重入缺陷，同时
+  共同冻结 D079 的兼容性修订：保留 Qwen-7B 时改用兼容 Runner，或保留当前 Runner 时
+  更换为受支持模型。新的 GPU 运行必须在修订接受、无 GPU 回归通过并重新获得维护授权后
+  才能执行；不得自动第三次重试。
 
 ## 里程碑
 
@@ -1523,12 +1524,55 @@
 - 下一项允许执行的工作：提交并同步本修订，从该干净 HEAD 重建 binary，建立新的 Git 外
   证据目录和 watchdog，然后严格按 D083 执行重试。
 
+### 2026-10-22：M5-E.1 同 spec 正式重试确认模型与 Runner 不兼容
+
+- 目的：在不改变 D079–D083 任何 workload 输入的前提下，排除尝试 1 的瞬时端口因素，
+  真实验证固定 Qwen-7B、Runner、GPU0 与 Lab CLI 启动路径。
+- 身份与门禁：从干净治理 HEAD `649e248ad9262435017fe5f95d7620c61b00d8a5`
+  强制重建 release binary，SHA-256 为
+  `a1c1c3b645120ac4f49ede20b6496697311a2b05dd7c794c9b463fb393756fe2`；停止
+  Python Worker 前和 drain 后的 `127.0.0.1:42000` 真实 bind 均通过，第二次 bind 后
+  立即执行固定 deploy。
+- 实际覆盖：Lab `m5e-qwen7b-gpu0` 创建了 ID
+  `eeae6832-cd30-418c-a554-0214122ab96a` 和唯一容器
+  `4c41415f02c719c1a2c3256cb1175ed601080befae556b39e7eeb6442f801888`；容器的
+  NVIDIA DeviceRequest 只包含固定 GPU0 UUID，spec hash 为
+  `45471aaa9f92c4a3111413c1ec42617979737a7b7936b2b78dc70118939b2094`。
+- 正式失败：固定 Runner label 证明其镜像为 `vllm/vllm-openai:v0.25.1-ubuntu2404`；
+  vLLM 启动校验明确报告 `QWenLMHeadModel` 只支持到 v0.23.0，当前版本已不再支持。
+  deploy 以 50 退出，容器以 1 退出，未达到 readiness，未执行 models、幂等/冲突、
+  completion 或 chat 验收。该结果是固定输入的真实兼容性失败，不是端口或基础设施失效。
+- 回滚缺陷：首次回滚已停止并删除容器，但 Runner 以 root 写入 cache，导致非 root Rust
+  CLI 删除 14 个 root-owned 条目时收到 `Permission denied`。原回滚脚本再次执行时又因
+  deployment 指向已删除容器而提前退出，证明 cache ownership 和中断后幂等重入都需修复。
+- 受控恢复：账号没有 sudo 权限；改用已有 `gpustack/gpustack` 镜像创建一次性
+  `--network none`、无 GPU 的恢复容器，只 bind 本次精确 cache 路径并恢复属主，容器随后
+  自动删除。精确 `lab remove --yes` 与 cleanup 完成后，以受保护的原容器 ID 恢复 Python
+  Worker，并撤销 watchdog 租约。
+- 最终不变式：Server、Python Worker health 与 metrics 均为 200；Server 资源前后均为
+  Models 6、ModelInstances 0、ModelFiles 6、Workers 2，Python Worker 为 `ready`，Rust
+  Worker 保持 `maintenance`。42000 listener、Rust process、Lab manifest/cache/container、
+  GPU0 compute process、repair container、watchdog 与临时登录文件均为 0。
+- 裁定：本次为 `formal_failure`，M5-E 未通过；尝试 1 仍独立保持
+  `invalidated_non_scoring`。不得在同一 run 内换模型、Runner 或端口，也不得自动发起第三次
+  GPU 运行。
+- 证据：run ID `e1r-20261022-170212`；Git 外 0700 目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m5e1-retry-20261022-170212/`
+  含 55 个被清单覆盖的 0600 文件和 `SHA256SUMS`；逐文件校验 0 失败，known-secret 与
+  credential-pattern 扫描 0 命中。`27-result.txt` SHA-256 为
+  `5833258b7f62e4d18479fa7ffb57330f36e10a21d2e3b992e42684dd606522bd`，清单
+  SHA-256 为 `1f425b28c887999686f8d0a9b2a57110c735053964d921377e23cc74e86241e2`。
+- 下一项允许执行的工作：先对两个清理/回滚缺陷做无 GPU 实现与回归，再共同接受新的
+  模型/Runner 兼容性决策；任何新维护窗口均须重新明确授权。
+
 ## 未解决风险与待确认事项
 
-- 固定 Runner v0.25.1 与 Qwen-7B 的实际加载兼容性尚未验证；模型没有声明
-  `chat_template`，D082 已冻结显式 Qwen ChatML 输入并完成离线传递复核，但仍须在
-  M5-E.1 由真实 `/v1/chat/completions` 验证，不能从离线渲染或历史 v0.2.2 容器结果
-  推断通过。
+- 固定 Runner v0.25.1 与 Qwen-7B 已被正式运行证明不兼容：当前 vLLM 拒绝
+  `QWenLMHeadModel`。D082 的 ChatML 内容和 argv 传递仍有效，但没有机会进入 chat
+  inference；D079 必须通过新决策修改 Runner 或模型，不能静默改动后重试。
+- Lab cache 目前可能被 root 容器写成宿主机非 root 用户不可删除的属主，且既有回滚脚本
+  在容器已删、deployment 尚存时不能幂等重入；二者必须在下一次 GPU 运行前完成无 GPU
+  修复与回归。
 - Rust Worker API 与 metrics 已分别冻结为 `20150` 和 `20151`；Lab 自动 inference
   端口已冻结为 `42000-42063`，Managed 仍使用 Server 分配端口。每次启动前仍须检查
   实际端口冲突。
