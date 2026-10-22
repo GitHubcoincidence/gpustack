@@ -264,6 +264,8 @@ socket、读取 daemon/image、创建或删除 container。M5-D.1 只读预检�
 固定 Runner、受保护容器、历史残留、GPU、进程和端口，前后基线必须一致。M5-D.1
 禁止 probe、pull、exec、日志、完整 inspect 和任何容器变更；结果在详细报告和用户验收
 前只能是 `ready_for_review`。首次预检在外部用户的 GPU 1 `VLLM::EngineCore` 计算进程
-门禁处以 `stopped_precondition` 停止，尚未运行 `worker runtime info` 或 inspect Runner；
-M5-D.1 未接受。M5-D.2 与 M5-E 仍须分别获得明确授权，M5-E 才允许停止 Python
-Worker、使用 GPU 或运行模型。
+门禁处以 `stopped_precondition` 停止，尚未运行 `worker runtime info` 或 inspect Runner。
+随后用户接受共享主机隔离修订：M5-D.1/D.2 不申请任何 GPU，只要求未来目标 GPU0 按
+稳定 UUID 保持空闲；允许已识别的 GPU1 外部任务运行，但其前后 identity 和资源快照
+必须可归因且本项目不得修改。M5-D.1 可按修订门禁重试但尚未接受；M5-D.2 与 M5-E
+仍须分别获得明确授权，M5-E 只允许精确分配 GPU0，且仍须停止 Python Worker。
