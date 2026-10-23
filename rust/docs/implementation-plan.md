@@ -374,6 +374,7 @@ Qwen2.5 M5-E.1 正式 smoke 已完成全部冻结门禁。有效运行
 用户审阅详细报告后已接受 M5-E.1、M5-E 和整个 M5。接受范围是宿主机进程形态的单 GPU
 Lab 与固定 Runner/Qwen2.5 路径，不扩展到 Managed、跨 Worker/双 GPU、Rust Worker
 容器化或生产发布门禁。M6-A 的状态边界、Worker 端口责任、本地 ModelFile resolver、
-写前刷新、CLI 前移与四段门禁已经共同冻结。M6-A.1 离线 Worker 代码和 fake/mock
-测试已完成并停在 `ready_for_review`；下一项只允许交付和审阅详细实现报告。M6-A.2 在
-该报告获接受后才开始，M6-A.3 真实 Server 写入和维护窗口仍须另行明确授权。
+写前刷新、CLI 前移与四段门禁已经共同冻结。M6-A.1 离线 Worker 代码、fake/mock
+测试和详细实现报告已经用户接受。下一项只允许实施 M6-A.2 离线 Context、最小 Model
+CRUD/status 和 Worker maintenance CLI；M6-A.3 真实 Server 写入和维护窗口仍须另行
+明确授权。
