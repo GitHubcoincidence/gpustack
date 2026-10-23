@@ -384,5 +384,6 @@ Lab 与固定 Runner/Qwen2.5 路径，不扩展到 Managed、跨 Worker/双 GPU�
 Worker maintenance CLI 已完成实现、mock 测试和 Git 推送。用户审阅 D033 详细实现报告
 后已接受 M6-A.2；接受范围仍仅是离线 CLI、mock 契约和构建门禁。源码复核发现文档中的
 `--managed-file-only` 尚未接到 M6-A.1 协调器，因此增设并已授权 M6-A.2.1 离线生产入口
-接线门禁。下一项只允许实现和验证该离线门禁；M6-A.3 的真实 Server 写入、maintenance
-变化、停止 Python Worker、Docker 或 GPU 操作仍须另行明确授权。
+接线门禁。该门禁的源码、fake/mock 测试、离线质量门禁和 Git 推送已经完成，目前为
+`ready_for_review`。下一项只允许交付并审阅 D033 详细实现报告；M6-A.3 的真实 Server
+写入、maintenance 变化、停止 Python Worker、Docker 或 GPU 操作仍须另行明确授权。

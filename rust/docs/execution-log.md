@@ -23,31 +23,35 @@
 
 ## 当前状态
 
-- 状态：`running`
+- 状态：`ready_for_review`
 - 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
   M5-E.0.1 已接受。Qwen-7B 的一次无效端口尝试和一次正式不兼容失败保持原分类；D084
   改选 Qwen2.5-0.5B-Instruct、D085 清理与回滚修复完成后，新模型 M5-E.1 正式 smoke
   已通过全部运行、推理、清理和恢复门禁。用户审阅详细报告后已接受 M5-E.1、M5-E 和
   整个 M5。M6-A.0 设计已接受，D086–D091 已冻结。用户已审阅并接受 M6-A.1 和
   M6-A.2；M6-A.2 的接受范围仍限于离线 CLI 实现、mock 契约和构建门禁。用户已接受
-  D092–D094，当前正在执行 M6-A.2.1 离线生产入口接线。
+  D092–D094。M6-A.2.1 离线生产入口接线、测试、构建和 Git 推送已经完成，等待用户审阅
+  D033 详细实现报告。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`；M6-A.2 实现提交为
-  `aff61fe2c7e98c50d3b5d273f6fbc582877a633f`。
+  `aff61fe2c7e98c50d3b5d273f6fbc582877a633f`；M6-A.2.1 实现提交为
+  `e1e3ee4a662099c1acfc60a8cfae0c8129b7d762`，CLI 帮助补充提交为
+  `dc53b9aedd6465a0564ecc07aeda03b1cf0c70fb`。
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
   `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
 - 实现状态：M1～M4、M5-A、M5-B、M5-C、整个 M5-D、M6-A.1 和 M6-A.2 已接受。
   M6-A.2 提供 Context、最小 Model CRUD/status、精确 Worker maintenance CLI、稳定
   table/JSON、确认、退出码、状态跟踪与凭据文件安全读取；接受依据仍只有离线 mock 证据。
-- 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；正式
-  Lab 的 container、manifest、cache、42000 listener、watchdog 和 GPU0 compute process
-  均为 0。Server 资源 ID 集保持不变，M5-E.1、M5-E 和整个 M5 均为 `accepted`。
-- 下一项允许执行的工作：只实现 `worker run --managed-file-only` 的正式 supervisor
-  接线、结构化事件和离线 fake/mock 门禁，完成后交付 D033 详细报告并等待验收。真实
-  Server 写入、maintenance 变化、停止 Python Worker、Docker 或 GPU 操作仍须另行明确
-  授权，不能因 M6-A.2.1 已获实现授权而自动执行。
+  M6-A.2.1 已实现正式 managed-file-only CLI/supervisor 接线，目前为 `ready_for_review`。
+- 当前停止位置：本阶段只在 90 主机工作树执行 locked/offline 编译与测试，没有启动 Rust
+  Worker、读取真实 Worker token、连接 Server API、改变 maintenance、停止 Python Worker、
+  访问 Docker socket、创建容器或使用 GPU。M5 完成时的运行环境结论是历史接受证据，
+  本阶段未重新探测或刷新它。
+- 下一项允许执行的工作：只交付并审阅 M6-A.2.1 的 D033 详细实现报告；用户明确接受后
+  才能更新为 `accepted` 并讨论 M6-A.3。真实 Server 写入、maintenance 变化、停止 Python
+  Worker、Docker 或 GPU 操作仍须另行明确授权。
 
 ## 里程碑
 
@@ -1882,6 +1886,44 @@
 - 状态：修订已冻结，M6-A.2.1 为 `running`；M6-A.3 仍未授权。
 - 下一项允许执行的工作：只完成 M6-A.2.1 源码、离线测试、质量门禁和 D033 详细实现
   报告。报告获用户接受前，不进入真实预检或维护窗口。
+
+### 2026-10-24：M6-A.2.1 离线生产入口接线完成
+
+- 结果与状态：M6-A.2.1 为 `ready_for_review`。实现提交
+  `e1e3ee4a662099c1acfc60a8cfae0c8129b7d762` 把正式
+  `worker run --managed-file-only` 接到共享资源 supervisor 和 M6-A.1
+  `ManagedCoordinator`；`dc53b9aedd6465a0564ecc07aeda03b1cf0c70fb` 补齐三种受限
+  Worker mode 的 CLI help。两项均已推送 fork。
+- CLI 与生命周期：三种 mode 两两互斥且必须显式选择。managed-file-only 复用持久身份、
+  system/NVML 资源、只读 Worker API、metrics、heartbeat/status 与三资源 full-sync/watch；
+  启动先验证 Server Worker maintenance 已启用，再把 control-plane desired-state revision
+  交给 coordinator。进程本身不修改 maintenance。
+- 协调与观察：协调结果携带 watch 快照中的观察状态。结构化事件记录资源类型、数字 ID、
+  观察状态、端口分配/复用、ModelFile 路径数量与字节数、有界错误或 no-op 理由；因此
+  `STARTING` 会明确记录为 no-op。优雅退出摘要保存最终 desired 集合/版本、各结果计数和
+  control-plane health，不记录 token 或模型路径。
+- 安全边界：model roots 在创建网络 client 前 canonicalize 并失败关闭；启动要求持久
+  per-Worker identity 和 maintenance。生产 resource supervisor 源码静态审计没有
+  `gpustack_runtime`、Docker client、`WorkloadSpec` 或 `docker_socket` 引用，且本阶段没有
+  新依赖，`Cargo.lock` SHA-256 仍为
+  `4094d427f9ec18e671e9d639bd9a576c0d620af9da1ca87970da05319dd4857b`。
+- 离线验证：固定 Rust 1.99.1 下 `cargo fmt --check`、workspace all-targets locked/offline
+  check、workspace locked/offline Clippy `-D warnings`、test、doc-test 和 build 全部通过；
+  workspace 共 142 项测试。新增覆盖 mode 互斥、maintenance profile、观察状态随 revision
+  进入协调器、`STARTING` no-op 事件、结果计数和旧 resource metrics mode 标签兼容。
+- 构建证据：从干净提交 `dc53b9ae` 重建的 debug CLI 报告
+  `git_commit=dc53b9aedd64`、`rust_toolchain=1.99.1`，SHA-256 为
+  `9009d9486f39e6aca9f648aae5c92a11c7b08c70c500d3a09bd5492ecde9e619`；帮助输出列出并解释
+  `--control-plane-only`、`--resource-api-only` 和 `--managed-file-only`。
+- 外部副作用：没有启动 Rust Worker、读取真实 token、连接真实 Server API、改变
+  maintenance、停止 Python Worker、访问 Docker socket、创建容器、申请 GPU 或运行推理。
+- 漂移审计：目标、固定 Server v2.2.3 契约、R1 单 Worker/单 GPU 范围、D086
+  `STARTING` 边界、D087–D090 状态/端口/文件/CLI 所有权和 M6-A.3 单独授权均未改变；
+  本次只修复阶段分解与生产入口缺口，结论为 `aligned`。
+- 当前停止位置：实现、离线证据、代码提交和 fork 推送完成，等待聊天中的 D033 详细报告
+  与用户验收；这不证明真实 Server 状态链、真实 maintenance 或部署能力。
+- 下一项允许执行的工作：只交付并审阅 M6-A.2.1 报告。用户接受后才能记录验收检查点
+  并讨论 M6-A.3；真实预检或维护窗口不自动开始。
 
 ## 未解决风险与待确认事项
 
