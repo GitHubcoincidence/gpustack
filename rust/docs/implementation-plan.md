@@ -385,5 +385,6 @@ Worker maintenance CLI 已完成实现、mock 测试和 Git 推送。用户审�
 后已接受 M6-A.2；接受范围仍仅是离线 CLI、mock 契约和构建门禁。源码复核发现文档中的
 `--managed-file-only` 尚未接到 M6-A.1 协调器，因此增设并已授权 M6-A.2.1 离线生产入口
 接线门禁。该门禁的源码、fake/mock 测试、离线质量门禁和 Git 推送已经完成，目前为
-`ready_for_review`。下一项只允许交付并审阅 D033 详细实现报告；M6-A.3 的真实 Server
-写入、maintenance 变化、停止 Python Worker、Docker 或 GPU 操作仍须另行明确授权。
+`accepted`。下一项只允许讨论并冻结 M6-A.3 的独立只读预检、真实无 Docker smoke、
+维护窗口、证据和回滚 runbook；真实 Server 写入、maintenance 变化、停止 Python Worker、
+Docker 或 GPU 操作仍须另行明确授权。

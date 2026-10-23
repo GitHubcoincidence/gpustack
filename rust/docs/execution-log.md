@@ -23,15 +23,15 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
+- 状态：`ready`
 - 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
   M5-E.0.1 已接受。Qwen-7B 的一次无效端口尝试和一次正式不兼容失败保持原分类；D084
   改选 Qwen2.5-0.5B-Instruct、D085 清理与回滚修复完成后，新模型 M5-E.1 正式 smoke
   已通过全部运行、推理、清理和恢复门禁。用户审阅详细报告后已接受 M5-E.1、M5-E 和
   整个 M5。M6-A.0 设计已接受，D086–D091 已冻结。用户已审阅并接受 M6-A.1 和
   M6-A.2；M6-A.2 的接受范围仍限于离线 CLI 实现、mock 契约和构建门禁。用户已接受
-  D092–D094。M6-A.2.1 离线生产入口接线、测试、构建和 Git 推送已经完成，等待用户审阅
-  D033 详细实现报告。
+  D092–D094。用户已审阅 D033 详细实现报告并接受 M6-A.2.1；接受范围仅为正式
+  managed-file-only 入口、离线 fake/mock 契约和构建门禁。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`；M6-A.2 实现提交为
@@ -44,14 +44,14 @@
 - 实现状态：M1～M4、M5-A、M5-B、M5-C、整个 M5-D、M6-A.1 和 M6-A.2 已接受。
   M6-A.2 提供 Context、最小 Model CRUD/status、精确 Worker maintenance CLI、稳定
   table/JSON、确认、退出码、状态跟踪与凭据文件安全读取；接受依据仍只有离线 mock 证据。
-  M6-A.2.1 已实现正式 managed-file-only CLI/supervisor 接线，目前为 `ready_for_review`。
+  M6-A.2.1 正式 managed-file-only CLI/supervisor 接线已经用户接受。
 - 当前停止位置：本阶段只在 90 主机工作树执行 locked/offline 编译与测试，没有启动 Rust
   Worker、读取真实 Worker token、连接 Server API、改变 maintenance、停止 Python Worker、
   访问 Docker socket、创建容器或使用 GPU。M5 完成时的运行环境结论是历史接受证据，
   本阶段未重新探测或刷新它。
-- 下一项允许执行的工作：只交付并审阅 M6-A.2.1 的 D033 详细实现报告；用户明确接受后
-  才能更新为 `accepted` 并讨论 M6-A.3。真实 Server 写入、maintenance 变化、停止 Python
-  Worker、Docker 或 GPU 操作仍须另行明确授权。
+- 下一项允许执行的工作：只讨论并冻结 M6-A.3 的独立只读预检、真实无 Docker smoke、
+  维护窗口、证据和回滚 runbook。真实 Server 写入、maintenance 变化、停止 Python
+  Worker、Docker 或 GPU 操作仍须另行明确授权，不能因 M6-A.2.1 已接受而自动执行。
 
 ## 里程碑
 
@@ -1924,6 +1924,28 @@
   与用户验收；这不证明真实 Server 状态链、真实 maintenance 或部署能力。
 - 下一项允许执行的工作：只交付并审阅 M6-A.2.1 报告。用户接受后才能记录验收检查点
   并讨论 M6-A.3；真实预检或维护窗口不自动开始。
+
+### 2026-10-24：M6-A.2.1 离线生产入口接线接受
+
+- 结果与状态：用户审阅 D033 详细实现报告后确认无问题；M6-A.2.1 从
+  `ready_for_review` 更新为 `accepted`。
+- 接受证据：实现提交为 `e1e3ee4a662099c1acfc60a8cfae0c8129b7d762`，CLI 帮助补充
+  提交为 `dc53b9aedd6465a0564ecc07aeda03b1cf0c70fb`，待审治理检查点为
+  `9b923f5838c4126152a9edec30a2a75192839195`。固定 Rust 1.99.1 下 142 项 workspace
+  测试、doc-test、fmt、locked/offline all-targets check、Clippy `-D warnings` 和 build
+  全部通过；干净二进制 SHA-256 为
+  `9009d9486f39e6aca9f648aae5c92a11c7b08c70c500d3a09bd5492ecde9e619`。
+- 接受范围：显式且互斥的 `--managed-file-only` CLI、共享资源 supervisor、持久身份和
+  maintenance 启动门禁、control-plane desired-state 到 `ManagedCoordinator` 的生产接线、
+  结构化脱敏事件、退出摘要和旧 resource-only 行为兼容。
+- 明确非结论：本次接受不证明真实 Worker token、真实 Server 状态写入、maintenance
+  切换、Python Worker drain、Docker/vLLM、推理或 GPU 能力；M6-A.3 尚未获执行授权。
+- 漂移审计：接受结论只使用冻结离线证据，没有把未执行的真实 smoke 提升为通过；目标、
+  D086 `STARTING` 边界和 M6-A.3 单独授权继续有效，结论为 `aligned`。
+- 当前停止位置：M6-A.2.1 已接受，代码、治理文档、fork 与 90 主机工作树保持同一 Git
+  基线；本次验收检查点不读取或改变远程运行服务状态。
+- 下一项允许执行的工作：只讨论并冻结 M6-A.3 的独立只读预检、真实无 Docker smoke、
+  维护窗口、证据和回滚 runbook；任何真实环境操作仍须用户另行明确授权。
 
 ## 未解决风险与待确认事项
 
