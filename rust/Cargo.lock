@@ -627,8 +627,10 @@ dependencies = [
  "gpustack-worker",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "url",
 ]
 
 [[package]]
@@ -636,10 +638,12 @@ name = "gpustack-client"
 version = "0.1.0"
 dependencies = [
  "futures-util",
+ "libc",
  "reqwest",
  "serde",
  "serde_json",
  "subtle",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "url",

@@ -218,16 +218,35 @@ pub struct WorkerStatusReport {
     pub worker_uuid: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorkerPublic {
     pub id: i64,
     pub name: String,
+    pub labels: BTreeMap<String, String>,
     pub maintenance: Option<WorkerMaintenance>,
     pub me: Option<bool>,
     pub worker_version: Option<String>,
     pub status: Option<Value>,
     #[serde(flatten)]
     pub extensions: BTreeMap<String, Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkerUpdate {
+    pub name: String,
+    pub labels: BTreeMap<String, String>,
+    pub maintenance: Option<WorkerMaintenance>,
+}
+
+impl From<&WorkerPublic> for WorkerUpdate {
+    fn from(worker: &WorkerPublic) -> Self {
+        Self {
+            name: worker.name.clone(),
+            labels: worker.labels.clone(),
+            maintenance: worker.maintenance.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -266,7 +285,7 @@ impl ModelFileState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelPublic {
     pub id: i64,
     pub name: String,
@@ -278,7 +297,30 @@ pub struct ModelPublic {
     pub extensions: BTreeMap<String, Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GpuSelector {
+    pub gpu_ids: Vec<String>,
+    pub gpus_per_replica: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModelCreate {
+    pub name: String,
+    pub source: ModelSource,
+    pub local_path: String,
+    pub replicas: u32,
+    pub backend: String,
+    pub image_name: String,
+    pub worker_selector: BTreeMap<String, String>,
+    pub gpu_selector: GpuSelector,
+    pub backend_parameters: Vec<String>,
+    pub distributed_inference_across_workers: bool,
+    pub enable_model_route: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelFilePublic {
     pub id: i64,
     pub created_at: String,
@@ -378,7 +420,7 @@ impl From<&ModelFilePublic> for ModelFileUpdate {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelInstancePublic {
     pub id: i64,
     pub created_at: String,

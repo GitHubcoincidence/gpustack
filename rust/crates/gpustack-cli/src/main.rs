@@ -8,7 +8,7 @@ use gpustack_cli::{Cli, OutputFormat, execute_with_lab_log_sink};
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
     let mut cli = Cli::parse();
-    if let Err(error) = cli.confirm_destructive_lab_command() {
+    if let Err(error) = cli.confirm_destructive_command() {
         eprintln!("error: {error}");
         return ExitCode::from(error.exit_code());
     }

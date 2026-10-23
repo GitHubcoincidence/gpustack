@@ -9,9 +9,9 @@ use crate::{
     ClientError, SecretToken,
     http::{HttpRequest, HttpResponse, Method, Transport},
     types::{
-        ErrorResponse, ModelFilePublic, ModelFileUpdate, ModelInstancePublic, ModelInstanceUpdate,
-        ModelPublic, Paginated, ServerVersion, WorkerCreate, WorkerPublic,
-        WorkerRegistrationPublic, WorkerStatusReport,
+        ErrorResponse, ModelCreate, ModelFilePublic, ModelFileUpdate, ModelInstancePublic,
+        ModelInstanceUpdate, ModelPublic, Paginated, ServerVersion, WorkerCreate, WorkerPublic,
+        WorkerRegistrationPublic, WorkerStatusReport, WorkerUpdate,
     },
     watch::WatchConnection,
 };
@@ -25,6 +25,7 @@ const BUFFERED_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 pub struct ServerClient<T> {
     base_url: Url,
     transport: T,
+    buffered_timeout: Duration,
 }
 
 impl<T: Transport> ServerClient<T> {
@@ -33,6 +34,20 @@ impl<T: Transport> ServerClient<T> {
         Ok(Self {
             base_url,
             transport,
+            buffered_timeout: BUFFERED_REQUEST_TIMEOUT,
+        })
+    }
+
+    pub fn with_timeout(
+        base_url: Url,
+        transport: T,
+        buffered_timeout: Duration,
+    ) -> Result<Self, ClientError> {
+        validate_base_url(&base_url)?;
+        Ok(Self {
+            base_url,
+            transport,
+            buffered_timeout,
         })
     }
 
@@ -140,6 +155,80 @@ impl<T: Transport> ServerClient<T> {
         self.decode_json(response, "Model full sync", Some(worker_token))
     }
 
+    pub async fn search_models(
+        &self,
+        operator_token: &SecretToken,
+        search: &str,
+    ) -> Result<Paginated<ModelPublic>, ClientError> {
+        let query = encoded_query(&[("page", "-1"), ("search", search)]);
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Get,
+                &format!("v2/models?{query}"),
+                Some(operator_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "Model search response", Some(operator_token))
+    }
+
+    pub async fn get_model(
+        &self,
+        operator_token: &SecretToken,
+        model_id: i64,
+    ) -> Result<ModelPublic, ClientError> {
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Get,
+                &format!("v2/models/{model_id}"),
+                Some(operator_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "Model response", Some(operator_token))
+    }
+
+    pub async fn create_model(
+        &self,
+        operator_token: &SecretToken,
+        model: &ModelCreate,
+    ) -> Result<ModelPublic, ClientError> {
+        let body = encode_json(model, "Model create request")?;
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Post,
+                "v2/models",
+                Some(operator_token),
+                Some(body),
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "Model create response", Some(operator_token))
+    }
+
+    pub async fn delete_model(
+        &self,
+        operator_token: &SecretToken,
+        model_id: i64,
+    ) -> Result<(), ClientError> {
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Delete,
+                &format!("v2/models/{model_id}"),
+                Some(operator_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.expect_success(response, operator_token)
+    }
+
     pub async fn list_model_instances(
         &self,
         worker_token: &SecretToken,
@@ -155,6 +244,85 @@ impl<T: Transport> ServerClient<T> {
             )?)
             .await?;
         self.decode_json(response, "ModelInstance full sync", Some(worker_token))
+    }
+
+    pub async fn list_model_instances_for_model(
+        &self,
+        operator_token: &SecretToken,
+        model_id: i64,
+    ) -> Result<Paginated<ModelInstancePublic>, ClientError> {
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Get,
+                &format!("v2/model-instances?page=-1&model_id={model_id}"),
+                Some(operator_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(
+            response,
+            "ModelInstance status response",
+            Some(operator_token),
+        )
+    }
+
+    pub async fn list_workers_by_name(
+        &self,
+        operator_token: &SecretToken,
+        name: &str,
+    ) -> Result<Paginated<WorkerPublic>, ClientError> {
+        let query = encoded_query(&[("page", "-1"), ("name", name)]);
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Get,
+                &format!("v2/workers?{query}"),
+                Some(operator_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "Worker search response", Some(operator_token))
+    }
+
+    pub async fn get_worker(
+        &self,
+        operator_token: &SecretToken,
+        worker_id: i64,
+    ) -> Result<WorkerPublic, ClientError> {
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Get,
+                &format!("v2/workers/{worker_id}"),
+                Some(operator_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "Worker response", Some(operator_token))
+    }
+
+    pub async fn update_worker(
+        &self,
+        operator_token: &SecretToken,
+        worker_id: i64,
+        update: &WorkerUpdate,
+    ) -> Result<WorkerPublic, ClientError> {
+        let body = encode_json(update, "Worker update request")?;
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Put,
+                &format!("v2/workers/{worker_id}"),
+                Some(operator_token),
+                Some(body),
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "Worker update response", Some(operator_token))
     }
 
     pub async fn get_model_instance(
@@ -345,7 +513,7 @@ impl<T: Transport> ServerClient<T> {
             authorization: token.cloned(),
             accept,
             body,
-            timeout: (accept != EVENT_STREAM_CONTENT_TYPE).then_some(BUFFERED_REQUEST_TIMEOUT),
+            timeout: (accept != EVENT_STREAM_CONTENT_TYPE).then_some(self.buffered_timeout),
         })
     }
 
@@ -378,6 +546,23 @@ impl<T: Transport> ServerClient<T> {
         }
         Ok(())
     }
+
+    fn expect_success(
+        &self,
+        response: HttpResponse,
+        token: &SecretToken,
+    ) -> Result<(), ClientError> {
+        if !(200..300).contains(&response.status) {
+            return Err(map_error_response(response, Some(token)));
+        }
+        Ok(())
+    }
+}
+
+fn encoded_query(pairs: &[(&str, &str)]) -> String {
+    url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs(pairs.iter().copied())
+        .finish()
 }
 
 fn validate_base_url(url: &Url) -> Result<(), ClientError> {

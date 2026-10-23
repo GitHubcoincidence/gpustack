@@ -8,6 +8,7 @@ use url::Url;
 
 mod auth;
 mod client;
+mod context;
 mod error;
 pub mod http;
 pub mod types;
@@ -15,6 +16,7 @@ pub mod watch;
 
 pub use auth::{SecretToken, SecretTokenError};
 pub use client::ServerClient;
+pub use context::{ContextSnapshot, ContextStore, ContextStoreError, load_context_token};
 pub use error::ClientError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,7 +29,10 @@ pub struct Context {
 
 impl Context {
     pub fn validate(&self) -> Result<(), ContextError> {
-        if self.name.trim().is_empty() {
+        if self.name.trim().is_empty()
+            || self.name.trim() != self.name
+            || self.name.chars().any(char::is_control)
+        {
             return Err(ContextError::InvalidName);
         }
         if !matches!(self.server_url.scheme(), "http" | "https") {
@@ -49,7 +54,7 @@ impl Context {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ContextError {
-    #[error("context name must not be empty")]
+    #[error("context name must be non-empty without surrounding whitespace or control characters")]
     InvalidName,
     #[error("server URL must use http or https")]
     InvalidServerUrl,
@@ -75,5 +80,17 @@ mod tests {
         let serialized = serde_json::to_string(&context).expect("serialize context");
         assert!(serialized.contains("token_file"));
         assert!(!serialized.contains("token_value"));
+    }
+
+    #[test]
+    fn context_name_rejects_ambiguous_or_terminal_control_values() {
+        for name in ["", " prod", "prod ", "prod\nnext"] {
+            let context = Context {
+                name: name.to_owned(),
+                server_url: Url::parse("http://127.0.0.1").expect("valid URL"),
+                token_file: PathBuf::from("/run/secrets/gpustack-token"),
+            };
+            assert_eq!(context.validate(), Err(ContextError::InvalidName));
+        }
     }
 }

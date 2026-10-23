@@ -15,6 +15,7 @@ pub type ByteStream = Pin<Box<dyn Stream<Item = Result<Vec<u8>, TransportError>>
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {
+    Delete,
     Get,
     Post,
     Put,
@@ -76,6 +77,7 @@ impl ReqwestTransport {
 
     fn request_builder(&self, request: &HttpRequest) -> reqwest::RequestBuilder {
         let method = match request.method {
+            Method::Delete => reqwest::Method::DELETE,
             Method::Get => reqwest::Method::GET,
             Method::Post => reqwest::Method::POST,
             Method::Put => reqwest::Method::PUT,

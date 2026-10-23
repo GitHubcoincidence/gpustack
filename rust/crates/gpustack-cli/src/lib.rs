@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use gpustack_client::http::ReqwestTransport;
+use gpustack_client::{ClientError, ContextStore, ServerClient, load_context_token};
 use gpustack_runtime::docker::{ContainerRuntime, DockerDaemonInfo, DockerRuntime, RuntimeError};
 use gpustack_worker::lab::{
     LabCleanupPlan, LabDeployRequest, LabEnvironment, LabError, LabInferRequest, LabInferenceKind,
@@ -22,6 +24,14 @@ use gpustack_worker::{
 use serde::Serialize;
 use thiserror::Error;
 
+mod managed;
+
+use managed::{
+    ContextArgs, ContextSubcommand, ManagedError, ModelArgs, ModelSubcommand,
+    WorkerMaintenanceArgs, WorkerMaintenanceSubcommand, run_context_command, run_model_command,
+    run_worker_maintenance_command,
+};
+
 pub const EXIT_SUCCESS: u8 = 0;
 pub const EXIT_INTERNAL: u8 = 1;
 pub const EXIT_CONFIG: u8 = 10;
@@ -31,16 +41,22 @@ pub const EXIT_RUNTIME: u8 = 50;
 #[derive(Debug, Parser)]
 #[command(name = "gpustack-rs", version, about = "GPUStack Rust migration CLI")]
 pub struct Cli {
+    /// Worker runtime YAML configuration file.
     #[arg(long, global = true)]
     pub config: Option<PathBuf>,
+    /// Stable human-readable or JSON output.
     #[arg(long, global = true, value_enum, default_value_t = OutputFormat::Table)]
     pub output: OutputFormat,
+    /// Suppress successful command and progress output.
     #[arg(long, global = true)]
     pub quiet: bool,
+    /// Disable terminal color output.
     #[arg(long, global = true)]
     pub no_color: bool,
+    /// Request or wait timeout in seconds.
     #[arg(long, global = true, default_value_t = 30)]
     pub timeout: u64,
+    /// Named Server context; defaults to the active context.
     #[arg(long, global = true)]
     pub context: Option<String>,
     #[command(subcommand)]
@@ -49,7 +65,13 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Manage local Server contexts and token-file references.
+    Context(ContextArgs),
+    /// Manage Server-owned model deployments.
+    Model(ModelArgs),
+    /// Print the Rust CLI build identity.
     Version,
+    /// Run, inspect, or maintain a Worker.
     Worker(Box<WorkerArgs>),
 }
 
@@ -108,12 +130,31 @@ impl From<WorkerConfigArgs> for ConfigOverrides {
     }
 }
 
+impl WorkerConfigArgs {
+    fn has_explicit_runtime_override(&self) -> bool {
+        self.server_url.is_some()
+            || self.worker_name.is_some()
+            || self.worker_hostname.is_some()
+            || self.worker_ip.is_some()
+            || self.worker_ifname.is_some()
+            || self.worker_port.is_some()
+            || self.metrics_port.is_some()
+            || self.token_file.is_some()
+            || self.data_dir.is_some()
+            || self.log_dir.is_some()
+            || !self.model_roots.is_empty()
+            || self.docker_socket.is_some()
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum WorkerCommand {
     Config(WorkerConfigCommand),
     Doctor,
     Gpu(WorkerGpuCommand),
     Lab(WorkerLabCommand),
+    /// Change the exact Worker's scheduling maintenance state through Server.
+    Maintenance(WorkerMaintenanceArgs),
     Runtime(WorkerRuntimeCommand),
     Run(WorkerRunArgs),
     ValidateConfig,
@@ -313,6 +354,8 @@ pub enum CliError {
     Lab(#[from] LabError),
     #[error(transparent)]
     Runtime(#[from] RuntimeError),
+    #[error(transparent)]
+    Managed(#[from] ManagedError),
     #[error("invalid CLI argument: {0}")]
     InvalidArgument(String),
     #[error("destructive Lab command requires confirmation or --yes")]
@@ -336,6 +379,9 @@ impl CliError {
             Self::Resource(_) => EXIT_RUNTIME,
             Self::ResourceRun(_) => EXIT_CONTROL_PLANE,
             Self::Lab(_) | Self::Runtime(_) => EXIT_RUNTIME,
+            Self::Managed(ManagedError::Serialization(_)) => EXIT_INTERNAL,
+            Self::Managed(error) if error.is_control_plane() => EXIT_CONTROL_PLANE,
+            Self::Managed(_) => EXIT_CONFIG,
             Self::Serialization(_) => EXIT_INTERNAL,
         }
     }
@@ -360,57 +406,123 @@ async fn execute_inner(
 ) -> Result<Execution, CliError> {
     let quiet = cli.quiet;
     let output_format = cli.output;
+    let context_name = cli.context;
+    let timeout = Duration::from_secs(cli.timeout.max(1));
     let execution = match cli.command {
+        Command::Context(arguments) => {
+            if cli.config.is_some() || context_name.is_some() {
+                return Err(CliError::InvalidArgument(
+                    "context commands do not accept --config or --context".to_owned(),
+                ));
+            }
+            let store = ContextStore::discover().map_err(ManagedError::from)?;
+            run_context_command(output_format, &store, arguments)?
+        }
+        Command::Model(arguments) => {
+            if cli.config.is_some() {
+                return Err(CliError::InvalidArgument(
+                    "--config is a Worker runtime option and does not apply to model commands"
+                        .to_owned(),
+                ));
+            }
+            let (client, token) = operator_client(context_name.as_deref(), timeout)?;
+            let mut transition_sink = |transition: &managed::ModelTransition| {
+                if !quiet {
+                    eprintln!("{}", transition.event_line());
+                }
+            };
+            run_model_command(
+                output_format,
+                timeout,
+                &client,
+                &token,
+                arguments,
+                Some(&mut transition_sink),
+            )
+            .await?
+        }
         Command::Version => render_version(output_format)?,
         Command::Worker(worker) => {
-            let loaded = load_config(cli.config.as_deref(), worker.overrides.into())?;
-            match worker.command {
-                WorkerCommand::Config(arguments) => match arguments.command {
-                    WorkerConfigSubcommand::Get => render_public_config(output_format)?,
-                },
-                WorkerCommand::ValidateConfig => {
-                    render_valid_config(output_format, &loaded.config, loaded.source.as_deref())?
-                }
-                WorkerCommand::Doctor => render_doctor(output_format, &run_doctor(&loaded.config))?,
-                WorkerCommand::Gpu(arguments) => match arguments.command {
-                    WorkerGpuSubcommand::List => {
-                        render_gpu_inventory(output_format, &collect_gpu_inventory()?)?
+            let WorkerArgs { overrides, command } = *worker;
+            match command {
+                WorkerCommand::Maintenance(arguments) => {
+                    if cli.config.is_some() || overrides.has_explicit_runtime_override() {
+                        return Err(CliError::InvalidArgument(
+                            "Worker runtime configuration does not apply to maintenance; use --context"
+                                .to_owned(),
+                        ));
                     }
-                },
-                WorkerCommand::Lab(arguments) => {
-                    run_lab_command(
-                        output_format,
-                        cli.timeout,
-                        &loaded.config,
-                        arguments,
-                        lab_log_sink,
-                    )
-                    .await?
-                }
-                WorkerCommand::Runtime(arguments) => {
-                    run_runtime_command(output_format, cli.timeout, &loaded.config, arguments)
+                    let (client, token) = operator_client(context_name.as_deref(), timeout)?;
+                    run_worker_maintenance_command(output_format, &client, &token, arguments)
                         .await?
                 }
-                WorkerCommand::Run(arguments) => {
-                    if !arguments.control_plane_only && !arguments.resource_api_only {
-                        return Err(CliError::ControlPlaneOnlyRequired);
+                command => {
+                    if context_name.is_some() {
+                        return Err(CliError::InvalidArgument(
+                            "--context applies only to model and Worker maintenance commands"
+                                .to_owned(),
+                        ));
                     }
-                    if arguments.resource_api_only {
-                        let summary = run_resource_api_only(&loaded.config, |event| {
-                            if !quiet {
-                                eprintln!("{event}");
+                    let loaded = load_config(cli.config.as_deref(), overrides.into())?;
+                    match command {
+                        WorkerCommand::Config(arguments) => match arguments.command {
+                            WorkerConfigSubcommand::Get => render_public_config(output_format)?,
+                        },
+                        WorkerCommand::ValidateConfig => render_valid_config(
+                            output_format,
+                            &loaded.config,
+                            loaded.source.as_deref(),
+                        )?,
+                        WorkerCommand::Doctor => {
+                            render_doctor(output_format, &run_doctor(&loaded.config))?
+                        }
+                        WorkerCommand::Gpu(arguments) => match arguments.command {
+                            WorkerGpuSubcommand::List => {
+                                render_gpu_inventory(output_format, &collect_gpu_inventory()?)?
                             }
-                        })
-                        .await?;
-                        render_resource_api_summary(output_format, &summary)?
-                    } else {
-                        let summary = run_control_plane_only(&loaded.config, |event| {
-                            if !quiet {
-                                eprintln!("{event}");
+                        },
+                        WorkerCommand::Lab(arguments) => {
+                            run_lab_command(
+                                output_format,
+                                cli.timeout,
+                                &loaded.config,
+                                arguments,
+                                lab_log_sink,
+                            )
+                            .await?
+                        }
+                        WorkerCommand::Maintenance(_) => unreachable!("handled above"),
+                        WorkerCommand::Runtime(arguments) => {
+                            run_runtime_command(
+                                output_format,
+                                cli.timeout,
+                                &loaded.config,
+                                arguments,
+                            )
+                            .await?
+                        }
+                        WorkerCommand::Run(arguments) => {
+                            if !arguments.control_plane_only && !arguments.resource_api_only {
+                                return Err(CliError::ControlPlaneOnlyRequired);
                             }
-                        })
-                        .await?;
-                        render_control_plane_summary(output_format, &summary)?
+                            if arguments.resource_api_only {
+                                let summary = run_resource_api_only(&loaded.config, |event| {
+                                    if !quiet {
+                                        eprintln!("{event}");
+                                    }
+                                })
+                                .await?;
+                                render_resource_api_summary(output_format, &summary)?
+                            } else {
+                                let summary = run_control_plane_only(&loaded.config, |event| {
+                                    if !quiet {
+                                        eprintln!("{event}");
+                                    }
+                                })
+                                .await?;
+                                render_control_plane_summary(output_format, &summary)?
+                            }
+                        }
                     }
                 }
             }
@@ -425,6 +537,18 @@ async fn execute_inner(
     } else {
         Ok(execution)
     }
+}
+
+fn operator_client(
+    context_name: Option<&str>,
+    timeout: Duration,
+) -> Result<(ServerClient<ReqwestTransport>, gpustack_client::SecretToken), ManagedError> {
+    let store = ContextStore::discover()?;
+    let context = store.resolve(context_name)?;
+    let token = load_context_token(&context)?;
+    let transport = ReqwestTransport::new().map_err(ClientError::Transport)?;
+    let client = ServerClient::with_timeout(context.server_url, transport, timeout)?;
+    Ok((client, token))
 }
 
 async fn run_runtime_command(
@@ -446,27 +570,55 @@ async fn run_runtime_command(
 }
 
 impl Cli {
-    /// Prompts only for destructive Lab commands that did not receive `--yes`.
-    pub fn confirm_destructive_lab_command(&mut self) -> Result<(), CliError> {
-        let Command::Worker(worker) = &mut self.command else {
-            return Ok(());
-        };
-        let WorkerCommand::Lab(lab) = &mut worker.command else {
-            return Ok(());
-        };
-        let (prompt, confirmed) = match &mut lab.command {
-            WorkerLabSubcommand::Remove(arguments) if !arguments.yes => (
+    /// Prompts for destructive local or Server operations that omit `--yes`.
+    pub fn confirm_destructive_command(&mut self) -> Result<(), CliError> {
+        let (prompt, confirmed) = match &mut self.command {
+            Command::Context(ContextArgs {
+                command: ContextSubcommand::Remove(arguments),
+            }) if !arguments.yes => (
                 format!(
-                    "Remove stopped/failed Lab deployment '{}'? Type 'yes' to continue: ",
+                    "Remove context '{}'? Type 'yes' to continue: ",
                     arguments.name
                 ),
                 &mut arguments.yes,
             ),
-            WorkerLabSubcommand::Cleanup(arguments) if arguments.execute && !arguments.yes => (
-                "Execute cleanup for all removable resources owned by this Lab owner? Type 'yes' to continue: "
-                    .to_string(),
+            Command::Model(ModelArgs {
+                command: ModelSubcommand::Delete(arguments),
+            }) if !arguments.yes => (
+                format!(
+                    "Delete Managed model '{}'? Type 'yes' to continue: ",
+                    arguments.model
+                ),
                 &mut arguments.yes,
             ),
+            Command::Worker(worker) => match &mut worker.command {
+                WorkerCommand::Maintenance(WorkerMaintenanceArgs {
+                    command: WorkerMaintenanceSubcommand::Disable(arguments),
+                }) if !arguments.yes => (
+                    format!(
+                        "Disable maintenance for Worker '{}'? Type 'yes' to continue: ",
+                        arguments.worker
+                    ),
+                    &mut arguments.yes,
+                ),
+                WorkerCommand::Lab(WorkerLabCommand {
+                    command: WorkerLabSubcommand::Remove(arguments),
+                }) if !arguments.yes => {
+                    let prompt = format!(
+                        "Remove stopped/failed Lab deployment '{}'? Type 'yes' to continue: ",
+                        arguments.name
+                    );
+                    (prompt, &mut arguments.yes)
+                }
+                WorkerCommand::Lab(WorkerLabCommand {
+                    command: WorkerLabSubcommand::Cleanup(arguments),
+                }) if arguments.execute && !arguments.yes => (
+                    "Execute cleanup for all removable resources owned by this Lab owner? Type 'yes' to continue: "
+                        .to_string(),
+                    &mut arguments.yes,
+                ),
+                _ => return Ok(()),
+            },
             _ => return Ok(()),
         };
         eprint!("{prompt}");
@@ -1085,6 +1237,49 @@ mod tests {
     #[test]
     fn command_definition_is_valid() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn managed_failures_keep_stable_exit_code_categories() {
+        let invalid = CliError::Managed(ManagedError::InvalidArgument("bad input".to_owned()));
+        let missing = CliError::Managed(ManagedError::NotFound("Model", "missing".to_owned()));
+        let client = CliError::Managed(ManagedError::Client(ClientError::Contract(
+            "unexpected response".to_owned(),
+        )));
+
+        assert_eq!(invalid.exit_code(), EXIT_CONFIG);
+        assert_eq!(missing.exit_code(), EXIT_CONTROL_PLANE);
+        assert_eq!(client.exit_code(), EXIT_CONTROL_PLANE);
+    }
+
+    #[tokio::test]
+    async fn command_specific_global_options_are_not_silently_ignored() {
+        for command in [
+            vec!["gpustack-rs", "--context", "unused", "context", "list"],
+            vec!["gpustack-rs", "--config", "/unused", "model", "list"],
+            vec![
+                "gpustack-rs",
+                "--context",
+                "unused",
+                "worker",
+                "gpu",
+                "list",
+            ],
+            vec![
+                "gpustack-rs",
+                "worker",
+                "maintenance",
+                "enable",
+                "target",
+                "--server-url",
+                "http://127.0.0.1",
+            ],
+        ] {
+            let cli = Cli::try_parse_from(command).expect("parse CLI");
+            let error = execute(cli).await.expect_err("irrelevant option rejected");
+            assert!(matches!(error, CliError::InvalidArgument(_)));
+            assert_eq!(error.exit_code(), EXIT_CONFIG);
+        }
     }
 
     #[tokio::test]
