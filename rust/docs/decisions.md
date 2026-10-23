@@ -300,3 +300,16 @@ loopback、`42000-42063` 端口池及其隔离理由继续有效。Managed 端�
 运维凭据、改变 Worker maintenance、创建或删除真实 Model/ModelInstance/ModelFile、停止
 Python Worker、连接 Docker、创建容器、申请 GPU 或运行推理。M6-A.2 仍是离线 CLI
 实现；M6-A.3 的真实 Server 写入和维护窗口必须在前两段分别报告并获接受后另行授权。
+
+## 2026-10-24 M6-A.2.1 Managed 生产入口接线修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D092 | 增设离线接线门禁 | 在 M6-A.2 与 M6-A.3 之间增设 M6-A.2.1，只实现并离线验证 `worker run --managed-file-only` 的正式 CLI 与 supervisor 接线；M6-A.3 继续作为单独授权的真实环境门禁 | M6-A.1 已实现协调器、M6-A.2 已实现控制面 CLI，但正式 `worker run` 尚不能启动协调器。若直接进入真实 smoke，测试命令与生产代码路径不闭合。 |
+| D093 | Managed file-only runtime 组成 | `--managed-file-only` 与其他 Worker mode 互斥；复用 resource-api-only 的持久 Worker identity、真实 system/NVML 资源、Worker API、metrics 和 control plane，并接入 `ManagedCoordinator`。启动时要求目标 Worker 已处于 maintenance，但进程不得自动修改 maintenance；模式内不得构造 Docker client、WorkloadSpec、容器或 vLLM runtime | 该模式只负责把 Server 托管状态推进到文件准备边界，同时保留 M4 已验证的只读资源面和显式运维所有权，避免离线接线阶段扩大外部副作用。 |
+| D094 | 观察性与接受边界 | supervisor 以脱敏结构化事件记录 ModelInstance/ModelFile ID、观察状态、分配或复用端口、文件结果和 `STARTING` no-op；优雅退出输出有界摘要。实现只运行 fixture/fake/mock、fmt、check、Clippy、test、doc-test 和 build，完成后状态为 `ready_for_review` 并交付 D033 详细报告 | 真实 smoke 前必须能审计 Worker 看到了什么、做了什么和为何停止；离线证据不能被误写成真实 Server、Docker 或 GPU 证据。 |
+
+D092–D094 是对 M6-A 门禁拆分的纠正，不改变 D086 的状态所有权和 `STARTING` 边界，
+也不扩大 R1 能力范围。用户接受该修订只授权 M6-A.2.1 的文档、源码和离线测试；不授权
+读取真实 token、连接真实 Server、改变 maintenance、停止 Python Worker、访问 Docker
+socket、创建容器、申请 GPU 或运行推理。M6-A.3 仍须在 M6-A.2.1 报告获接受后另行授权。

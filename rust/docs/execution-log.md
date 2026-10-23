@@ -18,16 +18,19 @@
 - 2026-10-21：冻结 M3-D.2 操作手册；用户亲自分段执行，助手只提供命令、解释并审阅非敏感输出。证据保存在 Git 外 `0700` 目录，token 永不进入聊天或证据；首次注册一旦尝试，无论结果都删除本地 Cluster token 副本。
 - 2026-10-23：冻结 M6-A 状态边界、Worker Managed 端口责任、本地 ModelFile resolver、
   写前刷新、CLI 前移、maintenance 运维命令和四段门禁；接受只解锁离线 M6-A.1。
+- 2026-10-24：发现正式 `worker run` 尚未接入 M6-A.1 协调器；冻结 D092–D094，在
+  M6-A.2 与真实 smoke 之间增设 M6-A.2.1 离线生产入口接线门禁。
 
 ## 当前状态
 
-- 状态：`ready`
+- 状态：`running`
 - 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
   M5-E.0.1 已接受。Qwen-7B 的一次无效端口尝试和一次正式不兼容失败保持原分类；D084
   改选 Qwen2.5-0.5B-Instruct、D085 清理与回滚修复完成后，新模型 M5-E.1 正式 smoke
   已通过全部运行、推理、清理和恢复门禁。用户审阅详细报告后已接受 M5-E.1、M5-E 和
   整个 M5。M6-A.0 设计已接受，D086–D091 已冻结。用户已审阅并接受 M6-A.1 和
-  M6-A.2；M6-A.2 的接受范围仍限于离线 CLI 实现、mock 契约和构建门禁。
+  M6-A.2；M6-A.2 的接受范围仍限于离线 CLI 实现、mock 契约和构建门禁。用户已接受
+  D092–D094，当前正在执行 M6-A.2.1 离线生产入口接线。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`；M6-A.2 实现提交为
@@ -41,9 +44,10 @@
 - 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；正式
   Lab 的 container、manifest、cache、42000 listener、watchdog 和 GPU0 compute process
   均为 0。Server 资源 ID 集保持不变，M5-E.1、M5-E 和整个 M5 均为 `accepted`。
-- 下一项允许执行的工作：只讨论并冻结 M6-A.3 的独立预检、真实 Server 无 Docker
-  smoke、维护窗口和回滚步骤。真实 Server 写入、maintenance 变化、停止 Python Worker、
-  Docker 或 GPU 操作仍须另行明确授权，不能因 M6-A.2 已接受而自动执行。
+- 下一项允许执行的工作：只实现 `worker run --managed-file-only` 的正式 supervisor
+  接线、结构化事件和离线 fake/mock 门禁，完成后交付 D033 详细报告并等待验收。真实
+  Server 写入、maintenance 变化、停止 Python Worker、Docker 或 GPU 操作仍须另行明确
+  授权，不能因 M6-A.2.1 已获实现授权而自动执行。
 
 ## 里程碑
 
@@ -1863,6 +1867,21 @@
   基线；运行中的 Python Server/Worker 和 GPU 环境没有因本阶段发生变化。
 - 下一项允许执行的工作：只讨论并冻结 M6-A.3 的独立预检、真实无 Docker smoke、维护
   窗口和回滚 runbook；任何真实环境写操作仍须用户另行明确授权。
+
+### 2026-10-24：M6-A.2.1 离线生产入口接线修订接受
+
+- 发现：M6-A.1 已实现 `ManagedCoordinator`，M6-A.2 已实现控制面 CLI，但正式
+  `WorkerRunArgs` 只有 control-plane-only 和 resource-api-only；文档中的
+  `worker run --managed-file-only` 尚无生产调用方，不能直接作为 M6-A.3 的验证入口。
+- 决策：用户接受 D092–D094，在真实 smoke 前增设 M6-A.2.1。该阶段增加互斥 CLI mode，
+  复用持久 Worker identity、system/NVML、Worker API、metrics 和 control plane，接入
+  Managed coordinator，并以结构化脱敏事件记录状态观察和协调结果。
+- 安全边界：启动时要求 Worker 已处于 maintenance，但 Rust 进程不得自动修改它；不得
+  读取真实 token、连接真实 Server、停止 Python Worker、访问 Docker socket、构造
+  WorkloadSpec、创建容器、申请 GPU 或运行推理。全部门禁只使用 fixture/fake/mock。
+- 状态：修订已冻结，M6-A.2.1 为 `running`；M6-A.3 仍未授权。
+- 下一项允许执行的工作：只完成 M6-A.2.1 源码、离线测试、质量门禁和 D033 详细实现
+  报告。报告获用户接受前，不进入真实预检或维护窗口。
 
 ## 未解决风险与待确认事项
 

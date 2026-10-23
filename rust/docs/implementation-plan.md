@@ -159,7 +159,7 @@ M6-A 只证明 Server 托管状态链、Worker 服务端口分配和本地 Model
 Docker、不创建 vLLM 容器、不运行推理。固定状态边界是
 `SCHEDULED -> INITIALIZING -> DOWNLOADING -> STARTING`；`STARTING -> RUNNING` 属于 M6-B。
 
-M6-A 分成四个独立门禁：
+M6-A 分成五个独立门禁：
 
 1. **M6-A.0 契约冻结**：从部署 commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`
    复核 Python Worker、Server Controller、Model/ModelInstance/ModelFile 路由和 scheduler。
@@ -171,7 +171,12 @@ M6-A 分成四个独立门禁：
 3. **M6-A.2 离线 CLI 实现**：实现 Context、最小 Model CRUD/status 与精确 Worker
    maintenance 命令；凭据只引用权限受限 token 文件，稳定 table/JSON、退出码、确认与
    脱敏规则全部用 mock transport 验证。`model logs` 和 inference 命令仍不在本阶段实现。
-4. **M6-A.3 真实无 Docker smoke**：另获授权后停止 Python Worker，启动
+4. **M6-A.2.1 离线生产入口接线**：实现 `worker run --managed-file-only`，与其他模式
+   互斥，并复用持久 Worker identity、system/NVML、Worker API、metrics 和 control plane；
+   接入 M6-A.1 协调器，启动时要求 Worker 已处于 maintenance，但不自动改变 maintenance。
+   结构化事件记录实例/文件 ID、观察状态、端口、文件结果和 `STARTING` no-op；该模式
+   不得构造 Docker client、WorkloadSpec、容器或 vLLM runtime。全部验证使用 fake/mock。
+5. **M6-A.3 真实无 Docker smoke**：另获授权后停止 Python Worker，启动
    `--managed-file-only`，由 CLI 临时解除 Rust Worker maintenance，并把唯一固定 Qwen2.5
    模型精确调度到 Rust GPU0。捕获完整状态序列和 ModelFile READY 后，实例只能停在
    `STARTING`；期间 Docker client/container、inference listener、GPU process 和显存使用
@@ -184,9 +189,9 @@ M6-A 分成四个独立门禁：
 `error` 和脱敏有界消息。M6-A 不支持网络下载、LoRA、draft model、跨 Worker 或多 GPU
 runtime。
 
-接受本设计只允许开始 M6-A.1 的离线源码与测试。M6-A.1 和 M6-A.2 都必须分别交付
-D033 详细实现报告并获用户接受；M6-A.3 的真实 Server 写入、maintenance 变化和停止
-Python Worker 必须另获明确授权。
+M6-A.1、M6-A.2 和 M6-A.2.1 都必须分别交付 D033 详细实现报告并获用户接受；当前只
+授权 M6-A.2.1 的离线源码与测试。M6-A.3 的真实 Server 写入、maintenance 变化和停止
+Python Worker 必须在 M6-A.2.1 获接受后另获明确授权。
 
 ## 验证策略
 
@@ -374,9 +379,10 @@ Qwen2.5 M5-E.1 正式 smoke 已完成全部冻结门禁。有效运行
 用户审阅详细报告后已接受 M5-E.1、M5-E 和整个 M5。接受范围是宿主机进程形态的单 GPU
 Lab 与固定 Runner/Qwen2.5 路径，不扩展到 Managed、跨 Worker/双 GPU、Rust Worker
 容器化或生产发布门禁。M6-A 的状态边界、Worker 端口责任、本地 ModelFile resolver、
-写前刷新、CLI 前移与四段门禁已经共同冻结。M6-A.1 离线 Worker 代码、fake/mock
+写前刷新和 CLI 前移已经共同冻结。M6-A.1 离线 Worker 代码、fake/mock
 测试和详细实现报告已经用户接受。M6-A.2 离线 Context、最小 Model CRUD/status 和
 Worker maintenance CLI 已完成实现、mock 测试和 Git 推送。用户审阅 D033 详细实现报告
-后已接受 M6-A.2；接受范围仍仅是离线 CLI、mock 契约和构建门禁。下一项只允许讨论并
-冻结 M6-A.3 的独立预检、真实无 Docker smoke、维护窗口和回滚 runbook。真实 Server
-写入、maintenance 变化、停止 Python Worker、Docker 或 GPU 操作仍须另行明确授权。
+后已接受 M6-A.2；接受范围仍仅是离线 CLI、mock 契约和构建门禁。源码复核发现文档中的
+`--managed-file-only` 尚未接到 M6-A.1 协调器，因此增设并已授权 M6-A.2.1 离线生产入口
+接线门禁。下一项只允许实现和验证该离线门禁；M6-A.3 的真实 Server 写入、maintenance
+变化、停止 Python Worker、Docker 或 GPU 操作仍须另行明确授权。
