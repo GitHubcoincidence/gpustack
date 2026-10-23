@@ -385,6 +385,8 @@ Worker maintenance CLI 已完成实现、mock 测试和 Git 推送。用户审�
 后已接受 M6-A.2；接受范围仍仅是离线 CLI、mock 契约和构建门禁。源码复核发现文档中的
 `--managed-file-only` 尚未接到 M6-A.1 协调器，因此增设并已授权 M6-A.2.1 离线生产入口
 接线门禁。该门禁的源码、fake/mock 测试、离线质量门禁和 Git 推送已经完成，目前为
-`accepted`。下一项只允许讨论并冻结 M6-A.3 的独立只读预检、真实无 Docker smoke、
-维护窗口、证据和回滚 runbook；真实 Server 写入、maintenance 变化、停止 Python Worker、
-Docker 或 GPU 操作仍须另行明确授权。
+`accepted`。讨论 M6-A.3 回滚时确认 Server 删除 Model 不会自动删除独立 ModelFile，用户
+因此接受 D095–D097，并在真实 smoke 前增设 M6-A.2.2。该门禁只实现
+`model file get/delete` 的类型化运维 CLI、安全删除语义和离线测试；完成详细报告并获接受
+后，才能进入 M6-A.3 的独立只读预检。真实 Server 写入、maintenance 变化、停止 Python
+Worker、Docker 或 GPU 操作仍须另行明确授权。

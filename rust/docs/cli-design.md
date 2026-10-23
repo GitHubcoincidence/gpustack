@@ -61,10 +61,10 @@ M4-C 只运行 `worker gpu list --output json` 与 `nvidia-smi` 做宿主机只�
 
 ## Managed 模型命令
 
-M6-A 先实现 `context add/use/list/remove`、`model deploy/list/get/status/delete` 和
-`worker maintenance enable/disable`，用于完成不依赖 Web UI 或原始请求的真实文件准备
-验证。`model logs` 与 `inference models/chat/completion` 在 M6-B runtime 和推理端点可用
-后实现；阶段前移不改变最终 R1 命令树。
+M6-A 先实现 `context add/use/list/remove`、`model deploy/list/get/status/delete`、
+`model file get/delete` 和 `worker maintenance enable/disable`，用于完成不依赖 Web UI
+或原始请求的真实文件准备验证。`model logs` 与 `inference models/chat/completion` 在
+M6-B runtime 和推理端点可用后实现；阶段前移不改变最终 R1 命令树。
 
 `model deploy` 使用运维人员身份认证，并通过 Server API 创建模型。它不直接访问 Docker 或 Worker。R1 强制显式指定目标 Worker，避免测试任务被调度到 Python Worker。
 
@@ -84,6 +84,12 @@ CLI 把友好的 GPU 参数转换为现有 Server selector 形式，例如 `work
 并随 `INITIALIZING` 写回 Server；CLI 不指定或预留该端口。`worker maintenance` 由 Context
 中的运维身份调用 Server，只修改精确目标 Worker，默认输出修改前后状态；Worker 进程
 本身不得为获取调度任务而静默解除 maintenance。
+
+`model file get <id>` 读取精确 ModelFile，供运维人员核对 Worker、来源、本地路径、状态、
+大小和 resolved paths。`model file delete <id>` 只清理由 M6-A 支持的本地路径元数据：它
+要求显式确认，删除前重新读取对象，并固定向 Server 传递 `cleanup=false`。若 ModelFile
+仍被任何 ModelInstance 使用，Server 的冲突响应必须原样失败；命令不得删除宿主机模型
+文件，也不得把删除失败伪装成成功。
 
 `model logs` 调用 Server 日志 API；Server 在向 Worker 请求日志之前继续执行现有用户授权与 tenant 可见性检查。
 

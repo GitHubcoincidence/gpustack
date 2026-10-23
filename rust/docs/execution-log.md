@@ -1947,6 +1947,25 @@
 - 下一项允许执行的工作：只讨论并冻结 M6-A.3 的独立只读预检、真实无 Docker smoke、
   维护窗口、证据和回滚 runbook；任何真实环境操作仍须用户另行明确授权。
 
+### 2026-10-24：M6-A.2.2 ModelFile 清理 CLI 修订冻结
+
+- 发现：源码核对确认 Model 删除会级联删除 ModelInstance，但独立 ModelFile 缓存记录不会
+  自动删除；仅使用现有 `model delete` 无法证明 M6-A.3 测试资源零残留。
+- 决策：用户接受 D095–D097，在真实 smoke 前增设 M6-A.2.2，增加
+  `model file get <id>` 与 `model file delete <id> --yes`。删除只针对正整数 ID，先读取最新
+  对象并限制为有 Worker 归属和非空本地路径的 `local_path` ModelFile，随后固定以
+  `cleanup=false` 删除 Server 元数据；本地 Qwen2.5 文件必须保留。
+- 状态：M6-A.2.2 为 `running`。本机、fork 和 90 主机在开始时共同位于
+  `3f7dbb2c159548bf73c1c3a771dd7969d2d02bb4`；90 工作树干净，本地只有既有且无关的
+  `output/`。
+- 漂移审计：该修订补全 D091 已冻结的测试资源清理闭环，不改变 D086 `STARTING` 边界、
+  固定模型/Worker/GPU/Runner 或真实 smoke 的解释，结论为 `aligned`。
+- 外部副作用：本次修订只授权文档、Rust 源码和离线测试；不读取真实 token、不连接真实
+  Server、不改变 maintenance、不停止 Python Worker，也不访问 Docker 或 GPU。
+- 当前停止位置：设计已冻结，开始实现和离线验证；尚无实现或真实环境结论。
+- 下一项允许执行的工作：只完成 M6-A.2.2 实现、mock/CLI 测试、固定 Rust 质量门禁、提交
+  与详细报告。报告获用户接受前，不进入 M6-A.3 预检或维护窗口。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

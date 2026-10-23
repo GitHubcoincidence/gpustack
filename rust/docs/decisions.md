@@ -313,3 +313,14 @@ D092–D094 是对 M6-A 门禁拆分的纠正，不改变 D086 的状态所有�
 也不扩大 R1 能力范围。用户接受该修订只授权 M6-A.2.1 的文档、源码和离线测试；不授权
 读取真实 token、连接真实 Server、改变 maintenance、停止 Python Worker、访问 Docker
 socket、创建容器、申请 GPU 或运行推理。M6-A.3 仍须在 M6-A.2.1 报告获接受后另行授权。
+
+## 2026-10-24 M6-A.2.2 ModelFile 清理 CLI 修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D095 | 增设 ModelFile 清理门禁 | 在 M6-A.2.1 与 M6-A.3 之间增设 M6-A.2.2，增加 `model file get <id>` 和 `model file delete <id> --yes`，并先以 mock transport 和离线质量门禁验证 | Server 删除 Model 时会级联删除 ModelInstance，但独立 ModelFile 缓存记录不会自动删除；若直接执行真实 smoke，现有 CLI 无法满足 D091 的测试资源清理要求。 |
+| D096 | 删除安全语义 | `model file delete` 只接受正整数 ID，删除前 GET 最新对象，只允许有明确 Worker 归属和非空本地路径的 `local_path` ModelFile；必须显式确认，并固定调用 `DELETE /v2/model-files/{id}?cleanup=false`。Server 仍被 ModelInstance 引用时的冲突门禁保持权威 | 精确 ID、最新对象检查和 Server 引用检查共同限制误删；`cleanup=false` 只删除 Server 元数据，绝不删除 90 主机上的共享模型文件。 |
+| D097 | 授权和证据边界 | M6-A.2.2 只修改 Rust client/CLI、契约测试和文档；通过后状态为 `ready_for_review`，交付详细实现报告并等待用户接受。它不读取真实凭据、不连接真实 Server、不改变 maintenance、不停止 Python Worker，也不访问 Docker 或 GPU | 清理能力本身先在离线边界内验收，不能因为它服务于 M6-A.3 就提前获得真实环境权限。 |
+
+D095–D097 是对 D091 回滚闭环的必要补充，不改变 M6-A 的状态边界、模型、GPU、Runner、
+Worker 身份或正式 smoke 解释。M6-A.3 仍拆为独立只读预检和另行授权的维护窗口。
