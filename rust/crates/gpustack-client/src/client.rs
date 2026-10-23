@@ -157,6 +157,24 @@ impl<T: Transport> ServerClient<T> {
         self.decode_json(response, "ModelInstance full sync", Some(worker_token))
     }
 
+    pub async fn get_model_instance(
+        &self,
+        worker_token: &SecretToken,
+        instance_id: i64,
+    ) -> Result<ModelInstancePublic, ClientError> {
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Get,
+                &format!("v2/model-instances/{instance_id}"),
+                Some(worker_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "ModelInstance response", Some(worker_token))
+    }
+
     pub async fn list_model_files(
         &self,
         worker_token: &SecretToken,

@@ -21,27 +21,28 @@
 
 ## 当前状态
 
-- 状态：`ready`
+- 状态：`ready_for_review`
 - 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
   M5-E.0.1 已接受。Qwen-7B 的一次无效端口尝试和一次正式不兼容失败保持原分类；D084
   改选 Qwen2.5-0.5B-Instruct、D085 清理与回滚修复完成后，新模型 M5-E.1 正式 smoke
   已通过全部运行、推理、清理和恢复门禁。用户审阅详细报告后已接受 M5-E.1、M5-E 和
-  整个 M5。M6-A.0 设计已接受，D086–D091 已冻结。
+  整个 M5。M6-A.0 设计已接受，D086–D091 已冻结。M6-A.1 离线实现和回归已完成，
+  当前等待用户审阅详细实现报告，尚未接受。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
   `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
-- 实现状态：M1～M4、M5-A、M5-B、M5-C 和整个 M5-D 已接受。当前代码提供
-  `WorkloadSpecV2`、Lab CLI/协调层、可替换 Docker runtime、`worker runtime info` 和
-  默认拒绝执行的 M5-D example probe。
+- 实现状态：M1～M4、M5-A、M5-B、M5-C 和整个 M5-D 已接受。当前代码另已实现
+  M6-A.1 的 Managed 端口分配、本地 ModelFile resolver、写前刷新与离线协调器，但该
+  阶段仍为 `ready_for_review`，不能作为已接受能力进入后续门禁。
 - 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；正式
   Lab 的 container、manifest、cache、42000 listener、watchdog 和 GPU0 compute process
   均为 0。Server 资源 ID 集保持不变，M5-E.1、M5-E 和整个 M5 均为 `accepted`。
-- 下一项允许执行的工作：实施 M6-A.1 的离线 Managed 端口分配、ModelInstance 初始化、
-  ModelFile resolver、协调器和 fake/mock 测试。不得读取真实凭据、连接 Server/Docker、
-  修改 maintenance、创建 Managed 资源、停止 Python Worker 或使用 GPU。
+- 下一项允许执行的工作：在聊天中交付并共同审阅 M6-A.1 详细实现报告。用户接受前不得
+  开始 M6-A.2 或 M6-A.3；仍不得读取真实凭据、连接 Server/Docker、修改 maintenance、
+  创建 Managed 资源、停止 Python Worker 或使用 GPU。
 
 ## 里程碑
 
@@ -1774,6 +1775,27 @@
   改变；本地既有 `output/` 继续不属于项目变更。
 - 下一项允许执行的工作：只实施 M6-A.1 离线代码、fixture 和 fake/mock 测试，完成后
   在聊天中交付 D033 详细实现报告并等待验收。M6-A.2 和 M6-A.3 不自动开始。
+
+### 2026-10-23：M6-A.1 离线 Worker 实现完成
+
+- 状态：`ready_for_review`，不是 `accepted`。
+- 实现：`gpustack-client` 增加单个 ModelInstance GET；Worker 新增 Managed 端口分配、
+  允许根目录内的本地路径/完整分片解析、递归大小计算，以及由 desired-state snapshot
+  触发、按资源 ID 去重的协调器。每次完整 PUT 前重新 GET 并复核 assignment、状态与
+  source 关键字段；`STARTING` 和 READY 资源只产生 no-op。
+- 安全边界：resolver canonicalize 输入和目录中的 symlink，拒绝根目录逃逸、相对路径、
+  缺失或总数不一致的分片；错误消息不含原始路径且限制为 512 字符。端口分配排除同
+  Worker 权威实例占用并通过可替换 bind probe 检查未知监听，不处置监听进程。
+- 离线证据：固定 Rust 1.99.1、`Cargo.lock` 和 `--offline` 下，Client 契约测试 13 项、
+  Managed 定向测试 17 项、全 workspace `--all-targets` 124 项及全部 doc-test 通过；
+  `cargo fmt --check`、`cargo check --workspace --all-targets` 和
+  `cargo clippy --workspace --all-targets -- -D warnings` 通过。90 主机没有 `uv`，因此依赖
+  `uv run pre-commit` 的仓库级 `make lint` 未执行，未把缺失工具记为成功证据。
+- 非执行项：没有读取真实 token，没有发出 Server 请求，没有连接 Docker socket/NVML，
+  没有启动 Worker、容器或 vLLM，没有修改 maintenance、Python Worker、端口监听或 GPU。
+- 当前停止位置：实现和离线门禁完成，等待聊天中的 D033 详细报告与用户验收。
+- 下一项允许执行的工作：只交付并审阅 M6-A.1 报告；接受后才能记录验收检查点并开始
+  M6-A.2 离线 CLI，实现之外的真实 Server/维护窗口仍须到 M6-A.3 单独授权。
 
 ## 未解决风险与待确认事项
 
