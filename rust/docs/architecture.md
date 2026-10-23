@@ -82,15 +82,27 @@ RUNNING -> STOPPED
 
 `gpustack-rs worker run --resource-api-only` 是 M4 的显式受限启动配置。它复用已持久化的 Server Worker 身份和 per-Worker token，继续注册或恢复为 maintenance；启用 NVML/系统资源盘点、完整 M4 Worker HTTP API 和独立 metrics listener，但不构造 Docker client、ModelFile manager、ModelInstance reconciler 或 vLLM runtime，也不发送任何模型状态更新。
 
-三个运行配置的能力边界如下：
+四个运行配置的能力边界如下：
 
 | 启动配置 | 资源上报 | Worker API | metrics | Docker/vLLM | 调度状态 |
 |---|---|---|---|---|---|
 | `--control-plane-only` | 空 GPU | 仅 `/healthz` | 无 | 禁用 | maintenance |
 | `--resource-api-only` | 真实系统/NVML | M4 完整只读 API | `20151` | 禁用 | maintenance |
+| `--managed-file-only` | 真实系统/NVML | M4 完整只读 API | `20151` | 禁用 | 运维显式控制 |
 | 未来普通 `worker run` | 真实系统/NVML | 完整 R1 API | 启用 | 启用 | 首次收敛后按 Managed 状态 |
 
 resource-api-only 使用 Worker API `10.213.80.90:20150`、metrics `10.213.80.90:20151` 和模型根目录 `/home/wujiaxing2/flowscale-system-validation/models`。`/healthz` 只证明 listener 存活；该模式缺少 Docker 和协调器，因此 `/readyz` 固定返回 503。完整 Managed 的 readiness 仍遵循下述生命周期。M4 不能修改 control-plane-only 的空 GPU、无 metrics 和最小 API 语义。
+
+### M6-A managed-file-only 验证模式
+
+`gpustack-rs worker run --managed-file-only` 复用 resource-api-only 的真实资源、Worker API、
+metrics、持久身份和三资源控制面，并增加 Managed 端口分配、ModelInstance 初始化与
+ModelFile 本地路径准备协调器。进程启动时要求 Rust Worker 仍处于 maintenance；是否解除
+maintenance 只能由运维 Context 的显式 CLI 决定，Worker 不得自行改变该状态。
+
+该模式不构造 Docker client、WorkloadSpec 或 vLLM runtime。观察到 Server 权威
+`STARTING` 后只记录状态，不创建或接管容器，也不把实例推进为 `RUNNING`。它是 M6-A
+真实协议验证的有界安全模式，不是最终生产运行模式。
 
 ## 状态所有权
 
@@ -167,7 +179,9 @@ UNREACHABLE 由 Server 在 Worker 失联时解释。
 状态迁移按以下所有权执行：
 
 - Server 和 Scheduler 负责 `PENDING`、`ANALYZING`、调度结果与 `SCHEDULED`。
-- Worker 只接受分配给自身的 `SCHEDULED` 实例；验证 assignment、端口和准备参数后，将实例更新为 `INITIALIZING`。
+- Worker 只接受分配给自身的 `SCHEDULED` 实例；验证 assignment 和准备参数，从
+  `40000-40063` 分配或复用服务端口并执行真实 bind 检查后，把 `port`、`ports` 与
+  `INITIALIZING` 一起完整写回。端口不是 Server 预先分配的。
 - Server Controller 为 `INITIALIZING` 实例创建或关联 `ModelFile`。当文件处于准备中时，Server 把实例推进为 `DOWNLOADING`。
 - Worker 的 ModelFile manager 只处理分配给自身的文件。即使来源是 `local_path`，仍要执行允许根目录校验、symlink canonicalization、分片解析，并把 `resolved_paths`、progress 和 `READY` 或 `ERROR` 写回完整 `ModelFileUpdate`。本地路径不发生网络下载，但不能绕过 ModelFile 控制链。
 - Server Controller 聚合关联文件；全部 `READY` 后写入解析结果，并把实例推进为 `STARTING`。Worker 不得自行跳过到该状态。
@@ -287,9 +301,15 @@ Runner 容器固定使用 host network、10 GiB shared memory、Docker restart p
 宿主 Worker 用户直接拥有和清理。
 
 Lab 默认只监听 `127.0.0.1`，自动端口范围为 `42000-42063`；它只服务宿主机上的
-`worker lab infer`，不创建 gateway route。Managed 后续监听配置的 Worker IP，并
-使用 Server 分配的端口。端口分配在数据目录排他锁下记录，并在 container start 前
-再次进行 bind 检查；发现占用时失败，不能终止占用者。
+`worker lab infer`，不创建 gateway route。Managed 监听配置的 Worker IP，由 Worker
+从 `40000-40063` 分配端口并写回 Server。端口分配在数据目录排他锁下完成，排除权威
+ModelInstance 已记录端口，分配时和 container start 前都进行真实 bind 检查；发现占用
+时失败，不能终止占用者。已有实例端口在重试和恢复时保持不变。
+
+M6-A 的本地 ModelFile resolver 只接受允许模型根目录内的绝对路径。所有输入先解析
+symlink 并验证 canonical path 不越界；目录和普通文件返回 canonical path，分片文件要求
+同一目录中的编号从 1 到声明总数完整、无重复且总数一致，再按编号稳定排序。resolver
+递归计算实际字节数；不存在、不可读、越界或不完整分片均在 Docker 之前失败。
 
 GPU 的用户输入可以是宿主机 index，但 planner 必须先解析并记录稳定 UUID，Docker
 DeviceRequest 也使用 UUID。M5 拒绝多于一张 GPU、活跃 compute process、已被 Rust

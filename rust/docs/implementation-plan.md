@@ -15,8 +15,8 @@
 | M4-C 宿主机只读 GPU 冒烟 | CLI 读取真实 NVML 并与 `nvidia-smi` 交叉验证 | M4-B | 不注册 Server 的两张 A100 本地盘点证据 | index、UUID、名称、显存逐项一致；Python Worker 保持运行 |
 | M4-D 维护窗口正式集成 | 停止 Python Worker 后，以保留身份运行 resource-api-only，验证 Server 资源状态和完整 Worker API | M4-C 与单独维护窗口授权 | Server 可见两张 A100、metrics 及 API，且仍不可调度、不启动模型 | Server 行、认证/API/路径/日志/metrics、无 Docker/vLLM/GPU 任务、Python Worker 回滚证据 |
 | M5-A～E Docker runtime 与 Lab | Docker 原语、所有权标签、WorkloadSpec、vLLM builder、本地 Lab 状态、Lab 命令、日志、健康与清理 | M4；真实运行另需对应授权 | 完全通过 CLI 完成单 GPU Lab 推理，不创建 Server ModelInstance/ModelFile | unit plan、Docker smoke、vLLM response、log stream、清理与非所有权测试 |
-| M6-A Managed 文件准备 | `SCHEDULED -> INITIALIZING`、ModelFile 本地路径校验/分片解析、完整结果上报，并等待 Server `STARTING` | M5 与 M3-C.2 | Managed 实例按原状态所有权完成本地模型准备，不提前启动容器 | 状态所有权、ModelFile ready/error、路径安全和“STARTING 前无容器”测试 |
-| M6-B Managed 单 GPU runtime | `STARTING` 后 reconciler 启动/接管 vLLM，健康后上报 `RUNNING`，并支持 model CLI、推理与删除 | M6-A | 完全通过 CLI 完成 Server 托管单 GPU 推理 | 完整命令记录、全状态链、响应、日志、健康门禁和删除后无孤儿资源 |
+| M6-A Managed 文件准备 | Worker 端口分配、`SCHEDULED -> INITIALIZING`、ModelFile 本地路径校验/分片解析、完整结果上报、Context/最小 Model/maintenance CLI，并等待 Server `STARTING` | M5 与 M3-C.2 | Managed 实例按原状态所有权完成本地模型准备，不提前启动容器，真实验证不依赖 Web UI | 状态所有权、端口、ModelFile ready/error、路径安全、CLI 对等和“STARTING 时无容器”证据 |
+| M6-B Managed 单 GPU runtime | `STARTING` 后 reconciler 启动/接管 vLLM，健康后上报 `RUNNING`，并补齐 `model logs`、Managed 推理和删除后的 runtime 清理 | M6-A | 完全通过 CLI 完成 Server 托管单 GPU 推理 | 完整命令记录、全状态链、响应、日志、健康门禁和删除后无孤儿资源 |
 | M7 恢复与双 GPU 路径 | 接管、事件/full-sync 恢复、重启策略、Server/Docker 故障、双 A100 tensor parallelism | M6-B | 宿主机进程形式的 Worker 行为可靠 | 重启、断连、故障、未知容器与双 GPU 证据 |
 | M8 Worker 容器与 R1 candidate | Worker 镜像、socket/NVML/network/path 契约、持久化状态、容器重启恢复与回滚 | M7 | 容器化 Rust Worker release candidate | 重跑单/双 GPU 套件、镜像摘要、回滚到 Python Worker、最终审计 |
 
@@ -152,6 +152,41 @@ compatible 推理返回有效内容；日志流可读；同 spec 幂等、异 sp
 保留；stop/remove/cleanup 行为符合所有权 tuple；Server 没有新增 Lab ModelInstance
 或 ModelFile；Python Worker 恢复；Rust container、端口、GPU process 和 cache 清理
 结果均有证据。
+
+## M6-A Managed 文件准备门禁
+
+M6-A 只证明 Server 托管状态链、Worker 服务端口分配和本地 ModelFile 准备，不连接
+Docker、不创建 vLLM 容器、不运行推理。固定状态边界是
+`SCHEDULED -> INITIALIZING -> DOWNLOADING -> STARTING`；`STARTING -> RUNNING` 属于 M6-B。
+
+M6-A 分成四个独立门禁：
+
+1. **M6-A.0 契约冻结**：从部署 commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`
+   复核 Python Worker、Server Controller、Model/ModelInstance/ModelFile 路由和 scheduler。
+   冻结 Worker 端口责任、状态所有权、完整 PUT、路径/分片规则、CLI 与真实回滚边界。
+2. **M6-A.1 离线 Worker 实现**：实现 `40000-40063` Managed 端口分配、ModelInstance
+   初始化、ModelFile resolver 和按 ID 去重的协调器。每次写入前重新 GET 并复核归属；
+   fake/mock 覆盖 ready/error、重复事件、assignment 漂移、越界 symlink、不完整分片、
+   端口冲突和 `STARTING` 不调用 runtime。不得读取真实 token 或连接 Server/Docker/NVML。
+3. **M6-A.2 离线 CLI 实现**：实现 Context、最小 Model CRUD/status 与精确 Worker
+   maintenance 命令；凭据只引用权限受限 token 文件，稳定 table/JSON、退出码、确认与
+   脱敏规则全部用 mock transport 验证。`model logs` 和 inference 命令仍不在本阶段实现。
+4. **M6-A.3 真实无 Docker smoke**：另获授权后停止 Python Worker，启动
+   `--managed-file-only`，由 CLI 临时解除 Rust Worker maintenance，并把唯一固定 Qwen2.5
+   模型精确调度到 Rust GPU0。捕获完整状态序列和 ModelFile READY 后，实例只能停在
+   `STARTING`；期间 Docker client/container、inference listener、GPU process 和显存使用
+   必须为 0。随后用 CLI 删除测试模型、恢复 maintenance、停止 Rust Worker 并恢复原
+   Python Worker，复核 Server 资源集合与全部零残留门禁。
+
+本地路径只允许固定模型根目录内的绝对路径，canonical symlink 不得越界；目录和普通
+文件返回 canonical path，分片必须编号连续、声明总数一致且稳定排序，并递归计算字节数。
+成功完整写回 `resolved_paths`、`size`、`download_progress=100`、`ready`；失败写
+`error` 和脱敏有界消息。M6-A 不支持网络下载、LoRA、draft model、跨 Worker 或多 GPU
+runtime。
+
+接受本设计只允许开始 M6-A.1 的离线源码与测试。M6-A.1 和 M6-A.2 都必须分别交付
+D033 详细实现报告并获用户接受；M6-A.3 的真实 Server 写入、maintenance 变化和停止
+Python Worker 必须另获明确授权。
 
 ## 验证策略
 
@@ -338,6 +373,7 @@ Qwen2.5 M5-E.1 正式 smoke 已完成全部冻结门禁。有效运行
 已恢复，Server 资源 ID 集保持不变，最终容器、端口、cache、watchdog 和 GPU0 均无残留。
 用户审阅详细报告后已接受 M5-E.1、M5-E 和整个 M5。接受范围是宿主机进程形态的单 GPU
 Lab 与固定 Runner/Qwen2.5 路径，不扩展到 Managed、跨 Worker/双 GPU、Rust Worker
-容器化或生产发布门禁。下一项只允许讨论并冻结 M6-A Managed 本地模型文件准备、状态
-所有权和验收边界；M6-A 设计与实现门禁获共同接受、真实写入另获明确授权前，不执行
-Server Managed 资源写入或新的 GPU 维护窗口。
+容器化或生产发布门禁。M6-A 的状态边界、Worker 端口责任、本地 ModelFile resolver、
+写前刷新、CLI 前移与四段门禁已经共同冻结。下一项只允许实施 M6-A.1 离线 Worker
+代码和 fake/mock 测试；M6-A.2 在其详细报告获接受后才开始，M6-A.3 真实 Server 写入和
+维护窗口仍须另行明确授权。

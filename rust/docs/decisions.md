@@ -280,3 +280,23 @@ D085 实施时 Lab 中没有 deployment、container 或 cache，只有可继续�
 因此没有迁移活动 workload。旧 schema manifest 在读取时继续失败关闭，不做静默转换。
 该修订只授权无 GPU、无网络、无模型 mount 的 Runner 探针；不授权停止 Python Worker、
 申请 GPU 或重新运行 M5-E.1。
+
+## 2026-10-23 M6-A Managed 文件准备设计冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D086 | M6-A 状态边界 | M6-A 只实现并验证 `SCHEDULED -> INITIALIZING -> DOWNLOADING -> STARTING` 与 ModelFile `downloading -> ready/error`；`--managed-file-only` 到 `STARTING` 即停止协调动作，不连接 Docker、不创建容器、不运行 vLLM、不把实例写为 `RUNNING` | 先独立证明 Server/Worker 状态所有权和文件准备协议，避免把真实 Server 写入与 Docker/GPU runtime 风险混在同一实现门禁。 |
+| D087 | Managed 端口责任纠正 | 以固定 v2.2.3 源码为准：Worker 在处理 `SCHEDULED` 时从 `40000-40063` 分配或复用服务端口，并把 `port`、`ports` 与 `INITIALIZING` 一起完整写回；分配必须排除权威实例已占端口、执行 Worker IP 真实 bind 检查、拒绝处置未知占用者 | 旧设计中“Server 分配 Managed 端口”的表述与兼容 oracle 不符；Python Worker 的 `_assign_ports` 明确在 Worker 侧、写 `INITIALIZING` 前完成分配。 |
+| D088 | 本地 ModelFile 解析 | R1 仅支持允许根目录内的绝对 `local_path`。解析必须 canonicalize symlink、拒绝越界或不存在路径；目录和普通文件返回 canonical path，分片文件验证编号完整、总数一致并稳定排序；递归计算大小。成功写 `resolved_paths`、`size`、`download_progress=100`、`ready`，失败写脱敏有界消息与 `error`，不进行网络下载 | 让本地模型与远程模型一样经过 ModelFile 控制链，同时把路径安全和不完整分片阻断在容器启动之前。 |
+| D089 | 协调与全量更新 | watch/full-sync 只触发按 ID 去重的协调。每次 ModelInstance/ModelFile PUT 前必须重新 GET 最新 public 对象，复核 Worker assignment、状态、source 与关键输入，再从最新对象构造完整 update；状态已经前进、assignment 改变或不在 R1 范围时不写入 | v2.2.3 使用完整替换且没有 ETag；刷新不能消除所有竞态，但能避免从陈旧 watch cache 主动覆盖已知字段，并使重复事件保持幂等。 |
+| D090 | M6-A CLI 前移与补充 | 把 `context add/use/list/remove` 和 `model deploy/list/get/status/delete` 的控制面实现前移到 M6-A；`model logs` 与 `inference models/chat/completion` 仍留在 M6-B。新增 `worker maintenance enable/disable <worker>`，所有命令通过 Context 的运维凭据调用 Server，Model CLI 不直接访问 Docker | M6-A 真实验证不能依赖 Web UI 或未文档化的 curl；显式 maintenance CLI 补齐了让保留 Rust Worker 临时可调度并安全恢复的运维缺口。 |
+| D091 | M6-A 分段门禁 | M6-A.0 冻结契约；M6-A.1 离线实现端口、文件解析和协调器；M6-A.2 离线实现 Context/最小 Model/maintenance CLI；M6-A.3 另获授权后执行真实 Server、无 Docker 的文件准备 smoke。真实 smoke 精确调度到 Rust Worker GPU0，停在 `STARTING`，随后删除测试资源、恢复 maintenance 和原 Python Worker | 把源码正确性、CLI 对等、真实控制面写入及服务维护拆开授权；任一阶段失败都能停在没有 vLLM/GPU workload 的明确边界。 |
+
+D087 仅取代 D068 中“Managed 使用 Server 分配端口”的责任表述；D068 关于 Lab 使用
+loopback、`42000-42063` 端口池及其隔离理由继续有效。Managed 端口以 D087 的 Worker
+侧 `40000-40063` 分配规则为准。
+
+用户接受 D086–D091 只解锁 M6-A.1 的离线实现、fixture 和 fake/mock 测试。它不授权读取
+运维凭据、改变 Worker maintenance、创建或删除真实 Model/ModelInstance/ModelFile、停止
+Python Worker、连接 Docker、创建容器、申请 GPU 或运行推理。M6-A.2 仍是离线 CLI
+实现；M6-A.3 的真实 Server 写入和维护窗口必须在前两段分别报告并获接受后另行授权。

@@ -16,6 +16,8 @@
 - 2026-10-20：纠正 Managed 状态机设计：本地模型也保留 ModelFile 控制链和 `DOWNLOADING`，Lab 使用独立本地状态；M3-D 前新增 M3-C.2 ModelFile 离线协议阶段。
 - 2026-10-20：冻结 M3-D control-plane-only、maintenance 加空 GPU 双重隔离、独立 health 端口、两段式执行门禁与身份保留方案；方案接受不授权真实 Server 写入。
 - 2026-10-21：冻结 M3-D.2 操作手册；用户亲自分段执行，助手只提供命令、解释并审阅非敏感输出。证据保存在 Git 外 `0700` 目录，token 永不进入聊天或证据；首次注册一旦尝试，无论结果都删除本地 Cluster token 副本。
+- 2026-10-23：冻结 M6-A 状态边界、Worker Managed 端口责任、本地 ModelFile resolver、
+  写前刷新、CLI 前移、maintenance 运维命令和四段门禁；接受只解锁离线 M6-A.1。
 
 ## 当前状态
 
@@ -24,7 +26,7 @@
   M5-E.0.1 已接受。Qwen-7B 的一次无效端口尝试和一次正式不兼容失败保持原分类；D084
   改选 Qwen2.5-0.5B-Instruct、D085 清理与回滚修复完成后，新模型 M5-E.1 正式 smoke
   已通过全部运行、推理、清理和恢复门禁。用户审阅详细报告后已接受 M5-E.1、M5-E 和
-  整个 M5。
+  整个 M5。M6-A.0 设计已接受，D086–D091 已冻结。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`。
@@ -37,9 +39,9 @@
 - 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；正式
   Lab 的 container、manifest、cache、42000 listener、watchdog 和 GPU0 compute process
   均为 0。Server 资源 ID 集保持不变，M5-E.1、M5-E 和整个 M5 均为 `accepted`。
-- 下一项允许执行的工作：讨论并冻结 M6-A Managed 本地模型文件准备、状态所有权和验收
-  边界。M6-A 设计与实现门禁获共同接受、真实写入另获明确授权前，不得创建 Managed
-  资源、更新 ModelInstance/ModelFile 或重开 GPU 维护窗口。
+- 下一项允许执行的工作：实施 M6-A.1 的离线 Managed 端口分配、ModelInstance 初始化、
+  ModelFile resolver、协调器和 fake/mock 测试。不得读取真实凭据、连接 Server/Docker、
+  修改 maintenance、创建 Managed 资源、停止 Python Worker 或使用 GPU。
 
 ## 里程碑
 
@@ -1751,6 +1753,28 @@
   验收设计。M6-A 设计和实现门禁获接受且真实写入另获授权前，不执行 Server Managed
   资源写入或新的 GPU 维护窗口。
 
+### 2026-10-23：M6-A Managed 文件准备设计接受
+
+- 目的：在 M5 Lab runtime 已接受后，把第一次 Managed 实现限制为 Server 状态所有权、
+  Worker 端口分配和本地 ModelFile 准备，不提前引入 Docker/vLLM/GPU runtime。
+- 源码纠正：固定 v2.2.3 commit
+  `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365` 证明服务端口由 Worker 的
+  `_assign_ports` 在写 `INITIALIZING` 前从 `40000-40063` 分配，而不是 Server 预先分配；
+  旧文档表述已按代码优先原则纠正。
+- 决策：用户接受 D086–D091。M6-A 停在 Server 权威 `STARTING`，`--managed-file-only`
+  不构造 Docker client；本地 resolver 强制根目录、canonical symlink、完整分片、大小和
+  ready/error 结果；每次完整 PUT 前按 ID 刷新并复核归属。
+- CLI：Context、`model deploy/list/get/status/delete` 前移到 M6-A，新增
+  `worker maintenance enable/disable`；logs 与 inference 留在 M6-B。真实流程不能依赖
+  Web UI 或未文档化原始请求。
+- 分段：M6-A.1 为离线 Worker 实现，M6-A.2 为离线 CLI 实现，M6-A.3 才是另获授权的
+  真实 Server 无 Docker smoke。M6-A.3 将精确调度固定 Qwen2.5 到 Rust GPU0，但不得
+  创建 container、申请 Docker GPU DeviceRequest 或运行推理，并须恢复原 Python Worker。
+- 当前停止位置：只完成并接受设计，代码、Server、maintenance、容器、服务和 GPU 均未
+  改变；本地既有 `output/` 继续不属于项目变更。
+- 下一项允许执行的工作：只实施 M6-A.1 离线代码、fixture 和 fake/mock 测试，完成后
+  在聊天中交付 D033 详细实现报告并等待验收。M6-A.2 和 M6-A.3 不自动开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
@@ -1758,8 +1782,8 @@
 - Lab cache ownership 与回滚重入已由 D085 修复，并在无 GPU Runner 探针和本次真实
   vLLM 正常 stop/remove 中通过；故障中断后的真实 GPU 回滚重入仍留给 M7 恢复阶段覆盖。
 - Rust Worker API 与 metrics 已分别冻结为 `20150` 和 `20151`；Lab 自动 inference
-  端口已冻结为 `42000-42063`，Managed 仍使用 Server 分配端口。每次启动前仍须检查
-  实际端口冲突。
+  端口为 `42000-42063`，Managed 由 Worker 从 `40000-40063` 分配并写回 Server。分配时
+  和启动容器前都须检查实际端口冲突。
 - M4-D 已真实执行 `gpustack-worker` stop/start、失败 trap、独立 watchdog 和正常恢复；该证据只证明 M4 资源/API 维护切换，不替代后续 Docker/vLLM 工作负载阶段各自的 drain 与回滚门禁。
 - Rust 容器最终 user/group 仍需在 M8 根据 Docker socket、NVML 与持久化目录要求验证；宿主机开发用户已确认具备 `docker` group 权限。
 - 90 主机到 GitHub 的小规模 fetch/push 可用，但大对象传输吞吐过低；bootstrap 和发布 tag 增量 bundle 是当前已验证的补充路径。

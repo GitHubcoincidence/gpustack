@@ -17,6 +17,7 @@ gpustack-rs
   worker gpu list
   worker runtime info
   worker config get
+  worker maintenance enable|disable <worker>
   worker lab deploy|list|status|logs|infer|stop|remove|cleanup
   model deploy|list|get|status|logs|delete
   inference models|chat|completion
@@ -60,6 +61,11 @@ M4-C 只运行 `worker gpu list --output json` 与 `nvidia-smi` 做宿主机只�
 
 ## Managed 模型命令
 
+M6-A 先实现 `context add/use/list/remove`、`model deploy/list/get/status/delete` 和
+`worker maintenance enable/disable`，用于完成不依赖 Web UI 或原始请求的真实文件准备
+验证。`model logs` 与 `inference models/chat/completion` 在 M6-B runtime 和推理端点可用
+后实现；阶段前移不改变最终 R1 命令树。
+
 `model deploy` 使用运维人员身份认证，并通过 Server API 创建模型。它不直接访问 Docker 或 Worker。R1 强制显式指定目标 Worker，避免测试任务被调度到 Python Worker。
 
 R1 部署输入包括：
@@ -73,7 +79,11 @@ R1 部署输入包括：
 - 已支持的结构化 vLLM 选项；
 - 使用 `--wait` 跟踪 ModelInstance，并显示 `SCHEDULED`、`INITIALIZING`、`DOWNLOADING`、`STARTING` 等中间状态，直至进入 `RUNNING` 或 `ERROR`。
 
-CLI 把友好的 GPU 参数转换为现有 Server selector 形式，例如 `worker-name:cuda:0`。端口分配仍由 Worker/Server 负责。
+CLI 把友好的 GPU 参数转换为现有 Server selector 形式，例如 `worker-name:cuda:0`。
+准确兼容行为以固定 v2.2.3 Worker 为准：服务端口由目标 Worker 从 `40000-40063` 分配，
+并随 `INITIALIZING` 写回 Server；CLI 不指定或预留该端口。`worker maintenance` 由 Context
+中的运维身份调用 Server，只修改精确目标 Worker，默认输出修改前后状态；Worker 进程
+本身不得为获取调度任务而静默解除 maintenance。
 
 `model logs` 调用 Server 日志 API；Server 在向 Worker 请求日志之前继续执行现有用户授权与 tenant 可见性检查。
 
