@@ -390,3 +390,7 @@ Worker maintenance CLI 已完成实现、mock 测试和 Git 推送。用户审�
 `model file get/delete` 的类型化运维 CLI、安全删除语义和离线测试；完成详细报告并获接受
 后，才能进入 M6-A.3 的独立只读预检。真实 Server 写入、maintenance 变化、停止 Python
 Worker、Docker 或 GPU 操作仍须另行明确授权。
+
+M6-A.2.2 的源码、mock 契约、完整 Rust workspace 质量门禁、干净构建、Git 提交和推送
+已经完成，目前为 `ready_for_review`。下一项只允许交付并审阅详细实现报告；用户明确接受
+后才能记录验收检查点并讨论 M6-A.3.0 只读预检，不能自动进入真实环境操作。

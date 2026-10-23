@@ -1966,6 +1966,35 @@
 - 下一项允许执行的工作：只完成 M6-A.2.2 实现、mock/CLI 测试、固定 Rust 质量门禁、提交
   与详细报告。报告获用户接受前，不进入 M6-A.3 预检或维护窗口。
 
+### 2026-10-24：M6-A.2.2 ModelFile 清理 CLI 实现完成
+
+- 结果与状态：M6-A.2.2 为 `ready_for_review`，不是 `accepted`。设计检查点提交为
+  `3fd938abb34e043b7ef31002b68d9429534d1e64`，实现提交为
+  `f19a8fcd41ed8368931509ae3120a6b0d7098043`，均已推送 fork。
+- 实现：在类型化 client 中增加固定 `cleanup=false` 的 ModelFile 元数据删除请求；CLI 增加
+  `model file get <id>` 和 `model file delete <id> --yes`。删除只接受正整数 ID，确认后重新
+  GET 最新对象，限制为有 Worker 归属和非空本地路径的 `local_path` ModelFile，再删除
+  Server 记录；输出明确报告 `local_files_preserved=true`。
+- 安全与测试：确认缺失和非法 ID 均在网络请求前失败；非本地来源只允许 GET 校验且不得
+  发出 DELETE；正式删除请求精确验证为
+  `/v2/model-files/{id}?cleanup=false`；mock 请求和输出均不包含 operator token。
+- 质量证据：固定 Rust 1.99.1 下 144 项 workspace 测试、全部 doc-test、`cargo fmt`
+  check、locked/offline all-targets check、Clippy `-D warnings` 和 locked/offline build 全部
+  通过。`make lint` 已执行但 90 主机缺少 `uv`，在 pre-commit 启动前以 status 127 退出；
+  该环境限制不被记为通过，也没有触发新的依赖安装。
+- 构建证据：从干净提交 `f19a8fcd` 重建的 debug CLI 报告
+  `git_commit=f19a8fcd41ed`、`rust_toolchain=1.99.1`，SHA-256 为
+  `4e601e9675852515652dc55bde272a906958f143db30b987a95f0ef7754e7a82`；Cargo.lock SHA-256
+  保持 `4094d427f9ec18e671e9d639bd9a576c0d620af9da1ca87970da05319dd4857b`。
+- 外部副作用：没有读取真实 token、连接真实 Server、创建或删除真实 ModelFile、改变
+  maintenance、停止 Python Worker、访问 Docker socket、创建容器或使用 GPU。
+- 漂移审计：实现与 D095–D097 对齐，只补全 D091 的清理能力；D086 `STARTING` 边界和
+  M6-A.3 单独授权继续有效，结论为 `aligned`。
+- 当前停止位置：实现、离线证据、代码提交和 fork 推送完成，等待聊天中的详细实现报告与
+  用户验收。
+- 下一项允许执行的工作：只交付并审阅 M6-A.2.2 报告。接受后才能记录验收检查点并讨论
+  M6-A.3.0 只读预检；真实 Server 写入和维护窗口仍未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
