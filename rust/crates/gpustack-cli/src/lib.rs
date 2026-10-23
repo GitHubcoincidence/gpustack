@@ -27,9 +27,9 @@ use thiserror::Error;
 mod managed;
 
 use managed::{
-    ContextArgs, ContextSubcommand, ManagedError, ModelArgs, ModelSubcommand,
-    WorkerMaintenanceArgs, WorkerMaintenanceSubcommand, run_context_command, run_model_command,
-    run_worker_maintenance_command,
+    ContextArgs, ContextSubcommand, ManagedError, ModelArgs, ModelFileArgs, ModelFileSubcommand,
+    ModelSubcommand, WorkerMaintenanceArgs, WorkerMaintenanceSubcommand, run_context_command,
+    run_model_command, run_worker_maintenance_command,
 };
 
 pub const EXIT_SUCCESS: u8 = 0;
@@ -615,6 +615,18 @@ impl Cli {
                 format!(
                     "Delete Managed model '{}'? Type 'yes' to continue: ",
                     arguments.model
+                ),
+                &mut arguments.yes,
+            ),
+            Command::Model(ModelArgs {
+                command:
+                    ModelSubcommand::File(ModelFileArgs {
+                        command: ModelFileSubcommand::Delete(arguments),
+                    }),
+            }) if !arguments.yes => (
+                format!(
+                    "Delete Server ModelFile metadata '{}' while preserving local files? Type 'yes' to continue: ",
+                    arguments.model_file_id
                 ),
                 &mut arguments.yes,
             ),

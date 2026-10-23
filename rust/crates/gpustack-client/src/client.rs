@@ -379,6 +379,25 @@ impl<T: Transport> ServerClient<T> {
         self.decode_json(response, "ModelFile response", Some(worker_token))
     }
 
+    /// Deletes the Server record while forcing Worker-side model data preservation.
+    pub async fn delete_model_file_metadata(
+        &self,
+        operator_token: &SecretToken,
+        model_file_id: i64,
+    ) -> Result<(), ClientError> {
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Delete,
+                &format!("v2/model-files/{model_file_id}?cleanup=false"),
+                Some(operator_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.expect_success(response, operator_token)
+    }
+
     /// Performs a full update only after checking Worker ownership and R1 scope.
     pub async fn update_assigned_model_instance(
         &self,

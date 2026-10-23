@@ -8,8 +8,8 @@ use std::time::Duration;
 use clap::{Args, Subcommand, ValueEnum};
 use gpustack_client::http::Transport;
 use gpustack_client::types::{
-    GpuSelector, ModelCreate, ModelInstancePublic, ModelPublic, ModelSource, WorkerMaintenance,
-    WorkerPublic, WorkerUpdate,
+    GpuSelector, ModelCreate, ModelFilePublic, ModelInstancePublic, ModelPublic, ModelSource,
+    WorkerMaintenance, WorkerPublic, WorkerUpdate,
 };
 use gpustack_client::{
     ClientError, Context, ContextStore, ContextStoreError, SecretToken, ServerClient,
@@ -85,8 +85,39 @@ pub enum ModelSubcommand {
     Get(ModelSelectorArgs),
     /// Show a model and all of its ModelInstance states.
     Status(ModelSelectorArgs),
+    /// Inspect or remove Server ModelFile metadata.
+    File(ModelFileArgs),
     /// Delete a model by numeric ID or exact name.
     Delete(ModelDeleteArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ModelFileArgs {
+    #[command(subcommand)]
+    pub command: ModelFileSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ModelFileSubcommand {
+    /// Get a ModelFile by numeric ID.
+    Get(ModelFileSelectorArgs),
+    /// Delete local-path ModelFile metadata while preserving local files.
+    Delete(ModelFileDeleteArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ModelFileSelectorArgs {
+    /// Positive numeric ModelFile ID.
+    pub model_file_id: i64,
+}
+
+#[derive(Debug, Args)]
+pub struct ModelFileDeleteArgs {
+    /// Positive numeric ModelFile ID.
+    pub model_file_id: i64,
+    /// Skip the interactive confirmation.
+    #[arg(long)]
+    pub yes: bool,
 }
 
 #[derive(Debug, Args)]
@@ -274,6 +305,31 @@ pub async fn run_model_command<T: Transport>(
                 .items;
             render_model_status(output_format, &model, &instances)
         }
+        ModelSubcommand::File(arguments) => match arguments.command {
+            ModelFileSubcommand::Get(arguments) => {
+                validate_model_file_id(arguments.model_file_id)?;
+                let model_file = client
+                    .get_model_file(token, arguments.model_file_id)
+                    .await?;
+                render_model_file(output_format, &model_file)
+            }
+            ModelFileSubcommand::Delete(arguments) => {
+                validate_model_file_id(arguments.model_file_id)?;
+                if !arguments.yes {
+                    return Err(ManagedError::ConfirmationRequired(
+                        "model file delete requires confirmation or --yes",
+                    ));
+                }
+                let model_file = client
+                    .get_model_file(token, arguments.model_file_id)
+                    .await?;
+                validate_deletable_model_file(&model_file)?;
+                client
+                    .delete_model_file_metadata(token, model_file.id)
+                    .await?;
+                render_deleted_model_file(output_format, &model_file)
+            }
+        },
         ModelSubcommand::Delete(arguments) => {
             if !arguments.yes {
                 return Err(ManagedError::ConfirmationRequired(
@@ -285,6 +341,34 @@ pub async fn run_model_command<T: Transport>(
             render_deleted_model(output_format, &model)
         }
     }
+}
+
+fn validate_model_file_id(model_file_id: i64) -> Result<(), ManagedError> {
+    if model_file_id <= 0 {
+        return Err(ManagedError::InvalidArgument(
+            "ModelFile ID must be a positive integer".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_deletable_model_file(model_file: &ModelFilePublic) -> Result<(), ManagedError> {
+    if model_file.source.0 != "local_path" {
+        return Err(ManagedError::UnsafeModelFile(
+            "only local_path metadata is supported by the R1 cleanup command".to_owned(),
+        ));
+    }
+    if model_file.worker_id.is_none() {
+        return Err(ManagedError::UnsafeModelFile(
+            "the record has no Worker assignment".to_owned(),
+        ));
+    }
+    if model_file.local_path.as_deref().is_none_or(str::is_empty) {
+        return Err(ManagedError::UnsafeModelFile(
+            "the record has no local model path".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 pub async fn run_worker_maintenance_command<T: Transport>(
@@ -658,6 +742,41 @@ fn render_model(
     success(output)
 }
 
+fn render_model_file(
+    output_format: OutputFormat,
+    model_file: &ModelFilePublic,
+) -> Result<Execution, ManagedError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(model_file)?,
+        OutputFormat::Table => {
+            let resolved_paths = model_file
+                .resolved_paths
+                .iter()
+                .map(|path| table_value(path))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!(
+                "id: {}\nworker_id: {}\nsource: {}\nstate: {}\nlocal_path: {}\nsize: {}\ncleanup_on_delete: {}\nresolved_paths: {}\n",
+                model_file.id,
+                model_file
+                    .worker_id
+                    .map_or_else(|| "-".to_owned(), |id| id.to_string()),
+                table_value(&model_file.source.0),
+                table_value(&model_file.state.0),
+                table_value(model_file.local_path.as_deref().unwrap_or("-")),
+                model_file
+                    .size
+                    .map_or_else(|| "-".to_owned(), |size| size.to_string()),
+                model_file
+                    .cleanup_on_delete
+                    .map_or_else(|| "-".to_owned(), |cleanup| cleanup.to_string()),
+                resolved_paths
+            )
+        }
+    };
+    success(output)
+}
+
 #[derive(Serialize)]
 struct ModelStatusView<'a> {
     model: &'a ModelPublic,
@@ -804,6 +923,46 @@ fn render_deleted_model(
 }
 
 #[derive(Serialize)]
+struct DeletedModelFileView<'a> {
+    deleted: bool,
+    id: i64,
+    worker_id: i64,
+    source: &'a str,
+    local_path: &'a str,
+    local_files_preserved: bool,
+}
+
+fn render_deleted_model_file(
+    output_format: OutputFormat,
+    model_file: &ModelFilePublic,
+) -> Result<Execution, ManagedError> {
+    let view = DeletedModelFileView {
+        deleted: true,
+        id: model_file.id,
+        worker_id: model_file
+            .worker_id
+            .expect("deletable ModelFile has a Worker assignment"),
+        source: &model_file.source.0,
+        local_path: model_file
+            .local_path
+            .as_deref()
+            .expect("deletable ModelFile has a local path"),
+        local_files_preserved: true,
+    };
+    let output = match output_format {
+        OutputFormat::Json => to_json(&view)?,
+        OutputFormat::Table => format!(
+            "deleted: true\nid: {}\nworker_id: {}\nsource: {}\nlocal_path: {}\nlocal_files_preserved: true\n",
+            view.id,
+            view.worker_id,
+            table_value(view.source),
+            table_value(view.local_path)
+        ),
+    };
+    success(output)
+}
+
+#[derive(Serialize)]
 struct MaintenanceView<'a> {
     worker_id: i64,
     worker_name: &'a str,
@@ -886,6 +1045,8 @@ pub enum ManagedError {
     ModelFailed { states: String },
     #[error("timed out waiting for Model to run; last states: {states}")]
     WaitTimeout { states: String },
+    #[error("refusing ModelFile deletion: {0}")]
+    UnsafeModelFile(String),
     #[error("failed to serialize command output")]
     Serialization(#[from] serde_json::Error),
 }
@@ -900,6 +1061,7 @@ impl ManagedError {
                 | Self::Ambiguous(_, _)
                 | Self::ModelFailed { .. }
                 | Self::WaitTimeout { .. }
+                | Self::UnsafeModelFile(_)
         )
     }
 }
@@ -923,6 +1085,8 @@ mod tests {
         include_str!("../../../fixtures/server-v2.2.3/models-full-sync.response.json");
     const INSTANCE_PAGE: &str =
         include_str!("../../../fixtures/server-v2.2.3/model-instances-full-sync.response.json");
+    const MODEL_FILE_PAGE: &str =
+        include_str!("../../../fixtures/server-v2.2.3/model-files-full-sync.response.json");
     const WORKERS_ME: &str =
         include_str!("../../../fixtures/server-v2.2.3/workers-me.response.json");
 
@@ -1020,6 +1184,8 @@ mod tests {
             vec!["gpustack-rs", "model", "list"],
             vec!["gpustack-rs", "model", "get", "demo"],
             vec!["gpustack-rs", "model", "status", "demo"],
+            vec!["gpustack-rs", "model", "file", "get", "401"],
+            vec!["gpustack-rs", "model", "file", "delete", "401", "--yes"],
             vec!["gpustack-rs", "model", "delete", "demo", "--yes"],
             vec![
                 "gpustack-rs",
@@ -1296,6 +1462,158 @@ mod tests {
         assert_eq!(requests[3].method, Method::Delete);
         assert_eq!(requests[3].url.path(), "/base/v2/models/201");
         assert!(!format!("{requests:?}").contains("operator-secret"));
+    }
+
+    #[tokio::test]
+    async fn model_file_get_and_delete_preserve_local_files() {
+        let transport = MockTransport::default();
+        let model_file = item_from_page(MODEL_FILE_PAGE);
+        transport.push_json(200, model_file.clone());
+        transport.push_json(200, model_file);
+        transport.push_json(200, Vec::new());
+        let client = ServerClient::new(
+            Url::parse("http://127.0.0.1/base").expect("URL"),
+            transport.clone(),
+        )
+        .expect("client");
+        let token = SecretToken::new("operator-secret").expect("token");
+
+        let invalid_id_error = run_model_command(
+            OutputFormat::Json,
+            Duration::from_secs(1),
+            &client,
+            &token,
+            ModelArgs {
+                command: ModelSubcommand::File(ModelFileArgs {
+                    command: ModelFileSubcommand::Delete(ModelFileDeleteArgs {
+                        model_file_id: 0,
+                        yes: true,
+                    }),
+                }),
+            },
+            None,
+        )
+        .await
+        .expect_err("zero ModelFile ID");
+        assert!(matches!(invalid_id_error, ManagedError::InvalidArgument(_)));
+        assert!(transport.requests().is_empty());
+
+        let confirmation_error = run_model_command(
+            OutputFormat::Json,
+            Duration::from_secs(1),
+            &client,
+            &token,
+            ModelArgs {
+                command: ModelSubcommand::File(ModelFileArgs {
+                    command: ModelFileSubcommand::Delete(ModelFileDeleteArgs {
+                        model_file_id: 401,
+                        yes: false,
+                    }),
+                }),
+            },
+            None,
+        )
+        .await
+        .expect_err("delete confirmation");
+        assert!(matches!(
+            confirmation_error,
+            ManagedError::ConfirmationRequired(_)
+        ));
+        assert!(transport.requests().is_empty());
+
+        let fetched = run_model_command(
+            OutputFormat::Json,
+            Duration::from_secs(1),
+            &client,
+            &token,
+            ModelArgs {
+                command: ModelSubcommand::File(ModelFileArgs {
+                    command: ModelFileSubcommand::Get(ModelFileSelectorArgs { model_file_id: 401 }),
+                }),
+            },
+            None,
+        )
+        .await
+        .expect("get ModelFile");
+        let fetched: Value = serde_json::from_str(&fetched.output).expect("ModelFile JSON");
+        assert_eq!(fetched["id"], 401);
+        assert_eq!(fetched["source"], "local_path");
+
+        let deleted = run_model_command(
+            OutputFormat::Json,
+            Duration::from_secs(1),
+            &client,
+            &token,
+            ModelArgs {
+                command: ModelSubcommand::File(ModelFileArgs {
+                    command: ModelFileSubcommand::Delete(ModelFileDeleteArgs {
+                        model_file_id: 401,
+                        yes: true,
+                    }),
+                }),
+            },
+            None,
+        )
+        .await
+        .expect("delete ModelFile metadata");
+        let deleted: Value = serde_json::from_str(&deleted.output).expect("delete JSON");
+        assert_eq!(deleted["deleted"], true);
+        assert_eq!(deleted["id"], 401);
+        assert_eq!(deleted["local_files_preserved"], true);
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 3);
+        assert_eq!(requests[0].method, Method::Get);
+        assert_eq!(requests[0].url.path(), "/base/v2/model-files/401");
+        assert_eq!(requests[1].method, Method::Get);
+        assert_eq!(requests[1].url.path(), "/base/v2/model-files/401");
+        assert_eq!(requests[2].method, Method::Delete);
+        assert_eq!(
+            requests[2].url.as_str(),
+            "http://127.0.0.1/base/v2/model-files/401?cleanup=false"
+        );
+        assert!(!format!("{requests:?}").contains("operator-secret"));
+    }
+
+    #[tokio::test]
+    async fn model_file_delete_rejects_non_local_sources_before_delete() {
+        let transport = MockTransport::default();
+        let mut model_file: Value =
+            serde_json::from_str(MODEL_FILE_PAGE).expect("ModelFile page JSON");
+        model_file["items"][0]["source"] = json!("huggingface");
+        model_file["items"][0]["local_path"] = Value::Null;
+        transport.push_json(
+            200,
+            serde_json::to_vec(&model_file["items"][0]).expect("ModelFile JSON"),
+        );
+        let client = ServerClient::new(
+            Url::parse("http://127.0.0.1").expect("URL"),
+            transport.clone(),
+        )
+        .expect("client");
+        let token = SecretToken::new("operator-secret").expect("token");
+
+        let error = run_model_command(
+            OutputFormat::Json,
+            Duration::from_secs(1),
+            &client,
+            &token,
+            ModelArgs {
+                command: ModelSubcommand::File(ModelFileArgs {
+                    command: ModelFileSubcommand::Delete(ModelFileDeleteArgs {
+                        model_file_id: 401,
+                        yes: true,
+                    }),
+                }),
+            },
+            None,
+        )
+        .await
+        .expect_err("non-local ModelFile must be rejected");
+        assert!(matches!(error, ManagedError::UnsafeModelFile(_)));
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, Method::Get);
     }
 
     #[tokio::test]
