@@ -320,16 +320,19 @@ pub enum WorkerGpuSubcommand {
 
 #[derive(Debug, Args)]
 pub struct WorkerRunArgs {
+    /// Run only identity, heartbeat, status, and desired-state control loops.
     #[arg(
         long,
         conflicts_with_all = ["resource_api_only", "managed_file_only"]
     )]
     pub control_plane_only: bool,
+    /// Add host resources, the read-only Worker API, and metrics without reconciliation.
     #[arg(
         long,
         conflicts_with_all = ["control_plane_only", "managed_file_only"]
     )]
     pub resource_api_only: bool,
+    /// Prepare assigned local model files and stop before container or inference startup.
     #[arg(
         long,
         conflicts_with_all = ["control_plane_only", "resource_api_only"]
