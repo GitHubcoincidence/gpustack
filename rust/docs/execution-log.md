@@ -21,13 +21,13 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
+- 状态：`ready`
 - 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
   M5-E.0.1 已接受。Qwen-7B 的一次无效端口尝试和一次正式不兼容失败保持原分类；D084
   改选 Qwen2.5-0.5B-Instruct、D085 清理与回滚修复完成后，新模型 M5-E.1 正式 smoke
   已通过全部运行、推理、清理和恢复门禁。用户审阅详细报告后已接受 M5-E.1、M5-E 和
-  整个 M5。M6-A.0 设计已接受，D086–D091 已冻结。用户已审阅并接受 M6-A.1；M6-A.2
-  离线 CLI 实现和门禁已经完成，正在等待详细报告审阅，尚未接受。
+  整个 M5。M6-A.0 设计已接受，D086–D091 已冻结。用户已审阅并接受 M6-A.1 和
+  M6-A.2；M6-A.2 的接受范围仍限于离线 CLI 实现、mock 契约和构建门禁。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`；M6-A.2 实现提交为
@@ -35,15 +35,15 @@
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
   `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
-- 实现状态：M1～M4、M5-A、M5-B、M5-C、整个 M5-D 和 M6-A.1 已接受。当前代码还提供
-  待审的 M6-A.2 Context、最小 Model CRUD/status、精确 Worker maintenance CLI、稳定
-  table/JSON、确认、退出码、状态跟踪与凭据文件安全读取；这些仍只有离线 mock 证据。
+- 实现状态：M1～M4、M5-A、M5-B、M5-C、整个 M5-D、M6-A.1 和 M6-A.2 已接受。
+  M6-A.2 提供 Context、最小 Model CRUD/status、精确 Worker maintenance CLI、稳定
+  table/JSON、确认、退出码、状态跟踪与凭据文件安全读取；接受依据仍只有离线 mock 证据。
 - 当前停止位置：Python Server/Worker 已以原容器身份恢复正常，Rust Worker 停止；正式
   Lab 的 container、manifest、cache、42000 listener、watchdog 和 GPU0 compute process
   均为 0。Server 资源 ID 集保持不变，M5-E.1、M5-E 和整个 M5 均为 `accepted`。
-- 下一项允许执行的工作：只交付并共同审阅 M6-A.2 的 D033 详细实现报告。用户明确接受
-  前不得把阶段标为 `accepted`；M6-A.3 真实 Server 写入、maintenance 变化、停止 Python
-  Worker、Docker 或 GPU 操作仍未授权。
+- 下一项允许执行的工作：只讨论并冻结 M6-A.3 的独立预检、真实 Server 无 Docker
+  smoke、维护窗口和回滚步骤。真实 Server 写入、maintenance 变化、停止 Python Worker、
+  Docker 或 GPU 操作仍须另行明确授权，不能因 M6-A.2 已接受而自动执行。
 
 ## 里程碑
 
@@ -1843,6 +1843,26 @@
   与用户验收。
 - 下一项允许执行的工作：只交付并审阅 M6-A.2 报告；用户接受后才能记录接受检查点并
   讨论 M6-A.3 的独立只读预检与真实无 Docker smoke，不能自动执行。
+
+### 2026-10-23：M6-A.2 离线 CLI 实现接受
+
+- 结果与状态：用户审阅 D033 详细实现报告后确认无问题；M6-A.2 由
+  `ready_for_review` 更新为 `accepted`。
+- 接受证据：实现提交为 `aff61fe2c7e98c50d3b5d273f6fbc582877a633f`，待审治理检查点
+  为 `6a55c8d98ea5a6d0bfdd9dea35e8fa12bef6c329`。固定 Rust 1.99.1 下 140 项 workspace
+  测试、全部 doc-test、fmt、locked/offline check、Clippy `-D warnings` 和 build 均通过；
+  `Cargo.lock` 与干净实现提交二进制 SHA-256 分别为
+  `4094d427f9ec18e671e9d639bd9a576c0d620af9da1ca87970da05319dd4857b` 和
+  `a6dfb727935e4b33c13795a845670977104d701850fa017b9cbc702cf4cc0106`。
+- 接受范围：版本化且受权限保护的 Context store、类型化最小 Model CRUD/status、保留
+  Worker name/labels 的完整 maintenance PUT、危险操作确认、稳定 table/JSON 和退出码、
+  `model deploy --wait` 状态转换，以及 mock transport 契约测试。
+- 明确非结论：本次接受不证明真实凭据、真实 Server 写入、真实 maintenance、Managed
+  Worker 联调、Python Worker drain、Docker/vLLM、推理或 GPU 能力；M6-A.3 未获执行授权。
+- 当前停止位置：M6-A.2 已接受，代码、治理文档、fork 与 90 主机工作树保持同一 Git
+  基线；运行中的 Python Server/Worker 和 GPU 环境没有因本阶段发生变化。
+- 下一项允许执行的工作：只讨论并冻结 M6-A.3 的独立预检、真实无 Docker smoke、维护
+  窗口和回滚 runbook；任何真实环境写操作仍须用户另行明确授权。
 
 ## 未解决风险与待确认事项
 

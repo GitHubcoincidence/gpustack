@@ -376,6 +376,7 @@ Lab 与固定 Runner/Qwen2.5 路径，不扩展到 Managed、跨 Worker/双 GPU�
 容器化或生产发布门禁。M6-A 的状态边界、Worker 端口责任、本地 ModelFile resolver、
 写前刷新、CLI 前移与四段门禁已经共同冻结。M6-A.1 离线 Worker 代码、fake/mock
 测试和详细实现报告已经用户接受。M6-A.2 离线 Context、最小 Model CRUD/status 和
-Worker maintenance CLI 已完成实现、mock 测试和 Git 推送，状态为 `ready_for_review`；
-下一项只允许交付并审阅 D033 详细实现报告。M6-A.3 真实 Server 写入和维护窗口仍须在
-M6-A.2 获接受后另行明确授权。
+Worker maintenance CLI 已完成实现、mock 测试和 Git 推送。用户审阅 D033 详细实现报告
+后已接受 M6-A.2；接受范围仍仅是离线 CLI、mock 契约和构建门禁。下一项只允许讨论并
+冻结 M6-A.3 的独立预检、真实无 Docker smoke、维护窗口和回滚 runbook。真实 Server
+写入、maintenance 变化、停止 Python Worker、Docker 或 GPU 操作仍须另行明确授权。
