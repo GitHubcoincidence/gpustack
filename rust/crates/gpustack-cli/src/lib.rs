@@ -17,9 +17,9 @@ use gpustack_worker::resources::{ResourceError, collect_gpu_inventory};
 use gpustack_worker::worker_api::public_config_view;
 use gpustack_worker::workload::{VllmDtype, VllmExtraArg, VllmOptions};
 use gpustack_worker::{
-    ConfigError, ConfigOverrides, ControlPlaneOnlySummary, DoctorReport, ResourceApiRunError,
-    ResourceApiSummary, WorkerConfig, WorkerRunError, load_config, run_control_plane_only,
-    run_doctor, run_resource_api_only,
+    ConfigError, ConfigOverrides, ControlPlaneOnlySummary, DoctorReport, ManagedFileSummary,
+    ResourceApiRunError, ResourceApiSummary, WorkerConfig, WorkerRunError, load_config,
+    run_control_plane_only, run_doctor, run_managed_file_only, run_resource_api_only,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -320,10 +320,21 @@ pub enum WorkerGpuSubcommand {
 
 #[derive(Debug, Args)]
 pub struct WorkerRunArgs {
-    #[arg(long, conflicts_with = "resource_api_only")]
+    #[arg(
+        long,
+        conflicts_with_all = ["resource_api_only", "managed_file_only"]
+    )]
     pub control_plane_only: bool,
-    #[arg(long, conflicts_with = "control_plane_only")]
+    #[arg(
+        long,
+        conflicts_with_all = ["control_plane_only", "managed_file_only"]
+    )]
     pub resource_api_only: bool,
+    #[arg(
+        long,
+        conflicts_with_all = ["control_plane_only", "resource_api_only"]
+    )]
+    pub managed_file_only: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -342,8 +353,10 @@ pub struct Execution {
 pub enum CliError {
     #[error("{0}")]
     Config(#[from] ConfigError),
-    #[error("worker run currently requires --control-plane-only")]
-    ControlPlaneOnlyRequired,
+    #[error(
+        "worker run requires exactly one of --control-plane-only, --resource-api-only, or --managed-file-only"
+    )]
+    WorkerModeRequired,
     #[error(transparent)]
     Resource(#[from] ResourceError),
     #[error(transparent)]
@@ -371,7 +384,7 @@ impl CliError {
     pub const fn exit_code(&self) -> u8 {
         match self {
             Self::Config(_)
-            | Self::ControlPlaneOnlyRequired
+            | Self::WorkerModeRequired
             | Self::InvalidArgument(_)
             | Self::ConfirmationRequired
             | Self::ConfirmationIo(_) => EXIT_CONFIG,
@@ -502,10 +515,21 @@ async fn execute_inner(
                             .await?
                         }
                         WorkerCommand::Run(arguments) => {
-                            if !arguments.control_plane_only && !arguments.resource_api_only {
-                                return Err(CliError::ControlPlaneOnlyRequired);
+                            if !arguments.control_plane_only
+                                && !arguments.resource_api_only
+                                && !arguments.managed_file_only
+                            {
+                                return Err(CliError::WorkerModeRequired);
                             }
-                            if arguments.resource_api_only {
+                            if arguments.managed_file_only {
+                                let summary = run_managed_file_only(&loaded.config, |event| {
+                                    if !quiet {
+                                        eprintln!("{event}");
+                                    }
+                                })
+                                .await?;
+                                render_managed_file_summary(output_format, &summary)?
+                            } else if arguments.resource_api_only {
                                 let summary = run_resource_api_only(&loaded.config, |event| {
                                     if !quiet {
                                         eprintln!("{event}");
@@ -1224,6 +1248,75 @@ fn render_resource_api_summary(
     })
 }
 
+fn render_managed_file_summary(
+    output_format: OutputFormat,
+    summary: &ManagedFileSummary,
+) -> Result<Execution, CliError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(summary)?,
+        OutputFormat::Table => format!(
+            concat!(
+                "mode: {}\n",
+                "server_version: {}\n",
+                "server_git_commit: {}\n",
+                "worker_id: {}\n",
+                "worker_name: {}\n",
+                "worker_uuid: {}\n",
+                "worker_address: {}\n",
+                "metrics_address: {}\n",
+                "gpu_count: {}\n",
+                "shutdown_signal: {}\n",
+                "desired_models: {}\n",
+                "desired_model_instances: {}\n",
+                "desired_model_files: {}\n",
+                "desired_revision: {}\n",
+                "reconciliations: {}\n",
+                "initialized_instances: {}\n",
+                "errored_instances: {}\n",
+                "ready_model_files: {}\n",
+                "errored_model_files: {}\n",
+                "noops: {}\n",
+                "failures: {}\n",
+                "heartbeat_ok: {}\n",
+                "status_ok: {}\n",
+                "full_sync_ok: {}\n",
+                "watch_connected: {}\n",
+                "reconnect_attempts: {}\n"
+            ),
+            summary.mode,
+            summary.server_version,
+            summary.server_git_commit,
+            summary.worker_id,
+            summary.worker_name,
+            summary.worker_uuid,
+            summary.worker_address,
+            summary.metrics_address,
+            summary.gpu_count,
+            summary.shutdown_signal,
+            summary.desired_models,
+            summary.desired_model_instances,
+            summary.desired_model_files,
+            summary.desired_revision,
+            summary.reconciliations,
+            summary.initialized_instances,
+            summary.errored_instances,
+            summary.ready_model_files,
+            summary.errored_model_files,
+            summary.noops,
+            summary.failures,
+            summary.heartbeat_ok,
+            summary.status_ok,
+            summary.full_sync_ok,
+            summary.watch_connected,
+            summary.reconnect_attempts,
+        ),
+    };
+    Ok(Execution {
+        output,
+        exit_code: EXIT_SUCCESS,
+    })
+}
+
 fn to_json(value: &impl Serialize) -> Result<String, serde_json::Error> {
     serde_json::to_string_pretty(value).map(|output| format!("{output}\n"))
 }
@@ -1449,12 +1542,41 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn worker_run_requires_explicit_control_plane_only_mode() {
+    async fn worker_run_requires_an_explicit_mode() {
         let cli = Cli::try_parse_from(["gpustack-rs", "worker", "run"]).expect("parse CLI");
 
         let error = execute(cli).await.expect_err("restricted mode is required");
 
-        assert!(matches!(error, CliError::ControlPlaneOnlyRequired));
+        assert!(matches!(error, CliError::WorkerModeRequired));
         assert_eq!(error.exit_code(), EXIT_CONFIG);
+    }
+
+    #[test]
+    fn managed_file_only_is_explicit_and_mutually_exclusive() {
+        let cli = Cli::try_parse_from(["gpustack-rs", "worker", "run", "--managed-file-only"])
+            .expect("parse managed-file-only");
+        let Command::Worker(worker) = cli.command else {
+            panic!("worker command")
+        };
+        let WorkerCommand::Run(arguments) = worker.command else {
+            panic!("run command")
+        };
+        assert!(arguments.managed_file_only);
+        assert!(!arguments.control_plane_only);
+        assert!(!arguments.resource_api_only);
+
+        for conflicting in ["--control-plane-only", "--resource-api-only"] {
+            assert!(
+                Cli::try_parse_from([
+                    "gpustack-rs",
+                    "worker",
+                    "run",
+                    "--managed-file-only",
+                    conflicting,
+                ])
+                .is_err(),
+                "{conflicting} must conflict with --managed-file-only"
+            );
+        }
     }
 }

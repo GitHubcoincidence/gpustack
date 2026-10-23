@@ -17,13 +17,17 @@ use gpustack_client::{ClientError, ServerClient};
 use serde::Serialize;
 use thiserror::Error;
 use tokio::net::TcpListener;
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 
 use crate::config::WorkerConfig;
-use crate::control::{ControlLoopConfig, ControlLoopConfigError, WorkerControlPlane};
+use crate::control::{ControlLoopConfig, ControlLoopConfigError, DesiredState, WorkerControlPlane};
 use crate::identity::{
     CredentialStore, IdentityBootstrap, IdentityError, IdentityRecordStore, IdentitySource,
     worker_credential_path, worker_identity_path,
+};
+use crate::managed::{
+    LocalModelResolver, ManagedCoordinator, ManagedOutcome, ManagedPortAllocator, ManagedResult,
+    ManagedTarget, ResolveError,
 };
 use crate::metrics::{MetricIdentity, MetricsState, router as metrics_router};
 use crate::resources::{
@@ -33,12 +37,56 @@ use crate::signal::{ShutdownSignal, wait_for_shutdown};
 use crate::worker_api::{WorkerApiBuildError, WorkerApiState, router as worker_api_router};
 
 pub const RESOURCE_API_ONLY_MODE: &str = "resource-api-only";
+pub const MANAGED_FILE_ONLY_MODE: &str = "managed-file-only";
 const MAINTENANCE_MESSAGE: &str = "Rust M4 resource and API validation; scheduling disabled";
+const MANAGED_MAINTENANCE_MESSAGE: &str =
+    "Rust M6-A managed file preparation; runtime execution disabled";
 const UNASSIGNED_WORKER_UUID: &str = "00000000-0000-4000-8000-000000000000";
 const RESOURCE_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorkerSurfaceMode {
+    ResourceApiOnly,
+    ManagedFileOnly,
+}
+
+impl WorkerSurfaceMode {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::ResourceApiOnly => RESOURCE_API_ONLY_MODE,
+            Self::ManagedFileOnly => MANAGED_FILE_ONLY_MODE,
+        }
+    }
+
+    const fn stage(self) -> &'static str {
+        match self {
+            Self::ResourceApiOnly => "m4",
+            Self::ManagedFileOnly => "m6-a",
+        }
+    }
+
+    const fn metric_name(self) -> &'static str {
+        match self {
+            Self::ResourceApiOnly => "resource_api_only",
+            Self::ManagedFileOnly => "managed_file_only",
+        }
+    }
+
+    const fn maintenance_message(self) -> &'static str {
+        match self {
+            Self::ResourceApiOnly => MAINTENANCE_MESSAGE,
+            Self::ManagedFileOnly => MANAGED_MAINTENANCE_MESSAGE,
+        }
+    }
+
+    const fn reconciles_managed_files(self) -> bool {
+        matches!(self, Self::ManagedFileOnly)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct ResourceApiProfile {
+    mode: WorkerSurfaceMode,
     server_url: url::Url,
     worker_name: String,
     worker_hostname: String,
@@ -50,11 +98,15 @@ struct ResourceApiProfile {
 }
 
 impl ResourceApiProfile {
-    fn from_config(config: &WorkerConfig) -> Result<Self, ResourceApiRunError> {
+    fn from_config(
+        config: &WorkerConfig,
+        mode: WorkerSurfaceMode,
+    ) -> Result<Self, ResourceApiRunError> {
         if config.model_roots.is_empty() {
             return Err(ResourceApiRunError::MissingConfiguration("model_roots"));
         }
         Ok(Self {
+            mode,
             server_url: config
                 .server_url
                 .clone()
@@ -98,20 +150,20 @@ impl ResourceApiProfile {
             ip: self.worker_ip.to_string(),
             labels: BTreeMap::from([
                 ("implementation".to_owned(), "rust".to_owned()),
-                ("mode".to_owned(), RESOURCE_API_ONLY_MODE.to_owned()),
-                ("stage".to_owned(), "m4".to_owned()),
+                ("mode".to_owned(), self.mode.name().to_owned()),
+                ("stage".to_owned(), self.mode.stage().to_owned()),
             ]),
             machine_id: resources.machine_id.clone(),
             maintenance: Some(WorkerMaintenance {
                 enabled: true,
-                message: Some(MAINTENANCE_MESSAGE.to_owned()),
+                message: Some(self.mode.maintenance_message().to_owned()),
             }),
             metrics_port: Some(self.metrics_port),
             name: self.worker_name.clone(),
             owner_principal_id: None,
             port: self.worker_port,
             proxy_mode: ProxyMode::Worker,
-            state_message: Some(MAINTENANCE_MESSAGE.to_owned()),
+            state_message: Some(self.mode.maintenance_message().to_owned()),
             status: Some(resources.status.clone()),
             system_reserved: None,
             worker_uuid: UNASSIGNED_WORKER_UUID.to_owned(),
@@ -134,7 +186,7 @@ impl ResourceApiProfile {
             metrics_port: Some(self.metrics_port),
             port: self.worker_port,
             proxy_mode: ProxyMode::Worker,
-            state_message: Some(MAINTENANCE_MESSAGE.to_owned()),
+            state_message: Some(self.mode.maintenance_message().to_owned()),
             status: Some(resources.status.clone()),
             system_reserved: None,
             worker_uuid,
@@ -205,9 +257,129 @@ pub struct ResourceApiSummary {
     pub reconnect_attempts: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ManagedFileEvent {
+    Listening {
+        worker_address: SocketAddr,
+        metrics_address: SocketAddr,
+    },
+    IdentityEstablished {
+        worker_id: i64,
+        worker_name: String,
+    },
+    Running {
+        gpu_count: usize,
+    },
+    Reconciled(ManagedResult),
+    Stopping {
+        signal: &'static str,
+    },
+}
+
+impl fmt::Display for ManagedFileEvent {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Listening {
+                worker_address,
+                metrics_address,
+            } => write!(
+                formatter,
+                "mode={MANAGED_FILE_ONLY_MODE} worker_api={worker_address} metrics={metrics_address}"
+            ),
+            Self::IdentityEstablished {
+                worker_id,
+                worker_name,
+            } => write!(
+                formatter,
+                "mode={MANAGED_FILE_ONLY_MODE} worker_id={worker_id} worker_name={worker_name:?} identity_source=persisted"
+            ),
+            Self::Running { gpu_count } => write!(
+                formatter,
+                "mode={MANAGED_FILE_ONLY_MODE} state=running scheduling=maintenance-required runtime=disabled gpu_devices={gpu_count}"
+            ),
+            Self::Reconciled(result) => render_managed_result(formatter, result),
+            Self::Stopping { signal } => {
+                write!(
+                    formatter,
+                    "mode={MANAGED_FILE_ONLY_MODE} state=stopping signal={signal}"
+                )
+            }
+        }
+    }
+}
+
+fn render_managed_result(
+    formatter: &mut fmt::Formatter<'_>,
+    result: &ManagedResult,
+) -> fmt::Result {
+    let (resource, id) = match result.target {
+        ManagedTarget::ModelInstance(id) => ("model_instance", id),
+        ManagedTarget::ModelFile(id) => ("model_file", id),
+    };
+    write!(
+        formatter,
+        "mode={MANAGED_FILE_ONLY_MODE} resource={resource} id={id} observed_state={:?}",
+        result.observed_state.as_deref().unwrap_or("unknown")
+    )?;
+    match &result.outcome {
+        ManagedOutcome::InstanceInitialized { port, reused } => {
+            write!(
+                formatter,
+                " outcome=initialized port={port} reused={reused}"
+            )
+        }
+        ManagedOutcome::InstanceErrored { message } => {
+            write!(formatter, " outcome=error message={message:?}")
+        }
+        ManagedOutcome::ModelFileReady { path_count, size } => write!(
+            formatter,
+            " outcome=ready path_count={path_count} size_bytes={size}"
+        ),
+        ManagedOutcome::ModelFileErrored { message } => {
+            write!(formatter, " outcome=error message={message:?}")
+        }
+        ManagedOutcome::Noop { reason } => {
+            write!(formatter, " outcome=noop reason={reason:?}")
+        }
+        ManagedOutcome::Failed { message } => {
+            write!(formatter, " outcome=failed message={message:?}")
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ManagedFileSummary {
+    pub mode: String,
+    pub server_version: String,
+    pub server_git_commit: String,
+    pub worker_id: i64,
+    pub worker_name: String,
+    pub worker_uuid: String,
+    pub worker_address: String,
+    pub metrics_address: String,
+    pub gpu_count: usize,
+    pub shutdown_signal: String,
+    pub desired_models: usize,
+    pub desired_model_instances: usize,
+    pub desired_model_files: usize,
+    pub desired_revision: u64,
+    pub reconciliations: u64,
+    pub initialized_instances: u64,
+    pub errored_instances: u64,
+    pub ready_model_files: u64,
+    pub errored_model_files: u64,
+    pub noops: u64,
+    pub failures: u64,
+    pub heartbeat_ok: bool,
+    pub status_ok: bool,
+    pub full_sync_ok: bool,
+    pub watch_connected: bool,
+    pub reconnect_attempts: u64,
+}
+
 #[derive(Debug, Error)]
 pub enum ResourceApiRunError {
-    #[error("resource-api-only mode requires configuration field {0}")]
+    #[error("resource Worker mode requires configuration field {0}")]
     MissingConfiguration(&'static str),
     #[error("failed to bind {service} endpoint {address}: {source}")]
     Bind {
@@ -222,7 +394,9 @@ pub enum ResourceApiRunError {
     EndpointServe(&'static str, #[source] io::Error),
     #[error("Worker control plane stopped unexpectedly")]
     ControlPlaneStopped,
-    #[error("resource-api-only safety invariant failed: {0}")]
+    #[error("Managed coordinator stopped unexpectedly")]
+    ManagedCoordinatorStopped,
+    #[error("resource Worker safety invariant failed: {0}")]
     SafetyInvariant(&'static str),
     #[error("failed to wait for shutdown signal: {0}")]
     ShutdownSignal(#[source] io::Error),
@@ -238,6 +412,70 @@ pub enum ResourceApiRunError {
     Identity(#[from] IdentityError),
     #[error(transparent)]
     ControlConfiguration(#[from] ControlLoopConfigError),
+    #[error(transparent)]
+    Resolve(#[from] ResolveError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SurfaceEvent {
+    Listening {
+        worker_address: SocketAddr,
+        metrics_address: SocketAddr,
+    },
+    IdentityEstablished {
+        worker_id: i64,
+        worker_name: String,
+    },
+    Running {
+        gpu_count: usize,
+    },
+    Reconciled(ManagedResult),
+    Stopping {
+        signal: &'static str,
+    },
+}
+
+#[derive(Debug, Default)]
+struct ManagedStats {
+    reconciliations: u64,
+    initialized_instances: u64,
+    errored_instances: u64,
+    ready_model_files: u64,
+    errored_model_files: u64,
+    noops: u64,
+    failures: u64,
+}
+
+impl ManagedStats {
+    fn record(&mut self, outcome: &ManagedOutcome) {
+        self.reconciliations = self.reconciliations.saturating_add(1);
+        match outcome {
+            ManagedOutcome::InstanceInitialized { .. } => {
+                self.initialized_instances = self.initialized_instances.saturating_add(1);
+            }
+            ManagedOutcome::InstanceErrored { .. } => {
+                self.errored_instances = self.errored_instances.saturating_add(1);
+            }
+            ManagedOutcome::ModelFileReady { .. } => {
+                self.ready_model_files = self.ready_model_files.saturating_add(1);
+            }
+            ManagedOutcome::ModelFileErrored { .. } => {
+                self.errored_model_files = self.errored_model_files.saturating_add(1);
+            }
+            ManagedOutcome::Noop { .. } => {
+                self.noops = self.noops.saturating_add(1);
+            }
+            ManagedOutcome::Failed { .. } => {
+                self.failures = self.failures.saturating_add(1);
+            }
+        }
+    }
+}
+
+struct SurfaceSummary {
+    resource: ResourceApiSummary,
+    desired: DesiredState,
+    managed: ManagedStats,
 }
 
 /// Runs the M4 Worker surface while keeping every scheduling/runtime path disabled.
@@ -248,7 +486,112 @@ pub async fn run_resource_api_only<F>(
 where
     F: FnMut(&ResourceApiEvent),
 {
-    let profile = ResourceApiProfile::from_config(config)?;
+    let summary = run_worker_surface(config, WorkerSurfaceMode::ResourceApiOnly, |event| {
+        let event = match event {
+            SurfaceEvent::Listening {
+                worker_address,
+                metrics_address,
+            } => ResourceApiEvent::Listening {
+                worker_address: *worker_address,
+                metrics_address: *metrics_address,
+            },
+            SurfaceEvent::IdentityEstablished {
+                worker_id,
+                worker_name,
+            } => ResourceApiEvent::IdentityEstablished {
+                worker_id: *worker_id,
+                worker_name: worker_name.clone(),
+            },
+            SurfaceEvent::Running { gpu_count } => ResourceApiEvent::Running {
+                gpu_count: *gpu_count,
+            },
+            SurfaceEvent::Stopping { signal } => ResourceApiEvent::Stopping { signal },
+            SurfaceEvent::Reconciled(_) => return,
+        };
+        observe(&event);
+    })
+    .await?;
+    Ok(summary.resource)
+}
+
+/// Runs Managed reconciliation through the resource surface without a container runtime.
+pub async fn run_managed_file_only<F>(
+    config: &WorkerConfig,
+    mut observe: F,
+) -> Result<ManagedFileSummary, ResourceApiRunError>
+where
+    F: FnMut(&ManagedFileEvent),
+{
+    let summary = run_worker_surface(config, WorkerSurfaceMode::ManagedFileOnly, |event| {
+        let event = match event {
+            SurfaceEvent::Listening {
+                worker_address,
+                metrics_address,
+            } => ManagedFileEvent::Listening {
+                worker_address: *worker_address,
+                metrics_address: *metrics_address,
+            },
+            SurfaceEvent::IdentityEstablished {
+                worker_id,
+                worker_name,
+            } => ManagedFileEvent::IdentityEstablished {
+                worker_id: *worker_id,
+                worker_name: worker_name.clone(),
+            },
+            SurfaceEvent::Running { gpu_count } => ManagedFileEvent::Running {
+                gpu_count: *gpu_count,
+            },
+            SurfaceEvent::Reconciled(result) => ManagedFileEvent::Reconciled(result.clone()),
+            SurfaceEvent::Stopping { signal } => ManagedFileEvent::Stopping { signal },
+        };
+        observe(&event);
+    })
+    .await?;
+    let resource = summary.resource;
+    Ok(ManagedFileSummary {
+        mode: resource.mode,
+        server_version: resource.server_version,
+        server_git_commit: resource.server_git_commit,
+        worker_id: resource.worker_id,
+        worker_name: resource.worker_name,
+        worker_uuid: resource.worker_uuid,
+        worker_address: resource.worker_address,
+        metrics_address: resource.metrics_address,
+        gpu_count: resource.gpu_count,
+        shutdown_signal: resource.shutdown_signal,
+        desired_models: summary.desired.models.len(),
+        desired_model_instances: summary.desired.model_instances.len(),
+        desired_model_files: summary.desired.model_files.len(),
+        desired_revision: summary.desired.revision,
+        reconciliations: summary.managed.reconciliations,
+        initialized_instances: summary.managed.initialized_instances,
+        errored_instances: summary.managed.errored_instances,
+        ready_model_files: summary.managed.ready_model_files,
+        errored_model_files: summary.managed.errored_model_files,
+        noops: summary.managed.noops,
+        failures: summary.managed.failures,
+        heartbeat_ok: resource.heartbeat_ok,
+        status_ok: resource.status_ok,
+        full_sync_ok: resource.full_sync_ok,
+        watch_connected: resource.watch_connected,
+        reconnect_attempts: resource.reconnect_attempts,
+    })
+}
+
+async fn run_worker_surface<F>(
+    config: &WorkerConfig,
+    mode: WorkerSurfaceMode,
+    mut observe: F,
+) -> Result<SurfaceSummary, ResourceApiRunError>
+where
+    F: FnMut(&SurfaceEvent),
+{
+    let profile = ResourceApiProfile::from_config(config, mode)?;
+    // Canonicalizing roots before network setup keeps unsafe model paths fail-closed.
+    let resolver = mode
+        .reconciles_managed_files()
+        .then(|| LocalModelResolver::new(config.model_roots.clone()))
+        .transpose()?;
     let mut collector = ResourceCollector::new(SysinfoProbe::new(), NvmlGpuProbe::new()?);
     let initial_resources = collector.collect()?;
     verify_m4_gpu_inventory(&initial_resources)?;
@@ -271,7 +614,7 @@ where
                 address: profile.metrics_address(),
                 source,
             })?;
-    observe(&ResourceApiEvent::Listening {
+    observe(&SurfaceEvent::Listening {
         worker_address: worker_listener.local_addr().map_err(|source| {
             ResourceApiRunError::Bind {
                 service: "Worker API",
@@ -289,7 +632,11 @@ where
     });
 
     let transport = ReqwestTransport::new()?;
-    let client = ServerClient::new(profile.server_url.clone(), transport)?;
+    let client = ServerClient::new(profile.server_url.clone(), transport.clone())?;
+    let managed_client = mode
+        .reconciles_managed_files()
+        .then(|| ServerClient::new(profile.server_url.clone(), transport))
+        .transpose()?;
     let bootstrap = IdentityBootstrap::new(
         &client,
         CredentialStore::new(worker_credential_path(&profile.data_dir)),
@@ -300,12 +647,12 @@ where
         .await?;
     if identity.source != IdentitySource::Persisted {
         return Err(ResourceApiRunError::SafetyInvariant(
-            "M4 requires an already persisted per-Worker identity",
+            "restricted resource modes require an already persisted per-Worker identity",
         ));
     }
     let current_worker = client.me(&identity.token).await?;
     verify_maintenance_worker(&current_worker)?;
-    observe(&ResourceApiEvent::IdentityEstablished {
+    observe(&SurfaceEvent::IdentityEstablished {
         worker_id: identity.id,
         worker_name: identity.name.clone(),
     });
@@ -321,6 +668,8 @@ where
         identity.id,
         ControlLoopConfig::default(),
     )?;
+    let desired_summary = control_handle.desired_state();
+    let desired_managed = control_handle.desired_state();
     let control_health = control_handle.health();
     let control_future = control.run(status_rx, shutdown_rx.clone());
     let api_future = axum::serve(worker_listener, worker_api_router(api_state))
@@ -329,6 +678,7 @@ where
     let metrics_future = axum::serve(
         metrics_listener,
         metrics_router(MetricsState {
+            mode: profile.mode.metric_name(),
             identity: MetricIdentity {
                 instance: profile.worker_ip.to_string(),
                 worker_id: identity.id,
@@ -340,9 +690,33 @@ where
     )
     .with_graceful_shutdown(shutdown_requested(shutdown_rx))
     .into_future();
+    let coordinator = managed_client.zip(resolver).map(|(client, resolver)| {
+        ManagedCoordinator::new(
+            client,
+            identity.token.clone(),
+            identity.id,
+            profile.worker_ip,
+            resolver,
+            ManagedPortAllocator::production(),
+        )
+    });
+    let (managed_tx, mut managed_rx) = mpsc::unbounded_channel();
+    let managed_shutdown = shutdown_tx.subscribe();
+    let managed_future = async move {
+        if let Some(coordinator) = coordinator {
+            coordinator
+                .run(desired_managed, managed_shutdown, |result| {
+                    let _ = managed_tx.send(result);
+                })
+                .await;
+        } else {
+            shutdown_requested(managed_shutdown).await;
+        }
+    };
     tokio::pin!(control_future);
     tokio::pin!(api_future);
     tokio::pin!(metrics_future);
+    tokio::pin!(managed_future);
     let shutdown_signal = wait_for_shutdown();
     tokio::pin!(shutdown_signal);
     let mut refresh = tokio::time::interval(RESOURCE_REFRESH_INTERVAL);
@@ -353,7 +727,8 @@ where
         .gpu_devices
         .as_ref()
         .map_or(0, Vec::len);
-    observe(&ResourceApiEvent::Running { gpu_count });
+    observe(&SurfaceEvent::Running { gpu_count });
+    let mut managed_stats = ManagedStats::default();
 
     let signal = loop {
         tokio::select! {
@@ -378,6 +753,14 @@ where
                 shutdown_tx.send_replace(true);
                 return Err(ResourceApiRunError::ControlPlaneStopped);
             }
+            () = &mut managed_future => {
+                shutdown_tx.send_replace(true);
+                return Err(ResourceApiRunError::ManagedCoordinatorStopped);
+            }
+            Some(result) = managed_rx.recv() => {
+                managed_stats.record(&result.outcome);
+                observe(&SurfaceEvent::Reconciled(result));
+            }
             _ = refresh.tick() => {
                 let resources = collector.collect()?;
                 verify_m4_gpu_inventory(&resources)?;
@@ -391,31 +774,40 @@ where
         }
     };
 
-    observe(&ResourceApiEvent::Stopping {
+    observe(&SurfaceEvent::Stopping {
         signal: shutdown_signal_name(signal),
     });
     shutdown_tx.send_replace(true);
-    let (api_result, metrics_result, ()) =
-        tokio::join!(&mut api_future, &mut metrics_future, &mut control_future);
+    let (api_result, metrics_result, (), ()) = tokio::join!(
+        &mut api_future,
+        &mut metrics_future,
+        &mut control_future,
+        &mut managed_future
+    );
     api_result.map_err(|error| ResourceApiRunError::EndpointServe("Worker API", error))?;
     metrics_result.map_err(|error| ResourceApiRunError::EndpointServe("metrics", error))?;
     let health = control_health.borrow().clone();
-    Ok(ResourceApiSummary {
-        mode: RESOURCE_API_ONLY_MODE.to_owned(),
-        server_version: SERVER_BASELINE_VERSION.to_owned(),
-        server_git_commit: SERVER_BASELINE_GIT_COMMIT.to_owned(),
-        worker_id: identity.id,
-        worker_name: identity.name,
-        worker_uuid: identity.worker_uuid,
-        worker_address: profile.worker_address().to_string(),
-        metrics_address: profile.metrics_address().to_string(),
-        gpu_count,
-        shutdown_signal: shutdown_signal_name(signal).to_owned(),
-        heartbeat_ok: health.heartbeat_ok,
-        status_ok: health.status_ok,
-        full_sync_ok: health.full_sync_ok,
-        watch_connected: health.watch_connected,
-        reconnect_attempts: health.reconnect_attempts,
+    let desired = desired_summary.borrow().clone();
+    Ok(SurfaceSummary {
+        resource: ResourceApiSummary {
+            mode: profile.mode.name().to_owned(),
+            server_version: SERVER_BASELINE_VERSION.to_owned(),
+            server_git_commit: SERVER_BASELINE_GIT_COMMIT.to_owned(),
+            worker_id: identity.id,
+            worker_name: identity.name,
+            worker_uuid: identity.worker_uuid,
+            worker_address: profile.worker_address().to_string(),
+            metrics_address: profile.metrics_address().to_string(),
+            gpu_count,
+            shutdown_signal: shutdown_signal_name(signal).to_owned(),
+            heartbeat_ok: health.heartbeat_ok,
+            status_ok: health.status_ok,
+            full_sync_ok: health.full_sync_ok,
+            watch_connected: health.watch_connected,
+            reconnect_attempts: health.reconnect_attempts,
+        },
+        desired,
+        managed: managed_stats,
     })
 }
 
@@ -443,7 +835,7 @@ fn verify_m4_gpu_inventory(resources: &CollectedResources) -> Result<(), Resourc
             ))?;
     if gpus.len() < 2 {
         return Err(ResourceApiRunError::SafetyInvariant(
-            "M4 validation requires at least two GPUs",
+            "the frozen validation host requires at least two GPUs",
         ));
     }
     if gpus.iter().any(|gpu| {
@@ -530,8 +922,11 @@ mod tests {
     #[test]
     fn profile_reports_typed_resources_and_never_enables_scheduling() {
         let directory = tempfile::tempdir().expect("temp directory");
-        let profile = ResourceApiProfile::from_config(&config(directory.path().to_path_buf()))
-            .expect("resource profile");
+        let profile = ResourceApiProfile::from_config(
+            &config(directory.path().to_path_buf()),
+            WorkerSurfaceMode::ResourceApiOnly,
+        )
+        .expect("resource profile");
         let status: WorkerResourceStatus = serde_json::from_slice(include_bytes!(
             "../../../fixtures/server-v2.2.3/worker-status-resource.request.json"
         ))
@@ -555,13 +950,103 @@ mod tests {
     }
 
     #[test]
+    fn managed_profile_identifies_the_mode_and_keeps_maintenance_enabled() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let profile = ResourceApiProfile::from_config(
+            &config(directory.path().to_path_buf()),
+            WorkerSurfaceMode::ManagedFileOnly,
+        )
+        .expect("managed profile");
+        let status: WorkerResourceStatus = serde_json::from_slice(include_bytes!(
+            "../../../fixtures/server-v2.2.3/worker-status-resource.request.json"
+        ))
+        .map(|value: serde_json::Value| serde_json::from_value(value["status"].clone()))
+        .expect("fixture envelope")
+        .expect("fixture status");
+        let resources = CollectedResources {
+            machine_id: Some("contract-machine-id".to_owned()),
+            status,
+        };
+
+        let create = profile.registration_request(&resources);
+
+        assert_eq!(
+            create.labels.get("mode").map(String::as_str),
+            Some(MANAGED_FILE_ONLY_MODE)
+        );
+        assert_eq!(create.labels.get("stage").map(String::as_str), Some("m6-a"));
+        assert!(create.maintenance.is_some_and(|value| value.enabled));
+        assert!(
+            create
+                .state_message
+                .is_some_and(|message| message.contains("runtime execution disabled"))
+        );
+    }
+
+    #[test]
+    fn managed_event_reports_starting_as_a_structured_noop() {
+        let event = ManagedFileEvent::Reconciled(ManagedResult {
+            target: ManagedTarget::ModelInstance(301),
+            observed_state: Some("starting".to_owned()),
+            outcome: ManagedOutcome::Noop {
+                reason: "ModelInstance state is not scheduled",
+            },
+        });
+
+        let line = event.to_string();
+
+        assert!(line.contains("resource=model_instance"));
+        assert!(line.contains("id=301"));
+        assert!(line.contains("observed_state=\"starting\""));
+        assert!(line.contains("outcome=noop"));
+        assert!(!line.contains("token"));
+    }
+
+    #[test]
+    fn managed_summary_counters_classify_every_outcome() {
+        let outcomes = [
+            ManagedOutcome::InstanceInitialized {
+                port: 40_000,
+                reused: false,
+            },
+            ManagedOutcome::InstanceErrored {
+                message: "port unavailable".to_owned(),
+            },
+            ManagedOutcome::ModelFileReady {
+                path_count: 1,
+                size: 7,
+            },
+            ManagedOutcome::ModelFileErrored {
+                message: "invalid model".to_owned(),
+            },
+            ManagedOutcome::Noop { reason: "starting" },
+            ManagedOutcome::Failed {
+                message: "request failed".to_owned(),
+            },
+        ];
+        let mut stats = ManagedStats::default();
+
+        for outcome in &outcomes {
+            stats.record(outcome);
+        }
+
+        assert_eq!(stats.reconciliations, 6);
+        assert_eq!(stats.initialized_instances, 1);
+        assert_eq!(stats.errored_instances, 1);
+        assert_eq!(stats.ready_model_files, 1);
+        assert_eq!(stats.errored_model_files, 1);
+        assert_eq!(stats.noops, 1);
+        assert_eq!(stats.failures, 1);
+    }
+
+    #[test]
     fn missing_model_roots_fails_before_any_runtime_or_network_work() {
         let directory = tempfile::tempdir().expect("temp directory");
         let mut config = config(directory.path().to_path_buf());
         config.model_roots.clear();
 
         assert!(matches!(
-            ResourceApiProfile::from_config(&config),
+            ResourceApiProfile::from_config(&config, WorkerSurfaceMode::ResourceApiOnly),
             Err(ResourceApiRunError::MissingConfiguration("model_roots"))
         ));
     }

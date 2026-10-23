@@ -40,6 +40,7 @@ pub enum MetricsError {
 
 #[derive(Clone)]
 pub struct MetricsState {
+    pub mode: &'static str,
     pub identity: MetricIdentity,
     pub resources: watch::Receiver<CollectedResources>,
     pub control: watch::Receiver<ControlPlaneHealth>,
@@ -54,7 +55,7 @@ pub fn router(state: MetricsState) -> Router {
 async fn metrics_handler(State(state): State<MetricsState>) -> Response {
     let resources = state.resources.borrow().clone();
     let control = state.control.borrow().clone();
-    match render_metrics(&state.identity, &resources.status, &control) {
+    match render_metrics(state.mode, &state.identity, &resources.status, &control) {
         Ok(body) => ([(CONTENT_TYPE, "text/plain; version=0.0.4")], body).into_response(),
         Err(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -66,6 +67,7 @@ async fn metrics_handler(State(state): State<MetricsState>) -> Response {
 
 /// Builds one internally consistent scrape from immutable resource/control snapshots.
 pub fn render_metrics(
+    mode: &'static str,
     identity: &MetricIdentity,
     resources: &WorkerResourceStatus,
     control: &ControlPlaneHealth,
@@ -73,7 +75,7 @@ pub fn render_metrics(
     let mut registry = Registry::default();
     let mut gauges = GaugeFamilies::default();
     register_resource_metrics(&mut gauges, identity, resources);
-    register_control_metrics(&mut gauges, &mut registry, control);
+    register_control_metrics(&mut gauges, &mut registry, mode, control);
     gauges.register(&mut registry);
     let mut output = String::new();
     encode(&mut output, &registry)?;
@@ -287,13 +289,14 @@ fn register_filesystem_metrics(
 fn register_control_metrics(
     registry: &mut GaugeFamilies,
     prometheus_registry: &mut Registry,
+    mode: &'static str,
     control: &ControlPlaneHealth,
 ) {
     set_gauge(
         registry,
         "gpustack:rust_worker_mode_info",
         "Rust Worker operating mode.",
-        vec![("mode".to_owned(), "resource_api_only".to_owned())],
+        vec![("mode".to_owned(), mode.to_owned())],
         1.0,
     );
     for (name, value) in [
@@ -492,7 +495,8 @@ mod tests {
             reconnect_attempts: 3,
         };
 
-        let text = render_metrics(&identity, &resources(), &control).expect("render metrics");
+        let text = render_metrics("resource_api_only", &identity, &resources(), &control)
+            .expect("render metrics");
 
         for name in [
             "gpustack:worker_node_os_info",
@@ -516,5 +520,6 @@ mod tests {
         assert!(text.contains("gpu_name=\"NVIDIA A100 80GB PCIe\""));
         assert!(!text.contains("token"));
         assert!(text.contains("gpustack:rust_worker_ready 0"));
+        assert!(text.contains("mode=\"resource_api_only\""));
     }
 }

@@ -1,6 +1,6 @@
 //! Managed-file-only reconciliation from desired-state triggers.
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::future::Future;
 use std::net::IpAddr;
 use std::path::PathBuf;
@@ -137,6 +137,7 @@ pub enum ManagedOutcome {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManagedResult {
     pub target: ManagedTarget,
+    pub observed_state: Option<String>,
     pub outcome: ManagedOutcome,
 }
 
@@ -171,31 +172,46 @@ impl<A: ManagedApi, P: PortProbe> ManagedCoordinator<A, P> {
     pub async fn reconcile_snapshot(&self, desired: &DesiredState) -> Vec<ManagedResult> {
         let targets = desired
             .model_instances
-            .keys()
-            .copied()
-            .map(ManagedTarget::ModelInstance)
-            .chain(
-                desired
-                    .model_files
-                    .keys()
-                    .copied()
-                    .map(ManagedTarget::ModelFile),
-            );
-        self.reconcile_targets(targets).await
+            .iter()
+            .map(|(id, instance)| {
+                (
+                    ManagedTarget::ModelInstance(*id),
+                    Some(instance.state.0.clone()),
+                )
+            })
+            .chain(desired.model_files.iter().map(|(id, model_file)| {
+                (
+                    ManagedTarget::ModelFile(*id),
+                    Some(model_file.state.0.clone()),
+                )
+            }));
+        self.reconcile_entries(targets).await
     }
 
     pub async fn reconcile_targets<I>(&self, targets: I) -> Vec<ManagedResult>
     where
         I: IntoIterator<Item = ManagedTarget>,
     {
-        let unique = targets.into_iter().collect::<BTreeSet<_>>();
+        self.reconcile_entries(targets.into_iter().map(|target| (target, None)))
+            .await
+    }
+
+    async fn reconcile_entries<I>(&self, targets: I) -> Vec<ManagedResult>
+    where
+        I: IntoIterator<Item = (ManagedTarget, Option<String>)>,
+    {
+        let unique = targets.into_iter().collect::<BTreeMap<_, _>>();
         let mut results = Vec::with_capacity(unique.len());
-        for target in unique {
+        for (target, observed_state) in unique {
             let outcome = match target {
                 ManagedTarget::ModelInstance(id) => self.reconcile_instance(id).await,
                 ManagedTarget::ModelFile(id) => self.reconcile_model_file(id).await,
             };
-            results.push(ManagedResult { target, outcome });
+            results.push(ManagedResult {
+                target,
+                observed_state,
+                outcome,
+            });
         }
         results
     }
@@ -513,6 +529,7 @@ mod tests {
     use std::net::SocketAddr;
     use std::ops::RangeInclusive;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
     use gpustack_client::types::Paginated;
 
@@ -864,6 +881,8 @@ mod tests {
         let results = worker.reconcile_snapshot(&desired).await;
 
         assert_eq!(results.len(), 2);
+        assert_eq!(results[0].observed_state.as_deref(), Some("starting"));
+        assert_eq!(results[1].observed_state.as_deref(), Some("ready"));
         assert!(
             results
                 .iter()
@@ -872,5 +891,50 @@ mod tests {
         let state = api.state.lock().expect("fake lock");
         assert!(state.instance_updates.is_empty());
         assert!(state.model_file_updates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn run_observes_desired_state_and_stops_on_shutdown() {
+        let root = tempfile::tempdir().expect("model root");
+        let (mut instance, mut model_file) = fixtures();
+        instance.state = ModelInstanceState("starting".to_owned());
+        model_file.state = ModelFileState("ready".to_owned());
+        let api = FakeApi::new(instance.clone(), model_file.clone());
+        let worker = coordinator(api, root.path().to_path_buf(), 40_000..=40_003);
+        let desired = DesiredState {
+            models: BTreeMap::new(),
+            model_instances: BTreeMap::from([(instance.id, instance)]),
+            model_files: BTreeMap::from([(model_file.id, model_file)]),
+            revision: 7,
+        };
+        let (_desired_tx, desired_rx) = watch::channel(desired);
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let (result_tx, mut result_rx) = tokio::sync::mpsc::unbounded_channel();
+        let task = tokio::spawn(async move {
+            worker
+                .run(desired_rx, shutdown_rx, |result| {
+                    let _ = result_tx.send(result);
+                })
+                .await;
+        });
+
+        let first = tokio::time::timeout(Duration::from_secs(1), result_rx.recv())
+            .await
+            .expect("first result timeout")
+            .expect("first result");
+        let second = tokio::time::timeout(Duration::from_secs(1), result_rx.recv())
+            .await
+            .expect("second result timeout")
+            .expect("second result");
+        shutdown_tx.send_replace(true);
+        tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .expect("coordinator shutdown timeout")
+            .expect("coordinator task");
+
+        assert_eq!(first.observed_state.as_deref(), Some("starting"));
+        assert_eq!(second.observed_state.as_deref(), Some("ready"));
+        assert!(matches!(first.outcome, ManagedOutcome::Noop { .. }));
+        assert!(matches!(second.outcome, ManagedOutcome::Noop { .. }));
     }
 }
