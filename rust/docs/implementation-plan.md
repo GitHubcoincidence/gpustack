@@ -159,7 +159,7 @@ M6-A 只证明 Server 托管状态链、Worker 服务端口分配和本地 Model
 Docker、不创建 vLLM 容器、不运行推理。固定状态边界是
 `SCHEDULED -> INITIALIZING -> DOWNLOADING -> STARTING`；`STARTING -> RUNNING` 属于 M6-B。
 
-M6-A 分成八个独立门禁：
+M6-A 分成九个独立门禁：
 
 1. **M6-A.0 契约冻结**：从部署 commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`
    复核 Python Worker、Server Controller、Model/ModelInstance/ModelFile 路由和 scheduler。
@@ -185,11 +185,15 @@ M6-A 分成八个独立门禁：
    extensions/provider config/principal；ModelFile 查询强制 Worker scope 并按 ID 稳定排序。
    数字 ID、精确名称、无结果、重名、URL 编码、空列表、稳定 table/JSON、错误映射和脱敏
    全部通过 mock/fixture 验证，不连接真实 Server。
-7. **M6-A.3.0 独立只读预检**：另获授权后核对固定源码/二进制/Server/Worker/Context、
+7. **M6-A.3.P operator Context 准备**：正式预检需要独立 operator API Key。通过本地
+   管理员的隐藏式登录创建唯一、7 天有效、仅 `management` scope 的阶段凭据，保存到
+   mode 0600 token 文件并建立 active `lab90` Context；登录 cookie 和完整创建响应立即
+   清除。该准备只允许创建这一条 API Key 和本地 Context，不授权任何 Worker/模型变化。
+8. **M6-A.3.0 独立只读预检**：另获授权后核对固定源码/二进制/Server/Worker/Context、
    唯一测试 name、无同路径 ModelFile、Qwen2.5 manifest、GPU0、受管端口、Docker 与原
    Python Worker 的精确恢复材料。允许从干净冻结提交构建二进制并在 Git 外建立受保护
    证据目录；不启动 Rust Worker、不修改 Server 或 maintenance、不停止 Python Worker。
-8. **M6-A.3.1 真实无 Docker smoke**：M6-A.3.0 通过并共同审阅后另获维护授权，停止
+9. **M6-A.3.1 真实无 Docker smoke**：M6-A.3.0 通过并共同审阅后另获维护授权，停止
    精确 Python Worker，启动 `--managed-file-only`，由 CLI 临时解除 Rust Worker
    maintenance，并把唯一固定 Qwen2.5 模型精确调度到 Rust GPU0。部署不得使用 `--wait`。
    在 300 秒内捕获完整状态序列和 ModelFile ready 后，实例只能停在 `STARTING` 并保持
@@ -210,9 +214,10 @@ M6-A.2.3。该阶段完成离线实现、D033 报告和用户接受前，M6-A.3.
 runtime。
 
 M6-A.1、M6-A.2、M6-A.2.1 和 M6-A.2.2 均已在 D033 详细实现报告后获用户接受。
-M6-A.2.3 的接口、源码、离线质量门禁和 D033 详细报告已经用户接受。M6-A.3.0 的方法
-已经冻结且 CLI 前置条件已经关闭，当前为 `ready_for_authorization`，但实际只读预检未获
-授权。
+M6-A.2.3 的接口、源码、离线质量门禁和 D033 详细报告已经用户接受。第一次 M6-A.3.0
+已获只读授权但因没有 operator Context 按协议停止；停止证据保留在原固定目录。D107–D110
+已经冻结 API Key/Context 准备门禁，当前为 `authorized_pending_human_secret_entry`。
+准备成功后，第二次预检固定使用 `m6a3-formal-attempt-2`，但仍须新的明确执行授权。
 预检通过也不能自动开始 M6-A.3.1。真实 Server 写入、maintenance 变化和停止 Python
 Worker 必须在预检结果获共同审阅后另行明确授权。两段均不授权 Docker workload、GPU
 workload 或推理。

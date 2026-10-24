@@ -357,3 +357,17 @@ Model/ModelInstance/ModelFile。两段均不授权 Docker workload、GPU workloa
 D103–D106 只关闭 M6-A.3 手册已经识别的产品 CLI 缺口，不改变 D086–D091、D098–D102
 的状态链、回滚和分段授权。用户接受本设计只授权文档、源码和离线测试；不授权读取真实
 凭据、连接真实 Server、改变 maintenance、停止 Python Worker、访问 Docker 或使用 GPU。
+
+## 2026-10-24 M6-A.3 operator Context 准备门禁
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D107 | operator 凭据类型 | Context 必须使用固定 v2.2.3 Server 创建的正式 API Key，不使用 `/auth/login` 产生的 session JWT，也不复用 Cluster registration token 或 per-Worker token | 源码核对确认 `/auth/login` 只把 120 分钟 JWT 写入 cookie；Rust CLI 固定发送 Bearer，而 Server 会把 Bearer 解析为 API Key。把 session JWT 写入 token 文件会稳定认证失败，其他系统凭据则具有错误身份和权限。 |
+| D108 | 最小权限与生命周期 | 通过本地管理员的隐藏式交互登录创建唯一 `rust-worker-m6a3-operator-20261024` API Key，scope 仅为 `management`，有效期固定 7 天。M6-A.3.1 完成、项目中止或凭据不再需要时，删除该 Key 和本地 Context/token；过期不得被解释为预检失败，必须重新走凭据准备门禁 | M6-A.3 只需要 Worker、Model 和 ModelFile 管理 API，不需要 inference scope。短期、阶段专用凭据限制泄露窗口，又为预检审阅与维护窗口授权保留合理时间。 |
+| D109 | secret 输入与落盘 | 用户只在 90 主机终端以无回显方式输入用户名和密码；密码、cookie、API Key 完整创建响应只进入 mode `0600` 的临时文件，且不进入参数、shell history、聊天、Git 或证据。最终 token 文件固定为 `/home/wujiaxing2/.config/gpustack-rs/credentials/m6a3-operator.token`，Context 固定名 `lab90`，Server URL 为 `http://127.0.0.1/`；临时 secret 在 Context 只读验证后逐文件清除 | Rust Context 只保存 token 文件引用；受限文件和最小暴露面符合既有 credential 契约，并避免再次把密码或 token 带入聊天及进程参数。 |
+| D110 | 失败证据保留与重跑路径 | 已停止的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal` 永久保留为 attempt 1，不删除、不改名、不覆盖。下一次获授权的完整预检固定使用尚未创建的 `m6a3-formal-attempt-2`。Context 准备成功只解除前置条件，不自动重跑 M6-A.3.0，也不授权 M6-A.3.1 | 证据路径是原协议的一部分；显式滚动到新目录既保存失败链，也避免通过覆盖历史制造看似首次通过的结果。重新执行仍需外部漂移检查和新的明确授权。 |
+
+用户已明确授权 D108 所述的一次 API Key 创建写入和 D109 所述的本地 Context/token
+准备；授权不包含改变 Worker maintenance、创建 Model/ModelInstance/ModelFile、停止 Python
+Worker、启动 Rust Worker、访问 Docker、使用 GPU 或重跑 M6-A.3.0。由于密码必须仅在用户
+终端隐藏输入，该门禁在交互命令成功前保持 `authorized_pending_human_secret_entry`。

@@ -2177,6 +2177,33 @@
   以及如何保留本次证据并为重跑提供未使用路径。完成准备后也必须重新检查外部漂移并获得
   新的 M6-A.3.0 执行授权。
 
+### 2026-10-24：M6-A.3 operator Context 准备门禁冻结并获授权
+
+- 源码核查：固定 Server `1cfcbbff` 的 `POST /auth/login` 接受表单认证但只把默认 120 分钟
+  JWT 写入 `gpustack_session` cookie；Rust `ReqwestTransport` 固定使用 Bearer。Server 的
+  `authenticate_request` 对 cookie 解码 JWT、对 Bearer/X-API-Key 调用 API Key 校验，因此
+  login JWT 不能直接作为 Rust Context token。
+- 决策：用户接受 D107–D110。创建唯一 `rust-worker-m6a3-operator-20261024` API Key，
+  scope 仅 `management`、有效期 7 天；token 文件固定为
+  `/home/wujiaxing2/.config/gpustack-rs/credentials/m6a3-operator.token`，active Context 固定为
+  `lab90`。不复用 Cluster 或 Worker system credential。
+- 授权：用户明确同意该一次 API Key Server 写入和本地 Context/token 写入。授权不包含
+  maintenance、Model/ModelInstance/ModelFile、Python Worker、Rust Worker、Docker、GPU、
+  推理或重跑 M6-A.3.0。
+- secret 边界：管理员用户名和密码只由用户在 90 终端无回显输入；密码、session cookie、
+  完整 Key 响应只允许进入 mode 0600 临时文件，验证后逐文件清除，不进入参数、终端、聊天、
+  Git 或证据。此前聊天中出现的密码不得被助手复用。
+- 证据滚动：第一次停止证据目录 `m6a3-formal` 保持不可变；下一次获授权的完整预检固定使用
+  尚未创建的 `m6a3-formal-attempt-2`。准备完成不自动开始预检，仍需重新检查漂移并获得新
+  授权。
+- 漂移审计：凭据准备是第一次预检暴露出的真实前置条件；API Key 创建是经用户单独授权的
+  intentional change。它不放宽 D098–D102 的只读预检、维护窗口、状态链或回滚门禁，结论为
+  `intentional_change_approved`。
+- 当前停止位置：设计和授权已完成，状态为 `authorized_pending_human_secret_entry`；等待
+  用户在 90 主机执行交互命令并返回脱敏结果。
+- 下一项允许执行的工作：只执行 Context 准备脚本、确认临时 secret 已清除，并用正式 CLI
+  只读查询精确 Rust Worker。成功后记录准备证据，但不得自动重跑 M6-A.3.0。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

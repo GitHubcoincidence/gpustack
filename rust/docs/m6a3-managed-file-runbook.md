@@ -43,12 +43,31 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | GPU | index `0`；预检时重新核对 UUID 为 `GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3` |
 | 部署参数 | tensor parallel `1`、max model length `2048`、GPU memory utilization `0.5`、dtype `auto`、eager execution |
 | Managed 端口池 | `40000-40063`，由 Rust Worker 分配或复用 |
-| 证据目录 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal` |
+| 第一次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal`，已保存停止证据，不得修改 |
+| 第二次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-2`，重跑获授权前必须不存在 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
 `trust_remote_code`。若任何固定输入需要改变，必须先讨论并记录修订，不能在运行中临时
 替换。
+
+## Operator Context 准备门禁
+
+固定 v2.2.3 的 `/auth/login` 只创建 session cookie；Rust CLI 则固定用 Bearer 认证，而
+Server 把 Bearer 解释为 API Key。因此不能把 login JWT、Cluster registration token 或
+per-Worker token 写入 Context。正式 Context 使用唯一
+`rust-worker-m6a3-operator-20261024` API Key，scope 仅为 `management`，有效期 7 天。
+
+用户在 90 主机终端无回显输入本地管理员用户名和密码。登录表单、cookie jar 和包含完整
+API Key 的创建响应只能存在于 mode 0600 临时文件；token 值不得进入参数、终端输出、聊天、
+Git 或正式证据。最终 token 文件固定为
+`/home/wujiaxing2/.config/gpustack-rs/credentials/m6a3-operator.token`，Context 名为
+`lab90`，Server URL 为 `http://127.0.0.1/`。创建后只允许用 `context list` 和
+`worker get rust-m3d-r760xa` 验证 Context 与只读管理权限，随后逐文件删除临时 secret。
+
+该门禁的唯一 Server 写入是创建上述 API Key；它不修改 Worker、maintenance、Model、
+ModelInstance 或 ModelFile。准备成功不等于 M6-A.3.0 通过，也不自动授权第二次预检。
+M6-A.3.1 完成、项目中止或凭据不再需要时必须删除 Server API Key、Context 和 token 文件。
 
 ## CLI 前置条件
 
@@ -102,7 +121,8 @@ ModelFile。M6-A.3.0 需要这两项能力才能证明 maintenance/身份和同�
    - Server、Python Worker health `10150` 和 metrics `10151` 均正常；
    - 记录精确 `gpustack-worker` container ID、名称、镜像 digest、命令、restart policy、
      network、mount 和当前状态，保证后续只停止并恢复同一对象；
-   - 正式证据目录必须尚不存在。建立时使用 `0700`，文件使用 `0600`；
+   - 第二次正式证据目录 `m6a3-formal-attempt-2` 必须尚不存在；第一次停止证据目录必须
+     原样存在。新目录建立时使用 `0700`，文件使用 `0600`；
    - 固定二进制 help 中存在 maintenance、Model、ModelFile 清理入口，回滚不依赖 Web UI
      或未文档化写请求。
 
