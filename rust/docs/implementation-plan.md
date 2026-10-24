@@ -210,8 +210,9 @@ M6-A.2.3。该阶段完成离线实现、D033 报告和用户接受前，M6-A.3.
 runtime。
 
 M6-A.1、M6-A.2、M6-A.2.1 和 M6-A.2.2 均已在 D033 详细实现报告后获用户接受。
-M6-A.2.3 的接口和离线边界已经冻结，当前进入离线实现。M6-A.3.0 的方法已经冻结，但实际
-只读预检未获授权。M6-A.2.3 完成并获接受后，
+M6-A.2.3 的接口、源码和离线质量门禁已经完成，当前为 `ready_for_review`，等待 D033
+详细报告和用户接受。M6-A.3.0 的方法已经冻结，但实际只读预检未获授权。M6-A.2.3
+获接受后，
 预检通过也不能自动开始 M6-A.3.1。真实 Server 写入、maintenance 变化和停止 Python
 Worker 必须在预检结果获共同审阅后另行明确授权。两段均不授权 Docker workload、GPU
 workload 或推理。
@@ -417,6 +418,7 @@ Worker、Docker 或 GPU 操作仍须另行明确授权。
 M6-A.2.2 的源码、mock 契约、完整 Rust workspace 质量门禁、干净构建、Git 提交和推送
 已经完成。用户审阅详细实现报告后已接受该门禁，目前为 `accepted`。D098–D102 和
 `m6a3-managed-file-runbook.md` 已冻结 M6-A.3.0 只读预检以及 M6-A.3.1 真实 smoke 的
-输入、检查项、停止条件、证据和回滚。下一项只允许讨论并冻结只读 Worker/ModelFile
-查询的最小离线 CLI 前置门禁；该门禁完成并获接受后，M6-A.3.0 仍需另行明确执行授权。
-后续真实 Server 写入、maintenance 切换和 Python Worker 维护窗口还须第二次明确授权。
+输入、检查项、停止条件、证据和回滚。M6-A.2.3 的只读 Worker/ModelFile CLI 已完成
+离线实现和质量门禁，当前为 `ready_for_review`。下一项只允许交付并审阅 D033 详细报告；
+该门禁获接受后，M6-A.3.0 仍需另行明确执行授权。后续真实 Server 写入、maintenance
+切换和 Python Worker 维护窗口还须第二次明确授权。

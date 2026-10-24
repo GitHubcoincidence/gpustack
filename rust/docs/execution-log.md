@@ -2082,6 +2082,34 @@
 - 下一项允许执行的工作：完成 M6-A.2.3 源码与离线测试，提交 D033 详细报告。即使该阶段
   获接受，M6-A.3.0 仍须另行明确执行授权。
 
+### 2026-10-24：M6-A.2.3 只读预检 CLI 实现完成
+
+- 结果与状态：`worker get <worker-id-or-exact-name>` 和
+  `model file list --worker <worker-id-or-exact-name>` 已完成实现、离线测试、提交和 fork
+  推送；阶段为 `ready_for_review`，尚未接受。
+- Git 证据：设计检查点为 `775ea707801a2650d1092758c37b2c4a8d55a74a`，实现提交为
+  `1130546ca89f99f59dc318d9694a6552a023fd8a`。本机、fork 和 90 工作树同步到实现提交，
+  目标 tracked 文件干净。
+- 实现证据：Worker 数字 ID/精确名称解析、正整数门禁、无结果/重名失败、安全白名单
+  table/JSON 和 GPU 数量摘要已覆盖；ModelFile 列表强制 Worker scope、调用类型化
+  `/v2/model-files?page=-1&worker_id=<id>`、按 ID 排序并支持空列表。
+- 测试证据：固定 Rust 1.99.1 下 152 项 workspace 测试、全部 doc-test、fmt、
+  locked/offline all-targets check、Clippy `-D warnings` 和 locked/offline build 全部通过。
+  mock 覆盖 ID/精确名称、URL 编码、无结果、重名、401/403/404/5xx、敏感扩展排除、稳定
+  排序、table/JSON 与空列表。
+- 构建证据：从干净实现提交重建的 debug CLI 报告
+  `git_commit=1130546ca89f`、`rust_toolchain=1.99.1`，SHA-256 为
+  `fd20877b521e14558b2e76ab47e716548eb708c0b30044969ed12d7203e4579c`；Cargo.lock SHA-256
+  保持 `4094d427f9ec18e671e9d639bd9a576c0d620af9da1ca87970da05319dd4857b`，没有新增依赖。
+- 仓库级 lint：`make lint` 已执行，但 90 主机仍缺少 `uv`，在 pre-commit 启动前以
+  status 127 退出；该环境限制不记为通过，也没有安装新工具。
+- 外部副作用：没有读取真实 Context/token、连接真实 Server、改变 maintenance、停止
+  Python Worker、访问 Docker socket、创建容器、申请 GPU 或运行推理。
+- 漂移审计：实现与 D103–D106 对齐，只补齐 D090 的只读 CLI 证据入口；D086
+  `STARTING` 边界和 D098–D102 的分段授权未改变，结论为 `aligned`。
+- 当前停止位置：等待聊天中的 D033 详细实现报告和用户验收；M6-A.3.0 尚未执行且仍为
+  `not_ready`。验收本阶段也不会自动授权预检或维护窗口。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

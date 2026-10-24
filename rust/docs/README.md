@@ -32,15 +32,15 @@
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1 和
   M6-A.2.2。当前 Rust CLI 已具备 Context、Model、Worker maintenance 和安全 ModelFile
   元数据清理能力，`worker run --managed-file-only` 已接入离线验证的 Managed 文件准备
-  协调器。
+  协调器。M6-A.2.3 的只读 `worker get` 与按 Worker 的 `model file list` 已完成离线实现，
+  当前为 `ready_for_review`，尚未计入已接受范围。
 - 当前证据边界：M5 已真实证明宿主机进程形态的单 GPU Lab Qwen2.5/vLLM 全流程；M6-A
   当前只具有离线 fixture/fake/mock、构建和 CLI 契约证据。尚未证明真实 Server 上的
   Managed ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
 - 当前停止位置：M6-A.3 手册已冻结，但没有执行 M6-A.3.0，未重新探测或改变 90 主机
   上的 Server、Worker、Docker、端口或 GPU 状态。预检需要的只读 Worker/ModelFile CLI
-  契约已冻结为 M6-A.2.3，当前进入离线实现；M6-A.3.0 仍为 `not_ready`。
-- 下一项允许执行的工作：只实现并离线验证 `worker get` 与按 Worker 的
-  `model file list`，交付 D033 详细报告并等待接受。接受后，M6-A.3.0
+  已实现并完成离线门禁，等待 D033 详细报告和用户接受；M6-A.3.0 仍为 `not_ready`。
+- 下一项允许执行的工作：只交付并审阅 M6-A.2.3 详细实现报告。接受后，M6-A.3.0
   仍需单独明确执行授权；预检通过并共同审阅后，M6-A.3.1 的 Server 写入、maintenance
   切换和 Python Worker 维护窗口还需第二次授权。任何一步都不授权 Docker/GPU workload
   或推理。
