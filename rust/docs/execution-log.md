@@ -2110,6 +2110,32 @@
 - 当前停止位置：等待聊天中的 D033 详细实现报告和用户验收；M6-A.3.0 尚未执行且仍为
   `not_ready`。验收本阶段也不会自动授权预检或维护窗口。
 
+### 2026-10-24：M6-A.2.3 只读预检 CLI 接受
+
+- 结果与状态：用户审阅 D033 详细实现报告后确认无问题；M6-A.2.3 从
+  `ready_for_review` 更新为 `accepted`。
+- 接受证据：设计检查点为 `775ea707801a2650d1092758c37b2c4a8d55a74a`，实现提交为
+  `1130546ca89f99f59dc318d9694a6552a023fd8a`，待审治理检查点为
+  `1a756a7d7f3be9ead1649dbaf2cbda16ed23ae02`。固定 Rust 1.99.1 下 152 项 workspace
+  测试、全部 doc-test、fmt、locked/offline check、Clippy `-D warnings`、build 和干净
+  二进制身份继续作为接受依据。
+- 接受范围：`worker get` 的 ID/精确名称解析、安全白名单 table/JSON，以及强制 Worker
+  scope、按 ModelFile ID 稳定排序的 `model file list`。没有接受全局 Worker/ModelFile
+  枚举、ModelInstance list 或新的 Server API。
+- 已知限制：`make lint` 仍因 90 主机缺少 `uv` 未能启动 pre-commit；该限制没有因用户
+  接受而改写为通过，也没有安装新依赖。
+- 明确非结论：本次接受只证明离线 CLI、mock 契约和构建门禁，不证明真实 operator
+  token、真实 Worker/ModelFile 响应、Server 状态链、maintenance、Python Worker drain、
+  Docker/vLLM、推理或 GPU 能力。
+- 漂移审计：接受没有改变 D086 `STARTING` 边界、D098–D102 的验证协议或两级授权；没有
+  把离线 artifact 提升为真实 Managed 证据，结论为 `aligned`。
+- Git 状态：接受前复核本机、fork 和 90 均为 `1a756a7d`；90 tracked 工作树干净，本机
+  仅有既存未跟踪 `output/`，未纳入提交。
+- 当前停止位置：M6-A.2.3 已接受；M6-A.3.0 从 CLI 缺口导致的 `not_ready` 更新为
+  `ready_for_authorization`，但尚未连接真实 Server 或执行任何预检检查。
+- 下一项允许执行的工作：只讨论或由用户单独明确授权 M6-A.3.0。即使预检通过，M6-A.3.1
+  的 Server 写入、maintenance 切换和 Python Worker 维护窗口仍须新的明确授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

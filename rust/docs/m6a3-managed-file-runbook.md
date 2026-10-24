@@ -59,9 +59,9 @@ ModelFile。M6-A.3.0 需要这两项能力才能证明 maintenance/身份和同�
 
 该缺口已经通过 D103–D106 冻结为 M6-A.2.3，接口为
 `worker get <worker-id-or-exact-name>` 与
-`model file list --worker <worker-id-or-exact-name>`。源码与离线质量门禁已经完成，当前为
-`ready_for_review`；在 D033 详细报告获用户接受前，M6-A.3.0 仍为 `not_ready`。不得用
-curl 临时绕过，也不得把实现授权解释为预检执行授权。
+`model file list --worker <worker-id-or-exact-name>`。源码、离线质量门禁和 D033 详细报告
+已经用户接受，M6-A.3.0 当前为 `ready_for_authorization`，但尚未执行。不得把 M6-A.2.3
+的接受解释为预检执行授权，也不得用 curl 临时绕过冻结命令。
 
 ## M6-A.3.0：独立只读预检
 
