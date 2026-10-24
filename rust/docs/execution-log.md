@@ -20,6 +20,9 @@
   写前刷新、CLI 前移、maintenance 运维命令和四段门禁；接受只解锁离线 M6-A.1。
 - 2026-10-24：发现正式 `worker run` 尚未接入 M6-A.1 协调器；冻结 D092–D094，在
   M6-A.2 与真实 smoke 之间增设 M6-A.2.1 离线生产入口接线门禁。
+- 2026-10-24：M6-A.2.2 ModelFile 清理 CLI 已接受；随后冻结 D098–D102，把 M6-A.3
+  拆为须分别授权的 M6-A.3.0 只读预检和 M6-A.3.1 真实无 Docker 维护窗口，并固定
+  `STARTING` 终点、零 runtime、精确清理、Python Worker 恢复与证据边界。
 
 ## 当前状态
 
@@ -32,15 +35,16 @@
   M6-A.2；M6-A.2 的接受范围仍限于离线 CLI 实现、mock 契约和构建门禁。用户已接受
   D092–D094。用户已审阅 D033 详细实现报告并接受 M6-A.2.1；接受范围仅为正式
   managed-file-only 入口、离线 fake/mock 契约和构建门禁。用户已接受 D095–D097，并在
-  审阅详细实现报告后接受 M6-A.2.2 ModelFile 清理 CLI。
+  审阅详细实现报告后接受 M6-A.2.2 ModelFile 清理 CLI。M6-A.3.0/.3.1 手册和
+  D098–D102 已冻结，但尚未执行任何真实预检或维护窗口步骤。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`；M6-A.2 实现提交为
   `aff61fe2c7e98c50d3b5d273f6fbc582877a633f`；M6-A.2.1 实现提交为
   `e1e3ee4a662099c1acfc60a8cfae0c8129b7d762`，CLI 帮助补充提交为
   `dc53b9aedd6465a0564ecc07aeda03b1cf0c70fb`；M6-A.2.2 实现提交为
-  `f19a8fcd41ed8368931509ae3120a6b0d7098043`，待审治理检查点为
-  `64b56abaa6f9cd39c8e2b8790f4010256108024e`。
+  `f19a8fcd41ed8368931509ae3120a6b0d7098043`，接受检查点为
+  `93021744086dd806e30f55a695e87df71c452d3e`。
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
   `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
@@ -48,15 +52,16 @@
   M6-A.2 提供 Context、最小 Model CRUD/status、精确 Worker maintenance CLI、稳定
   table/JSON、确认、退出码、状态跟踪与凭据文件安全读取；接受依据仍只有离线 mock 证据。
   M6-A.2.1 正式 managed-file-only CLI/supervisor 接线和 M6-A.2.2 ModelFile 元数据安全清理
-  CLI 已经用户接受。
-- 当前停止位置：本阶段只在 90 主机工作树执行 locked/offline 编译与测试，没有启动 Rust
-  Worker、读取真实 Worker token、连接 Server API、改变 maintenance、停止 Python Worker、
-  访问 Docker socket、创建容器或使用 GPU。M5 完成时的运行环境结论是历史接受证据，
-  本阶段未重新探测或刷新它。
-- 下一项允许执行的工作：只讨论并冻结 M6-A.3.0 独立只读预检的输入、检查项、停止条件
-  和证据，以及后续 M6-A.3.1 真实无 Docker smoke 的维护、证据和回滚边界。预检执行、
-  真实 Server 写入、maintenance 变化、停止 Python Worker、Docker 或 GPU 操作仍须分别
-  获得明确授权，不能因离线门禁已接受而自动执行。
+  CLI 已经用户接受。M6-A.3.0/.3.1 的固定输入、状态链、超时、证据、清理和回滚协议见
+  `m6a3-managed-file-runbook.md`。静态 CLI 核对发现预检所需的只读 Server Worker 查询和
+  按 Worker 的 ModelFile 列表尚无产品命令，M6-A.3.0 当前为 `not_ready`。
+- 当前停止位置：本次只冻结治理文档，没有启动 Rust Worker、读取真实 token、连接真实
+  Server API、改变 maintenance、停止 Python Worker、访问 Docker socket、创建容器或使用
+  GPU。M5 完成时的运行环境结论仍是历史接受证据，本次没有重新探测或刷新它。
+- 下一项允许执行的工作：先讨论并冻结候选 `worker get <worker>` 与
+  `model file list --worker <worker>` 的最小离线 CLI 前置门禁，不能用 Web UI 或原始 curl
+  绕过。前置门禁实现并接受后，M6-A.3.0 仍需单独授权；M6-A.3.1 还须在预检共同审阅后
+  第二次授权。任何一步都不授权 Docker/GPU workload 或推理。
 
 ## 里程碑
 
@@ -2022,6 +2027,42 @@
   上的 Server、Worker、Docker、端口或 GPU 运行状态。
 - 下一项允许执行的工作：只讨论并冻结 M6-A.3.0 只读预检和 M6-A.3.1 维护窗口 runbook；
   M6-A.3.0 的实际远程检查与 M6-A.3.1 的任何真实写操作仍须分别明确授权。
+
+### 2026-10-24：M6-A.3 真实文件准备验证手册冻结
+
+- 目的：在第一次真实 Managed 文件准备写入前，固定可证伪主张、输入、两级授权、状态
+  证据、停止条件、清理和 Python Worker 恢复顺序。
+- 决策与状态：用户接受 D098–D102。M6-A.3.0 为独立只读预检，M6-A.3.1 为预检通过并
+  共同审阅后另获授权的维护窗口；手册状态为 `frozen`。静态核对同时发现当前 CLI 缺少
+  预检需要的只读 Server Worker 查询和按 Worker 的 ModelFile 列表，因此 M6-A.3.0 为
+  `not_ready`，M6-A.3.1 为 `not_started`。
+- 固定输入：Server v2.2.3/`1cfcbbff`、Rust Worker `rust-m3d-r760xa`、固定本地
+  Qwen2.5 revision/path、Model name `m6a3-qwen25-05b-gpu0`、固定 Runner digest、GPU0、
+  TP=1、2048 context、0.5 GPU memory、dtype auto 和 eager。正式部署禁止 `--wait`。
+- 接受边界：必须以连续证据证明 `SCHEDULED -> INITIALIZING -> DOWNLOADING -> STARTING`
+  和 ModelFile `downloading -> ready`，随后在 `STARTING` 观察 60 秒；不得出现 Docker
+  client/container、vLLM、inference listener、GPU compute process、可归因显存增长或
+  `RUNNING`。
+- 隔离与回滚：正式维护窗口仍停止并恢复精确 Python Worker，以避免同一物理 GPU 的两个
+  Worker reporter 削弱结果归因。清理先恢复 Rust maintenance，再删除精确 Model/
+  ModelInstance 和 `cleanup=false` 的 ModelFile 元数据，核对本地模型不变，停止精确 Rust
+  PID，最后恢复原 Python Worker 并验证资源 ID、容器、端口和 GPU 零残留。
+- 证据：完整协议见 `rust/docs/m6a3-managed-file-runbook.md`；原始运行证据未来写入 Git 外
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal`，目录在预检时
+  必须尚不存在。文档冻结本身没有生成任何运行证据。
+- 漂移审计：方案保留 D086 `STARTING` 边界、D087 Worker 端口责任、D088 本地路径规则、
+  D089 写前刷新、D090 CLI-first 和 D091 独立授权；没有把 M5 Lab 或 M6 离线 artifact
+  提升为 Managed 证据，结论为 `aligned`。
+- 新发现前置条件：当前 CLI 只有 `worker maintenance enable|disable` 与
+  `model file get/delete`。若直接执行预检，maintenance/身份和同路径 ModelFile 冲突只能
+  借助 Web UI 或未文档化原始请求，违反 D090。候选补充接口为
+  `worker get <worker>` 和 `model file list --worker <worker>`；接口及新增门禁尚未获得用户
+  接受或实现，不能默认为授权。
+- 外部副作用：本次只修改治理文档，没有连接真实 Server、读取 token、启动 Rust Worker、
+  改变 maintenance、停止 Python Worker、访问 Docker 或使用 GPU。
+- 当前停止位置：M6-A.3 方法已冻结，但 CLI 前置缺口未关闭，M6-A.3.0 尚未执行。
+- 下一项允许执行的工作：只讨论并冻结最小只读 CLI 前置门禁。该门禁实现、离线验证、
+  D033 详细报告和用户接受完成后，才能请求 M6-A.3.0 的单独执行授权。
 
 ## 未解决风险与待确认事项
 

@@ -324,3 +324,23 @@ socket、创建容器、申请 GPU 或运行推理。M6-A.3 仍须在 M6-A.2.1 �
 
 D095–D097 是对 D091 回滚闭环的必要补充，不改变 M6-A 的状态边界、模型、GPU、Runner、
 Worker 身份或正式 smoke 解释。M6-A.3 仍拆为独立只读预检和另行授权的维护窗口。
+
+## 2026-10-24 M6-A.3 真实文件准备验证手册冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D098 | 两级执行授权 | 把 M6-A.3 明确拆为 M6-A.3.0 独立只读预检和 M6-A.3.1 真实维护窗口。预检可以核对 Git/二进制/Server/Worker/模型/GPU/端口/Docker/Python Worker 基线并在 Git 外准备受保护证据，但不启动 Rust Worker、不修改 Server 资源或 maintenance、不停止 Python Worker。预检通过和共同审阅后，M6-A.3.1 仍须新的明确授权 | 可提前发现 identity、冲突和回滚材料问题，又不让“方案已接受”或“预检通过”被误解为允许真实写入和服务切换。 |
+| D099 | 固定 smoke 输入和正确终点 | 唯一测试 Model name 为 `m6a3-qwen25-05b-gpu0`，固定 Qwen2.5 revision/local path、Runner digest、Rust Worker、GPU0、TP=1、max model length 2048、GPU memory utilization 0.5、dtype auto 和 eager。部署不得使用 `--wait`；通过终点是 Server 权威 `STARTING` 保持 60 秒和 Rust no-op，不是 `RUNNING` | `model deploy --wait` 只在 `RUNNING` 成功，而 M6-A.3 按 D086 有意不启动 runtime；禁止 `--wait` 防止把正确的 `STARTING` 误判为失败或诱导实现越界。固定 name 和 spec 让清理与证据能按精确 ID 归因。 |
+| D100 | 状态链和零 runtime 门禁 | 300 秒内用 Rust 结构化事件、CLI 与 Server 快照共同证明 `SCHEDULED -> INITIALIZING -> DOWNLOADING -> STARTING` 和 ModelFile `downloading -> ready`；同时证明没有 Docker client/container、vLLM、inference listener、GPU compute process、可归因显存增长或 `RUNNING` 写入 | 最终状态本身不能证明端口和 ModelFile 责任正确；组合时间线验证各层所有权。零 runtime 证据确保 M6-A 和 M6-B 的风险边界没有漂移。 |
+| D101 | Python Worker 隔离和有界时限 | 即使 GPU0 预检空闲，正式 M6-A.3.1 仍只在维护窗口内停止并最终恢复精确 `gpustack-worker` 容器；Server 始终运行。Rust 启动、状态链、`STARTING` 保持和总 watchdog 分别使用 120、300、60 和 900 秒的有界时限，失败不在同一 run 内临时换输入或无限延长 | Python 与 Rust Worker 同时报同一物理 GPU 会削弱调度和状态证据的归因，即使没有即时 compute process。固定时限让失败可判定，避免观察结果后调整协议。 |
+| D102 | 清理、恢复和证据 | 清理顺序固定为先恢复 Rust maintenance，再删除精确 Model/ModelInstance，随后重新 GET 并以 `cleanup=false` 删除精确 ModelFile 元数据，核对本地模型未变，停止精确 Rust PID，最后恢复原 Python Worker 并做资源 ID/容器/端口/GPU 零残留差分。任何恢复或清理失败都使正式 run 失败。Git 外证据不得包含 secret | Server 删除 Model 不自动删除独立 ModelFile；先隔离调度再窄范围删除可避免新任务和误删。`cleanup=false` 保留共享模型数据，最终恢复门禁确保成功状态链不能掩盖环境破坏。 |
+
+D098–D102 的完整检查组、停止条件、执行顺序、回滚和证据契约见
+`m6a3-managed-file-runbook.md`。固定 ModelFile 冲突检查是硬门禁：若 Rust Worker 已有同一
+`local_path` 的 ready 记录，正式 run 会复用缓存而不能证明 `downloading -> ready`，因此
+预检必须停止且不得自行删除该记录。
+
+用户接受本手册只把 M6-A.3.0 标记为 `frozen`，不授权实际连接 90 环境执行预检。
+M6-A.3.0 和 M6-A.3.1 的执行必须分别获得后续明确授权；M6-A.3.1 的授权还必须明确包含
+停止和恢复 Python Worker、改变精确 Rust Worker maintenance 以及创建和删除唯一测试
+Model/ModelInstance/ModelFile。两段均不授权 Docker workload、GPU workload 或推理。

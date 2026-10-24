@@ -159,7 +159,7 @@ M6-A 只证明 Server 托管状态链、Worker 服务端口分配和本地 Model
 Docker、不创建 vLLM 容器、不运行推理。固定状态边界是
 `SCHEDULED -> INITIALIZING -> DOWNLOADING -> STARTING`；`STARTING -> RUNNING` 属于 M6-B。
 
-M6-A 分成五个独立门禁：
+M6-A 分成七个独立门禁：
 
 1. **M6-A.0 契约冻结**：从部署 commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`
    复核 Python Worker、Server Controller、Model/ModelInstance/ModelFile 路由和 scheduler。
@@ -176,12 +176,28 @@ M6-A 分成五个独立门禁：
    接入 M6-A.1 协调器，启动时要求 Worker 已处于 maintenance，但不自动改变 maintenance。
    结构化事件记录实例/文件 ID、观察状态、端口、文件结果和 `STARTING` no-op；该模式
    不得构造 Docker client、WorkloadSpec、容器或 vLLM runtime。全部验证使用 fake/mock。
-5. **M6-A.3 真实无 Docker smoke**：另获授权后停止 Python Worker，启动
-   `--managed-file-only`，由 CLI 临时解除 Rust Worker maintenance，并把唯一固定 Qwen2.5
-   模型精确调度到 Rust GPU0。捕获完整状态序列和 ModelFile READY 后，实例只能停在
-   `STARTING`；期间 Docker client/container、inference listener、GPU process 和显存使用
-   必须为 0。随后用 CLI 删除测试模型、恢复 maintenance、停止 Rust Worker 并恢复原
-   Python Worker，复核 Server 资源集合与全部零残留门禁。
+5. **M6-A.2.2 离线 ModelFile 清理 CLI**：实现 `model file get/delete`。删除前读取最新
+   对象并限制为精确 Worker 上具有非空本地路径的 `local_path` ModelFile；危险操作要求
+   确认并固定 `cleanup=false`，只删除 Server 元数据，不删除宿主机模型数据。mock transport
+   覆盖非法 ID、非本地来源、Server 引用冲突和 secret 脱敏。
+6. **M6-A.3.0 独立只读预检**：另获授权后核对固定源码/二进制/Server/Worker/Context、
+   唯一测试 name、无同路径 ModelFile、Qwen2.5 manifest、GPU0、受管端口、Docker 与原
+   Python Worker 的精确恢复材料。允许从干净冻结提交构建二进制并在 Git 外建立受保护
+   证据目录；不启动 Rust Worker、不修改 Server 或 maintenance、不停止 Python Worker。
+7. **M6-A.3.1 真实无 Docker smoke**：M6-A.3.0 通过并共同审阅后另获维护授权，停止
+   精确 Python Worker，启动 `--managed-file-only`，由 CLI 临时解除 Rust Worker
+   maintenance，并把唯一固定 Qwen2.5 模型精确调度到 Rust GPU0。部署不得使用 `--wait`。
+   在 300 秒内捕获完整状态序列和 ModelFile ready 后，实例只能停在 `STARTING` 并保持
+   观察 60 秒；期间 Docker client/container、inference listener、GPU compute process 和
+   可归因显存增长必须为 0。随后先恢复 maintenance，再用 CLI 删除精确
+   Model/ModelInstance 和 ModelFile 元数据、核对本地模型不变，停止 Rust Worker 并恢复
+   原 Python Worker，复核 Server 资源集合与全部零残留门禁。完整协议见
+   `m6a3-managed-file-runbook.md`。
+
+静态 CLI 核对发现 M6-A.3.0 还缺少读取精确 Server Worker 和按 Worker 列出 ModelFile 的
+产品命令。当前候选为 `worker get <worker>` 与 `model file list --worker <worker>`；在用户
+接受新的离线门禁并完成实现前，它们只是待讨论接口，不计入上述已冻结里程碑。D090 禁止
+用 Web UI 或未文档化 curl 绕过该缺口，故 M6-A.3.0 当前为 `not_ready`。
 
 本地路径只允许固定模型根目录内的绝对路径，canonical symlink 不得越界；目录和普通
 文件返回 canonical path，分片必须编号连续、声明总数一致且稳定排序，并递归计算字节数。
@@ -189,9 +205,11 @@ M6-A 分成五个独立门禁：
 `error` 和脱敏有界消息。M6-A 不支持网络下载、LoRA、draft model、跨 Worker 或多 GPU
 runtime。
 
-M6-A.1、M6-A.2 和 M6-A.2.1 都必须分别交付 D033 详细实现报告并获用户接受；当前只
-授权 M6-A.2.1 的离线源码与测试。M6-A.3 的真实 Server 写入、maintenance 变化和停止
-Python Worker 必须在 M6-A.2.1 获接受后另获明确授权。
+M6-A.1、M6-A.2、M6-A.2.1 和 M6-A.2.2 均已在 D033 详细实现报告后获用户接受。
+M6-A.3.0 的方法已经冻结，但尚有上述 CLI 前置缺口且实际只读预检未获授权。缺口关闭后，
+预检通过也不能自动开始 M6-A.3.1。真实 Server 写入、maintenance 变化和停止 Python
+Worker 必须在预检结果获共同审阅后另行明确授权。两段均不授权 Docker workload、GPU
+workload 或推理。
 
 ## 验证策略
 
@@ -392,6 +410,8 @@ Worker maintenance CLI 已完成实现、mock 测试和 Git 推送。用户审�
 Worker、Docker 或 GPU 操作仍须另行明确授权。
 
 M6-A.2.2 的源码、mock 契约、完整 Rust workspace 质量门禁、干净构建、Git 提交和推送
-已经完成。用户审阅详细实现报告后已接受该门禁，目前为 `accepted`。下一项只允许讨论并
-冻结 M6-A.3.0 只读预检的输入、检查项、停止条件和证据；预检本身以及后续真实 Server
-写入、maintenance 切换和 Python Worker 维护窗口仍须分别获得明确授权。
+已经完成。用户审阅详细实现报告后已接受该门禁，目前为 `accepted`。D098–D102 和
+`m6a3-managed-file-runbook.md` 已冻结 M6-A.3.0 只读预检以及 M6-A.3.1 真实 smoke 的
+输入、检查项、停止条件、证据和回滚。下一项只允许讨论并冻结只读 Worker/ModelFile
+查询的最小离线 CLI 前置门禁；该门禁完成并获接受后，M6-A.3.0 仍需另行明确执行授权。
+后续真实 Server 写入、maintenance 切换和 Python Worker 维护窗口还须第二次明确授权。

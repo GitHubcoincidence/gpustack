@@ -17,6 +17,7 @@
 - [decisions.md](decisions.md)：已接受的架构决策与被否决的替代方案。
 - [execution-log.md](execution-log.md)：关键检查点、当前停止位置与下一项允许执行的工作。
 - [m3d-integration-runbook.md](m3d-integration-runbook.md)：M3-D.2 真实控制面测试的分组命令、判定标准与安全边界。
+- [m6a3-managed-file-runbook.md](m6a3-managed-file-runbook.md)：M6-A.3 只读预检、真实无 Docker 文件准备 smoke、证据与回滚边界。
 
 ## 文档语言
 
@@ -27,10 +28,23 @@
 
 ## 当前状态
 
-- 设计状态：`frozen`
-- 实现状态：M2、M3-B、M3-C、M3-C.1、M3-C.2、M3-D.1、M3-D.1.1、M3-D.2、M4-A、M4-B 与 M4-C 均为 `accepted`。M4-D.0 只读预检为 `passed`；M4-D 尝试 1 的 `/version` 构建身份失败保持 `failed`，修复后的尝试 2 已通过全部正式门禁并处于 `ready_for_review`，尚待用户共同验收。M4-B 代码检查点为 `994b820c`，M4-D 重试代码与二进制来自 `a3283b66`；M3-A 注册 fixture 的 UUID 等值语义和 M3-C 对应身份断言保持 `invalidated`。
-- 环境基线：M1 已接受；M2 固定 Rust 1.99.1，详见 `environment-baseline.md`。
-- 当前停止位置：M4-D 尝试 2 已通过 231 秒正式资源/API 集成和独立结束复核；maintenance Worker `rust-m3d-r760xa`（ID 2）和本地 per-Worker 身份保持不变，Rust 进程与 `20150/20151` 监听已停止，原 Python Server/Worker 已恢复健康运行。
-- 下一项允许执行的工作：在聊天中交付并共同审阅 M4-D 详细结果；用户接受前不得把 M4-D 或整个 M4 标记为 `accepted`，也不得提前进入 Docker/runtime 或模型执行阶段。
+- 设计状态：M6-A.3.0/.3.1 方法与授权边界已 `frozen`；完整 R1 架构继续按门禁推进。
+- 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1 和
+  M6-A.2.2。当前 Rust CLI 已具备 Context、Model、Worker maintenance 和安全 ModelFile
+  元数据清理能力，`worker run --managed-file-only` 已接入离线验证的 Managed 文件准备
+  协调器。
+- 当前证据边界：M5 已真实证明宿主机进程形态的单 GPU Lab Qwen2.5/vLLM 全流程；M6-A
+  当前只具有离线 fixture/fake/mock、构建和 CLI 契约证据。尚未证明真实 Server 上的
+  Managed ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
+- 当前停止位置：M6-A.3 手册已冻结，但没有执行 M6-A.3.0，未重新探测或改变 90 主机
+  上的 Server、Worker、Docker、端口或 GPU 状态。静态核对发现当前 CLI 缺少预检需要的
+  只读 Server Worker 查询和按 Worker 的 ModelFile 列表能力，M6-A.3.0 当前为
+  `not_ready`。
+- 下一项允许执行的工作：先讨论并冻结候选 `worker get <worker>` 与
+  `model file list --worker <worker>` 的最小离线 CLI 前置门禁。实现并接受后，M6-A.3.0
+  仍需单独明确执行授权；预检通过并共同审阅后，M6-A.3.1 的 Server 写入、maintenance
+  切换和 Python Worker 维护窗口还需第二次授权。任何一步都不授权 Docker/GPU workload
+  或推理。
 
-当前检查点包含 Rust CLI/Worker 基础源码、已接受的离线契约 fixture、类型化 Server client、身份持久化、控制循环、显式 control-plane-only 与 resource-api-only supervisor、M4 Worker API、metrics、系统/NVML 资源采集，以及真实 v2.2.3 Server 上的控制面、双 A100 资源上报、在线 Worker API/metrics 和 Python Worker 恢复证据；尚不包含 Docker workload、GPU 任务或 vLLM 推理。
+环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
+`execution-log.md` 为准。
