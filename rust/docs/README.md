@@ -38,11 +38,12 @@
   当前只具有离线 fixture/fake/mock、构建和 CLI 契约证据。尚未证明真实 Server 上的
   Managed ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
 - 当前停止位置：第一次 M6-A.3.0 在没有 operator Context 时按协议 `STOP`，原固定目录
-  保存其停止证据。用户已授权创建一条 7 天、仅 `management` scope 的阶段 API Key 和
-  active `lab90` Context；当前等待用户在 90 终端隐藏输入登录凭据，状态为
-  `authorized_pending_human_secret_entry`。
-- 下一项允许执行的工作：只完成 D107–D109 的交互式 Context 准备和只读权限验证。不得
-  复用 cluster/per-Worker token，也不得自动重跑。后续获新授权的第二次预检必须使用
+  保存其停止证据。用户已授权创建阶段 API Key/Context，但本地管理员凭据经终端交互和
+  受保护临时文件两种输入方式均被正式 `/auth/login` 返回 401；两次均在 API Key 创建前
+  停止并完整清除临时秘密，状态为 `waiting_for_local_auth_recovery`。
+- 下一项允许执行的工作：只确认当前本地管理员凭据，或另行讨论并明确授权官方密码恢复；
+  不再重复猜测登录。不得复用 cluster/per-Worker token，也不得自动重跑。恢复认证后的
+  第二次预检必须使用
   `m6a3-formal-attempt-2`；M6-A.3.1 的 maintenance、模型写入和 Python Worker 维护窗口
   仍未授权，任何一步都不授权 Docker/GPU workload 或推理。
 
