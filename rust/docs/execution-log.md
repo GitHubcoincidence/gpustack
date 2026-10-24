@@ -31,27 +31,32 @@
   整个 M5。M6-A.0 设计已接受，D086–D091 已冻结。用户已审阅并接受 M6-A.1 和
   M6-A.2；M6-A.2 的接受范围仍限于离线 CLI 实现、mock 契约和构建门禁。用户已接受
   D092–D094。用户已审阅 D033 详细实现报告并接受 M6-A.2.1；接受范围仅为正式
-  managed-file-only 入口、离线 fake/mock 契约和构建门禁。
+  managed-file-only 入口、离线 fake/mock 契约和构建门禁。用户已接受 D095–D097，并在
+  审阅详细实现报告后接受 M6-A.2.2 ModelFile 清理 CLI。
 - 分支：`codex/rust-worker`；M5-D.0 代码检查点为
   `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
   `3f02c644d5928c7ae54ae8ca697d79a483dfe115`；M6-A.2 实现提交为
   `aff61fe2c7e98c50d3b5d273f6fbc582877a633f`；M6-A.2.1 实现提交为
   `e1e3ee4a662099c1acfc60a8cfae0c8129b7d762`，CLI 帮助补充提交为
-  `dc53b9aedd6465a0564ecc07aeda03b1cf0c70fb`。
+  `dc53b9aedd6465a0564ecc07aeda03b1cf0c70fb`；M6-A.2.2 实现提交为
+  `f19a8fcd41ed8368931509ae3120a6b0d7098043`，待审治理检查点为
+  `64b56abaa6f9cd39c8e2b8790f4010256108024e`。
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
   `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
 - 实现状态：M1～M4、M5-A、M5-B、M5-C、整个 M5-D、M6-A.1 和 M6-A.2 已接受。
   M6-A.2 提供 Context、最小 Model CRUD/status、精确 Worker maintenance CLI、稳定
   table/JSON、确认、退出码、状态跟踪与凭据文件安全读取；接受依据仍只有离线 mock 证据。
-  M6-A.2.1 正式 managed-file-only CLI/supervisor 接线已经用户接受。
+  M6-A.2.1 正式 managed-file-only CLI/supervisor 接线和 M6-A.2.2 ModelFile 元数据安全清理
+  CLI 已经用户接受。
 - 当前停止位置：本阶段只在 90 主机工作树执行 locked/offline 编译与测试，没有启动 Rust
   Worker、读取真实 Worker token、连接 Server API、改变 maintenance、停止 Python Worker、
   访问 Docker socket、创建容器或使用 GPU。M5 完成时的运行环境结论是历史接受证据，
   本阶段未重新探测或刷新它。
-- 下一项允许执行的工作：只讨论并冻结 M6-A.3 的独立只读预检、真实无 Docker smoke、
-  维护窗口、证据和回滚 runbook。真实 Server 写入、maintenance 变化、停止 Python
-  Worker、Docker 或 GPU 操作仍须另行明确授权，不能因 M6-A.2.1 已接受而自动执行。
+- 下一项允许执行的工作：只讨论并冻结 M6-A.3.0 独立只读预检的输入、检查项、停止条件
+  和证据，以及后续 M6-A.3.1 真实无 Docker smoke 的维护、证据和回滚边界。预检执行、
+  真实 Server 写入、maintenance 变化、停止 Python Worker、Docker 或 GPU 操作仍须分别
+  获得明确授权，不能因离线门禁已接受而自动执行。
 
 ## 里程碑
 
@@ -1994,6 +1999,29 @@
   用户验收。
 - 下一项允许执行的工作：只交付并审阅 M6-A.2.2 报告。接受后才能记录验收检查点并讨论
   M6-A.3.0 只读预检；真实 Server 写入和维护窗口仍未授权。
+
+### 2026-10-24：M6-A.2.2 ModelFile 清理 CLI 接受
+
+- 结果与状态：用户审阅详细实现报告后确认无问题；M6-A.2.2 从 `ready_for_review` 更新为
+  `accepted`。
+- 接受证据：设计检查点为 `3fd938abb34e043b7ef31002b68d9429534d1e64`，实现提交为
+  `f19a8fcd41ed8368931509ae3120a6b0d7098043`，待审治理检查点为
+  `64b56abaa6f9cd39c8e2b8790f4010256108024e`。固定 Rust 1.99.1 下 144 项 workspace
+  测试、doc-test、fmt、locked/offline all-targets check、Clippy `-D warnings`、build 和
+  干净二进制身份继续作为接受依据。
+- 接受范围：类型化 `model file get/delete`、正整数与显式确认门禁、删除前最新 GET、
+  `local_path`/Worker/路径安全检查、Server 引用冲突和固定 `cleanup=false` 元数据删除语义。
+  宿主机模型文件删除不在该命令能力范围内。
+- 已知限制：仓库级 `make lint` 因 90 主机缺少 `uv` 未能启动 pre-commit；该限制继续保留，
+  不因用户接受而改写为通过。
+- 明确非结论：本次接受不证明真实 operator token、真实 ModelFile 查询或删除、真实 Server
+  状态链、maintenance 切换、Python Worker drain、Docker/vLLM、推理或 GPU 能力。
+- 漂移审计：接受只使用已冻结的离线证据，没有把未执行的 M6-A.3 提升为通过；D086
+  `STARTING` 边界、D091 清理要求和真实环境分段授权均未改变，结论为 `aligned`。
+- 当前停止位置：M6-A.2.2 已接受；本次验收只核对 Git 基线，没有重新探测或改变 90 主机
+  上的 Server、Worker、Docker、端口或 GPU 运行状态。
+- 下一项允许执行的工作：只讨论并冻结 M6-A.3.0 只读预检和 M6-A.3.1 维护窗口 runbook；
+  M6-A.3.0 的实际远程检查与 M6-A.3.1 的任何真实写操作仍须分别明确授权。
 
 ## 未解决风险与待确认事项
 

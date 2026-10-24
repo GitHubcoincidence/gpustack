@@ -392,5 +392,6 @@ Worker maintenance CLI 已完成实现、mock 测试和 Git 推送。用户审�
 Worker、Docker 或 GPU 操作仍须另行明确授权。
 
 M6-A.2.2 的源码、mock 契约、完整 Rust workspace 质量门禁、干净构建、Git 提交和推送
-已经完成，目前为 `ready_for_review`。下一项只允许交付并审阅详细实现报告；用户明确接受
-后才能记录验收检查点并讨论 M6-A.3.0 只读预检，不能自动进入真实环境操作。
+已经完成。用户审阅详细实现报告后已接受该门禁，目前为 `accepted`。下一项只允许讨论并
+冻结 M6-A.3.0 只读预检的输入、检查项、停止条件和证据；预检本身以及后续真实 Server
+写入、maintenance 切换和 Python Worker 维护窗口仍须分别获得明确授权。
