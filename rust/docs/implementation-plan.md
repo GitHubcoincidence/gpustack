@@ -420,5 +420,7 @@ M6-A.2.2 的源码、mock 契约、完整 Rust workspace 质量门禁、干净�
 `m6a3-managed-file-runbook.md` 已冻结 M6-A.3.0 只读预检以及 M6-A.3.1 真实 smoke 的
 输入、检查项、停止条件、证据和回滚。M6-A.2.3 的只读 Worker/ModelFile CLI 已完成
 离线实现、质量门禁、D033 详细报告和用户验收，目前为 `accepted`。M6-A.3.0 当前为
-`ready_for_authorization`，下一项只允许讨论或另行明确授权该只读预检。后续真实 Server
-写入、maintenance 切换和 Python Worker 维护窗口还须第二次明确授权。
+`stopped_preflight`：首次获授权执行在读取 token 或发送 Server 请求前发现 operator Context
+数量为 0，按协议停止。下一项只允许讨论并冻结 operator Context 安全准备和停止证据的
+保留/新证据路径方案，不得自动重跑。后续真实 Server 写入、maintenance 切换和 Python
+Worker 维护窗口还须第二次明确授权。

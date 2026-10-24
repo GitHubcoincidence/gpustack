@@ -2136,6 +2136,47 @@
 - 下一项允许执行的工作：只讨论或由用户单独明确授权 M6-A.3.0。即使预检通过，M6-A.3.1
   的 Server 写入、maintenance 切换和 Python Worker 维护窗口仍须新的明确授权。
 
+### 2026-10-24：M6-A.3.0 因缺少 operator Context 停止
+
+- 授权与范围：用户在 M6-A.2.3 接受后确认继续，授权执行 M6-A.3.0 只读预检。范围允许
+  读取既有 Context/token、查询真实 Server/Worker/ModelFile、检查文件/Docker/GPU/端口
+  并建立 Git 外证据；禁止 Server 写入、maintenance 变化、停止 Python Worker、启动 Rust
+  Worker、容器、GPU workload 或推理。
+- 源码门禁：本机、fork 和 90 均为治理提交
+  `e0a4d1c0d32dde94be6e6289340931ccbff72623`，90 tracked 工作树干净；M6-A.2.2
+  `f19a8fcd` 和 M6-A.2.3 `1130546c` 均为祖先，Cargo.lock SHA-256 保持
+  `4094d427f9ec18e671e9d639bd9a576c0d620af9da1ca87970da05319dd4857b`。
+- 无效封装尝试：首次第 1 组命令的检查内容均显示通过，但本机 PowerShell 管道给远端脚本
+  末行引入 CRLF，使 `exit 0` 参数解析失败。该尝试发生在证据目录建立前，未改变文件或
+  外部状态，分类为 `invalidated_harness`；改用无 CRLF 的 Base64 传输后同一检查组正式
+  通过。
+- 构建证据：从干净治理 HEAD 使用固定 Rust 1.99.1 和 locked/offline 依赖重建 debug
+  CLI；内嵌 commit 为 `e0a4d1c0d32d`，二进制 SHA-256 为
+  `813a18e1746585c0766cacfd9fc6adce0f5747714372c592512c691a6de0099c`。
+- 停止事实：正式 CLI `context list` 返回空数组，Context 数量和 active Context 数量均为
+  0；`~/.config/gpustack-rs` 不存在。第 2 组因此在读取 token、请求 `/version`、查询 Worker
+  或模型之前按硬门禁停止。M6-A.3.0 状态为 `stopped_preflight`，不是
+  `passed_preflight`。
+- 非评分诊断：90 上仍有 mode 0600 的 M3 cluster registration token，以及 mode 0600 的
+  Rust Worker identity/per-Worker token；它们分别属于注册和 Worker system principal，不能
+  代替 operator Context，未读取其内容。
+- 证据：停止证据位于
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal`，目录 mode 0700，
+  7 个文件均为 0600，秘密扫描通过；`manifest.sha256` 自身 SHA-256 为
+  `d5875fbe699bd7a54a79309ccf154e8376c18c9f39d74685b9f365ee91711eda`。固定证据路径现在
+  已被本次停止占用，不得删除或静默覆盖。
+- 外部副作用：只发生 Cargo artifact 清理/重建和 Git 外证据写入。没有读取任何 token
+  内容，没有发出 Server 请求，没有改变 maintenance、停止 Python Worker、启动 Rust
+  Worker、访问 Docker socket、创建容器、申请 GPU 或运行推理。
+- 漂移审计：按 D098 的只读边界和手册停止条件执行，没有把缺失前置条件绕过为 curl、
+  cluster token 或 Worker token，也没有把部分第 1 组证据提升为预检通过，结论为
+  `aligned`。
+- 当前停止位置：M6-A.3.0 停在 operator Context 前置条件；M6-A.3.1 仍为 `not_started`
+  且未授权。
+- 下一项允许执行的工作：只讨论并冻结如何安全获得 operator token、创建 active Context，
+  以及如何保留本次证据并为重跑提供未使用路径。完成准备后也必须重新检查外部漂移并获得
+  新的 M6-A.3.0 执行授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

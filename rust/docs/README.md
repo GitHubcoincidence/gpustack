@@ -36,12 +36,13 @@
 - 当前证据边界：M5 已真实证明宿主机进程形态的单 GPU Lab Qwen2.5/vLLM 全流程；M6-A
   当前只具有离线 fixture/fake/mock、构建和 CLI 契约证据。尚未证明真实 Server 上的
   Managed ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
-- 当前停止位置：M6-A.3 手册已冻结，但没有执行 M6-A.3.0，未重新探测或改变 90 主机
-  上的 Server、Worker、Docker、端口或 GPU 状态。预检需要的只读 Worker/ModelFile CLI
-  已接受；M6-A.3.0 当前为 `ready_for_authorization`，尚未执行。
-- 下一项允许执行的工作：只讨论或另行明确授权 M6-A.3.0 只读预检；预检通过并共同审阅
-  后，M6-A.3.1 的 Server 写入、maintenance 切换和 Python Worker 维护窗口还需第二次
-  授权。任何一步都不授权 Docker/GPU workload 或推理。
+- 当前停止位置：M6-A.3.0 已获只读授权并开始，但在第 2 检查组发现 90 没有任何 operator
+  Context 后按协议 `STOP`。停止发生在读取 token 或发送 Server 请求之前；没有探测或改变
+  Server、Worker、Docker、端口或 GPU 状态。固定证据路径现保存该次停止证据。
+- 下一项允许执行的工作：只讨论并冻结 operator Context 的安全准备方法，以及保留本次
+  证据后如何为新预检提供未使用证据路径。不得复用 cluster/per-Worker token 冒充 operator，
+  也不得自动重跑。M6-A.3.1 的 Server 写入、maintenance 切换和 Python Worker 维护窗口
+  仍未授权；任何一步都不授权 Docker/GPU workload 或推理。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
