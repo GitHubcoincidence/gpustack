@@ -99,10 +99,19 @@ pub struct ModelFileArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum ModelFileSubcommand {
+    /// List ModelFiles assigned to one exact Worker.
+    List(ModelFileListArgs),
     /// Get a ModelFile by numeric ID.
     Get(ModelFileSelectorArgs),
     /// Delete local-path ModelFile metadata while preserving local files.
     Delete(ModelFileDeleteArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ModelFileListArgs {
+    /// Numeric Worker ID or exact Worker name.
+    #[arg(long)]
+    pub worker: String,
 }
 
 #[derive(Debug, Args)]
@@ -195,6 +204,12 @@ pub struct ModelDeleteArgs {
     /// Skip the interactive confirmation.
     #[arg(long)]
     pub yes: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct WorkerSelectorArgs {
+    /// Numeric Worker ID or exact Worker name.
+    pub worker: String,
 }
 
 #[derive(Debug, Args)]
@@ -306,6 +321,12 @@ pub async fn run_model_command<T: Transport>(
             render_model_status(output_format, &model, &instances)
         }
         ModelSubcommand::File(arguments) => match arguments.command {
+            ModelFileSubcommand::List(arguments) => {
+                let worker = resolve_worker(client, token, &arguments.worker).await?;
+                let mut model_files = client.list_model_files(token, worker.id).await?.items;
+                model_files.sort_by_key(|model_file| model_file.id);
+                render_model_files(output_format, &model_files)
+            }
             ModelFileSubcommand::Get(arguments) => {
                 validate_model_file_id(arguments.model_file_id)?;
                 let model_file = client
@@ -341,6 +362,16 @@ pub async fn run_model_command<T: Transport>(
             render_deleted_model(output_format, &model)
         }
     }
+}
+
+pub async fn run_worker_get_command<T: Transport>(
+    output_format: OutputFormat,
+    client: &ServerClient<T>,
+    token: &SecretToken,
+    arguments: WorkerSelectorArgs,
+) -> Result<Execution, ManagedError> {
+    let worker = resolve_worker(client, token, &arguments.worker).await?;
+    render_worker(output_format, &worker)
 }
 
 fn validate_model_file_id(model_file_id: i64) -> Result<(), ManagedError> {
@@ -532,6 +563,11 @@ async fn resolve_worker<T: Transport>(
     selector: &str,
 ) -> Result<WorkerPublic, ManagedError> {
     if let Ok(id) = selector.parse::<i64>() {
+        if id <= 0 {
+            return Err(ManagedError::InvalidArgument(
+                "Worker ID must be a positive integer".to_owned(),
+            ));
+        }
         return client.get_worker(token, id).await.map_err(Into::into);
     }
     let exact: Vec<WorkerPublic> = client
@@ -777,6 +813,43 @@ fn render_model_file(
     success(output)
 }
 
+fn render_model_files(
+    output_format: OutputFormat,
+    model_files: &[ModelFilePublic],
+) -> Result<Execution, ManagedError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(&model_files)?,
+        OutputFormat::Table => {
+            let mut output = String::from(
+                "ID\tWORKER_ID\tSOURCE\tSTATE\tLOCAL_PATH\tSIZE\tPROGRESS\tUPDATED_AT\n",
+            );
+            for model_file in model_files {
+                writeln!(
+                    output,
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    model_file.id,
+                    model_file
+                        .worker_id
+                        .map_or_else(|| "-".to_owned(), |id| id.to_string()),
+                    table_value(&model_file.source.0),
+                    table_value(&model_file.state.0),
+                    table_value(model_file.local_path.as_deref().unwrap_or("-")),
+                    model_file
+                        .size
+                        .map_or_else(|| "-".to_owned(), |size| size.to_string()),
+                    model_file
+                        .download_progress
+                        .map_or_else(|| "-".to_owned(), |progress| progress.to_string()),
+                    table_value(&model_file.updated_at)
+                )
+                .expect("write to String");
+            }
+            output
+        }
+    };
+    success(output)
+}
+
 #[derive(Serialize)]
 struct ModelStatusView<'a> {
     model: &'a ModelPublic,
@@ -958,6 +1031,132 @@ fn render_deleted_model_file(
             table_value(view.source),
             table_value(view.local_path)
         ),
+    };
+    success(output)
+}
+
+#[derive(Serialize)]
+struct WorkerView<'a> {
+    id: i64,
+    name: &'a str,
+    hostname: Option<&'a str>,
+    ip: Option<&'a str>,
+    ifname: Option<&'a str>,
+    port: Option<u64>,
+    metrics_port: Option<u64>,
+    state: Option<&'a str>,
+    state_message: Option<&'a str>,
+    unreachable: Option<bool>,
+    heartbeat_time: Option<&'a str>,
+    maintenance: Option<&'a WorkerMaintenance>,
+    worker_version: Option<&'a str>,
+    labels: &'a BTreeMap<String, String>,
+    gpu_count: Option<usize>,
+    status: Option<&'a serde_json::Value>,
+}
+
+fn worker_view(worker: &WorkerPublic) -> WorkerView<'_> {
+    // Worker responses flatten provider fields, so operator output must use an explicit safe list.
+    WorkerView {
+        id: worker.id,
+        name: &worker.name,
+        hostname: worker
+            .extensions
+            .get("hostname")
+            .and_then(|value| value.as_str()),
+        ip: worker.extensions.get("ip").and_then(|value| value.as_str()),
+        ifname: worker
+            .extensions
+            .get("ifname")
+            .and_then(|value| value.as_str()),
+        port: worker
+            .extensions
+            .get("port")
+            .and_then(|value| value.as_u64()),
+        metrics_port: worker
+            .extensions
+            .get("metrics_port")
+            .and_then(|value| value.as_u64()),
+        state: worker
+            .extensions
+            .get("state")
+            .and_then(|value| value.as_str()),
+        state_message: worker
+            .extensions
+            .get("state_message")
+            .and_then(|value| value.as_str()),
+        unreachable: worker
+            .extensions
+            .get("unreachable")
+            .and_then(|value| value.as_bool()),
+        heartbeat_time: worker
+            .extensions
+            .get("heartbeat_time")
+            .and_then(|value| value.as_str()),
+        maintenance: worker.maintenance.as_ref(),
+        worker_version: worker.worker_version.as_deref(),
+        labels: &worker.labels,
+        gpu_count: worker
+            .status
+            .as_ref()
+            .and_then(|status| status.get("gpu_devices"))
+            .and_then(|gpu_devices| gpu_devices.as_array())
+            .map(Vec::len),
+        status: worker.status.as_ref(),
+    }
+}
+
+fn render_worker(
+    output_format: OutputFormat,
+    worker: &WorkerPublic,
+) -> Result<Execution, ManagedError> {
+    let view = worker_view(worker);
+    let output = match output_format {
+        OutputFormat::Json => to_json(&view)?,
+        OutputFormat::Table => {
+            let labels = view
+                .labels
+                .iter()
+                .map(|(key, value)| format!("{}={}", table_value(key), table_value(value)))
+                .collect::<Vec<_>>()
+                .join(",");
+            let status = view
+                .status
+                .map(serde_json::to_string)
+                .transpose()?
+                .unwrap_or_else(|| "-".to_owned());
+            format!(
+                "id: {}\nname: {}\nhostname: {}\nip: {}\nifname: {}\nport: {}\nmetrics_port: {}\nstate: {}\nstate_message: {}\nunreachable: {}\nheartbeat_time: {}\nmaintenance_enabled: {}\nmaintenance_message: {}\nworker_version: {}\nlabels: {}\ngpu_count: {}\nstatus: {}\n",
+                view.id,
+                table_value(view.name),
+                table_value(view.hostname.unwrap_or("-")),
+                table_value(view.ip.unwrap_or("-")),
+                table_value(view.ifname.unwrap_or("-")),
+                view.port
+                    .map_or_else(|| "-".to_owned(), |port| port.to_string()),
+                view.metrics_port
+                    .map_or_else(|| "-".to_owned(), |port| port.to_string()),
+                table_value(view.state.unwrap_or("-")),
+                table_value(view.state_message.unwrap_or("-")),
+                view.unreachable
+                    .map_or_else(|| "-".to_owned(), |unreachable| unreachable.to_string()),
+                table_value(view.heartbeat_time.unwrap_or("-")),
+                view.maintenance.map_or_else(
+                    || "-".to_owned(),
+                    |maintenance| maintenance.enabled.to_string()
+                ),
+                table_value(
+                    view.maintenance
+                        .and_then(|maintenance| maintenance.message.as_deref())
+                        .unwrap_or("-"),
+                ),
+                table_value(view.worker_version.unwrap_or("-")),
+                labels,
+                view.gpu_count
+                    .map_or_else(|| "-".to_owned(), |count| count.to_string()),
+                table_value(&status)
+            )
+        }
     };
     success(output)
 }
@@ -1184,9 +1383,18 @@ mod tests {
             vec!["gpustack-rs", "model", "list"],
             vec!["gpustack-rs", "model", "get", "demo"],
             vec!["gpustack-rs", "model", "status", "demo"],
+            vec![
+                "gpustack-rs",
+                "model",
+                "file",
+                "list",
+                "--worker",
+                "rust-worker",
+            ],
             vec!["gpustack-rs", "model", "file", "get", "401"],
             vec!["gpustack-rs", "model", "file", "delete", "401", "--yes"],
             vec!["gpustack-rs", "model", "delete", "demo", "--yes"],
+            vec!["gpustack-rs", "worker", "get", "rust-worker"],
             vec![
                 "gpustack-rs",
                 "worker",
@@ -1576,6 +1784,92 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn model_file_list_is_worker_scoped_sorted_and_stable() {
+        let transport = MockTransport::default();
+        transport.push_json(200, WORKERS_ME);
+
+        let mut page: Value = serde_json::from_str(MODEL_FILE_PAGE).expect("ModelFile page JSON");
+        let first = page["items"][0].clone();
+        let mut second = first.clone();
+        second["id"] = json!(402);
+        second["local_path"] = json!("/srv/models/second");
+        page["items"] = json!([second, first]);
+        transport.push_json(200, serde_json::to_vec(&page).expect("ModelFile page"));
+
+        let client = ServerClient::new(
+            Url::parse("http://127.0.0.1/base").expect("URL"),
+            transport.clone(),
+        )
+        .expect("client");
+        let token = SecretToken::new("operator-secret").expect("token");
+        let listed = run_model_command(
+            OutputFormat::Json,
+            Duration::from_secs(1),
+            &client,
+            &token,
+            ModelArgs {
+                command: ModelSubcommand::File(ModelFileArgs {
+                    command: ModelFileSubcommand::List(ModelFileListArgs {
+                        worker: "rust-worker-contract".to_owned(),
+                    }),
+                }),
+            },
+            None,
+        )
+        .await
+        .expect("list ModelFiles");
+
+        let listed: Value = serde_json::from_str(&listed.output).expect("ModelFile list JSON");
+        assert_eq!(listed[0]["id"], 401);
+        assert_eq!(listed[1]["id"], 402);
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 2);
+        assert_eq!(
+            requests[0].url.as_str(),
+            "http://127.0.0.1/base/v2/workers?page=-1&name=rust-worker-contract"
+        );
+        assert_eq!(
+            requests[1].url.as_str(),
+            "http://127.0.0.1/base/v2/model-files?page=-1&worker_id=101"
+        );
+        assert!(!format!("{requests:?}").contains("operator-secret"));
+    }
+
+    #[tokio::test]
+    async fn model_file_list_empty_table_is_successful() {
+        let transport = MockTransport::default();
+        transport.push_json(200, item_from_page(WORKERS_ME));
+        transport.push_json(
+            200,
+            br#"{"items":[],"pagination":{"page":-1,"perPage":100,"total":0,"totalPage":0}}"#,
+        );
+        let client = ServerClient::new(Url::parse("http://127.0.0.1").expect("URL"), transport)
+            .expect("client");
+        let token = SecretToken::new("operator-secret").expect("token");
+        let listed = run_model_command(
+            OutputFormat::Table,
+            Duration::from_secs(1),
+            &client,
+            &token,
+            ModelArgs {
+                command: ModelSubcommand::File(ModelFileArgs {
+                    command: ModelFileSubcommand::List(ModelFileListArgs {
+                        worker: "101".to_owned(),
+                    }),
+                }),
+            },
+            None,
+        )
+        .await
+        .expect("empty ModelFile list");
+
+        assert_eq!(
+            listed.output,
+            "ID\tWORKER_ID\tSOURCE\tSTATE\tLOCAL_PATH\tSIZE\tPROGRESS\tUPDATED_AT\n"
+        );
+    }
+
+    #[tokio::test]
     async fn model_file_delete_rejects_non_local_sources_before_delete() {
         let transport = MockTransport::default();
         let mut model_file: Value =
@@ -1728,6 +2022,164 @@ mod tests {
             .expect_err("confirmation required");
         assert!(matches!(error, ManagedError::ConfirmationRequired(_)));
         assert!(transport.requests().is_empty());
+    }
+
+    #[tokio::test]
+    async fn worker_get_uses_exact_resolution_and_a_safe_projection() {
+        let transport = MockTransport::default();
+        let mut page: Value = serde_json::from_str(WORKERS_ME).expect("Worker page JSON");
+        page["items"][0]["name"] = json!("rust worker/α");
+        page["items"][0]["heartbeat_time"] = json!("2026-10-24T01:02:03Z");
+        page["items"][0]["provider_config"] = json!({"token": "provider-secret"});
+        page["items"][0]["system_principal_id"] = json!(77);
+        page["items"][0]["unknown_extension"] = json!("do-not-emit");
+        let item = serde_json::to_vec(&page["items"][0]).expect("Worker item JSON");
+        transport.push_json(200, serde_json::to_vec(&page).expect("Worker page"));
+        transport.push_json(200, item);
+        let client = ServerClient::new(
+            Url::parse("http://127.0.0.1/base").expect("URL"),
+            transport.clone(),
+        )
+        .expect("client");
+        let token = SecretToken::new("operator-secret").expect("token");
+
+        let fetched = run_worker_get_command(
+            OutputFormat::Json,
+            &client,
+            &token,
+            WorkerSelectorArgs {
+                worker: "rust worker/α".to_owned(),
+            },
+        )
+        .await
+        .expect("get Worker by exact name");
+        let output: Value = serde_json::from_str(&fetched.output).expect("Worker JSON");
+        assert_eq!(output["id"], 101);
+        assert_eq!(output["hostname"], "contract-host");
+        assert_eq!(output["gpu_count"], 0);
+        assert_eq!(output["heartbeat_time"], "2026-10-24T01:02:03Z");
+        for forbidden in [
+            "extensions",
+            "provider_config",
+            "provider-secret",
+            "system_principal_id",
+            "unknown_extension",
+            "worker_uuid",
+            "operator-secret",
+        ] {
+            assert!(!fetched.output.contains(forbidden), "leaked {forbidden}");
+        }
+
+        let table = run_worker_get_command(
+            OutputFormat::Table,
+            &client,
+            &token,
+            WorkerSelectorArgs {
+                worker: "101".to_owned(),
+            },
+        )
+        .await
+        .expect("get Worker by ID");
+        assert!(table.output.contains("gpu_count: 0\n"));
+        assert!(table.output.contains("status: {"));
+        assert!(!table.output.contains("provider-secret"));
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 2);
+        let query: BTreeMap<_, _> = requests[0].url.query_pairs().into_owned().collect();
+        assert_eq!(query.get("page").map(String::as_str), Some("-1"));
+        assert_eq!(query.get("name").map(String::as_str), Some("rust worker/α"));
+        assert_eq!(requests[1].url.path(), "/base/v2/workers/101");
+    }
+
+    #[tokio::test]
+    async fn worker_get_rejects_missing_ambiguous_and_invalid_ids() {
+        let transport = MockTransport::default();
+        transport.push_json(
+            200,
+            br#"{"items":[],"pagination":{"page":-1,"perPage":100,"total":0,"totalPage":0}}"#,
+        );
+        let mut ambiguous: Value = serde_json::from_str(WORKERS_ME).expect("Worker page JSON");
+        let original = ambiguous["items"][0].clone();
+        let mut duplicate = original.clone();
+        duplicate["id"] = json!(102);
+        ambiguous["items"] = json!([original, duplicate]);
+        transport.push_json(
+            200,
+            serde_json::to_vec(&ambiguous).expect("ambiguous Worker page"),
+        );
+        let client = ServerClient::new(
+            Url::parse("http://127.0.0.1").expect("URL"),
+            transport.clone(),
+        )
+        .expect("client");
+        let token = SecretToken::new("operator-secret").expect("token");
+
+        let missing = run_worker_get_command(
+            OutputFormat::Json,
+            &client,
+            &token,
+            WorkerSelectorArgs {
+                worker: "missing".to_owned(),
+            },
+        )
+        .await
+        .expect_err("missing Worker");
+        assert!(matches!(missing, ManagedError::NotFound("Worker", _)));
+
+        let ambiguous = run_worker_get_command(
+            OutputFormat::Json,
+            &client,
+            &token,
+            WorkerSelectorArgs {
+                worker: "rust-worker-contract".to_owned(),
+            },
+        )
+        .await
+        .expect_err("ambiguous Worker");
+        assert!(matches!(ambiguous, ManagedError::Ambiguous("Worker", _)));
+
+        let invalid = run_worker_get_command(
+            OutputFormat::Json,
+            &client,
+            &token,
+            WorkerSelectorArgs {
+                worker: "0".to_owned(),
+            },
+        )
+        .await
+        .expect_err("invalid Worker ID");
+        assert!(matches!(invalid, ManagedError::InvalidArgument(_)));
+        assert_eq!(transport.requests().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn worker_get_preserves_server_error_mapping_without_secret_leaks() {
+        for status in [401, 403, 404, 500] {
+            let transport = MockTransport::default();
+            transport.push_json(status, br#"{"detail":"request rejected"}"#);
+            let client = ServerClient::new(
+                Url::parse("http://127.0.0.1").expect("URL"),
+                transport.clone(),
+            )
+            .expect("client");
+            let token = SecretToken::new("operator-secret").expect("token");
+
+            let error = run_worker_get_command(
+                OutputFormat::Json,
+                &client,
+                &token,
+                WorkerSelectorArgs {
+                    worker: "101".to_owned(),
+                },
+            )
+            .await
+            .expect_err("Server error");
+
+            assert!(matches!(error, ManagedError::Client(_)));
+            assert!(!error.to_string().contains("operator-secret"));
+            assert!(!format!("{:?}", transport.requests()).contains("operator-secret"));
+        }
     }
 
     #[tokio::test]

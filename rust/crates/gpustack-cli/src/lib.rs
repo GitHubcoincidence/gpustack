@@ -28,8 +28,8 @@ mod managed;
 
 use managed::{
     ContextArgs, ContextSubcommand, ManagedError, ModelArgs, ModelFileArgs, ModelFileSubcommand,
-    ModelSubcommand, WorkerMaintenanceArgs, WorkerMaintenanceSubcommand, run_context_command,
-    run_model_command, run_worker_maintenance_command,
+    ModelSubcommand, WorkerMaintenanceArgs, WorkerMaintenanceSubcommand, WorkerSelectorArgs,
+    run_context_command, run_model_command, run_worker_get_command, run_worker_maintenance_command,
 };
 
 pub const EXIT_SUCCESS: u8 = 0;
@@ -151,6 +151,8 @@ impl WorkerConfigArgs {
 pub enum WorkerCommand {
     Config(WorkerConfigCommand),
     Doctor,
+    /// Get one Server Worker by numeric ID or exact name.
+    Get(WorkerSelectorArgs),
     Gpu(WorkerGpuCommand),
     Lab(WorkerLabCommand),
     /// Change the exact Worker's scheduling maintenance state through Server.
@@ -461,6 +463,16 @@ async fn execute_inner(
         Command::Worker(worker) => {
             let WorkerArgs { overrides, command } = *worker;
             match command {
+                WorkerCommand::Get(arguments) => {
+                    if cli.config.is_some() || overrides.has_explicit_runtime_override() {
+                        return Err(CliError::InvalidArgument(
+                            "Worker runtime configuration does not apply to get; use --context"
+                                .to_owned(),
+                        ));
+                    }
+                    let (client, token) = operator_client(context_name.as_deref(), timeout)?;
+                    run_worker_get_command(output_format, &client, &token, arguments).await?
+                }
                 WorkerCommand::Maintenance(arguments) => {
                     if cli.config.is_some() || overrides.has_explicit_runtime_override() {
                         return Err(CliError::InvalidArgument(
@@ -475,7 +487,7 @@ async fn execute_inner(
                 command => {
                     if context_name.is_some() {
                         return Err(CliError::InvalidArgument(
-                            "--context applies only to model and Worker maintenance commands"
+                            "--context applies only to model, Worker get, and Worker maintenance commands"
                                 .to_owned(),
                         ));
                     }
@@ -507,6 +519,7 @@ async fn execute_inner(
                             )
                             .await?
                         }
+                        WorkerCommand::Get(_) => unreachable!("handled above"),
                         WorkerCommand::Maintenance(_) => unreachable!("handled above"),
                         WorkerCommand::Runtime(arguments) => {
                             run_runtime_command(
