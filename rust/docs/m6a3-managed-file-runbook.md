@@ -50,17 +50,18 @@ M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template�
 `trust_remote_code`。若任何固定输入需要改变，必须先讨论并记录修订，不能在运行中临时
 替换。
 
-## 尚未解除的 CLI 前置条件
+## CLI 前置条件
 
 手册冻结时的静态核对发现，已接受 CLI 只有 `worker maintenance enable|disable` 和
 `model file get/delete`，尚不能以只读命令取得精确 Server Worker，也不能按 Worker 列出
 ModelFile。M6-A.3.0 需要这两项能力才能证明 maintenance/身份和同路径 ModelFile 无冲突；
 若改用 Web UI 或未文档化原始 API 请求，会违反 D090 的正式 CLI-first 门禁。
 
-因此 M6-A.3.0 当前为 `not_ready`。执行预检前须先讨论、冻结、离线实现并验收一个最小
-前置门禁，候选接口为 `worker get <worker>` 与
-`model file list --worker <worker>`。这段记录只描述已发现的依赖，不表示接口已经接受或
-授权实现；在该缺口关闭前，不得用 curl 临时绕过并开始预检。
+该缺口已经通过 D103–D106 冻结为 M6-A.2.3，接口为
+`worker get <worker-id-or-exact-name>` 与
+`model file list --worker <worker-id-or-exact-name>`。M6-A.2.3 完成离线实现、质量门禁、
+D033 详细报告和用户接受前，M6-A.3.0 仍为 `not_ready`；不得用 curl 临时绕过或把实现
+授权解释为预检执行授权。
 
 ## M6-A.3.0：独立只读预检
 

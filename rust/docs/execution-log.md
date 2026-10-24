@@ -2064,6 +2064,24 @@
 - 下一项允许执行的工作：只讨论并冻结最小只读 CLI 前置门禁。该门禁实现、离线验证、
   D033 详细报告和用户接受完成后，才能请求 M6-A.3.0 的单独执行授权。
 
+### 2026-10-24：M6-A.2.3 只读预检 CLI 设计冻结
+
+- 决策与状态：用户接受 D103–D106，将 `worker get <worker-id-or-exact-name>` 和
+  `model file list --worker <worker-id-or-exact-name>` 冻结为 M6-A.2.3；阶段进入离线实现，
+  尚未达到 `ready_for_review`。
+- Worker 契约：数字 selector 按 ID，其他值按精确名称解析；无结果或重名失败关闭。输出
+  采用安全白名单，不透传 extensions、provider config、principal ID 或未知字段，也不伪造
+  固定 v2.2.3 public schema 没有的 `worker_uuid`。
+- ModelFile 契约：强制 `--worker` scope，先解析唯一 Worker，再请求其 ModelFile，按 ID
+  稳定排序；JSON 与现有 get schema 一致，table 使用固定摘要列，空列表成功。
+- 实现与证据边界：不新增依赖，不实现 ModelInstance list；只允许源码、fixture/mock、
+  文档和离线质量门禁。不得读取真实 token、连接真实 Server、改变 maintenance、停止
+  Python Worker、访问 Docker 或使用 GPU。
+- 漂移审计：新增门禁只关闭 D090 CLI-first 前置缺口，D086 `STARTING` 边界以及
+  D098–D102 的预检/维护窗口授权保持不变，结论为 `aligned`。
+- 下一项允许执行的工作：完成 M6-A.2.3 源码与离线测试，提交 D033 详细报告。即使该阶段
+  获接受，M6-A.3.0 仍须另行明确执行授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

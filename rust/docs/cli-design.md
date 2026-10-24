@@ -17,9 +17,11 @@ gpustack-rs
   worker gpu list
   worker runtime info
   worker config get
+  worker get <worker-id-or-exact-name>
   worker maintenance enable|disable <worker>
   worker lab deploy|list|status|logs|infer|stop|remove|cleanup
   model deploy|list|get|status|logs|delete
+  model file list|get|delete
   inference models|chat|completion
   version
 ```
@@ -62,7 +64,7 @@ M4-C 只运行 `worker gpu list --output json` 与 `nvidia-smi` 做宿主机只�
 ## Managed 模型命令
 
 M6-A 先实现 `context add/use/list/remove`、`model deploy/list/get/status/delete`、
-`model file get/delete` 和 `worker maintenance enable/disable`，用于完成不依赖 Web UI
+`model file list/get/delete`、`worker get` 和 `worker maintenance enable/disable`，用于完成不依赖 Web UI
 或原始请求的真实文件准备验证。`model logs` 与 `inference models/chat/completion` 在
 M6-B runtime 和推理端点可用后实现；阶段前移不改变最终 R1 命令树。
 
@@ -90,6 +92,17 @@ CLI 把友好的 GPU 参数转换为现有 Server selector 形式，例如 `work
 要求显式确认，删除前重新读取对象，并固定向 Server 传递 `cleanup=false`。若 ModelFile
 仍被任何 ModelInstance 使用，Server 的冲突响应必须原样失败；命令不得删除宿主机模型
 文件，也不得把删除失败伪装成成功。
+
+`worker get <worker-id-or-exact-name>` 只读查询 Server 权威 Worker。数字 selector 作为 ID，
+名称必须精确且唯一；无结果或重名都失败。输出使用安全白名单，包含身份、地址、端口、
+state、maintenance、heartbeat、version、labels、GPU 数量和 status，但不透传
+extensions、provider config、principal ID 或未知字段。固定 Server public schema 没有
+`worker_uuid` 时 CLI 不伪造该值。
+
+`model file list --worker <worker-id-or-exact-name>` 必须先解析唯一 Worker，再只列出该
+Worker 的 ModelFile，并按 ID 稳定排序。JSON 返回与 `model file get` 相同的对象数组；
+table 固定展示 ID、Worker ID、source、state、local path、size、progress 和更新时间。
+空列表是成功，不提供无 scope 的全局列表模式。
 
 `model logs` 调用 Server 日志 API；Server 在向 Worker 请求日志之前继续执行现有用户授权与 tenant 可见性检查。
 

@@ -344,3 +344,16 @@ D098–D102 的完整检查组、停止条件、执行顺序、回滚和证据�
 M6-A.3.0 和 M6-A.3.1 的执行必须分别获得后续明确授权；M6-A.3.1 的授权还必须明确包含
 停止和恢复 Python Worker、改变精确 Rust Worker maintenance 以及创建和删除唯一测试
 Model/ModelInstance/ModelFile。两段均不授权 Docker workload、GPU workload 或推理。
+
+## 2026-10-24 M6-A.2.3 只读预检 CLI 补全
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D103 | 增设只读 CLI 前置门禁 | 在 M6-A.2.2 与 M6-A.3.0 之间增设 M6-A.2.3，实现 `worker get <worker-id-or-exact-name>` 和 `model file list --worker <worker-id-or-exact-name>`，只使用 Context 的运维身份和类型化 Server client | M6-A.3.0 必须用产品 CLI 核对精确 Worker 和同 Worker 的 ModelFile 冲突；Web UI 或临时 curl 会破坏 D090 的 CLI-first 证据链。 |
+| D104 | Worker 安全投影 | `worker get` 的数字 selector 按 ID 查询，其他 selector 只接受精确名称；无结果和重名均失败关闭。JSON 与 table 只输出明确白名单字段，不透传 Worker `extensions`、provider config、principal ID 或未知扩展；固定 v2.2.3 的 public 响应没有 `worker_uuid` 时不伪造该字段 | Worker public schema 会展平服务端扩展，直接序列化完整对象可能把与预检无关的敏感或不稳定字段带入终端和证据。精确解析避免因模糊匹配检查错误节点。 |
+| D105 | 按 Worker 的 ModelFile 列表 | `model file list` 必须显式提供 `--worker`，先按 D104 解析唯一 Worker，再请求 `/v2/model-files?page=-1&worker_id=<id>`；结果按 ModelFile ID 稳定排序。JSON 返回与 `model file get` 相同的 `ModelFilePublic` 数组，table 固定显示 ID、Worker ID、source、state、local path、size、progress 和更新时间；空列表是成功 | 强制 Worker scope 可避免全局枚举和错误归因；稳定顺序和一致 schema 便于预检比较及自动化取证。 |
+| D106 | 实现与授权边界 | M6-A.2.3 只修改 Rust CLI、mock/fixture 测试和治理文档，不新增依赖，也不实现 ModelInstance list。通过离线质量门禁后状态为 `ready_for_review`，必须交付 D033 详细报告并等待用户接受；M6-A.3.0 仍需单独明确授权 | 只读命令的实现不能被解释为允许读取真实 token、连接真实 Server 或开始预检，更不能授权维护窗口、Docker、GPU 或推理操作。 |
+
+D103–D106 只关闭 M6-A.3 手册已经识别的产品 CLI 缺口，不改变 D086–D091、D098–D102
+的状态链、回滚和分段授权。用户接受本设计只授权文档、源码和离线测试；不授权读取真实
+凭据、连接真实 Server、改变 maintenance、停止 Python Worker、访问 Docker 或使用 GPU。
