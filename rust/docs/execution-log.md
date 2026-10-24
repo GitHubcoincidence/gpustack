@@ -2204,6 +2204,19 @@
 - 下一项允许执行的工作：只执行 Context 准备脚本、确认临时 secret 已清除，并用正式 CLI
   只读查询精确 Rust Worker。成功后记录准备证据，但不得自动重跑 M6-A.3.0。
 
+### 2026-10-24：第一次 operator 交互登录被拒绝并安全清理
+
+- 用户在 90 主机执行固定辅助脚本并输入本地管理员用户名和隐藏密码；`POST /auth/login`
+  返回 401，脚本在调用 API Key 创建 endpoint 前按失败关闭，未重试也未输出凭据。
+- 清理复核：最终 token 文件和 `contexts.json` 均不存在，`.m6a3-context.*` 临时秘密目录为
+  0；Server health 与既有 Python Worker health 均为 200。因此本次没有创建 API Key、
+  Context 或其他 Server 资源，也没有影响 Worker。
+- 判定：这是凭据输入/认证失败，不是 M6-A.3.0 预检结果，不能提升为 Context 准备通过。
+  D107–D110 和用户对一次专用 API Key 创建的授权保持有效；状态仍为
+  `authorized_pending_human_secret_entry`。
+- 下一项允许执行的工作：用户先确认当前本地管理员凭据，再运行同一受保护脚本。若再次
+  返回 401，则停止重复尝试，转入只读认证配置与账户状态诊断。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
