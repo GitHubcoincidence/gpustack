@@ -2266,6 +2266,43 @@
   通过，M6-A.3.1 的 Server 写入、maintenance 切换和 Python Worker 维护窗口仍须新的明确
   授权。
 
+### 2026-10-26：第二次 M6-A.3.0 因 Worker identity 漂移停止
+
+- 授权与范围：用户在 operator Context 验收报告后回复“没问题”，明确允许执行第二次
+  M6-A.3.0 只读预检。范围仅包含冻结源码构建、真实 GET/CLI 查询、文件/GPU/端口/Docker
+  只读基线和 Git 外证据；不包含任何 Server 写入、maintenance 变化、停止 Python Worker、
+  启动 Rust Worker、Docker/GPU workload 或推理。
+- 源码门禁：本机、fork 和 90 均为 `e50717982a93645df8a9c1b261199376771c736d`，90 tracked
+  工作树干净；M6-A.2.2 `f19a8fcd` 与 M6-A.2.3 `1130546c` 均为祖先，后续 Rust 源码、
+  manifest、toolchain 和 `Cargo.lock` 无漂移。`Cargo.lock` SHA-256 为
+  `4094d427f9ec18e671e9d639bd9a576c0d620af9da1ca87970da05319dd4857b`。
+- 构建证据：使用固定 Rust/Cargo 1.99.1、`--locked --offline` 从冻结提交重建 CLI；内嵌
+  commit 为 `e50717982a93`，二进制 SHA-256 为
+  `bd3b07fc358c88abc3fd733934cdbc52daa12164c7571238640514ec70544dae`。
+- 硬停止事实：`m3d/managed/worker-identity.json` 为 mode 0600，记录 Worker ID 2、名称
+  `rust-m3d-r760xa` 和 UUID `f38b7c2c-90f7-4a76-a2c5-dfe1ff63fea0`；正式 CLI 对同名
+  Worker 的权威查询返回 ID 5。名称一致但 ID 不一致，触发手册的 identity mismatch 停止
+  条件，预检状态为 `stopped_preflight`，不是 `passed_preflight`。
+- 非评分只读诊断：当前 `workers` 表只有同名 ID 5，创建时间为
+  `2026-10-22 12:22:40.232608`，旧 ID 2 已不存在；当前行没有原持久 UUID。因此该差异是
+  Server identity 外部漂移，不能在同一次预检中通过改写本地 identity、删除或复用 ID 5
+  绕过。
+- 未执行检查：发现硬停止后没有查询或删除目标 Model/ModelInstance/ModelFile，没有验证
+  模型 manifest、GPU、Managed 端口、进程或 Docker/Python Worker 恢复基线，也没有创建
+  任何 Server 资源。停止后的安全复核显示 Server、Python Worker health/metrics 均为
+  200，`gpustack-rs` 进程为 0，`20150/20151` 空闲，`gpustack-worker` 保持 running、restart
+  count 0。
+- 证据：正式目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-2` 为 mode
+  0700，13 个文件均为 0600，秘密扫描通过；`manifest.sha256` 自身 SHA-256 为
+  `109d4747dd452e7987046c6c3a43e62a3d9fea845f5c275c0894f6e66087be33`。第一次停止目录和
+  operator Context 证据目录均未修改。
+- 外部副作用与漂移审计：仅清理/重建 Cargo artifact 并写入新的 Git 外证据目录；没有
+  改变 Server、Worker、maintenance、模型、容器、端口或 GPU 状态。按冻结停止条件失败
+  关闭，结论为 `aligned`。
+- 下一项允许执行的工作：只讨论并冻结 Worker identity 恢复方案、第三次证据目录和新的
+  M6-A.3.0 授权。M6-A.3.1 仍为 `not_started` 且未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

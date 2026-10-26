@@ -88,9 +88,10 @@ ModelFile。M6-A.3.0 需要这两项能力才能证明 maintenance/身份和同�
 已经用户接受；首次 M6-A.3.0 执行前状态为 `ready_for_authorization`。不得把 M6-A.2.3
 的接受解释为预检执行授权，也不得用 curl 临时绕过冻结命令。
 
-第一次 M6-A.3.0 已因缺少 Context 停止；正式 Context 现已准备并通过只读 Worker 查询。
-第二次 M6-A.3.0 状态为 `ready_for_new_authorization`，证据目录固定使用尚未创建的
-`m6a3-formal-attempt-2`，不能复用或覆盖第一次停止目录。
+第一次 M6-A.3.0 已因缺少 Context 停止；正式 Context 随后准备并通过只读 Worker 查询。
+第二次 M6-A.3.0 于 2026-10-26 获授权并使用 `m6a3-formal-attempt-2`，但本地持久 Worker
+ID 2 与 Server 当前同名 Worker ID 5 不一致，因此在 identity 门禁按协议停止。该目录现已
+占用且不得复用或覆盖；身份恢复、下一证据目录和再次执行授权必须另行讨论冻结。
 
 ## M6-A.3.0：独立只读预检
 

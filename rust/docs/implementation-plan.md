@@ -219,7 +219,9 @@ M6-A.2.3 的接口、源码、离线质量门禁和 D033 详细报告已经用�
 已经冻结 API Key/Context 准备门禁，D111–D113 记录了 Web 管理会话恢复路径、API 权威
 元数据纠偏和授权边界。7 天、仅 `management` 的正式 API Key 与 active `lab90` Context
 已经通过 `worker get rust-m3d-r760xa` 只读验证，当前为 `operator_context_ready`。
-第二次预检固定使用 `m6a3-formal-attempt-2`，但仍须新的明确执行授权。
+第二次预检随后获明确授权并使用 `m6a3-formal-attempt-2`，但本地持久 Worker ID 2 与
+Server 当前同名 Worker ID 5 不一致，因此在 identity 硬门禁按协议停止。该证据目录已被
+本次停止占用；修复方案、后续证据目录和再次执行授权尚未冻结。
 预检通过也不能自动开始 M6-A.3.1。真实 Server 写入、maintenance 变化和停止 Python
 Worker 必须在预检结果获共同审阅后另行明确授权。两段均不授权 Docker workload、GPU
 workload 或推理。
