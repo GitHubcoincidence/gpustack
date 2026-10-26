@@ -2540,6 +2540,27 @@
   maintenance、创建/清理唯一 Model/ModelInstance/ModelFile 和启动/停止
   `worker run --managed-file-only`；仍不允许 Docker/vLLM workload、GPU 使用或推理。
 
+### 2026-10-26：M6-A.3.1 attempt 1 已冻结并获维护窗口授权
+
+- 授权：用户在 M6-A.3.0 PASS 的详细报告和精确维护范围后回复“没问题”，接受 D126–D128。
+  允许停止并恢复预检记录的 `gpustack-worker`、切换 Worker ID 5/name
+  `rust-m3d-r760xa` maintenance、创建并清理唯一测试 Model/ModelInstance/ModelFile，
+  以及启动并停止 `worker run --managed-file-only`。
+- 证据身份：attempt 1 固定使用尚未创建的
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-1`；
+  M6-A.3.0 attempt 1～6 和 identity 恢复证据不得修改。
+- 授权排除项：不允许 Docker/vLLM workload、GPU compute、推理、实例进入 `RUNNING`，
+  也不允许换模型、Worker、GPU、Runner、端口策略、状态链或超时迁就结果。
+- 授权前只读复核：新证据路径未占用，90 工作树干净；Server 与 Python Worker
+  health/metrics 均为 200，精确 Python Worker container ID 仍为
+  `68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165` 且正在运行；GPU0
+  compute process 和 `gpustack-rs` 进程均为 0。固定输入、成功标准和回滚协议无漂移，结论
+  为 `aligned`。
+- 当前停止位置：M6-A.3.1 attempt 1 为 `authorized_pending_execution`，尚未进入维护窗口。
+- 下一项允许执行的工作：提交并同步本授权检查点后，完成证据目录外的执行器静态审计和
+  全量外部漂移门禁；全部通过后才能执行一次 900 秒内的真实无 Docker smoke。任一失败先
+  恢复 Python Worker 和 Rust Worker maintenance，再封存 attempt 1，不能自动重试。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

@@ -50,7 +50,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第四次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4`，已保存 GPU0 被既有 Lab 占用的停止证据，不得修改 |
 | 第五次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5`，因 Cargo working directory 错误按非评分 `INVALIDATED` 封存，不得修改 |
 | 第六次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-6`，已通过并封存；`manifest.sha256` 文件 SHA-256 为 `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`，不得修改 |
-| 后续重试证据 | 尚未冻结；attempt 6 后的任何重试仍须使用新的未占用目录并另获执行授权 |
+| 第一次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-1`，已冻结并获 D127 维护窗口授权，执行前必须仍不存在 |
+| 后续重试证据 | 尚未冻结；后续任何预检或 smoke 重试均须使用新的未占用目录并另获执行授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -143,6 +144,11 @@ ID 5 identity、目标资源零冲突、模型 manifest、GPU0、端口、Python
 回滚 CLI 和全局 ID 基线均通过；运行没有改变 maintenance、停止 Python Worker、启动 Rust
 Worker、写 Server 资源或创建 Docker/GPU workload。M6-A.3.0 因而为 `passed_preflight`，
 M6-A.3.1 仅为 `ready_for_authorization`，仍未获得维护窗口授权。
+
+用户随后接受 D126–D128，授权第一次 M6-A.3.1 维护窗口。attempt 1 只允许执行本文固定的
+停止/恢复精确 Python Worker、Worker ID 5 maintenance 切换、唯一测试资源创建/清理和
+`--managed-file-only` 生命周期；不允许 Docker/vLLM workload、GPU compute 或推理。
+正式执行前必须重新通过外部漂移门禁，不能仅复用 M6-A.3.0 的历史快照。
 
 ## M6-A.3.0：独立只读预检
 

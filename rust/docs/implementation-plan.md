@@ -467,3 +467,8 @@ D123–D125 随后把第六次证据固定为尚未创建的 `m6a3-formal-attemp
 回滚 CLI 和全局资源 ID 基线均形成完整证据，且没有产生运行状态副作用。M6-A.3.0 当前为
 `passed_preflight`，M6-A.3.1 为 `ready_for_authorization`；下一步只能共同审阅并取得独立
 维护窗口授权，不能把只读预检通过解释为 Managed 状态链已经验收。
+
+用户随后接受 D126–D128，授权 M6-A.3.1 attempt 1，并把唯一证据路径固定为
+`m6a3-managed-file-smoke-attempt-1`。当前状态为 `authorized_pending_execution`。正式执行
+仍须先通过外部漂移门禁；授权只覆盖无 Docker 文件准备状态链和完整回滚，不覆盖 M6-B
+runtime、GPU workload 或推理。

@@ -46,9 +46,11 @@
   `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`；预检没有改变
   maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建 Docker/GPU
   workload，结束后服务健康且受管端口无监听。
-- 下一项允许执行的工作：共同审阅并单独明确授权 M6-A.3.1 真实无 Docker 维护窗口。
-  `passed_preflight` 不是 M6-A.3 的最终验收，也不自动授权 maintenance、模型写入、停止
-  Python Worker、启动 `--managed-file-only` 或任何 M6-B Docker/GPU workload。
+- 下一项允许执行的工作：用户已共同审阅并授权 M6-A.3.1 attempt 1，证据路径固定为
+  `m6a3-managed-file-smoke-attempt-1`，当前为 `authorized_pending_execution`。授权只包含
+  停止并恢复精确 Python Worker、切换精确 Rust Worker maintenance、创建并清理唯一测试
+  Model/ModelInstance/ModelFile，以及启动并停止 `--managed-file-only`；不包含任何 M6-B
+  Docker/vLLM workload、GPU 使用或推理。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

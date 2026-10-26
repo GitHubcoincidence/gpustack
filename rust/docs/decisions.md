@@ -457,3 +457,15 @@ attempt 6 的证据目录外静态审计与完整只读预检随后全部通过�
 `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`。M6-A.3.0 状态为
 `passed_preflight`；该结果只解除 M6-A.3.1 的讨论前置条件，不修改 D125 的授权边界，也不
 授权 maintenance、Server 资源写入、Python Worker 维护窗口、Docker/GPU workload 或推理。
+
+## 2026-10-26 M6-A.3.1 第一次真实无 Docker 维护窗口
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D126 | 第一次 smoke 证据路径 | M6-A.3.1 attempt 1 固定使用尚未创建的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-1`；M6-A.3.0 attempt 1～6 和 identity 恢复证据保持不可变 | 把只读预检与真实写路径分离，并保证正式 smoke 的失败、回滚和结论可独立审计。 |
+| D127 | 第一次维护窗口授权 | 用户在 M6-A.3.0 PASS 报告及精确授权范围后回复“没问题”，授权停止并恢复预检记录的唯一 `gpustack-worker`、切换 Worker ID 5/name `rust-m3d-r760xa` maintenance、创建并清理唯一测试 Model/ModelInstance/ModelFile，以及启动并停止 `worker run --managed-file-only` | M6-A.3.1 的真实状态链必须产生受控 Server 写入并隔离 Python Worker；授权与 D098–D102 的固定执行和回滚边界一致。 |
+| D128 | 授权排除项与失败关闭 | 本次不允许创建或运行 Docker/vLLM workload，不允许 GPU compute、推理、`RUNNING` 或临时更换固定输入。任一硬门禁失败时，先恢复 maintenance、停止精确 Rust PID、恢复原 Python Worker，再按已捕获 ID 清理本次资源并封存证据；不得自动换输入重试 | 防止文件准备 smoke 漂移成 runtime 验证，并确保服务恢复优先于实验结论。 |
+
+D126–D128 不改变固定 Server、Worker、模型、Runner、GPU、端口策略、状态链、900 秒总时限、
+证据要求或回滚顺序。执行前仍须复核 attempt 6 manifest、源码 identity、外部服务状态和新
+证据路径；复核失败令 attempt 1 保持未开始，不得进入维护窗口。
