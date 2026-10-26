@@ -448,5 +448,7 @@ D117–D119 已把第四次只读预检证据冻结为尚未创建的 `m6a3-form
 第四次预检已执行并在 GPU0 空闲硬门禁停止。此前源码/构建、Context、当前 ID 5 identity、
 目标 Model/ModelInstance/ModelFile 零冲突及固定 Qwen2.5 manifest 均通过；GPU0 的唯一
 compute process 属于既有 Rust Lab `qwen2.5-0.5b-m5e`，不是本次尝试创建的资源。
-M6-A.3.0 当前为 `stopped_preflight`。停止或删除该 Lab、冻结后续证据路径和再次执行均须
-新的明确授权；M6-A.3.1 仍未授权。
+M6-A.3.0 attempt 4 保持 `stopped_preflight`。用户随后自行停止并删除该测试 Lab；只读
+复核确认精确容器和部署状态文件消失、GPU0 空闲、固定模型文件保留且现有服务健康。
+当前状态为 `ready_for_retry_amendment`：下一步只能讨论并冻结第五次独立证据路径和新的
+M6-A.3.0 只读执行授权。M6-A.3.1 仍未授权。

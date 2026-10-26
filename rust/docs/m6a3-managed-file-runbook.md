@@ -115,6 +115,12 @@ compute process 占用约 76 GiB 显存。该 Lab 不属于 Server ModelInstance
 基线、回滚 CLI 和全局资源 ID 门禁未执行。attempt 4 不得修改或继续，Lab 处置和下次证据
 路径必须另行讨论授权。
 
+用户随后确认该 Lab 是此前测试部署，并自行停止和删除。只读复核确认精确容器和部署状态
+文件均不存在，GPU0 显存与利用率为 0、没有 compute process；固定 Qwen2.5 模型目录仍
+存在，Server、Python Worker health/metrics 正常，Rust Worker 进程和端口均无残留。
+这项外部清理不修改 attempt 4 证据，也不把其追溯改判为通过。下一次预检必须使用新的
+未占用证据目录，并在重新执行全部门禁前另获明确授权。
+
 ## M6-A.3.0：独立只读预检
 
 ### 目的

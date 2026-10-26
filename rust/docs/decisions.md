@@ -413,3 +413,12 @@ D117–D119 不改变 D098–D102、D114–D116 的 Worker identity、模型、G
 D117 冻结的 attempt 4 随后在 GPU0 空闲硬门禁返回 `STOP/gpu0_not_idle`。占用来自既有
 Rust Lab `qwen2.5-0.5b-m5e` 及其唯一容器，不是本次预检创建的资源；该证据按正式
 `stopped_preflight` 保存。停止/删除既有 Lab、新证据路径和再次执行授权均尚未冻结。
+
+### 第四次预检后的外部状态变化
+
+用户确认 `qwen2.5-0.5b-m5e` 是此前测试部署，并自行停止和删除。后续只读复核确认精确
+Lab 容器和部署状态文件均不存在，GPU0 显存占用与利用率为 0、没有 compute process；固定
+Qwen2.5 模型目录仍存在，Server、Python Worker health/metrics 均为 200，Rust Worker
+进程和 `20150/20151` 监听均为 0。该事实只解除 attempt 4 当时观察到的外部 GPU blocker，
+不改变 attempt 4 的 `STOP/gpu0_not_idle` 历史判定，也不冻结第五次证据路径或授予新的
+M6-A.3.0/M6-A.3.1 执行权限。

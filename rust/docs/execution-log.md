@@ -2417,6 +2417,26 @@
   `stopped_preflight`，不是 `passed_preflight`。下一项只允许讨论并授权该精确 Lab 的处置、
   新证据路径和后续只读预检；M6-A.3.1 仍为 `not_started`。
 
+### 2026-10-26：用户清理既有 Lab，GPU0 blocker 已解除
+
+- 外部动作：用户确认 `qwen2.5-0.5b-m5e` 是此前测试部署，并自行完成停止和删除。本项目
+  没有代替用户执行该删除，也没有修改 attempt 4 的证据目录。
+- 只读复核：精确容器 ID
+  `6afffa063ff89f0747c03f361b94cf753bb1b1f78948155b925752ddbb3c5e99` 的 Docker 记录为 0，
+  精确 deployment state 文件不存在；GPU0 保持固定 UUID/name，显存占用和利用率均为 0，
+  compute process 数为 0。
+- 数据与服务安全：固定 Qwen2.5 目录仍存在且含 10 个顶层普通文件；此前完整 manifest
+  复核保持通过。Server、Python Worker health 和 metrics 均为 200，`gpustack-rs` 进程为
+  0，`20150/20151` 均无监听。
+- 解释：这次清理只改变了 attempt 4 结束后的外部运行状态。attempt 4 仍是有效
+  `STOP/gpu0_not_idle`，不能借当前 GPU 空闲追溯改判；未执行的端口、Docker 恢复、回滚
+  CLI 和全局 ID 门禁仍然未执行。
+- 漂移审计：固定 Server、Worker ID 5、模型、Runner、GPU、状态链和验收标准均未修改；
+  当前外部状态与再次执行只读预检的前置条件一致，但没有新的正式证据目录或执行授权。
+- 当前停止位置：M6-A.3.0 为 `ready_for_retry_amendment`，M6-A.3.1 仍为 `not_started`。
+- 下一项允许执行的工作：讨论并冻结第五次 M6-A.3.0 的唯一未占用证据路径和只读执行
+  授权；获得明确授权后必须从头重跑全部门禁，不得从 attempt 4 的中断位置续跑。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
