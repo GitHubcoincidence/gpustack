@@ -216,8 +216,10 @@ runtime。
 M6-A.1、M6-A.2、M6-A.2.1 和 M6-A.2.2 均已在 D033 详细实现报告后获用户接受。
 M6-A.2.3 的接口、源码、离线质量门禁和 D033 详细报告已经用户接受。第一次 M6-A.3.0
 已获只读授权但因没有 operator Context 按协议停止；停止证据保留在原固定目录。D107–D110
-已经冻结 API Key/Context 准备门禁，当前为 `authorized_pending_human_secret_entry`。
-准备成功后，第二次预检固定使用 `m6a3-formal-attempt-2`，但仍须新的明确执行授权。
+已经冻结 API Key/Context 准备门禁，D111–D113 记录了 Web 管理会话恢复路径、API 权威
+元数据纠偏和授权边界。7 天、仅 `management` 的正式 API Key 与 active `lab90` Context
+已经通过 `worker get rust-m3d-r760xa` 只读验证，当前为 `operator_context_ready`。
+第二次预检固定使用 `m6a3-formal-attempt-2`，但仍须新的明确执行授权。
 预检通过也不能自动开始 M6-A.3.1。真实 Server 写入、maintenance 变化和停止 Python
 Worker 必须在预检结果获共同审阅后另行明确授权。两段均不授权 Docker workload、GPU
 workload 或推理。

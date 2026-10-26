@@ -371,3 +371,14 @@ D103–D106 只关闭 M6-A.3 手册已经识别的产品 CLI 缺口，不改变 
 准备；授权不包含改变 Worker maintenance、创建 Model/ModelInstance/ModelFile、停止 Python
 Worker、启动 Rust Worker、访问 Docker、使用 GPU 或重跑 M6-A.3.0。由于密码必须仅在用户
 终端隐藏输入，该门禁在交互命令成功前保持 `authorized_pending_human_secret_entry`。
+
+## 2026-10-26 M6-A.3 operator Context 认证恢复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D111 | 已认证 Web 会话恢复路径 | 用户确认此前 401 来自密码误输后，不再猜测本地密码；允许使用用户当前已认证的 Web 管理会话调用正式 `/v2/api-keys` 创建 endpoint。完整 Key 不进入聊天或工具参数，只由用户从一次性创建响应直接无回显写入 90 主机 mode 0600 文件 | 仍通过正式 Server API 创建用户拥有的 API Key，同时避免继续处理或恢复管理员密码；浏览器 session cookie 不导出、不写入 Rust Context。 |
+| D112 | API 权威元数据与最小权限修复 | 创建后必须以 `/v2/api-keys` 返回的 `scope` 和 `expires_at` 为准，不以 UI 标签为验收证据。若 Key 为永久或包含 `inference`，使用短期、仅 `management` 的桥接 Key 先保留管理能力，再删除不合规 Key、创建同名 7 天仅 `management` Key、原子替换本地 token，最后删除桥接 Key 和恢复文件 | UI 的“平台管理”和过期显示不能替代 API 契约；桥接顺序避免先删除唯一凭据导致无法完成收紧，也保证任何中断都有 mode 0600 恢复凭据。 |
+| D113 | Context 就绪不扩展执行授权 | 正式 Key 仅允许用 `context list` 和 `worker get rust-m3d-r760xa` 验收。成功状态为 `operator_context_ready`；第二次 M6-A.3.0 仍须新的明确授权并使用 `m6a3-formal-attempt-2`，M6-A.3.1 仍须预检审阅后的独立维护授权 | 凭据准备是预检前置条件，不是预检本身；不能把一次 Server API Key 写入扩展为模型、maintenance、Worker 或 workload 操作授权。 |
+
+D111–D113 是 D107–D110 的受限恢复路径，不改变最终 Key 名称、scope、7 天生命周期、token
+文件或 Context 契约，也不改变 D098–D102 的两级执行边界。

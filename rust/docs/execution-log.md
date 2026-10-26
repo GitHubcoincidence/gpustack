@@ -2234,6 +2234,38 @@
   官方密码恢复的影响并获得单独写授权。认证恢复前不再调用登录 endpoint，不创建 API Key，
   也不开始第二次预检。
 
+### 2026-10-26：operator Context 通过 Web 管理会话恢复并验收
+
+- 认证纠偏：用户随后确认此前多次 401 均包含密码误输。第三次受保护文件尝试仍返回 401，
+  外层 trap 删除密码文件；只读数据库核对仅确认 `admin` 为启用的 Local 平台管理员和密码
+  行有效，没有读取密码哈希。此后停止调用 `/auth/login`，没有执行密码重置。
+- 泄露处置：用户曾把一个完整推理 API Key 发到聊天和截图；该 Key 立即视为泄露，未被助手
+  使用，用户从 Web 页面删除。随后创建的临时网页 Key 在 mode 0600 文件中验证管理 API
+  返回 403，证明它只有推理权限；本地副本随即删除，Server 记录由用户在 Web 页面删除。
+- 正式创建：用户通过既有已认证 Web 管理会话调用正式 `/v2/api-keys`，把完整值直接无回显
+  写入 90 主机，不进入聊天、工具参数或终端输出。API 权威核对发现该 Key 实际为永久且
+  scope 为 `management,inference`，与冻结契约不符，因此未创建 Context。
+- 最小权限修复：用不合规 Key 创建 ID 18、30 分钟、仅 `management` 的桥接 Key 并将恢复
+  值保存在 mode 0600 文件；验证桥接管理能力后删除 ID 17，创建 ID 19、同名
+  `rust-worker-m6a3-operator-20261024`、仅 `management`、7 天到期
+  `2026-11-02T08:49:57.571942Z` 的正式 Key，原子替换 token 后删除桥接 Key 和恢复文件。
+- Context 验收：`lab90` 指向 `http://127.0.0.1/` 和固定 token 文件并处于 active；token 与
+  `contexts.json` 均为 owner `wujiaxing2`、mode 0600、单链接。正式 CLI
+  `worker get rust-m3d-r760xa` 成功读取 ID 5、maintenance Rust Worker，证明只读管理链路
+  可用。Server health、Python Worker health/metrics 均为 200，90 Git 工作树保持干净。
+- 清理与证据：临时密码、cookie、创建响应、网页引导、桥接和修复文件残留均为 0。脱敏证据
+  位于 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-operator-context-20261026`，
+  目录 mode 0700、6 个文件均为 0600，秘密扫描通过；`manifest.sha256` 自身 SHA-256 为
+  `910bf0143f09f7388005007a6d8af1329e900dc9055c87bec7e4d357008e10e9`。正式第二次预检目录
+  `m6a3-formal-attempt-2` 仍未创建。
+- 漂移与授权：最终状态完全符合 D107–D110，恢复路径冻结为 D111–D113。没有改变 Worker、
+  maintenance、Model/ModelInstance/ModelFile，没有停止 Python Worker、启动 Rust Worker、
+  访问 Docker、创建 workload、使用 GPU 或推理。Context 准备状态为
+  `operator_context_ready`，不是 `passed_preflight`。
+- 下一项允许执行的工作：只讨论或由用户重新明确授权第二次 M6-A.3.0 只读预检。即使预检
+  通过，M6-A.3.1 的 Server 写入、maintenance 切换和 Python Worker 维护窗口仍须新的明确
+  授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

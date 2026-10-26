@@ -65,6 +65,12 @@ Git 或正式证据。最终 token 文件固定为
 `lab90`，Server URL 为 `http://127.0.0.1/`。创建后只允许用 `context list` 和
 `worker get rust-m3d-r760xa` 验证 Context 与只读管理权限，随后逐文件删除临时 secret。
 
+2026-10-26 的实际恢复没有复用错误输入的本地密码：用户通过既有已认证 Web 管理会话创建
+API Key，并把完整值直接无回显写入 90 主机的 mode 0600 文件。网页表象与 API 权威元数据
+不一致时，以 API 返回为准；最初的永久、`management + inference` Key 仅作为一次性凭据，
+通过 30 分钟、仅 `management` 的桥接 Key 原子替换为同名 7 天、仅 `management` 的正式
+Key，随后删除原 Key、桥接 Key 和全部临时 secret。该恢复路径不改变最终凭据契约。
+
 该门禁的唯一 Server 写入是创建上述 API Key；它不修改 Worker、maintenance、Model、
 ModelInstance 或 ModelFile。准备成功不等于 M6-A.3.0 通过，也不自动授权第二次预检。
 M6-A.3.1 完成、项目中止或凭据不再需要时必须删除 Server API Key、Context 和 token 文件。
@@ -79,8 +85,12 @@ ModelFile。M6-A.3.0 需要这两项能力才能证明 maintenance/身份和同�
 该缺口已经通过 D103–D106 冻结为 M6-A.2.3，接口为
 `worker get <worker-id-or-exact-name>` 与
 `model file list --worker <worker-id-or-exact-name>`。源码、离线质量门禁和 D033 详细报告
-已经用户接受，M6-A.3.0 当前为 `ready_for_authorization`，但尚未执行。不得把 M6-A.2.3
+已经用户接受；首次 M6-A.3.0 执行前状态为 `ready_for_authorization`。不得把 M6-A.2.3
 的接受解释为预检执行授权，也不得用 curl 临时绕过冻结命令。
+
+第一次 M6-A.3.0 已因缺少 Context 停止；正式 Context 现已准备并通过只读 Worker 查询。
+第二次 M6-A.3.0 状态为 `ready_for_new_authorization`，证据目录固定使用尚未创建的
+`m6a3-formal-attempt-2`，不能复用或覆盖第一次停止目录。
 
 ## M6-A.3.0：独立只读预检
 

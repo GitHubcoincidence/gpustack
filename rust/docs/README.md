@@ -28,24 +28,24 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D110 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D113 operator
   Context/API Key 准备门禁均已 `frozen`；完整 R1 架构继续按门禁推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
   M6-A.2.3。当前 Rust CLI 已具备 Context、Model、Worker 查询/maintenance 和安全 ModelFile
   元数据清理能力，`worker run --managed-file-only` 已接入离线验证的 Managed 文件准备
   协调器；只读 `worker get` 与按 Worker 的 `model file list` 已完成离线验收。
 - 当前证据边界：M5 已真实证明宿主机进程形态的单 GPU Lab Qwen2.5/vLLM 全流程；M6-A
-  当前只具有离线 fixture/fake/mock、构建和 CLI 契约证据。尚未证明真实 Server 上的
-  Managed ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
+  已真实证明 7 天、仅 `management` 的 operator API Key、active `lab90` Context 和
+  `worker get rust-m3d-r760xa` 只读管理链路。尚未执行第二次 M6-A.3.0，未证明真实 Server
+  上的 Managed ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
 - 当前停止位置：第一次 M6-A.3.0 在没有 operator Context 时按协议 `STOP`，原固定目录
-  保存其停止证据。用户已授权创建阶段 API Key/Context，但本地管理员凭据经终端交互和
-  受保护临时文件两种输入方式均被正式 `/auth/login` 返回 401；两次均在 API Key 创建前
-  停止并完整清除临时秘密，状态为 `waiting_for_local_auth_recovery`。
-- 下一项允许执行的工作：只确认当前本地管理员凭据，或另行讨论并明确授权官方密码恢复；
-  不再重复猜测登录。不得复用 cluster/per-Worker token，也不得自动重跑。恢复认证后的
-  第二次预检必须使用
-  `m6a3-formal-attempt-2`；M6-A.3.1 的 maintenance、模型写入和 Python Worker 维护窗口
-  仍未授权，任何一步都不授权 Docker/GPU workload 或推理。
+  保存其停止证据。用户随后确认多次 401 来自密码误输，并改用已认证 Web 管理会话创建
+  API Key；API 权威元数据暴露的永久、扩权配置已通过短期桥接密钥收紧为固定契约，桥接
+  密钥和全部临时 secret 已删除。Context 准备状态为 `operator_context_ready`。
+- 下一项允许执行的工作：只讨论或由用户重新明确授权第二次 M6-A.3.0 只读预检；不得因
+  Context 已就绪而自动重跑。第二次预检必须使用尚未创建的 `m6a3-formal-attempt-2`；
+  M6-A.3.1 的 maintenance、模型写入和 Python Worker 维护窗口仍未授权，任何一步都不
+  授权 Docker/GPU workload 或推理。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
