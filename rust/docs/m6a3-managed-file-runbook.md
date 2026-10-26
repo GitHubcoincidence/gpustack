@@ -49,7 +49,7 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第三次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-3`，已封存无效 CLI 调用证据，不计分且不得修改 |
 | 第四次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4`，已保存 GPU0 被既有 Lab 占用的停止证据，不得修改 |
 | 第五次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5`，因 Cargo working directory 错误按非评分 `INVALIDATED` 封存，不得修改 |
-| 第六次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-6`，已冻结并获只读执行授权，执行前必须仍不存在 |
+| 第六次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-6`，已通过并封存；`manifest.sha256` 文件 SHA-256 为 `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`，不得修改 |
 | 后续重试证据 | 尚未冻结；attempt 6 后的任何重试仍须使用新的未占用目录并另获执行授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
@@ -136,6 +136,13 @@ D123–D125 已把 attempt 6 路径冻结为 `m6a3-formal-attempt-6` 并授予�
 `cargo metadata --manifest-path ...` 和与 attempt 5 脚本的窄范围差异审计。证据日志必须
 同步落盘，seal 后不得再改变已进入 manifest 的文件；attempt 5 manifest 也必须加入前序
 证据 identity 检查。上述修正不改变任何正式输入或验收条件。
+
+attempt 6 的目录外静态审计与完整预检随后全部通过。44 个 manifest 条目逐项校验成功，
+证据目录为 0700、45 个文件均为 0600，秘密扫描为 0。固定源码/二进制、Server/Context、
+ID 5 identity、目标资源零冲突、模型 manifest、GPU0、端口、Python Worker 精确恢复材料、
+回滚 CLI 和全局 ID 基线均通过；运行没有改变 maintenance、停止 Python Worker、启动 Rust
+Worker、写 Server 资源或创建 Docker/GPU workload。M6-A.3.0 因而为 `passed_preflight`，
+M6-A.3.1 仅为 `ready_for_authorization`，仍未获得维护窗口授权。
 
 ## M6-A.3.0：独立只读预检
 

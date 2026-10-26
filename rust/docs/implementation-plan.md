@@ -214,19 +214,13 @@ M6-A.2.3。该阶段完成离线实现、D033 报告和用户接受前，M6-A.3.
 runtime。
 
 M6-A.1、M6-A.2、M6-A.2.1 和 M6-A.2.2 均已在 D033 详细实现报告后获用户接受。
-M6-A.2.3 的接口、源码、离线质量门禁和 D033 详细报告已经用户接受。第一次 M6-A.3.0
-已获只读授权但因没有 operator Context 按协议停止；停止证据保留在原固定目录。D107–D110
-已经冻结 API Key/Context 准备门禁，D111–D113 记录了 Web 管理会话恢复路径、API 权威
-元数据纠偏和授权边界。7 天、仅 `management` 的正式 API Key 与 active `lab90` Context
-已经通过 `worker get rust-m3d-r760xa` 只读验证，当前为 `operator_context_ready`。
-第二次预检随后获明确授权并使用 `m6a3-formal-attempt-2`，但本地持久 Worker ID 2 与
-Server 当前同名 Worker ID 5 不一致，因此在 identity 硬门禁按协议停止。该证据目录已被
-本次停止占用。D114–D116 已接受 `/1` 为当前 ID 5 的固定数据目录；per-Worker token
-通过 `me` 只读验证，顶层目录已收紧为 0700，旧 `m3d` 中 ID 2 保持不变。第三次预检证据
-固定为尚未创建的 `m6a3-formal-attempt-3`，但再次执行仍须新的明确授权。
-预检通过也不能自动开始 M6-A.3.1。真实 Server 写入、maintenance 变化和停止 Python
-Worker 必须在预检结果获共同审阅后另行明确授权。两段均不授权 Docker workload、GPU
-workload 或推理。
+M6-A.2.3 的接口、源码、离线质量门禁和 D033 详细报告已经用户接受。M6-A.3.0 的前五次
+尝试分别保留缺少 Context、Worker identity 漂移、无效 Context 调用、GPU0 被既有 Lab
+占用和无效 Cargo working directory 的停止或失效证据。D107–D125 完成 operator Context、
+当前 ID 5 identity、证据滚动与执行器修正；attempt 6 已从头通过全部只读门禁，状态为
+`passed_preflight`。该结果不自动开始 M6-A.3.1。真实 Server 写入、maintenance 变化、
+停止 Python Worker 和启动 `--managed-file-only` 必须在预检结果共同审阅后另行明确授权；
+M6-A.3.1 也不授权 Docker workload、GPU workload 或推理。
 
 ## 验证策略
 
@@ -467,3 +461,9 @@ D123–D125 随后把第六次证据固定为尚未创建的 `m6a3-formal-attemp
 使用 `rust/Cargo.toml`，并在正式目录创建前通过脚本语法、workspace metadata 和窄范围
 差异审计。用户已授权审计、冻结构建、真实只读查询和 Git 外证据写入，M6-A.3.0 当前为
 `authorized_pending_execution`；M6-A.3.1 与全部写路径仍未授权。
+
+第六次静态审计和完整预检随后全部通过。冻结源码、二进制、Server、Context、Worker ID 5、
+目标资源零冲突、固定 Qwen2.5 manifest、GPU0 空闲、受管端口、Python Worker 精确恢复材料、
+回滚 CLI 和全局资源 ID 基线均形成完整证据，且没有产生运行状态副作用。M6-A.3.0 当前为
+`passed_preflight`，M6-A.3.1 为 `ready_for_authorization`；下一步只能共同审阅并取得独立
+维护窗口授权，不能把只读预检通过解释为 Managed 状态链已经验收。

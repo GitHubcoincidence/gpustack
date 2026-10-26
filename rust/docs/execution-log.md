@@ -2493,6 +2493,53 @@
 - 下一项允许执行的工作：通过证据目录外的脚本审计后，从新的未占用目录执行第六次完整
   只读预检；任一硬门禁失败立即停止并封存证据。
 
+### 2026-10-26：第六次 M6-A.3.0 完整只读预检通过
+
+- 目的与授权：按 D123–D125 从头执行 M6-A.3.0，只允许脚本审计、冻结构建、真实只读
+  查询和 Git 外证据写入；不允许改变 maintenance、停止 Python Worker、启动 Rust Worker、
+  写 Server 资源或创建 Docker/GPU workload。
+- 预执行审计：正式证据目录创建前，脚本通过 `bash -n`、显式
+  `cargo metadata --manifest-path .../rust/Cargo.toml` 和 attempt 5/6 窄范围差异核对。
+  正式脚本 SHA-256 为
+  `9b2eba10c581401e4f5e4f902b7bf46cfbdae20faed296510fc911a9f3ad84f0`；差异只包含新
+  attempt identity、Cargo manifest 路径、同步 evidence 日志/独立最终摘要和 attempt 5
+  前序证据检查。
+- 源码与构建：本机、fork 和 90 使用提交
+  `61b5aab437d0a9b6c643a4469e5a29fcd34626b8`，90 tracked 工作树干净；已接受代码
+  `1130546ca89f99f59dc318d9694a6552a023fd8a` 为祖先且无后续 Rust 漂移。Rust/Cargo
+  1.99.1、`--locked --offline` 构建通过；`Cargo.lock` SHA-256 为
+  `4094d427f9ec18e671e9d639bd9a576c0d620af9da1ca87970da05319dd4857b`，二进制内嵌
+  commit `61b5aab437d0`，mode 0700，SHA-256 为
+  `99a73e07efac81107f49f39690365e91406320a1a3c7b66726db6a05af2942d4`。
+- 身份与资源：active Context 为 `lab90`；持久 identity、Server Worker 和 per-Worker
+  `me` 均指向唯一 ID 5/name `rust-m3d-r760xa`，UUID 为
+  `7c4e07a3-6b97-4577-9ff0-1fc6c2319596`，Worker 保持 maintenance。目标 Model、该 Worker
+  的 ModelInstance 和 ModelFile 数均为 0；全局基线分别为 Model
+  `[1,2,3,4,6,7,8,9]`、ModelInstance `[]`、ModelFile `[1,2,3,4,5,6]`、Worker `[1,5]`。
+- 模型与 GPU：固定 Qwen2.5 revision、canonical path、10 个顶层文件、999,604,126 bytes、
+  全文件 manifest、权重 SHA-256、架构和 chat template 均通过。GPU0 保持固定 A100 UUID，
+  显存占用 0 MiB、compute process 0；GPU1 只记录外部基线。
+- 端口、Docker 与恢复：`20150/20151` 和 `40000-40063` 无监听，`gpustack-rs` 进程为 0。
+  已记录精确 Python Worker container ID
+  `68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165`、固定 image digest、
+  `unless-stopped`、host network、命令和两个 mount；Server、Python Worker health/metrics
+  均为 200。
+- 证据与判定：正式目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-6` 为 0700，
+  45 个文件均为 0600，44 个 manifest 条目逐项校验通过，秘密扫描为 0；
+  `manifest.sha256` 文件 SHA-256 为
+  `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`。结果为
+  `PASS/all_read_only_preflight_gates_passed`，M6-A.3.0 状态为 `passed_preflight`。
+- 副作用与收尾：所有 mutation 标志均为 false；独立复核确认服务仍健康、GPU0 无 compute
+  process、Rust/受管端口无监听，远端临时脚本按精确路径删除。attempt 1～5 和 identity
+  恢复证据均未修改；漂移审计结论为 `aligned`。
+- 当前停止位置：M6-A.3.0 已通过，M6-A.3.1 为 `ready_for_authorization`，尚未开始且未
+  获授权。该结果没有证明 Managed 文件准备状态链。
+- 下一项允许执行的工作：共同审阅本检查点，并由用户单独明确授权 M6-A.3.1 的真实无
+  Docker 维护窗口。授权必须精确包含停止/恢复原 Python Worker、切换 Rust Worker
+  maintenance、创建/清理唯一 Model/ModelInstance/ModelFile 和启动/停止
+  `worker run --managed-file-only`；仍不允许 Docker/vLLM workload、GPU 使用或推理。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D119 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D125 operator
   Context/API Key 准备和 Worker identity 恢复门禁均已 `frozen`；完整 R1 架构继续按门禁
   推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
@@ -36,24 +36,19 @@
   元数据清理能力，`worker run --managed-file-only` 已接入离线验证的 Managed 文件准备
   协调器；只读 `worker get` 与按 Worker 的 `model file list` 已完成离线验收。
 - 当前证据边界：M5 已真实证明宿主机进程形态的单 GPU Lab Qwen2.5/vLLM 全流程；M6-A
-  已真实证明 7 天、仅 `management` 的 operator API Key、active `lab90` Context 和
-  `worker get rust-m3d-r760xa` 只读管理链路。第二次 M6-A.3.0 在 Worker identity 硬门禁
-  按协议停止；随后已验证 `/1` 中的 per-Worker token 对应当前唯一 ID 5，并将该目录权限
-  收紧为 0700。第三次执行的构建通过，但因无效 `context list` 参数在本地 CLI 检查阶段
-  终止并按非评分 `INVALIDATED` 封存。第四次执行通过身份、资源和模型门禁，但因 GPU0
-  上既有 Rust Lab workload 按协议停止；该 Lab 随后由用户停止并删除，且已通过只读
-  复核确认 GPU0 恢复空闲。尚未证明真实 Server 上的 Managed
-  ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
-- 当前停止位置：M6-A.3 已按 D114–D116 把当前持久身份固定为 `/1` 中的 Worker ID 5，
-  名称 `rust-m3d-r760xa`、UUID `7c4e07a3-6b97-4577-9ff0-1fc6c2319596`。旧 `m3d` 中 ID 2、
-  前两次停止证据和身份恢复证据均保持不变；attempt 3 已封存无效调用证据，attempt 4 已
-  封存 `gpu0_not_idle`。该 Lab 不是 Server ModelInstance 或本次预检资源；用户完成清理后，
-  只读复核确认精确容器和部署状态文件均不存在、GPU0 无 compute process，固定 Qwen2.5
-  模型目录仍保留，Server 与 Python Worker 健康。
-- 下一项允许执行的工作：attempt 5 已按非评分 `INVALIDATED` 封存；D123–D125 已把
-  attempt 6 路径冻结为 `m6a3-formal-attempt-6`，并授权先完成脚本静态/只读审计，再从头
-  执行完整 M6-A.3.0。attempt 4 仍是有效 `STOP/gpu0_not_idle`，且仍不授权 M6-A.3.1、
-  maintenance、模型写入或 Python Worker 维护窗口。
+  已真实证明 operator Context、当前 Worker ID 5 的持久身份和 M6-A.3.0 全部只读门禁。
+  attempt 1、2、4 的有效停止及 attempt 3、5 的非评分失效证据均保持不变；attempt 6 已从
+  冻结提交完成独立构建，并通过 Server/Context/identity、资源零冲突、固定模型、GPU0、
+  端口、Python Worker 可恢复性、回滚 CLI 和全局资源 ID 基线检查。尚未证明真实 Server
+  上的 Managed ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
+- 当前停止位置：M6-A.3.0 attempt 6 为 `passed_preflight`。正式证据位于
+  `m6a3-formal-attempt-6`，清单文件 SHA-256 为
+  `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`；预检没有改变
+  maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建 Docker/GPU
+  workload，结束后服务健康且受管端口无监听。
+- 下一项允许执行的工作：共同审阅并单独明确授权 M6-A.3.1 真实无 Docker 维护窗口。
+  `passed_preflight` 不是 M6-A.3 的最终验收，也不自动授权 maintenance、模型写入、停止
+  Python Worker、启动 `--managed-file-only` 或任何 M6-B Docker/GPU workload。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

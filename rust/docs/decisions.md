@@ -450,3 +450,10 @@ D120 冻结的 attempt 5 随后因预检脚本在仓库根目录而不是 `rust/
 
 D123–D125 只修正预检执行器，不改变固定输入、正式检查顺序、停止条件、通过标准或回滚
 方案。任一硬门禁失败仍须立即停止并封存 attempt 6。
+
+attempt 6 的证据目录外静态审计与完整只读预检随后全部通过。证据固定在
+`/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-6`，其
+`manifest.sha256` 文件 SHA-256 为
+`984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`。M6-A.3.0 状态为
+`passed_preflight`；该结果只解除 M6-A.3.1 的讨论前置条件，不修改 D125 的授权边界，也不
+授权 maintenance、Server 资源写入、Python Worker 维护窗口、Docker/GPU workload 或推理。
