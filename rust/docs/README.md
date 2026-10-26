@@ -39,15 +39,16 @@
   已真实证明 7 天、仅 `management` 的 operator API Key、active `lab90` Context 和
   `worker get rust-m3d-r760xa` 只读管理链路。第二次 M6-A.3.0 在 Worker identity 硬门禁
   按协议停止；随后已验证 `/1` 中的 per-Worker token 对应当前唯一 ID 5，并将该目录权限
-  收紧为 0700。尚未证明真实 Server 上的 Managed ModelInstance/ModelFile 状态链，也未
-  进入 M6-B Docker/vLLM runtime。
+  收紧为 0700。第三次执行的构建通过，但因无效 `context list` 参数在本地 CLI 检查阶段
+  终止并按非评分 `INVALIDATED` 封存。尚未证明真实 Server 上的 Managed
+  ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
 - 当前停止位置：M6-A.3 已按 D114–D116 把当前持久身份固定为 `/1` 中的 Worker ID 5，
   名称 `rust-m3d-r760xa`、UUID `7c4e07a3-6b97-4577-9ff0-1fc6c2319596`。旧 `m3d` 中 ID 2、
-  前两次停止证据和身份恢复证据均保持不变；第三次证据目录
-  `m6a3-formal-attempt-3` 尚未创建。
-- 下一项允许执行的工作：只讨论或由用户明确授权第三次 M6-A.3.0 只读预检。身份恢复完成
-  不等于预检通过，也不授权 M6-A.3.1；maintenance、模型写入和 Python Worker 维护窗口
-  仍未授权，任何一步都不授权 Docker/GPU workload 或推理。
+  前两次停止证据和身份恢复证据均保持不变；`m6a3-formal-attempt-3` 已封存无效调用证据，
+  后续重试路径尚未冻结。
+- 下一项允许执行的工作：只讨论并冻结新的 M6-A.3.0 证据路径与重试授权。身份恢复和无效
+  attempt 均不等于预检通过，也不授权 M6-A.3.1；maintenance、模型写入和 Python Worker
+  维护窗口仍未授权，任何一步都不授权 Docker/GPU workload 或推理。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

@@ -394,3 +394,7 @@ D111–D113 是 D107–D110 的受限恢复路径，不改变最终 Key 名称�
 D114–D116 只修订 M6-A.3 的当前持久身份输入和后续证据路径，不改变固定 Worker name、
 Server、模型、GPU、状态链、通过标准或回滚顺序。恢复操作不得修改 Server、maintenance、
 Python Worker、Docker 或 GPU workload。
+
+D116 冻结的 attempt 3 随后已执行，但因 `context list` 被错误传入全局 `--context` 而在
+CLI 本地参数检查阶段拒绝。该目录已作为非评分 `INVALIDATED` 证据封存，不能删除、覆盖或
+解释为正式预检失败；新的重试证据路径和执行授权尚未冻结。

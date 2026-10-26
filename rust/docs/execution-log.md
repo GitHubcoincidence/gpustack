@@ -2336,6 +2336,38 @@
 - 下一项允许执行的工作：只讨论或由用户另行明确授权第三次 M6-A.3.0 只读预检。第三次
   预检通过并共同审阅前，M6-A.3.1 仍为 `not_started` 且未授权。
 
+### 2026-10-26：第三次 M6-A.3.0 因无效 CLI 调用不计分
+
+- 授权与范围：用户在 identity 恢复检查点后回复“没问题”，授权第三次 M6-A.3.0 只读
+  预检。范围仍只有冻结源码构建、真实只读查询和 Git 外证据；不包含 Server 写入、
+  maintenance 变化、停止 Python Worker、启动 Rust Worker、Docker/GPU workload 或推理。
+- 外部漂移门禁：本机、fork 和 90 均为
+  `813920eb56278a63cad285cdde21b7380c16e2f8`，90 工作树干净；已接受代码提交
+  `1130546ca89f99f59dc318d9694a6552a023fd8a` 为祖先且后续无 Rust/Cargo/toolchain 漂移。
+  当前 `/1` 为 mode 0700、identity ID 5/name 正确，旧 `m3d` ID 2 保持不变；前两次停止
+  证据和 identity 恢复证据的 manifest 文件哈希均未漂移。
+- 构建证据：使用 Rust/Cargo 1.99.1、`Cargo.lock` 和 `--locked --offline` 重新构建成功；
+  `Cargo.lock` SHA-256 为
+  `4094d427f9ec18e671e9d639bd9a576c0d620af9da1ca87970da05319dd4857b`，二进制内嵌 commit
+  `813920eb5627`，SHA-256 为
+  `1a4b110e20eb352e487f92ff574d93ee6628e8d040972ed6f541f586f3bbdc5e`。
+- 无效调用：身份门禁的第一条命令错误使用
+  `gpustack-rs --context lab90 --output json context list`。Context 管理命令按产品契约拒绝
+  `--context`，CLI 在本地参数检查阶段退出；正确形式应为不带 selector 的
+  `gpustack-rs --output json context list`。因此没有读取 Context token、没有发送该 CLI
+  Server 请求，Worker/Model/ModelInstance/ModelFile、模型 manifest、GPU、端口和 Docker
+  正式门禁均未执行。
+- 判定：原 `preflight-result.txt` 保留 `STOP/operator_context_list_failed` 原始结果，另以
+  `adjudication.txt` 标记 `INVALIDATED/invalid_context_list_invocation`。该尝试不计分，不能
+  解释为系统预检失败，也不能在同一证据目录改命令继续。
+- 安全与证据：Server、Python Worker health/metrics 均为 200，`gpustack-rs` 进程为 0；
+  没有读取或输出 secret，没有任何 Server/maintenance/Worker/Docker/GPU 副作用。证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-3` 为 0700，
+  14 个文件均为 0600，秘密扫描通过；`manifest.sha256` 自身 SHA-256 为
+  `e0920b96a175989550baaa4562a10732ea0ad7525e29e3f7223826e3fbee36b4`。
+- 当前停止位置：M6-A.3.0 为 `waiting_for_retry_amendment`，新的未占用证据路径和重试授权
+  尚未冻结。M6-A.3.1 仍为 `not_started` 且未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

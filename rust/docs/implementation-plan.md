@@ -434,5 +434,8 @@ M6-A.2.2 的源码、mock 契约、完整 Rust workspace 质量门禁、干净�
 operator Context 缺失停止，第二次在固定 `m3d` identity ID 2 与 Server ID 5 不一致时停止；
 两次证据均已封存。D107–D116 已完成 Context 准备、当前 ID 5 token 只读验证、`/1` 数据
 目录选择和权限收紧，并把第三次证据滚动到尚未创建的 `m6a3-formal-attempt-3`。
-M6-A.3.0 当前为 `ready_for_authorization`，不得自动重跑。后续真实 Server 写入、
-maintenance 切换和 Python Worker 维护窗口仍须 M6-A.3.1 的独立明确授权。
+第三次执行的冻结构建通过，但 `context list` 因错误携带全局 `--context` 在 CLI 参数检查
+阶段失败，未读取 token 或发送该 CLI 请求；attempt 3 已按非评分 `INVALIDATED` 封存。
+M6-A.3.0 当前为 `waiting_for_retry_amendment`，新的证据路径和执行授权尚未冻结，不得自动
+重跑。后续真实 Server 写入、maintenance 切换和 Python Worker 维护窗口仍须 M6-A.3.1
+的独立明确授权。
