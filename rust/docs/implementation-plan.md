@@ -452,3 +452,7 @@ M6-A.3.0 attempt 4 保持 `stopped_preflight`。用户随后自行停止并删�
 复核确认精确容器和部署状态文件消失、GPU0 空闲、固定模型文件保留且现有服务健康。
 当前状态为 `ready_for_retry_amendment`：下一步只能讨论并冻结第五次独立证据路径和新的
 M6-A.3.0 只读执行授权。M6-A.3.1 仍未授权。
+
+D120–D122 随后把第五次证据固定为尚未创建的 `m6a3-formal-attempt-5`，要求从头执行所有
+预检门禁，并获得冻结构建、真实只读查询和 Git 外证据写入授权。M6-A.3.0 当前为
+`authorized_pending_execution`；M6-A.3.1 和全部写路径仍未授权。

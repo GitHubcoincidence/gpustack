@@ -422,3 +422,14 @@ Qwen2.5 模型目录仍存在，Server、Python Worker health/metrics 均为 200
 进程和 `20150/20151` 监听均为 0。该事实只解除 attempt 4 当时观察到的外部 GPU blocker，
 不改变 attempt 4 的 `STOP/gpu0_not_idle` 历史判定，也不冻结第五次证据路径或授予新的
 M6-A.3.0/M6-A.3.1 执行权限。
+
+## 2026-10-26 M6-A.3 第五次预检修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D120 | 第五次证据路径 | 第五次 M6-A.3.0 固定使用尚未创建的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5`；attempt 1～4 和 identity 恢复证据均保持不可变 | attempt 4 已被有效 GPU 硬停止占用；新目录保持每次正式尝试唯一且可审计。 |
+| D121 | 重试执行边界 | 第五次必须从源码、构建、Context、identity、资源、模型、GPU、端口、Docker/Python Worker 恢复、回滚 CLI 和全局 ID 基线开始完整重跑，不能从 attempt 4 的停止位置续跑 | GPU blocker 的外部消失不补齐 attempt 4 未执行的门禁，也不能把旧结果拼接成一次通过。 |
+| D122 | 第五次执行授权 | 用户在 blocker 清理检查点后回复“没问题”，授权第五次 M6-A.3.0 的冻结构建、真实只读查询和 Git 外证据写入；仍不授权 Server 写入、maintenance 变化、停止 Python Worker、启动 Rust Worker、Docker/GPU workload 或推理 | 将新的证据身份与本次只读执行范围明确绑定，同时保持 M6-A.3.1 独立维护授权门禁。 |
+
+D120–D122 不改变固定 Server、Worker ID 5、模型、Runner、GPU、状态链、通过条件或回滚
+方案。任一硬门禁失败仍须立即停止并封存 attempt 5。

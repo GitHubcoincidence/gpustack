@@ -48,7 +48,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 身份恢复证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-identity-recovery-20261026`，已保存 ID 5 token 只读验证与权限收紧证据，不得修改 |
 | 第三次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-3`，已封存无效 CLI 调用证据，不计分且不得修改 |
 | 第四次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4`，已保存 GPU0 被既有 Lab 占用的停止证据，不得修改 |
-| 后续重试证据 | 尚未冻结；必须使用新的未占用目录并另获执行授权 |
+| 第五次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5`，已冻结并获只读执行授权，执行前必须仍不存在 |
+| 后续重试证据 | 尚未冻结；attempt 5 后的任何重试仍须使用新的未占用目录并另获执行授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -119,7 +120,9 @@ compute process 占用约 76 GiB 显存。该 Lab 不属于 Server ModelInstance
 文件均不存在，GPU0 显存与利用率为 0、没有 compute process；固定 Qwen2.5 模型目录仍
 存在，Server、Python Worker health/metrics 正常，Rust Worker 进程和端口均无残留。
 这项外部清理不修改 attempt 4 证据，也不把其追溯改判为通过。下一次预检必须使用新的
-未占用证据目录，并在重新执行全部门禁前另获明确授权。
+未占用证据目录，并在重新执行全部门禁前另获明确授权。D120–D122 已将第五次目录固定为
+`m6a3-formal-attempt-5` 并授予只读执行权限；attempt 5 必须从头重跑所有检查，授权仍不
+包含任何 M6-A.3.1 写操作。
 
 ## M6-A.3.0：独立只读预检
 

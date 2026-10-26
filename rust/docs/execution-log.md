@@ -2437,6 +2437,22 @@
 - 下一项允许执行的工作：讨论并冻结第五次 M6-A.3.0 的唯一未占用证据路径和只读执行
   授权；获得明确授权后必须从头重跑全部门禁，不得从 attempt 4 的中断位置续跑。
 
+### 2026-10-26：第五次 M6-A.3.0 已冻结并获只读授权
+
+- 决策与授权：用户在 GPU blocker 清理报告后回复“没问题”，接受 D120–D122。第五次
+  证据目录固定为尚未创建的
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5`，并授权
+  冻结构建、真实只读查询和 Git 外证据写入。
+- 重试边界：必须从头执行全部门禁，不能复用 attempt 4 已通过的中间结果或补跑其未执行
+  检查。attempt 1～4 和 identity 恢复证据保持不可变。
+- 漂移审计：固定 Server、Worker ID 5、模型、Runner、GPU、状态链、通过条件和回滚协议
+  均未改变；唯一外部变化是用户删除旧测试 Lab 后 GPU0 恢复空闲，结论为 `aligned`。
+- 授权边界：不允许 Server 写入、maintenance 变化、停止 Python Worker、启动 Rust Worker、
+  Docker/GPU workload 或推理；M6-A.3.1 仍为 `not_started`。
+- 当前停止位置：M6-A.3.0 attempt 5 为 `authorized_pending_execution`。
+- 下一项允许执行的工作：从新的未占用目录执行第五次完整只读预检；任一硬门禁失败立即
+  停止并封存证据。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

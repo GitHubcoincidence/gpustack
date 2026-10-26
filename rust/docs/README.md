@@ -50,9 +50,10 @@
   封存 `gpu0_not_idle`。该 Lab 不是 Server ModelInstance 或本次预检资源；用户完成清理后，
   只读复核确认精确容器和部署状态文件均不存在、GPU0 无 compute process，固定 Qwen2.5
   模型目录仍保留，Server 与 Python Worker 健康。
-- 下一项允许执行的工作：讨论并冻结第五次 M6-A.3.0 的唯一证据路径和只读执行授权。
-  attempt 4 仍是有效 `STOP/gpu0_not_idle`，不得追溯改判；当前没有第五次预检授权，也不
-  授权 M6-A.3.1、maintenance、模型写入或 Python Worker 维护窗口。
+- 下一项允许执行的工作：D120–D122 已把第五次 M6-A.3.0 的唯一证据路径冻结为
+  `m6a3-formal-attempt-5` 并获得只读执行授权；从头执行全部预检门禁。attempt 4 仍是有效
+  `STOP/gpu0_not_idle`，不得追溯改判；仍不授权 M6-A.3.1、maintenance、模型写入或
+  Python Worker 维护窗口。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
