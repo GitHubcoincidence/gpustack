@@ -50,10 +50,10 @@
   封存 `gpu0_not_idle`。该 Lab 不是 Server ModelInstance 或本次预检资源；用户完成清理后，
   只读复核确认精确容器和部署状态文件均不存在、GPU0 无 compute process，固定 Qwen2.5
   模型目录仍保留，Server 与 Python Worker 健康。
-- 下一项允许执行的工作：attempt 5 因 Cargo working directory 调用错误在构建前按非评分
-  `INVALIDATED` 封存。只允许讨论并冻结新的证据路径、修正脚本及新的 M6-A.3.0 只读执行
-  授权；attempt 4 仍是有效 `STOP/gpu0_not_idle`，且仍不授权 M6-A.3.1、maintenance、
-  模型写入或 Python Worker 维护窗口。
+- 下一项允许执行的工作：attempt 5 已按非评分 `INVALIDATED` 封存；D123–D125 已把
+  attempt 6 路径冻结为 `m6a3-formal-attempt-6`，并授权先完成脚本静态/只读审计，再从头
+  执行完整 M6-A.3.0。attempt 4 仍是有效 `STOP/gpu0_not_idle`，且仍不授权 M6-A.3.1、
+  maintenance、模型写入或 Python Worker 维护窗口。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

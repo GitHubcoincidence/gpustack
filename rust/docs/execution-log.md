@@ -2475,6 +2475,24 @@
 - 下一项允许执行的工作：讨论并冻结新的唯一证据路径，先把 Cargo working directory 修正
   为 `$REPO/rust` 并完成脚本静态/只读审计，再另获新的 M6-A.3.0 执行授权。
 
+### 2026-10-26：第六次 M6-A.3.0 已冻结并获只读授权
+
+- 决策与授权：用户在 attempt 5 无效报告后回复“没问题”，接受 D123–D125。第六次证据
+  目录固定为尚未创建的
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-6`，并授权
+  脚本审计、冻结构建、真实只读查询和 Git 外证据写入。
+- 执行器修正：Cargo `clean/build` 显式指定 `$REPO/rust/Cargo.toml`；正式目录创建前必须
+  通过 `bash -n`、`cargo metadata --manifest-path ...` 和与 attempt 5 脚本的窄范围差异
+  审计。日志同步写入 evidence，最终摘要使用独立文件描述符，避免 manifest 生成后尾写；
+  attempt 5 manifest 加入前序证据检查。
+- 漂移审计：固定 Server、Worker ID 5、模型、Runner、GPU、状态链、通过条件和回滚协议
+  均未改变；修订只作用于预检执行器，结论为 `aligned`。
+- 授权边界：不允许 Server 写入、maintenance 变化、停止 Python Worker、启动 Rust Worker、
+  Docker/GPU workload 或推理；M6-A.3.1 仍为 `not_started`。
+- 当前停止位置：M6-A.3.0 attempt 6 为 `authorized_pending_execution`。
+- 下一项允许执行的工作：通过证据目录外的脚本审计后，从新的未占用目录执行第六次完整
+  只读预检；任一硬门禁失败立即停止并封存证据。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

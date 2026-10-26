@@ -439,3 +439,14 @@ D120 冻结的 attempt 5 随后因预检脚本在仓库根目录而不是 `rust/
 发生在源码身份记录之后、构建和全部真实查询之前，属于执行器调用错误；attempt 5 按非评分
 `INVALIDATED/invalid_cargo_working_directory` 保留，不能解释为代码或环境预检失败。新的
 证据路径、修正脚本和执行授权尚未冻结。
+
+## 2026-10-26 M6-A.3 第六次预检修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D123 | 第六次证据路径 | 第六次 M6-A.3.0 固定使用尚未创建的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-6`；attempt 1～5 和 identity 恢复证据均保持不可变 | attempt 5 已被无效执行器调用占用；滚动到唯一新目录才能维持正式尝试边界。 |
+| D124 | 脚本修正与预执行审计 | Cargo 命令必须显式使用 `$REPO/rust/Cargo.toml`；attempt 6 前必须在证据目录外通过 `bash -n`、`cargo metadata --manifest-path ...` 和修正差异审计。脚本日志改为同步写入 evidence，最终摘要走独立文件描述符，并把 attempt 5 manifest 加入不可变前序证据检查 | 修正唯一已知调用错误，同时避免 seal 后的摘要尾写改变 `live.log`、导致 manifest 与最终文件不一致；预执行审计不得冒充正式门禁结果。 |
+| D125 | 第六次执行授权 | 用户在 attempt 5 无效报告后回复“没问题”，授权第六次 M6-A.3.0 的脚本审计、冻结构建、真实只读查询和 Git 外证据写入；仍不授权 Server 写入、maintenance 变化、停止 Python Worker、启动 Rust Worker、Docker/GPU workload 或推理 | 把执行器修正、新证据身份和本次只读执行范围明确绑定，保持 M6-A.3.1 的独立维护授权。 |
+
+D123–D125 只修正预检执行器，不改变固定输入、正式检查顺序、停止条件、通过标准或回滚
+方案。任一硬门禁失败仍须立即停止并封存 attempt 6。

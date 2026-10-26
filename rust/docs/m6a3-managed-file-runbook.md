@@ -49,7 +49,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第三次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-3`，已封存无效 CLI 调用证据，不计分且不得修改 |
 | 第四次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4`，已保存 GPU0 被既有 Lab 占用的停止证据，不得修改 |
 | 第五次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5`，因 Cargo working directory 错误按非评分 `INVALIDATED` 封存，不得修改 |
-| 后续重试证据 | 尚未冻结；必须使用新的未占用目录、修正并审计脚本后另获执行授权 |
+| 第六次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-6`，已冻结并获只读执行授权，执行前必须仍不存在 |
+| 后续重试证据 | 尚未冻结；attempt 6 后的任何重试仍须使用新的未占用目录并另获执行授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -129,6 +130,12 @@ attempt 5 实际执行时，预检脚本在仓库根目录而非 `rust/` workspa
 在源码 identity 记录之后、正式构建和真实查询之前；证据按
 `INVALIDATED/invalid_cargo_working_directory` 非评分封存。不得在 attempt 5 内改目录继续，
 下一次必须冻结新路径、先验证脚本 working directory，并重新取得执行授权。
+
+D123–D125 已把 attempt 6 路径冻结为 `m6a3-formal-attempt-6` 并授予只读执行权限。Cargo
+命令改为显式使用 `$REPO/rust/Cargo.toml`；正式目录创建前须完成 `bash -n`、
+`cargo metadata --manifest-path ...` 和与 attempt 5 脚本的窄范围差异审计。证据日志必须
+同步落盘，seal 后不得再改变已进入 manifest 的文件；attempt 5 manifest 也必须加入前序
+证据 identity 检查。上述修正不改变任何正式输入或验收条件。
 
 ## M6-A.3.0：独立只读预检
 

@@ -462,3 +462,8 @@ attempt 5 在源码 identity 门禁后因脚本从仓库根目录而非 `rust/` 
 `INVALIDATED/invalid_cargo_working_directory` 封存，M6-A.3.0 回到
 `waiting_for_retry_amendment`。新的证据路径、修正脚本和执行授权尚未冻结；M6-A.3.1 仍
 未授权。
+
+D123–D125 随后把第六次证据固定为尚未创建的 `m6a3-formal-attempt-6`，要求 Cargo 显式
+使用 `rust/Cargo.toml`，并在正式目录创建前通过脚本语法、workspace metadata 和窄范围
+差异审计。用户已授权审计、冻结构建、真实只读查询和 Git 外证据写入，M6-A.3.0 当前为
+`authorized_pending_execution`；M6-A.3.1 与全部写路径仍未授权。
