@@ -409,3 +409,7 @@ CLI 本地参数检查阶段拒绝。该目录已作为非评分 `INVALIDATED` �
 
 D117–D119 不改变 D098–D102、D114–D116 的 Worker identity、模型、GPU、状态链、通过条件
 或回滚方案。任一硬门禁失败仍立即停止，不能在同一 attempt 中通过换输入或改命令继续。
+
+D117 冻结的 attempt 4 随后在 GPU0 空闲硬门禁返回 `STOP/gpu0_not_idle`。占用来自既有
+Rust Lab `qwen2.5-0.5b-m5e` 及其唯一容器，不是本次预检创建的资源；该证据按正式
+`stopped_preflight` 保存。停止/删除既有 Lab、新证据路径和再次执行授权均尚未冻结。

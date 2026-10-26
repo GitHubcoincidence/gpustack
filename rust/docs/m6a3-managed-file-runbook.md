@@ -47,7 +47,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第二次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-2`，已保存 identity mismatch 停止证据，不得修改 |
 | 身份恢复证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-identity-recovery-20261026`，已保存 ID 5 token 只读验证与权限收紧证据，不得修改 |
 | 第三次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-3`，已封存无效 CLI 调用证据，不计分且不得修改 |
-| 第四次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4`，执行前必须不存在 |
+| 第四次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4`，已保存 GPU0 被既有 Lab 占用的停止证据，不得修改 |
+| 后续重试证据 | 尚未冻结；必须使用新的未占用目录并另获执行授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -107,6 +108,13 @@ D117–D119 随后把第四次证据固定为 `m6a3-formal-attempt-4` 并获得�
 ModelFile 等真实 Server 查询继续显式使用 `--context lab90`。该修正不改变 Context 内容、
 认证凭据或任何正式输入。
 
+第四次预检随后通过源码/构建、Context、ID 5 identity、目标资源零冲突和固定模型 manifest
+门禁，但 GPU0 上存在既有 Rust Lab `qwen2.5-0.5b-m5e`：其容器使用固定 Runner，唯一
+compute process 占用约 76 GiB 显存。该 Lab 不属于 Server ModelInstance，也不是 attempt 4
+创建的资源。预检按 `STOP/gpu0_not_idle` 失败关闭；后续端口、Python Worker Docker 恢复
+基线、回滚 CLI 和全局资源 ID 门禁未执行。attempt 4 不得修改或继续，Lab 处置和下次证据
+路径必须另行讨论授权。
+
 ## M6-A.3.0：独立只读预检
 
 ### 目的
@@ -149,9 +157,9 @@ ModelFile 等真实 Server 查询继续显式使用 `--context lab90`。该修�
    - Server、Python Worker health `10150` 和 metrics `10151` 均正常；
    - 记录精确 `gpustack-worker` container ID、名称、镜像 digest、命令、restart policy、
      network、mount 和当前状态，保证后续只停止并恢复同一对象；
-   - 第四次正式证据目录 `m6a3-formal-attempt-4` 必须尚不存在；前两次停止证据、attempt 3
-     无效证据和 identity 恢复证据必须原样存在。新目录建立时使用 `0700`，文件使用
-     `0600`；
+   - 下一次正式证据目录必须另行冻结且尚不存在；前两次停止证据、attempt 3 无效证据、
+     attempt 4 GPU 停止证据和 identity 恢复证据必须原样存在。新目录建立时使用 `0700`，
+     文件使用 `0600`；
    - 固定二进制 help 中存在 maintenance、Model、ModelFile 清理入口，回滚不依赖 Web UI
      或未文档化写请求。
 

@@ -2382,6 +2382,41 @@
 - 下一项允许执行的工作：完成外部漂移复核后执行第四次 M6-A.3.0；任一硬门禁失败立即
   停止并封存 attempt 4。
 
+### 2026-10-26：第四次 M6-A.3.0 因 GPU0 被既有 Lab 占用停止
+
+- 源码和构建：本机、fork 和 90 均为
+  `6684a32643d82380a570ce5ebfe94fcd8dbab533`，90 工作树干净；已接受代码提交
+  `1130546ca89f99f59dc318d9694a6552a023fd8a` 为祖先且后续无 Rust/Cargo/toolchain 漂移。
+  Rust/Cargo 1.99.1、`--locked --offline` 构建通过，`Cargo.lock` SHA-256 为
+  `4094d427f9ec18e671e9d639bd9a576c0d620af9da1ca87970da05319dd4857b`；二进制内嵌 commit
+  `6684a32643d8`，SHA-256 为
+  `5731421f280545f82e92b13cc2b97da687238902965898b2d67f8b8255fa4a1e`。
+- 身份与资源门禁：修正后的 Context 枚举、active `lab90`、固定配置均通过。Server Worker
+  与 `/1` identity/per-Worker token 均为唯一 ID 5/name `rust-m3d-r760xa`，UUID 为
+  `7c4e07a3-6b97-4577-9ff0-1fc6c2319596`，状态为 maintenance。目标 Model count、该 Worker
+  的 ModelInstance count 和 ModelFile count 均为 0。
+- 模型门禁：固定 Qwen2.5 路径位于允许根目录，10 个顶层普通文件、0 个子目录、
+  999,604,126 bytes、完整 manifest、权重 SHA-256、`Qwen2ForCausalLM` 和非空 chat template
+  均与已接受 D084 证据一致。
+- GPU 硬停止：GPU0 UUID/name 未漂移，但存在 PID 2204755 `VLLM::EngineCore`，占用
+  76,034 MiB。cgroup 精确映射到既有容器
+  `gpustack-rs-lab-47b11d29-f749-4250-9ca3-8fa8c5bdfa45`；容器运行固定 Runner、restart count
+  0。受保护 Lab 状态文件将其标识为 `qwen2.5-0.5b-m5e/RUNNING`，位于
+  `m5e-e0-20261022-125241/lab/`。Server 全局 ModelInstance 为 0，证明它是独立 Lab，且
+  `created_by_attempt4=false`。
+- 未执行检查：发现 GPU0 非空闲后，没有继续执行正式端口/进程门禁、Python Worker Docker
+  恢复基线、回滚 CLI help 或全局资源 ID 基线；停止后的容器/cgroup/Server 查询仅为
+  非评分归因诊断。没有停止、删除或修改该 Lab。
+- 安全与证据：Server、Python Worker health/metrics 均为 200，`gpustack-rs` 进程为 0；
+  没有改变 Server、maintenance、Python Worker、Rust Worker、Docker 或 GPU workload。
+  正式证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4` 为 0700，
+  27 个文件均为 0600，秘密扫描通过；`manifest.sha256` 自身 SHA-256 为
+  `03e8ff6c78ce4135e545efd9849d57b3c1aa9aded499eecaaf02581ec30a5d5b`。
+- 判定与停止位置：attempt 4 为有效 `STOP/gpu0_not_idle`，M6-A.3.0 状态为
+  `stopped_preflight`，不是 `passed_preflight`。下一项只允许讨论并授权该精确 Lab 的处置、
+  新证据路径和后续只读预检；M6-A.3.1 仍为 `not_started`。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
