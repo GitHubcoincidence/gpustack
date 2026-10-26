@@ -2309,6 +2309,33 @@
   受控迁移到新的明确目录，同时固定第三次证据目录和新的 M6-A.3.0 授权；不得直接覆盖
   `m3d` 中 ID 2 的历史身份。M6-A.3.1 仍为 `not_started` 且未授权。
 
+### 2026-10-26：M6-A.3 当前 Worker identity 恢复已冻结并应用
+
+- 决策：用户接受 D114–D116，选择直接采用现有
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/1`，不复制或迁移 Worker 凭据。该目录
+  的 identity 为 ID 5、名称 `rust-m3d-r760xa`、UUID
+  `7c4e07a3-6b97-4577-9ff0-1fc6c2319596`；旧 `m3d` 中 ID 2 保持历史只读状态。
+- 只读身份验证：使用 `/1/managed/worker-token` 调用 `GET /v2/workers?me=true` 返回 HTTP
+  200 和唯一 ID 5/name，与本地 identity 一致。固定 v2.2.3 的 `me` 响应不返回 UUID，
+  因此仍按 D035 从受保护本地 identity 恢复 UUID；token 值未输出、未写入证据或 Git。
+- 目录审计与修复：`/1` 仅含 mode 0700 的 `managed/` 及两个 mode 0600、单链接身份文件，
+  没有锁文件或 Lab 状态；顶层目录从 0775 收紧为 0700。未移动、覆盖或删除 `/1`、`m3d`
+  及前两次正式证据中的任何身份文件。
+- 安全复核：临时 Authorization header/response 目录残留为 0；Server、Python Worker
+  health 和 metrics 均为 200，`gpustack-rs` 进程为 0。没有修改 Server、maintenance、
+  Model/ModelInstance/ModelFile，没有停止 Python Worker、启动 Rust Worker、访问 Docker、
+  创建 workload 或使用 GPU。
+- 证据：脱敏恢复证据位于
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-identity-recovery-20261026`，
+  目录 mode 0700、文件 mode 0600，秘密扫描通过；`manifest.sha256` 自身 SHA-256 为
+  `955f20e6efc42c903800dbb2b92365ce82cf01bec1e1ea6c894f804c83fd629e`。
+- 漂移与状态：只修订当前持久身份路径和证据滚动路径；固定 Server、Worker name、模型、
+  GPU、状态链、验收条件及回滚顺序不变。第三次预检目录固定为尚未创建的
+  `m6a3-formal-attempt-3`，M6-A.3.0 状态为 `ready_for_authorization`，不是
+  `passed_preflight`。
+- 下一项允许执行的工作：只讨论或由用户另行明确授权第三次 M6-A.3.0 只读预检。第三次
+  预检通过并共同审阅前，M6-A.3.1 仍为 `not_started` 且未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

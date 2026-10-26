@@ -28,8 +28,9 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D113 operator
-  Context/API Key 准备门禁均已 `frozen`；完整 R1 架构继续按门禁推进。
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D116 operator
+  Context/API Key 准备和 Worker identity 恢复门禁均已 `frozen`；完整 R1 架构继续按门禁
+  推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
   M6-A.2.3。当前 Rust CLI 已具备 Context、Model、Worker 查询/maintenance 和安全 ModelFile
   元数据清理能力，`worker run --managed-file-only` 已接入离线验证的 Managed 文件准备
@@ -37,18 +38,16 @@
 - 当前证据边界：M5 已真实证明宿主机进程形态的单 GPU Lab Qwen2.5/vLLM 全流程；M6-A
   已真实证明 7 天、仅 `management` 的 operator API Key、active `lab90` Context 和
   `worker get rust-m3d-r760xa` 只读管理链路。第二次 M6-A.3.0 在 Worker identity 硬门禁
-  按协议停止，尚未证明真实 Server 上的 Managed ModelInstance/ModelFile 状态链，也未
+  按协议停止；随后已验证 `/1` 中的 per-Worker token 对应当前唯一 ID 5，并将该目录权限
+  收紧为 0700。尚未证明真实 Server 上的 Managed ModelInstance/ModelFile 状态链，也未
   进入 M6-B Docker/vLLM runtime。
-- 当前停止位置：本地持久 identity 仍为 Worker ID 2 和原 UUID，但 Server 当前唯一同名
-  Worker 为 ID 5；旧 ID 2 已不在当前数据库。第二次证据目录
-  `m6a3-formal-attempt-2` 已封存 `worker_identity_id_mismatch`，后续资源、模型、GPU、端口和
-  Docker 检查均未执行。非评分诊断发现 ID 5 的匹配 identity/token 保存在另一受保护目录
-  `~/.local/state/gpustack-rust-worker/1/managed/`，而冻结输入仍指向旧 ID 2 的 `m3d` 目录。
-- 下一项允许执行的工作：只讨论并冻结 Worker identity 恢复方案、证据滚动路径和新的只读
-  预检授权；不得在已停止的 attempt 中改写本地 identity、复用当前 ID 5 或删除 Server
-  Worker；还需在“采用 ID 5 的既有目录”和“受控迁移到新的明确目录”之间形成决策。
-  M6-A.3.1 的 maintenance、模型写入和 Python Worker 维护窗口仍未授权，任何一步都不
-  授权 Docker/GPU workload 或推理。
+- 当前停止位置：M6-A.3 已按 D114–D116 把当前持久身份固定为 `/1` 中的 Worker ID 5，
+  名称 `rust-m3d-r760xa`、UUID `7c4e07a3-6b97-4577-9ff0-1fc6c2319596`。旧 `m3d` 中 ID 2、
+  前两次停止证据和身份恢复证据均保持不变；第三次证据目录
+  `m6a3-formal-attempt-3` 尚未创建。
+- 下一项允许执行的工作：只讨论或由用户明确授权第三次 M6-A.3.0 只读预检。身份恢复完成
+  不等于预检通过，也不授权 M6-A.3.1；maintenance、模型写入和 Python Worker 维护窗口
+  仍未授权，任何一步都不授权 Docker/GPU workload 或推理。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

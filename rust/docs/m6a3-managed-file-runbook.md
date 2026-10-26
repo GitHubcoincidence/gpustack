@@ -34,7 +34,7 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | Server | GPUStack `v2.2.3`，commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365` |
 | Rust Worker | `rust-m3d-r760xa`，复用受保护的持久 identity 与 per-Worker token |
 | Worker 地址 | `10.213.80.90:20150`，metrics `10.213.80.90:20151` |
-| Worker 数据目录 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/m3d` |
+| Worker 数据目录 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/1`，固定 Worker ID 5、UUID `7c4e07a3-6b97-4577-9ff0-1fc6c2319596` |
 | 模型根目录 | `/home/wujiaxing2/flowscale-system-validation/models` |
 | 模型 | `Qwen/Qwen2.5-0.5B-Instruct` revision `7ae557604adf67be50417f59c2c2f167def9a775` |
 | 本地路径 | `/home/wujiaxing2/flowscale-system-validation/models/Qwen2.5-0.5B-Instruct` |
@@ -44,7 +44,9 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 部署参数 | tensor parallel `1`、max model length `2048`、GPU memory utilization `0.5`、dtype `auto`、eager execution |
 | Managed 端口池 | `40000-40063`，由 Rust Worker 分配或复用 |
 | 第一次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal`，已保存停止证据，不得修改 |
-| 第二次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-2`，重跑获授权前必须不存在 |
+| 第二次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-2`，已保存 identity mismatch 停止证据，不得修改 |
+| 身份恢复证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-identity-recovery-20261026`，已保存 ID 5 token 只读验证与权限收紧证据，不得修改 |
+| 第三次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-3`，再次执行获授权前必须不存在 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -91,7 +93,10 @@ ModelFile。M6-A.3.0 需要这两项能力才能证明 maintenance/身份和同�
 第一次 M6-A.3.0 已因缺少 Context 停止；正式 Context 随后准备并通过只读 Worker 查询。
 第二次 M6-A.3.0 于 2026-10-26 获授权并使用 `m6a3-formal-attempt-2`，但本地持久 Worker
 ID 2 与 Server 当前同名 Worker ID 5 不一致，因此在 identity 门禁按协议停止。该目录现已
-占用且不得复用或覆盖；身份恢复、下一证据目录和再次执行授权必须另行讨论冻结。
+占用且不得复用或覆盖。随后按 D114–D116 接受现有 `/1` 目录为当前 ID 5 的固定数据目录：
+其 token 通过 `GET /v2/workers?me=true` 返回唯一 ID 5/name，本地 identity 提供 UUID，
+顶层目录权限已从 0775 收紧为 0700；旧 `m3d` 中 ID 2 未改动。第三次预检固定使用
+`m6a3-formal-attempt-3`，但身份恢复成功不是第三次预检的执行授权。
 
 ## M6-A.3.0：独立只读预检
 
@@ -115,7 +120,10 @@ ID 2 与 Server 当前同名 Worker ID 5 不一致，因此在 identity 门禁�
    - operator Context 存在，token 文件属主和 mode 安全，使用只读 CLI 请求验证权限；
    - Rust Worker 名称唯一，持久 identity 与 Server ID/name 一致，仍处于 maintenance，
      且没有分配给它的 ModelInstance 或 ModelFile；
-   - Worker identity/token 文件存在、属主和 mode 安全；任何检查都不得输出 secret。
+   - 固定数据目录和 `managed/` 均为 mode 0700；Worker identity/token 文件存在、属主正确、
+     mode 0600 且为单链接；任何检查都不得输出 secret；
+   - ID 5 的 per-Worker token 再次调用 `me` 必须返回唯一 ID 5/name，旧 `m3d` 中 ID 2
+     identity 保持原样且不得被选作当前运行输入。
 3. **目标资源无冲突**
    - `m6a3-qwen25-05b-gpu0` 不存在；若重名则停止，不复用也不自动删除；
    - Rust Worker 上不存在同一 `local_path` source 的 ModelFile。已有 ready 记录会绕过
@@ -132,8 +140,8 @@ ID 2 与 Server 当前同名 Worker ID 5 不一致，因此在 identity 门禁�
    - Server、Python Worker health `10150` 和 metrics `10151` 均正常；
    - 记录精确 `gpustack-worker` container ID、名称、镜像 digest、命令、restart policy、
      network、mount 和当前状态，保证后续只停止并恢复同一对象；
-   - 第二次正式证据目录 `m6a3-formal-attempt-2` 必须尚不存在；第一次停止证据目录必须
-     原样存在。新目录建立时使用 `0700`，文件使用 `0600`；
+   - 第三次正式证据目录 `m6a3-formal-attempt-3` 必须尚不存在；前两次停止证据目录和
+     identity 恢复证据必须原样存在。新目录建立时使用 `0700`，文件使用 `0600`；
    - 固定二进制 help 中存在 maintenance、Model、ModelFile 清理入口，回滚不依赖 Web UI
      或未文档化写请求。
 

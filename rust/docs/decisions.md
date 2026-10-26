@@ -382,3 +382,15 @@ Worker、启动 Rust Worker、访问 Docker、使用 GPU 或重跑 M6-A.3.0。�
 
 D111–D113 是 D107–D110 的受限恢复路径，不改变最终 Key 名称、scope、7 天生命周期、token
 文件或 Context 契约，也不改变 D098–D102 的两级执行边界。
+
+## 2026-10-26 M6-A.3 Worker identity 恢复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D114 | 当前 Worker identity 选择 | M6-A.3 后续固定使用 `/home/wujiaxing2/.local/state/gpustack-rust-worker/1`。其中持久 identity 为 Worker ID 5、名称 `rust-m3d-r760xa`、UUID `7c4e07a3-6b97-4577-9ff0-1fc6c2319596`；其 per-Worker token 必须通过 `GET /v2/workers?me=true` 只读认证为唯一 ID 5/name。`me` 不返回 UUID 时继续按 D035 使用受保护本地元数据，不伪造 Server 字段 | 第二次预检证明旧 `m3d` 目录的 ID 2 已与当前 Server 漂移；只读诊断和独立 token 验证则证明 `/1` 是当前 ID 5 的完整持久身份。直接采用现有目录不复制凭据，也不引入新的 Worker 注册或 Server 写入。 |
+| D115 | 权限收紧与历史保留 | 将 `/1` 顶层目录从 mode 0775 收紧为 0700；`managed/` 保持 0700，identity/token 保持 0600 和单链接。旧 `m3d` 目录及 ID 2 identity/token 不移动、不覆盖、不删除，只作为历史恢复证据保留 | 顶层目录收紧消除不必要的遍历权限；保留旧身份与前两次停止证据，可解释身份漂移并避免通过改写历史制造通过结果。 |
+| D116 | 第三次预检证据与授权 | 第三次 M6-A.3.0 若另获明确授权，固定使用尚未创建的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-3`。`m6a3-formal` 和 `m6a3-formal-attempt-2` 均保持不可变；身份恢复完成不自动开始第三次预检，更不授权 M6-A.3.1 | 每次正式尝试使用唯一证据目录，保持失败链可审计。冻结恢复输入与授权执行仍是两个独立门禁。 |
+
+D114–D116 只修订 M6-A.3 的当前持久身份输入和后续证据路径，不改变固定 Worker name、
+Server、模型、GPU、状态链、通过标准或回滚顺序。恢复操作不得修改 Server、maintenance、
+Python Worker、Docker 或 GPU workload。

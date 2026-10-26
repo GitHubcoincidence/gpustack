@@ -221,7 +221,9 @@ M6-A.2.3 的接口、源码、离线质量门禁和 D033 详细报告已经用�
 已经通过 `worker get rust-m3d-r760xa` 只读验证，当前为 `operator_context_ready`。
 第二次预检随后获明确授权并使用 `m6a3-formal-attempt-2`，但本地持久 Worker ID 2 与
 Server 当前同名 Worker ID 5 不一致，因此在 identity 硬门禁按协议停止。该证据目录已被
-本次停止占用；修复方案、后续证据目录和再次执行授权尚未冻结。
+本次停止占用。D114–D116 已接受 `/1` 为当前 ID 5 的固定数据目录；per-Worker token
+通过 `me` 只读验证，顶层目录已收紧为 0700，旧 `m3d` 中 ID 2 保持不变。第三次预检证据
+固定为尚未创建的 `m6a3-formal-attempt-3`，但再次执行仍须新的明确授权。
 预检通过也不能自动开始 M6-A.3.1。真实 Server 写入、maintenance 变化和停止 Python
 Worker 必须在预检结果获共同审阅后另行明确授权。两段均不授权 Docker workload、GPU
 workload 或推理。
@@ -428,8 +430,9 @@ M6-A.2.2 的源码、mock 契约、完整 Rust workspace 质量门禁、干净�
 已经完成。用户审阅详细实现报告后已接受该门禁，目前为 `accepted`。D098–D102 和
 `m6a3-managed-file-runbook.md` 已冻结 M6-A.3.0 只读预检以及 M6-A.3.1 真实 smoke 的
 输入、检查项、停止条件、证据和回滚。M6-A.2.3 的只读 Worker/ModelFile CLI 已完成
-离线实现、质量门禁、D033 详细报告和用户验收，目前为 `accepted`。M6-A.3.0 当前为
-`stopped_preflight`：首次获授权执行在读取 token 或发送 Server 请求前发现 operator Context
-数量为 0，按协议停止。下一项只允许讨论并冻结 operator Context 安全准备和停止证据的
-保留/新证据路径方案，不得自动重跑。后续真实 Server 写入、maintenance 切换和 Python
-Worker 维护窗口还须第二次明确授权。
+离线实现、质量门禁、D033 详细报告和用户验收，目前为 `accepted`。第一次 M6-A.3.0 因
+operator Context 缺失停止，第二次在固定 `m3d` identity ID 2 与 Server ID 5 不一致时停止；
+两次证据均已封存。D107–D116 已完成 Context 准备、当前 ID 5 token 只读验证、`/1` 数据
+目录选择和权限收紧，并把第三次证据滚动到尚未创建的 `m6a3-formal-attempt-3`。
+M6-A.3.0 当前为 `ready_for_authorization`，不得自动重跑。后续真实 Server 写入、
+maintenance 切换和 Python Worker 维护窗口仍须 M6-A.3.1 的独立明确授权。
