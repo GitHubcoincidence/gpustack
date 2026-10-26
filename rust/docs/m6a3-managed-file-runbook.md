@@ -48,8 +48,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 身份恢复证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-identity-recovery-20261026`，已保存 ID 5 token 只读验证与权限收紧证据，不得修改 |
 | 第三次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-3`，已封存无效 CLI 调用证据，不计分且不得修改 |
 | 第四次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4`，已保存 GPU0 被既有 Lab 占用的停止证据，不得修改 |
-| 第五次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5`，已冻结并获只读执行授权，执行前必须仍不存在 |
-| 后续重试证据 | 尚未冻结；attempt 5 后的任何重试仍须使用新的未占用目录并另获执行授权 |
+| 第五次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5`，因 Cargo working directory 错误按非评分 `INVALIDATED` 封存，不得修改 |
+| 后续重试证据 | 尚未冻结；必须使用新的未占用目录、修正并审计脚本后另获执行授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -123,6 +123,12 @@ compute process 占用约 76 GiB 显存。该 Lab 不属于 Server ModelInstance
 未占用证据目录，并在重新执行全部门禁前另获明确授权。D120–D122 已将第五次目录固定为
 `m6a3-formal-attempt-5` 并授予只读执行权限；attempt 5 必须从头重跑所有检查，授权仍不
 包含任何 M6-A.3.1 写操作。
+
+attempt 5 实际执行时，预检脚本在仓库根目录而非 `rust/` workspace 调用
+`cargo clean -p gpustack-cli`，Cargo 因找不到 `Cargo.toml` 以退出码 101 拒绝。该错误发生
+在源码 identity 记录之后、正式构建和真实查询之前；证据按
+`INVALIDATED/invalid_cargo_working_directory` 非评分封存。不得在 attempt 5 内改目录继续，
+下一次必须冻结新路径、先验证脚本 working directory，并重新取得执行授权。
 
 ## M6-A.3.0：独立只读预检
 

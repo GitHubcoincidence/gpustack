@@ -433,3 +433,9 @@ M6-A.3.0/M6-A.3.1 执行权限。
 
 D120–D122 不改变固定 Server、Worker ID 5、模型、Runner、GPU、状态链、通过条件或回滚
 方案。任一硬门禁失败仍须立即停止并封存 attempt 5。
+
+D120 冻结的 attempt 5 随后因预检脚本在仓库根目录而不是 `rust/` workspace 执行
+`cargo clean -p gpustack-cli`，被 Cargo 以“找不到 `Cargo.toml`”和退出码 101 拒绝。该错误
+发生在源码身份记录之后、构建和全部真实查询之前，属于执行器调用错误；attempt 5 按非评分
+`INVALIDATED/invalid_cargo_working_directory` 保留，不能解释为代码或环境预检失败。新的
+证据路径、修正脚本和执行授权尚未冻结。

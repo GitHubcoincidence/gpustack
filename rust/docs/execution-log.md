@@ -2453,6 +2453,28 @@
 - 下一项允许执行的工作：从新的未占用目录执行第五次完整只读预检；任一硬门禁失败立即
   停止并封存证据。
 
+### 2026-10-26：第五次 M6-A.3.0 因 Cargo working directory 错误不计分
+
+- 执行事实：attempt 5 建立新证据目录并通过源码 HEAD、origin、干净工作树、已接受代码
+  祖先、无 Rust drift、Rust/Cargo 版本和 `Cargo.lock` identity 检查。随后脚本在仓库根
+  `/home/wujiaxing2/workspaces/gpustack` 执行 `cargo clean -p gpustack-cli`；Rust workspace
+  实际位于其 `rust/` 子目录，Cargo 因找不到 `Cargo.toml` 以退出码 101 停止。
+- 判定：这是预检执行器的 working directory 调用错误，不是源码、构建、Server 或环境
+  门禁失败。原 `preflight-result.txt` 保留
+  `STOP/unexpected_command_failure_exit_101`，治理判定为非评分
+  `INVALIDATED/invalid_cargo_working_directory`；不得在同一目录修正后续跑。
+- 未执行范围：没有生成正式 binary，没有读取 operator 或 per-Worker token，没有发送
+  Worker/Model/ModelInstance/ModelFile 查询，也没有进入模型、GPU、端口、Docker/Python
+  Worker、回滚 CLI 或全局 ID 门禁。
+- 安全与证据：Server、Python Worker health/metrics 均为 200，`gpustack-rs` 进程为 0；
+  没有任何 Server、maintenance、服务、容器或 GPU 副作用。证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5` 为 0700，
+  8 个文件均为 0600，秘密扫描为 0；`manifest.sha256` 自身 SHA-256 为
+  `2dd631a89066be9ccb5636a547756162fb9e2c390817e080059cc60db02d9cb4`。
+- 当前停止位置：M6-A.3.0 为 `waiting_for_retry_amendment`，M6-A.3.1 仍为 `not_started`。
+- 下一项允许执行的工作：讨论并冻结新的唯一证据路径，先把 Cargo working directory 修正
+  为 `$REPO/rust` 并完成脚本静态/只读审计，再另获新的 M6-A.3.0 执行授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

@@ -456,3 +456,9 @@ M6-A.3.0 只读执行授权。M6-A.3.1 仍未授权。
 D120–D122 随后把第五次证据固定为尚未创建的 `m6a3-formal-attempt-5`，要求从头执行所有
 预检门禁，并获得冻结构建、真实只读查询和 Git 外证据写入授权。M6-A.3.0 当前为
 `authorized_pending_execution`；M6-A.3.1 和全部写路径仍未授权。
+
+attempt 5 在源码 identity 门禁后因脚本从仓库根目录而非 `rust/` workspace 执行 Cargo
+命令，以退出码 101 停止；未进入构建或真实查询。该尝试按非评分
+`INVALIDATED/invalid_cargo_working_directory` 封存，M6-A.3.0 回到
+`waiting_for_retry_amendment`。新的证据路径、修正脚本和执行授权尚未冻结；M6-A.3.1 仍
+未授权。
