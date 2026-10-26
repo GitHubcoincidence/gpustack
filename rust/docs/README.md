@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D116 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D119 operator
   Context/API Key 准备和 Worker identity 恢复门禁均已 `frozen`；完整 R1 架构继续按门禁
   推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
@@ -45,10 +45,10 @@
 - 当前停止位置：M6-A.3 已按 D114–D116 把当前持久身份固定为 `/1` 中的 Worker ID 5，
   名称 `rust-m3d-r760xa`、UUID `7c4e07a3-6b97-4577-9ff0-1fc6c2319596`。旧 `m3d` 中 ID 2、
   前两次停止证据和身份恢复证据均保持不变；`m6a3-formal-attempt-3` 已封存无效调用证据，
-  后续重试路径尚未冻结。
-- 下一项允许执行的工作：只讨论并冻结新的 M6-A.3.0 证据路径与重试授权。身份恢复和无效
-  attempt 均不等于预检通过，也不授权 M6-A.3.1；maintenance、模型写入和 Python Worker
-  维护窗口仍未授权，任何一步都不授权 Docker/GPU workload 或推理。
+  第四次证据目录 `m6a3-formal-attempt-4` 尚未创建。
+- 下一项允许执行的工作：按 D117–D119 已有授权执行第四次 M6-A.3.0 只读预检。身份恢复和
+  无效 attempt 均不等于预检通过，也不授权 M6-A.3.1；maintenance、模型写入和 Python
+  Worker 维护窗口仍未授权，任何一步都不授权 Docker/GPU workload 或推理。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

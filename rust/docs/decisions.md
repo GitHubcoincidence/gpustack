@@ -398,3 +398,14 @@ Python Worker、Docker 或 GPU workload。
 D116 冻结的 attempt 3 随后已执行，但因 `context list` 被错误传入全局 `--context` 而在
 CLI 本地参数检查阶段拒绝。该目录已作为非评分 `INVALIDATED` 证据封存，不能删除、覆盖或
 解释为正式预检失败；新的重试证据路径和执行授权尚未冻结。
+
+## 2026-10-26 M6-A.3 第四次预检修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D117 | 第四次证据路径 | 第四次 M6-A.3.0 固定使用尚未创建的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4`；attempt 1、attempt 2、无效 attempt 3 和 identity 恢复证据均保持不可变 | attempt 3 已被无效调用占用；滚动到唯一新目录可保留完整证据链，避免覆盖后看似首次通过。 |
+| D118 | Context 命令边界 | 本地 Context 枚举固定使用不带 selector 的 `gpustack-rs --output json context list`；只有 Worker、Model 和 ModelFile 等 Server 命令使用 `--context lab90`。不得修改 Context 内容来适配预检 | `context list` 管理的是本地 Context store，产品契约明确拒绝 `--context`；Server 命令才需要选择认证上下文。该修正只纠正调用语法，不改变凭据、Server 输入或验收标准。 |
+| D119 | 第四次执行授权 | 用户接受 D117–D118 并授权第四次 M6-A.3.0 的冻结构建、真实只读查询和 Git 外证据写入；仍不授权 Server 写入、maintenance 变化、停止 Python Worker、启动 Rust Worker、Docker/GPU workload 或推理 | 将无效尝试后的方法修订与新一次执行范围明确绑定，同时保持 M6-A.3.1 独立维护授权门禁。 |
+
+D117–D119 不改变 D098–D102、D114–D116 的 Worker identity、模型、GPU、状态链、通过条件
+或回滚方案。任一硬门禁失败仍立即停止，不能在同一 attempt 中通过换输入或改命令继续。

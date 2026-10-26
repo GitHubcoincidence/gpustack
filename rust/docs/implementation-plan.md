@@ -436,6 +436,11 @@ operator Context 缺失停止，第二次在固定 `m3d` identity ID 2 与 Serve
 目录选择和权限收紧，并把第三次证据滚动到尚未创建的 `m6a3-formal-attempt-3`。
 第三次执行的冻结构建通过，但 `context list` 因错误携带全局 `--context` 在 CLI 参数检查
 阶段失败，未读取 token 或发送该 CLI 请求；attempt 3 已按非评分 `INVALIDATED` 封存。
-M6-A.3.0 当前为 `waiting_for_retry_amendment`，新的证据路径和执行授权尚未冻结，不得自动
-重跑。后续真实 Server 写入、maintenance 切换和 Python Worker 维护窗口仍须 M6-A.3.1
-的独立明确授权。
+M6-A.3.0 因此一度为 `waiting_for_retry_amendment`，当时新的证据路径和执行授权尚未冻结。
+后续真实 Server 写入、maintenance 切换和 Python Worker 维护窗口仍须 M6-A.3.1 的独立
+明确授权。
+
+D117–D119 已把第四次只读预检证据冻结为尚未创建的 `m6a3-formal-attempt-4`，并把 Context
+枚举修正为不带 `--context` 的本地命令；真实 Worker/Model/ModelFile 查询仍使用
+`--context lab90`。用户已授权执行第四次 M6-A.3.0，当前为
+`authorized_pending_execution`。该授权仍不包含 M6-A.3.1 或任何 Server/Docker/GPU 写操作。

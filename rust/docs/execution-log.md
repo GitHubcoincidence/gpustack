@@ -2368,6 +2368,20 @@
 - 当前停止位置：M6-A.3.0 为 `waiting_for_retry_amendment`，新的未占用证据路径和重试授权
   尚未冻结。M6-A.3.1 仍为 `not_started` 且未授权。
 
+### 2026-10-26：第四次 M6-A.3.0 修订冻结并获授权
+
+- 决策与授权：用户接受 D117–D119，将新证据路径固定为尚未创建的
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4`，并授权
+  第四次 M6-A.3.0 的冻结构建、真实只读查询和 Git 外证据写入。
+- 调用修正：`context list` 固定为不带 selector 的
+  `gpustack-rs --output json context list`；只有 Worker、Model 和 ModelFile 等 Server
+  命令使用 `--context lab90`。不修改 Context store、token 或任何冻结输入。
+- 边界：attempt 1、attempt 2、无效 attempt 3 和 identity 恢复证据保持不可变。授权不包含
+  Server 写入、maintenance 变化、停止 Python Worker、启动 Rust Worker、Docker/GPU
+  workload 或推理；M6-A.3.1 仍为 `not_started`。
+- 下一项允许执行的工作：完成外部漂移复核后执行第四次 M6-A.3.0；任一硬门禁失败立即
+  停止并封存 attempt 4。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
