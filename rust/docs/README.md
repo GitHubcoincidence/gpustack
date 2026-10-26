@@ -42,11 +42,13 @@
 - 当前停止位置：本地持久 identity 仍为 Worker ID 2 和原 UUID，但 Server 当前唯一同名
   Worker 为 ID 5；旧 ID 2 已不在当前数据库。第二次证据目录
   `m6a3-formal-attempt-2` 已封存 `worker_identity_id_mismatch`，后续资源、模型、GPU、端口和
-  Docker 检查均未执行。
+  Docker 检查均未执行。非评分诊断发现 ID 5 的匹配 identity/token 保存在另一受保护目录
+  `~/.local/state/gpustack-rust-worker/1/managed/`，而冻结输入仍指向旧 ID 2 的 `m3d` 目录。
 - 下一项允许执行的工作：只讨论并冻结 Worker identity 恢复方案、证据滚动路径和新的只读
   预检授权；不得在已停止的 attempt 中改写本地 identity、复用当前 ID 5 或删除 Server
-  Worker。M6-A.3.1 的 maintenance、模型写入和 Python Worker 维护窗口仍未授权，任何一步
-  都不授权 Docker/GPU workload 或推理。
+  Worker；还需在“采用 ID 5 的既有目录”和“受控迁移到新的明确目录”之间形成决策。
+  M6-A.3.1 的 maintenance、模型写入和 Python Worker 维护窗口仍未授权，任何一步都不
+  授权 Docker/GPU workload 或推理。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

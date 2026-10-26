@@ -2286,7 +2286,12 @@
 - 非评分只读诊断：当前 `workers` 表只有同名 ID 5，创建时间为
   `2026-10-22 12:22:40.232608`，旧 ID 2 已不存在；当前行没有原持久 UUID。因此该差异是
   Server identity 外部漂移，不能在同一次预检中通过改写本地 identity、删除或复用 ID 5
-  绕过。
+  绕过。进一步枚举只读 identity metadata 发现 ID 5/UUID
+  `7c4e07a3-6b97-4577-9ff0-1fc6c2319596` 的匹配 identity 和 per-Worker token 位于
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/1/managed/`，两文件均为 owner
+  `wujiaxing2`、mode 0600、单链接；没有读取 token 内容。冻结的 M6 数据目录 `m3d` 仍保存
+  ID 2，因此问题具体收敛为多个持久数据目录与当前 Server 身份的选择漂移，而非 ID 5
+  凭据完全丢失。
 - 未执行检查：发现硬停止后没有查询或删除目标 Model/ModelInstance/ModelFile，没有验证
   模型 manifest、GPU、Managed 端口、进程或 Docker/Python Worker 恢复基线，也没有创建
   任何 Server 资源。停止后的安全复核显示 Server、Python Worker health/metrics 均为
@@ -2300,8 +2305,9 @@
 - 外部副作用与漂移审计：仅清理/重建 Cargo artifact 并写入新的 Git 外证据目录；没有
   改变 Server、Worker、maintenance、模型、容器、端口或 GPU 状态。按冻结停止条件失败
   关闭，结论为 `aligned`。
-- 下一项允许执行的工作：只讨论并冻结 Worker identity 恢复方案、第三次证据目录和新的
-  M6-A.3.0 授权。M6-A.3.1 仍为 `not_started` 且未授权。
+- 下一项允许执行的工作：只讨论并冻结是采用 ID 5 的既有 `/1` 数据目录，还是把其身份
+  受控迁移到新的明确目录，同时固定第三次证据目录和新的 M6-A.3.0 授权；不得直接覆盖
+  `m3d` 中 ID 2 的历史身份。M6-A.3.1 仍为 `not_started` 且未授权。
 
 ## 未解决风险与待确认事项
 
