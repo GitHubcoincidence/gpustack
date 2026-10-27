@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D148 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D150 operator
   Context、Worker identity、READY、资源保留字段和单 Worker分布式占位门禁均已 `frozen`；完整 R1 架构继续按
   门禁推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
@@ -50,9 +50,10 @@
   非空受限模式消息，Server 将其保留为 `not_ready`。attempt 8 进一步证明 D143 已使 Worker
   通过 READY 门，但调度器随后因 Rust 上报 `system_reserved=null` 在访问 `.vram` 时失败，实例
   仍停在 `pending`。attempt 9 已把实例调度到 Worker ID 5，但 Rust 把 Server 的默认
-  `subordinate_workers=null` 占位对象误判为跨 Worker推理，实例停在 `scheduled`。各次统一
-  cleanup 均恢复 Python Worker，且未创建 Docker/GPU workload 或
-  推理。尚未证明真实 Server 上的完整 Managed ModelInstance/ModelFile 状态链，也未进入 M6-B。
+  `subordinate_workers=null` 占位对象误判为跨 Worker推理，实例停在 `scheduled`。attempt 10
+  已真实证明完整 Managed ModelInstance/ModelFile 状态链可到达 `starting`，且通过 60 秒无
+  runtime/Docker/GPU 隔离门；但验收脚本错误拒绝 Server 合法的 `cleanup_on_delete=null`，正式
+  cleanup 失败，因此本阶段仍未正式通过，也未进入 M6-B。
 - 已接受修复：代码检查点 `208ac76dfd78beca4c697afd05235e0c974bdd8d` 让 deploy 先唯一
   解析目标 Worker、要求其具有集群归属，并将 `cluster_id` 写入 `ModelCreate`；CLI 参数和
   调度范围不变。90 上 `cargo test --locked --offline --workspace` 的 150 个测试全部通过，相关
@@ -91,8 +92,13 @@
   `9cd18a8398d0e4b940456df7b2b4405a11020149d1c8a065ce6840f3015bfde7` 和
   `cc7403475b5646bf09f30b01ce0647df09559a4f5c85434f13bb61ad26f89086`；`Config.Env` 未进入
   注入证据，现有服务与资源未改变。
-- 下一项允许执行的工作：提交本准备记录后，将最终 executor/supervisor 绑定到该 HEAD并执行
-  最后一次无写漂移门。通过后才能请求 attempt 10 维护窗口授权；M6-B 尚未开始。
+- attempt 10 的核心 smoke 通过但正式结果为 FAIL：正式/Watchdog 清单文件 SHA-256 分别为
+  `fb4c1a8412498e9dbd31484f542d64605293101c2f52b6a92aa7404a091c9c76` 和
+  `44671e99ac99883e8b8489d52a89be2f0f92a6b20ed75b1213a5512c2e912ad8`。独立恢复审计清单
+  SHA-256 为 `f8b95648a83601d3b34dee451e8e752f5c5b9b40a8df3cd966bb6fb71e190466`，证明唯一残留
+  ModelFile 已精确删除且服务、资源、Docker、端口和 GPU 均恢复基线。
+- 下一项允许执行的工作：按 D149-D150 完成 attempt 11 新路径的无中断准备门。准备通过后才能
+  请求新的维护窗口授权；不得自动重跑正式 smoke，M6-B 尚未开始。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

@@ -611,3 +611,14 @@ attempt 10 的只读预检和预窗口故障注入已通过，且再次证明完
 状态为 `attempt_10_post_checkpoint_binding_pending`：提交准备记录后，只允许把最终 executor 和
 supervisor 绑定到新的治理 HEAD并执行最后一次无写漂移门。门禁通过后才能请求真实 attempt 10
 授权；M6-B 未开始。
+
+attempt 10 随后在明确授权下把真实状态链推进到 `starting`，并通过 60 秒无 runtime/Docker/GPU
+隔离门；但固定 Server 为本地 ModelFile 返回合法 `cleanup_on_delete=null`，正式执行器错误要求
+false，导致状态链循环多等 300 秒并拒绝清理该元数据。正式结果因此保持 FAIL，独立窄范围审计
+已删除唯一残留 ModelFile并证明全部运行状态恢复。该结果不能提升为 M6-A.3.1 通过。
+
+D149-D150 已冻结 attempt 11：ready 和 cleanup 都接受 null/false 两种不删除本地文件语义；
+状态链使用独立完整条件标志，300 秒后若未同时满足 Instance starting 与 ModelFile 的全部字段则
+硬失败。下一步可完成 attempt 11 的全新路径、静态/最小差异审计、故障注入、冻结构建和只读
+漂移门。准备通过后状态最多为 `ready_for_maintenance_authorization`；不得自动进入维护窗口或
+M6-B。

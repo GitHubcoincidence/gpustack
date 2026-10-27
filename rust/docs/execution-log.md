@@ -3041,6 +3041,42 @@
   重跑完整无写漂移门。通过后状态为 `ready_for_maintenance_authorization`；不得自动进入真实
   attempt 10 或 M6-B。
 
+### 2026-10-27：M6-A.3.1 attempt 10 核心 smoke 通过但正式清理失败
+
+- 执行：用户明确授权后，在治理 HEAD `6ca290153af6ebd20fcc76406531ad0bf5e2c01a`
+  启动冻结 executor/watchdog。Python Worker按约停止，Rust Worker以持久 Worker ID 5 启动并
+  解除 maintenance；CLI 创建 Model 13，Server 创建 Instance 28 并调度到 GPU0、端口 40000。
+- 核心证据：D147 生效，Rust 接受 `subordinate_workers=null` 的单 Worker默认对象。实例完成
+  `scheduled -> initializing/downloading -> ready -> starting`；ModelFile 7 解析固定本地目录，
+  `size=999604126`、`download_progress=100`、单元素规范路径正确。`starting` 连续保持超过
+  60 秒，assigned port 没有 listener，Docker 容器 ID 集未变化，GPU0 始终 0 MiB/无 compute，
+  没有 runtime、推理、`RUNNING` 或 `ERROR`。核心门记录 `smoke_passed=1`。
+- 正式判定：正式结果保持 `FAIL/maintenance_window_or_cleanup_failed`，不是 PASS。固定 Server
+  返回 `cleanup_on_delete=null`，执行器却只接受 false；状态链循环因此等待满 300 秒，且超时
+  后只检查 `reached_starting` 和非空文件 ID，错误进入保持期。cleanup 同一错误又拒绝删除
+  ModelFile 7，最终 `cleanup_ok=0`。
+- 恢复：统一 cleanup 已删除 Model 13/Instance 28、恢复 Worker maintenance、停止 Rust Worker
+  并启动原 Python Worker。独立事后审计确认 ModelFile 7 不属于基线且严格匹配 Worker ID 5、
+  `local_path` source 和固定路径后，只删除该 Server 元数据。最终全局资源 ID、Docker ID 与实验
+  前逐项一致；Server/Python Worker health/metrics 为 200，Rust 进程和 `20150/20151`、
+  `40000-40063` listener 为 0，GPU0 为 0 MiB/无 compute，模型 manifest 保持通过。
+- 证据：正式目录 `m6a3-managed-file-smoke-attempt-10` 为 0700，84 个文件全 0600，83 个
+  manifest 条目通过、秘密扫描为 0，清单文件 SHA-256 为
+  `fb4c1a8412498e9dbd31484f542d64605293101c2f52b6a92aa7404a091c9c76`。watchdog 目录 7 个
+  文件/6 个条目，清单文件 SHA-256 为
+  `44671e99ac99883e8b8489d52a89be2f0f92a6b20ed75b1213a5512c2e912ad8`。第一次事后审计因
+  jq 作用域错误在变更前 `STOP`，清单 SHA-256 为
+  `994e28b445209ac854287b8dcc78862bdd4bd7ff271deaff0db8d978472e48b2`；第二次审计完成精确
+  清理和恢复，清单 SHA-256 为
+  `f8b95648a83601d3b34dee451e8e752f5c5b9b40a8df3cd966bb6fb71e190466`。全部证据秘密扫描为
+  0；两份完整容器快照落盘前删除 `Config.Env`。
+- 解释与修订：Python schema 默认该字段为 null，Python Worker只在值为 truthy 时删除本地
+  文件；Rust 原样保留 null 与原实现一致。因此无需修改产品代码。D149-D150 显式接受 null/
+  false 两种保留语义，并要求 300 秒循环以完整复合条件硬失败。
+- 当前停止位置：attempt 10 为有效 `failed_during_cleanup_harness`，不得提升为正式通过。
+  attempt 11 的协议修订已冻结，可执行新路径的静态审计、预窗口故障注入、冻结构建和只读
+  漂移门；新的维护窗口仍须用户另行明确授权，M6-B 尚未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

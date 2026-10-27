@@ -707,3 +707,25 @@ SHA-256 为 `cc7403475b5646bf09f30b01ce0647df09559a4f5c85434f13bb61ad26f89086`�
 inspect 不含 `Config.Env`。准备未改变 maintenance、停止 Python Worker、启动 Rust Worker、
 写 Server 资源或创建 Docker/GPU workload。最终脚本仍须绑定提交准备记录后的治理 HEAD并通过
 最后一次只读漂移门，真实维护窗口仍须单独明确授权。
+
+## 2026-10-27 M6-A.3.1 第十次结果与第十一次协议修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D149 | `cleanup_on_delete` 的固定 Server 语义 | 对 `local_path` ModelFile，把 `cleanup_on_delete=null` 和 `false` 都解释为不随元数据删除宿主机文件；正式 smoke 的 ready 断言和精确 ModelFile cleanup 归属断言必须同时接受这两种值。`true` 仍不属于本阶段允许的清理对象 | 固定 v2.2.3 Server 创建本地 ModelFile 时字段默认是 null；Python Worker 也只在该字段 truthy 时删除文件。attempt 10 的 Rust Worker原样保留 null，与原实现一致。把 null 强制解释为失败会错误拒绝真实 Server 的正常对象。 |
+| D150 | 第十一次 smoke 的状态链硬门禁 | attempt 11 增加独立 `state_chain_complete` 标志，只在同一次权威快照同时满足 Instance=`starting`、目标 ModelFile=`ready`、进度 100、精确 size/path、`cleanup_on_delete` 为 null/false 时置 1；300 秒结束后必须断言该标志为 1。cleanup 使用同一字段语义。除 attempt/路径/HEAD/前序证据 identity 外，不改变 Server、Worker、模型、Runner、GPU0、端口、60 秒隔离、900 秒 watchdog 和成功标准 | attempt 10 的循环虽然没有满足完整 ready 谓词，却只检查了 `reached_starting` 和非空 ModelFile ID，因而在 300 秒耗尽后错误进入保持阶段。显式复合标志保证超时无法被部分条件绕过，同时保持结果可归因。 |
+
+attempt 10 在明确授权下进入维护窗口。D147 修复生效：Model 13/Instance 28 被调度到 Worker
+ID 5 的 GPU0，分配端口 40000；Rust 完成 `scheduled -> initializing/downloading -> ready ->
+starting`，ModelFile 7 的规范路径、999604126 bytes 和 100% 进度正确，`starting` 隔离保持超过
+60 秒，期间没有 inference listener、Docker/GPU workload、推理、`RUNNING` 或 `ERROR`。
+
+正式结果仍为 `FAIL/maintenance_window_or_cleanup_failed`，其中 `smoke_passed=1`、
+`cleanup_ok=0`。原因不是产品状态机，而是执行器把合法的 `cleanup_on_delete=null` 错误限定为
+`false`：它因此等待满 300 秒，并拒绝删除自己创建的 ModelFile 7。正式证据保持不可改写；
+窄范围事后审计确认 ModelFile 7 不在基线且完全匹配固定 Worker/path 后删除该元数据，宿主机模型
+文件未删除。最终全局资源 ID、Docker ID、服务、maintenance、进程、端口和 GPU 均恢复基线。
+
+D149-D150 是观察真实 wire shape 后对验收脚本的显式修订，不修改 Rust 产品代码或既有阶段
+能力边界。attempt 11 必须使用新的预检、故障注入、正式、watchdog 和事后审计路径，先完成
+无中断准备门；再次停止 Python Worker和写 Server 资源仍须新的明确维护窗口授权。

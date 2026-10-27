@@ -383,7 +383,8 @@ Managed 文件准备正确，也不授予维护窗口权限。
 - Server 创建关联的本地 ModelFile，并把实例推进为 `DOWNLOADING`；
 - Rust canonicalize 固定路径；目录模型的 `resolved_paths` 是只含规范化目录的单元素数组，
   目录内文件数由独立 manifest 校验；同时写入精确递归 `size`、
-  `download_progress=100` 和 ModelFile `ready`；
+  `download_progress=100` 和 ModelFile `ready`；固定 Server 对本地路径可能保留
+  `cleanup_on_delete=null`，该值与 `false` 都表示删除元数据时不删除宿主机文件；
 - Server 在文件 ready 后把实例推进为 `STARTING`；
 - Rust 观察 `STARTING` 并记录 no-op，60 秒内不创建 runtime 或写入 `RUNNING`。
 
@@ -397,9 +398,9 @@ Managed 文件准备正确，也不授予维护窗口权限。
 
 1. 先对精确 Rust Worker 恢复 `maintenance enable`，阻止新任务进入；
 2. 删除本次创建的精确 Model，并轮询确认 Model 与 ModelInstance 消失；
-3. 用捕获的 ModelFile ID 执行 `model file get`，重新核对 Worker、`local_path` source 和
-   固定路径；再执行 `model file delete --yes`。命令固定 `cleanup=false`，只删 Server
-   元数据；
+3. 用捕获的 ModelFile ID 执行 `model file get`，重新核对 Worker、`local_path` source、
+   固定路径以及 `cleanup_on_delete` 为 null 或 false；再执行 `model file delete --yes`。
+   两种字段值在固定 Server/Python Worker 中都不触发本地文件删除，因此本步只删 Server元数据；
 4. 重新核对 Qwen2.5 目录的 manifest、大小和关键 SHA-256，证明宿主机模型数据未删除；
 5. 向精确 Rust PID 发送 SIGINT，等待有界退出摘要；必要时只升级到 SIGTERM，不按名称
    广泛 kill。确认 `20150/20151` 关闭；
@@ -445,3 +446,10 @@ Git 外；Git 只记录证据路径、文件 identity、摘要、结论和相关
 
 未经讨论不自动重试失败的正式运行。失败现场先脱敏归档，再按精确所有权回滚；下一次
 尝试必须重新检查外部漂移并获得新的维护窗口授权。
+
+### attempt 11 补充硬门禁
+
+状态链 300 秒循环必须维护独立的完整条件标志。只有同一次权威快照同时证明目标 Instance 已
+`starting`，且唯一 ModelFile 的 Worker/source/path/state/progress/size/resolved_paths 与固定输入
+一致、`cleanup_on_delete` 为 null 或 false，才能置为通过。超时后仅看到 `starting` 或仅捕获
+ModelFile ID 都必须失败，不能进入 60 秒保持阶段。
