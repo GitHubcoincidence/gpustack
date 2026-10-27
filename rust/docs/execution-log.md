@@ -3021,6 +3021,26 @@
 - 当前停止位置：D148 冻结 attempt 10 的新预检、故障注入、正式和 watchdog 路径。允许先完成
   无中断准备门；真实维护窗口仍须新的明确授权，M6-B 未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 10 无中断准备门通过
+
+- 静态审计：preflight、executor 与 supervisor 从 attempt 9 封存副本派生；除 attempt/路径、
+  HEAD、接受 D147 的代码检查点、前序证据 identity 和恢复提示外无行为变化。三个完整
+  `docker inspect` 写盘点继续先删除 `Config.Env`，脚本均通过 `bash -n`。
+- 只读预检：`m6a3-formal-attempt-10` 在治理 HEAD
+  `e6ca2f074e087a8f2d90ba1d7131b6cbf7e5cf60` 上 `PASS`；目录 0700、45 个文件全 0600、
+  44 个 manifest 条目全部通过、秘密扫描为 0，清单文件 SHA-256 为
+  `9cd18a8398d0e4b940456df7b2b4405a11020149d1c8a065ce6840f3015bfde7`。
+- 故障注入：`m6a3-managed-file-smoke-attempt-10-pre-window-injection` 使用全零错误 HEAD，按
+  `STOP/source_head_mismatch`、`baseline_ready=0`、`window_entered=0`、`cleanup_ok=1`
+  封存；目录 0700、19 个文件全 0600、18 个 manifest 条目通过、秘密扫描为 0，唯一容器
+  inspect 快照中 `Config.Env` 路径数为 0，清单文件 SHA-256 为
+  `cc7403475b5646bf09f30b01ce0647df09559a4f5c85434f13bb61ad26f89086`。
+- 外部状态：Server/Python Worker health/metrics 为 200，Python Worker 容器仍运行；Rust 进程、
+  `20150/20151` 和受管端口为空，GPU0 为 0 MiB，正式和 watchdog 证据路径未创建。
+- 当前停止位置：提交本准备记录后，只允许把最终 executor/supervisor 绑定到新的治理 HEAD并
+  重跑完整无写漂移门。通过后状态为 `ready_for_maintenance_authorization`；不得自动进入真实
+  attempt 10 或 M6-B。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

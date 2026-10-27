@@ -87,8 +87,12 @@
   `subordinate_workers` 非空时判定跨 Worker推理，默认 null/空列表仍按单 Worker处理，畸形结构
   保守拒绝。90 上 156 个 all-target 测试、all-features/all-targets Clippy、rustfmt 和 workspace
   build 全部通过。
-- 下一项允许执行的工作：按 D148 完成 attempt 10 的全新无中断准备门。全部通过后才能请求新的
-  维护窗口授权；M6-B 尚未开始。
+- attempt 10 的只读预检与预窗口故障注入已通过，清单文件 SHA-256 分别为
+  `9cd18a8398d0e4b940456df7b2b4405a11020149d1c8a065ce6840f3015bfde7` 和
+  `cc7403475b5646bf09f30b01ce0647df09559a4f5c85434f13bb61ad26f89086`；`Config.Env` 未进入
+  注入证据，现有服务与资源未改变。
+- 下一项允许执行的工作：提交本准备记录后，将最终 executor/supervisor 绑定到该 HEAD并执行
+  最后一次无写漂移门。通过后才能请求 attempt 10 维护窗口授权；M6-B 尚未开始。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

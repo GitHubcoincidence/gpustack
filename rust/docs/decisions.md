@@ -700,3 +700,10 @@ attempt 9 是有效 `failed_during_window`：Model 12/Instance 27 已被正确�
 端口、Docker/GPU workload、推理或残留。D147 已在
 `50bc840b5b00cdedbde4cd3e32676054f1cc91e6` 完成，并通过 156 个 all-target 测试、
 all-features/all-targets Clippy、格式和 workspace build。D148 只授权 attempt 10 的无中断准备门。
+
+attempt 10 的只读预检与预窗口故障注入均已通过。预检清单文件 SHA-256 为
+`9cd18a8398d0e4b940456df7b2b4405a11020149d1c8a065ce6840f3015bfde7`；故障注入清单文件
+SHA-256 为 `cc7403475b5646bf09f30b01ce0647df09559a4f5c85434f13bb61ad26f89086`，且容器
+inspect 不含 `Config.Env`。准备未改变 maintenance、停止 Python Worker、启动 Rust Worker、
+写 Server 资源或创建 Docker/GPU workload。最终脚本仍须绑定提交准备记录后的治理 HEAD并通过
+最后一次只读漂移门，真实维护窗口仍须单独明确授权。

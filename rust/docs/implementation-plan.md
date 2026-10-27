@@ -606,3 +606,8 @@ D147 已在 `50bc840b5b00cdedbde4cd3e32676054f1cc91e6` 改为只在
 测试、all-features/all-targets Clippy、格式和 workspace build 全部通过。D148 将当前状态设为
 `attempt_10_preparation_authorized`：允许建立新证据路径并完成静态、failure-injection、冻结构建
 和只读漂移门；真实维护窗口仍需单独授权，M6-B 未开始。
+
+attempt 10 的只读预检和预窗口故障注入已通过，且再次证明完整容器环境不会写入证据。当前
+状态为 `attempt_10_post_checkpoint_binding_pending`：提交准备记录后，只允许把最终 executor 和
+supervisor 绑定到新的治理 HEAD并执行最后一次无写漂移门。门禁通过后才能请求真实 attempt 10
+授权；M6-B 未开始。
