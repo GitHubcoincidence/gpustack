@@ -593,3 +593,16 @@ attempt 9 只读预检和预窗口故障注入已通过，且证明 `Config.Env`
 为 `attempt_9_post_checkpoint_binding_pending`：提交准备记录后，只允许把最终 executor 和
 supervisor 绑定到新的治理 HEAD并执行最后一次无写漂移门。门禁通过后状态才能变为
 `ready_for_maintenance_authorization`；真实窗口和 M6-B 仍未授权。
+
+attempt 9 在授权后通过 READY 和调度门：Model 12/Instance 27 被分配到 Worker ID 5，证明
+D145 的资源保留字段修复有效。固定 Server 同时为单 Worker实例写入
+`distributed_servers.mode=initialize_later` 和 `subordinate_workers=null`；Rust 将对象非空误判为
+跨 Worker范围并 no-op，实例停在 `scheduled`。正式结果为
+`FAIL/state_chain_did_not_reach_starting`、`cleanup_ok=1`，没有 ModelFile、端口、容器、GPU
+workload 或推理，完整恢复审计通过。
+
+D147 已在 `50bc840b5b00cdedbde4cd3e32676054f1cc91e6` 改为只在
+`subordinate_workers` 非空时判定跨 Worker推理，并对畸形结构 fail closed。156 个 all-target
+测试、all-features/all-targets Clippy、格式和 workspace build 全部通过。D148 将当前状态设为
+`attempt_10_preparation_authorized`：允许建立新证据路径并完成静态、failure-injection、冻结构建
+和只读漂移门；真实维护窗口仍需单独授权，M6-B 未开始。

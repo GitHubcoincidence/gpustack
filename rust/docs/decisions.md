@@ -687,3 +687,16 @@ attempt 9 的只读预检已 `PASS`：`m6a3-formal-attempt-9` 为 0700，45 个�
 准备过程没有改变 maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建
 Docker/GPU workload。提交本检查点后还须把最终 executor/supervisor 绑定到新的治理 HEAD并
 重跑外部只读门，才能成为 `ready_for_maintenance_authorization`。
+
+## 2026-10-27 M6-A.3.1 单 Worker 分布式占位契约与第十次准备
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D147 | `distributed_servers` 的 R1 Managed 范围判定 | 与 Python `ModelInstance.spans_workers` 对齐：缺失 `distributed_servers`，或其 `subordinate_workers` 为 null/空数组时按单 Worker 处理；只有非空从属 Worker 列表才判为跨 Worker 推理并拒绝。未知的非对象/非数组结构 fail closed。客户端 update 校验和 Worker 协调器共用同一判定 | attempt 9 已由真实 Server 证明，即使模型没有启用跨 Worker 推理，调度器也会写入 `mode=initialize_later` 且 `subordinate_workers=null` 的默认对象。用对象是否存在判断分布式会误拒绝合法单 Worker任务；是否存在实际从属 Worker 才是固定 Python schema 的权威语义。 |
+| D148 | 第十次 smoke 路径与最小差异 | attempt 10 使用全新的 `m6a3-formal-attempt-10`、`m6a3-managed-file-smoke-attempt-10`、对应 `-pre-window-injection` 和 `-watchdog` 路径。从 attempt 9 封存脚本派生，只更新 attempt、路径、HEAD、接受 D147 的代码检查点和前序证据 identity；继续保留所有 `Config.Env` 预落盘删除、固定输入、状态链、超时、成功标准和 cleanup | D147 只修复 Server 单 Worker占位对象的解释，无需改变实验方法。新路径和最小差异保证 attempt 9 证据不可覆盖且结果可归因。无中断准备可直接执行；停止 Python Worker、切 maintenance 和创建测试资源仍须单独明确授权。 |
+
+attempt 9 是有效 `failed_during_window`：Model 12/Instance 27 已被正确调度到 Worker ID 5，
+但 Rust 对默认分布式占位对象记录 scope no-op。统一 cleanup 和独立恢复审计通过，没有 ModelFile、
+端口、Docker/GPU workload、推理或残留。D147 已在
+`50bc840b5b00cdedbde4cd3e32676054f1cc91e6` 完成，并通过 156 个 all-target 测试、
+all-features/all-targets Clippy、格式和 workspace build。D148 只授权 attempt 10 的无中断准备门。

@@ -28,8 +28,8 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D146 operator
-  Context、Worker identity、READY 和资源保留字段门禁均已 `frozen`；完整 R1 架构继续按
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D148 operator
+  Context、Worker identity、READY、资源保留字段和单 Worker分布式占位门禁均已 `frozen`；完整 R1 架构继续按
   门禁推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
   M6-A.2.3。当前 Rust CLI 已具备 Context、Model、Worker 查询/maintenance 和安全 ModelFile
@@ -49,7 +49,9 @@
   attempt 7 已证明 D141 修复能创建正确集群的 Model/Instance，但目标 Worker 的健康上报仍携带
   非空受限模式消息，Server 将其保留为 `not_ready`。attempt 8 进一步证明 D143 已使 Worker
   通过 READY 门，但调度器随后因 Rust 上报 `system_reserved=null` 在访问 `.vram` 时失败，实例
-  仍停在 `pending`。各次统一 cleanup 均恢复 Python Worker，且未创建 Docker/GPU workload 或
+  仍停在 `pending`。attempt 9 已把实例调度到 Worker ID 5，但 Rust 把 Server 的默认
+  `subordinate_workers=null` 占位对象误判为跨 Worker推理，实例停在 `scheduled`。各次统一
+  cleanup 均恢复 Python Worker，且未创建 Docker/GPU workload 或
   推理。尚未证明真实 Server 上的完整 Managed ModelInstance/ModelFile 状态链，也未进入 M6-B。
 - 已接受修复：代码检查点 `208ac76dfd78beca4c697afd05235e0c974bdd8d` 让 deploy 先唯一
   解析目标 Worker、要求其具有集群归属，并将 `cluster_id` 写入 `ModelCreate`；CLI 参数和
@@ -76,8 +78,17 @@
   `c1e7fcbdea35d2a142c8259a5abc724e8a35e414fcfaf0ac8907d270d6d2fb1d` 和
   `1cdb433cf52ba63d681b79ed39cffabd371511eefbb6deb79d1095fa86bf4743`；`Config.Env` 未进入
   故障注入证据，现有服务与资源未改变。
-- 下一项允许执行的工作：提交本准备检查点后把最终 executor 绑定到该 HEAD，并通过最后一次
-  无写漂移门。通过后才能请求 attempt 9 维护窗口授权；M6-B 尚未开始。
+- attempt 9 已作为有效 `failed_during_window` 封存：Model 12/Instance 27 在 Worker ID 5 上
+  达到 `scheduled`，但没有 ModelFile、端口、容器、GPU workload 或推理；`cleanup_ok=1` 且独立
+  恢复审计通过。正式/Watchdog 清单文件 SHA-256 分别为
+  `b582cea03604a926b480e6714c400564345feb13ed86e8aafd9152929683f5de` 和
+  `1de3bd24e1cada13fbf2978c21cdb43b230cb3a7f32b6f2972a1a10652eb06a0`。
+- 已接受修复：代码检查点 `50bc840b5b00cdedbde4cd3e32676054f1cc91e6` 只在
+  `subordinate_workers` 非空时判定跨 Worker推理，默认 null/空列表仍按单 Worker处理，畸形结构
+  保守拒绝。90 上 156 个 all-target 测试、all-features/all-targets Clippy、rustfmt 和 workspace
+  build 全部通过。
+- 下一项允许执行的工作：按 D148 完成 attempt 10 的全新无中断准备门。全部通过后才能请求新的
+  维护窗口授权；M6-B 尚未开始。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

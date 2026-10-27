@@ -376,6 +376,8 @@ Managed 文件准备正确，也不授予维护窗口权限。
 ### 必须出现的正向证据
 
 - Rust 收到分配给自身的 `SCHEDULED` ModelInstance；
+- Server 为单 Worker任务生成 `distributed_servers` 默认对象时，只要
+  `subordinate_workers` 为 null 或空数组，仍属于本阶段范围；非空列表和畸形结构必须拒绝；
 - Rust 从 `40000-40063` 分配或安全复用一个端口，并把 `port`、`ports` 和
   `INITIALIZING` 作为一次完整更新写回；
 - Server 创建关联的本地 ModelFile，并把实例推进为 `DOWNLOADING`；

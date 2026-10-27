@@ -2984,6 +2984,43 @@
   无写漂移门。通过后状态为 `ready_for_maintenance_authorization`；真实 attempt 9 和 M6-B
   均未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 9 暴露单 Worker 分布式占位契约并完整恢复
+
+- 执行与结果：用户明确授权后，attempt 9 在冻结 HEAD
+  `482e2fa2747021eb3afbcbb355bb39d540771c20` 进入维护窗口。D145 修复生效：Rust Worker
+  通过 READY 门，CLI 创建 Model 12，Server 将 ModelInstance 27 调度到 Worker ID 5，并计算
+  GPU0 的 40 GiB 显存声明。
+- 失败证据：Server 返回的单 Worker 实例包含默认
+  `distributed_servers={mode:"initialize_later", download_model_files:true,
+  subordinate_workers:null}`。Rust 协调器把任何非空 `distributed_servers` 都视为跨 Worker
+  推理，因而对 `scheduled` 实例记录 `outcome=noop`，实例未进入 `initializing`，也没有创建
+  ModelFile 或分配端口。300 秒后结果为 `FAIL/state_chain_did_not_reach_starting`。
+- 恢复：`baseline_ready=1`、`window_entered=1`、`cleanup_ok=1`。Model 12/Instance 27 已删除，
+  Worker ID 5 恢复 maintenance，精确 Python Worker 容器和 health/metrics 恢复；Rust 进程、
+  `20150/20151` 与 `40000-40063` 监听为 0，GPU0 为 0 MiB 且没有 compute process。前后全局
+  资源 ID 与 Docker ID 一致，仓库回到冻结提交且干净；没有 Docker/GPU workload 或推理。
+- 证据：正式目录 `m6a3-managed-file-smoke-attempt-9` 为 0700，73 个文件全为 0600，72 个
+  manifest 条目通过、秘密扫描为 0，清单文件 SHA-256 为
+  `b582cea03604a926b480e6714c400564345feb13ed86e8aafd9152929683f5de`。watchdog 目录为
+  0700，7 个文件全为 0600，6 个 manifest 条目通过、秘密扫描为 0，清单文件 SHA-256 为
+  `1de3bd24e1cada13fbf2978c21cdb43b230cb3a7f32b6f2972a1a10652eb06a0`。本轮所有完整
+  `docker inspect` 证据在落盘前删除了 `Config.Env`。
+
+### 2026-10-27：D147 单 Worker 分布式占位契约修复完成离线验收
+
+- 实现：代码检查点 `50bc840b5b00cdedbde4cd3e32676054f1cc91e6` 将 R1 Managed 范围判断
+  与 Python `ModelInstance.spans_workers` 语义对齐：`distributed_servers` 为 null，或
+  `subordinate_workers` 为 null/空数组时仍是单 Worker；只有非空从属 Worker 列表属于当前
+  不支持的跨 Worker 推理。非对象或非数组的畸形结构继续保守拒绝。
+- 回归：新增真实 Server 默认占位对象可初始化、非空从属 Worker 必须 no-op、客户端 update
+  校验与协调器一致三组覆盖。90 上 `cargo test --workspace --all-targets --locked --offline`
+  共 156 个测试通过；all-features/all-targets Clippy `-D warnings`、rustfmt、workspace build 和
+  diff check 全部通过。
+- 漂移判断：D147 不改变 CLI、模型、Worker、GPU、Runner、端口、超时、状态链、Docker/runtime
+  边界或成功标准，只纠正固定 Server 已有的单 Worker wire shape 解释；结论为 `aligned`。
+- 当前停止位置：D148 冻结 attempt 10 的新预检、故障注入、正式和 watchdog 路径。允许先完成
+  无中断准备门；真实维护窗口仍须新的明确授权，M6-B 未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
