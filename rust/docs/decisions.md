@@ -572,3 +572,13 @@ D140 的下游排练已覆盖 CLI Managed 17 个测试、协调器 8 个测试�
 以及正式表达式对 ModelInstance STARTING、ModelFile ready、端口、事件链和 cleanup ID 的合成
 输入；共 26 个测试和表达式演练全部通过。attempt 6 仍须重新执行最小差异、ShellCheck、真实
 attempt 5 状态 fixture、pre-window failure injection 和完整漂移门禁。
+
+attempt 6 随后首次通过 `rust_worker_start_gate` 并成功解除 maintenance，但 `model deploy`
+被 Server 以 HTTP 400 拒绝：手工 GPU 选择缺少 cluster context，无法验证目标 Worker。只读
+核对确认 Worker ID 5 的 `cluster_id=1`；Rust `ModelCreate` 当前没有 `cluster_id` 字段，deploy
+也没有在创建 Model 前解析目标 Worker 所属集群。这是 Rust CLI 产品契约缺口，不属于 D138
+授权的执行器窄修正。cleanup 已恢复 maintenance/Python Worker并通过零残留审计，Model 未创建。
+
+待共同决定的产品修正是：在 tolerant `WorkerPublic` 中显式解析可选 `cluster_id`，让 deploy
+先唯一解析目标 Worker并拒绝缺失集群的 Worker，再把该非空 ID 写入 `ModelCreate.cluster_id`；
+同时增加请求体和缺失 cluster 的回归测试。该方案在接受前不分配决策 ID，不创建 attempt 7。

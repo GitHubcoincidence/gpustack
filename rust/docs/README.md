@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D138 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D140 operator
   Context/API Key 准备和 Worker identity 恢复门禁均已 `frozen`；完整 R1 架构继续按门禁
   推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
@@ -44,23 +44,24 @@
   readiness 轮询第一次 `curl` 连接拒绝被 `set -e` 提前解释为失败；attempt 4 修复重试语义后
   发现 Rust Worker 只监听冻结的 `10.213.80.90`，而执行器仍探测 `127.0.0.1`，最终按超时门失败；
   attempt 5 修正地址后又发现启动门错误要求 `state=ready`，而 maintenance 开启时 Server 的合法
-  状态是 `state=maintenance`。三次统一 cleanup 均恢复 Python Worker，且未创建模型、Docker/GPU workload 或推理。尚未证明真实 Server 上的 Managed
+  状态是 `state=maintenance`；attempt 6 首次通过启动门并解除 maintenance，但 Rust CLI 的
+  `ModelCreate` 未携带手工 GPU 选择所需的目标 Worker `cluster_id`，Server 以 HTTP 400 拒绝，
+  未创建模型。四次统一 cleanup 均恢复 Python Worker，且未创建 Docker/GPU workload 或推理。尚未证明真实 Server 上的 Managed
   ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
 - 当前停止位置：M6-A.3.0 attempt 6 为 `passed_preflight`。正式证据位于
   `m6a3-formal-attempt-6`，清单文件 SHA-256 为
   `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`；预检没有改变
   maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建 Docker/GPU
   workload，结束后服务健康且受管端口无监听。
-- 当前停止位置：M6-A.3.1 attempt 5 为 `failed_during_window`，证据固定在
-  `m6a3-managed-file-smoke-attempt-5`，其 `manifest.sha256` 文件 SHA-256 为
-  `139821ac350946463a1413da0f455decb8172ab006f02d468004122407ecfb2b`；watchdog 补充
+- 当前停止位置：M6-A.3.1 attempt 6 为 `failed_during_window`，证据固定在
+  `m6a3-managed-file-smoke-attempt-6`，其 `manifest.sha256` 文件 SHA-256 为
+  `79c532457a5106eb7e81829c19d81fb682cdb2335fc922467da454d74419bd1d`；watchdog 补充
   证据清单文件 SHA-256 为
-  `4ed10c279a5afb982885a64172c3b9805be0b7767e1dae830550c28afead8d60`。M6-A.3.0 的
+  `5c456c399188bbe2a6097831a03ef7f19eb860f7e390c12862edb54cda418b94`。M6-A.3.0 的
   `passed_preflight` 结论不变，但 M6-A.3.1 仍未通过。
-- 下一项允许执行的工作：D138–D140 已冻结 attempt 6 新证据路径和 Worker 状态窄修正。后续
-  CLI/协调器/事件测试及正式 jq/正则/cleanup 表达式已整体排练通过；当前允许重新完成静态、
-  state fixture、failure-injection 和只读门禁，全部通过后直接执行 attempt 6。不改变产品
-  代码、正式输入、资源范围、超时、成功标准或 M6-B 边界。
+- 下一项允许执行的工作：共同审阅 attempt 6 暴露的 Rust CLI 产品缺口，并决定是否允许修改
+  `WorkerPublic`/`ModelCreate` 和 deploy 流程，使 CLI 从唯一目标 Worker推导并提交
+  `cluster_id`。该变更尚未获准，不得继续 attempt 7 或进入 M6-B。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

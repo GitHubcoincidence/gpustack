@@ -533,3 +533,10 @@ D140 将 attempt 6 的唯一行为变化限定为断言 `state=maintenance`，�
 `maintenance.enabled=true`、`unreachable=false` 和双 GPU。为避免再次逐点暴露执行器假设，
 后续 CLI、协调器、事件与正式 jq/cleanup 表达式已整体排练通过；attempt 6 仍须重跑全部
 准备门，当前状态为 `authorized_pending_execution`。
+
+attempt 6 首次通过启动门并解除 maintenance，但 `model deploy` 被真实 Server 以 HTTP 400
+拒绝：手工 GPU 选择没有 cluster context。目标 Worker 的真实 `cluster_id=1`，而 Rust
+`ModelCreate` 和 deploy 请求尚未携带该字段。这属于产品代码与固定 v2.2.3 Server 的契约缺口，
+不在 D138 的自主执行器修正范围内；cleanup 已完整恢复且 Model 未创建。当前状态为
+`product_fix_decision_pending`：需共同决定是否让 CLI 唯一解析目标 Worker、要求其 cluster ID
+非空并写入 ModelCreate，同时增加回归测试；接受前不得开始 attempt 7。

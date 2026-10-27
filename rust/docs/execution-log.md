@@ -2784,6 +2784,34 @@
   唯一行为修正是 readiness 要求合法的 `state=maintenance`，同时保留 maintenance、reachable
   和双 GPU 收紧条件。全部准备门通过后可直接执行 attempt 6；M6-B 仍未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 6 暴露 Rust CLI cluster context 缺口
+
+- 准备与输入：检查点 HEAD 为 `517255ea8e3fc5ff0d137cea13c4b39149b7d456`；executor
+  SHA-256 为 `9f676eddff7343b126acccd0e1da753a7a44470be0deb3a6fff0fb127d9f5ca8`，watchdog
+  SHA-256 为 `dfa5557f1bd43d740fd40b68e91675a5fe230430ff9c711c0f629c2f1339ea91`。相对
+  attempt 5 的唯一行为修正为合法 maintenance 状态断言；真实状态 fixture、failure injection、
+  全量漂移门及此前 26 个下游测试/表达式排练全部通过。
+- 执行经过：source/build、identity/resource/environment、Python Worker stop 和
+  `rust_worker_start_gate` 首次全部通过，随后 CLI 成功把 Worker ID 5 的 maintenance 关闭。
+  不带 `--wait` 的固定 `model deploy` 随即返回退出码 30；Server 报 HTTP 400：手工 GPU 选择
+  缺少 cluster context，无法验证 `rust-m3d-r760xa`。执行器在 Model 创建前进入 cleanup。
+- 根因：只读 API 核对确认目标 Worker 的 `cluster_id=1`。Python Server 的
+  `validate_gpu_ids` 要求手工 `gpu_ids` 同时具有有效 Model `cluster_id`；Rust
+  `gpustack_client::ModelCreate` 不包含该字段，CLI deploy 也未先解析目标 Worker 集群，因此
+  请求必然缺少上下文。这是产品代码/Server 契约兼容缺口，不是执行器断言。
+- 结果与恢复：正式结果为 `FAIL/maintenance_window_or_cleanup_failed`，`cleanup_ok=1`；
+  `model_id`、ModelInstance、ModelFile 和 assigned port 均为 none，无 Docker/GPU workload 或
+  推理。cleanup 恢复 maintenance、停止 Rust Worker并恢复原 Python Worker；Server/Worker、
+  端口、GPU、前后资源 ID、Docker 集和模型 manifest 的独立审计全部通过。
+- 证据：正式目录 `m6a3-managed-file-smoke-attempt-6` 为 0700，66 个文件均为 0600，manifest
+  通过、秘密扫描为 0；清单文件 SHA-256 为
+  `79c532457a5106eb7e81829c19d81fb682cdb2335fc922467da454d74419bd1d`。watchdog 目录为 0700，
+  7 个文件均为 0600，manifest 通过、秘密扫描为 0；清单文件 SHA-256 为
+  `5c456c399188bbe2a6097831a03ef7f19eb860f7e390c12862edb54cda418b94`。
+- 当前停止位置：attempt 6 是有效 `failed_during_window`。下一步必须先共同决定是否修改 Rust
+  产品代码：从唯一目标 Worker 推导非空 `cluster_id` 并写入 `ModelCreate`，配套请求体和失败
+  回归测试。未经接受不得冻结 attempt 7，M6-B 仍未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
