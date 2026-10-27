@@ -2860,6 +2860,34 @@
   commit并重跑无写外部门。通过后状态为 `ready_for_maintenance_authorization`；未获明确授权前
   不得停止 Python Worker、切 maintenance、创建 Server 资源或启动 Rust Worker，M6-B 未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 7 在 Worker READY 门失败并完整恢复
+
+- 执行与结果：用户明确授权固定维护范围后，attempt 7 在治理 HEAD
+  `c0bd0d4081964fe0c28d2c941d747edc51080cd3` 进入真实维护窗口。D141 修复生效：`model deploy`
+  成功创建 `cluster_id=1` 的 Model 10，Server 创建 ModelInstance 25。
+- 失败证据：实例在 300 秒内始终为 `pending`、`worker_id=null`，权威消息为
+  `Matched 0/1 workers by READY status`。maintenance 已由 operator 关闭且 heartbeat、Worker
+  API、metrics 和双 GPU 均正常，但 Rust Worker 状态为 `not_ready`，消息仍为
+  `Rust M6-A managed file preparation; runtime execution disabled`。因此没有进入 `SCHEDULED`，
+  也没有创建 ModelFile 或分配端口。
+- 根因：`ResourceApiProfile::status_report` 对 `managed-file-only` 的每次健康报告仍写入受限模式
+  消息；固定 Server 对 `NOT_READY` 且非空 `state_message` 直接保留显式故障状态，不再计算为
+  `READY`。这与已冻结的 operator-controlled 调度语义不一致，D143 将修复范围限制为该字段。
+- 恢复：正式结果为 `FAIL/state_chain_did_not_reach_starting`、`cleanup_ok=1`。Model 10、Instance
+  25 已删除，Worker ID 5 恢复 maintenance，精确 Python Worker 容器已恢复；Server、Worker
+  health/metrics 均为 200，Rust 进程和 `20150/20151`、`40000-40063` 监听为零，两张 GPU 的
+  显存、利用率和 compute process 为零。前后全局资源 ID、Docker ID、GPU 摘要与固定模型
+  manifest 逐项一致。
+- 证据：正式目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-7`
+  为 0700，72 个文件均为 0600；71 个 manifest 条目全部通过，秘密扫描为 0；
+  `manifest.sha256` 文件 SHA-256 为
+  `81e34f127d853eaf8bd5e326e071156a3fd539f958c08ab82371aecc48d0a43e`。executor 与 supervisor
+  SHA-256 分别为 `72380a70317ea9df9a32f242e97f7170f5999018a30d47f30ff84b75ab9c22e7` 和
+  `4624e61958f62d7fac4a0265f1cfc8c09148b07a867dcf690ee639162db6b5fb`。
+- 当前停止位置：attempt 7 已封存为有效 `failed_during_window`，M6-B 未开始。下一项允许工作是
+  按 D143 实现健康状态上报修复并完成离线回归；新的真实维护窗口需另行冻结和授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

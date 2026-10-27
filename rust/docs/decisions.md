@@ -605,3 +605,15 @@ attempt 7 的独立只读预检 `m6a3-formal-attempt-7` 已 `PASS`，清单文�
 `STOP/source_head_mismatch`、`baseline_ready=0`、`window_entered=0`、`cleanup_ok=1` 通过。
 外部漂移门确认 Worker `cluster_id=1`、maintenance、目标资源为零、Python Worker健康，GPU0
 和受管端口空闲。attempt 7 正式维护窗口仍须用户单独明确授权。
+
+## 2026-10-27 M6-A.3.1 健康状态上报修复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D143 | `managed-file-only` 健康状态语义 | 保留启动时 maintenance 要求和 operator 显式解除 maintenance；运行期间 `managed-file-only` 的健康 `WorkerStatusReport.state_message` 必须为 `null`，使 Server 在 maintenance 解除、heartbeat 正常且 Worker 可达时计算为 `ready`。`resource-api-only` 继续上报受限模式消息并保持不可调度。增加两种模式的状态报告回归测试 | attempt 7 已证明 Model 创建携带正确 `cluster_id=1`，但实例保持 `pending`，调度详情为 `Matched 0/1 workers by READY status`。Rust 每次健康上报仍携带“runtime execution disabled”，固定 Server 会把 `NOT_READY + 非空 state_message` 视为显式故障并停止重新计算。该修复实现架构中已经冻结的“调度状态由运维显式控制”，不启用 Docker/runtime，也不改变正式状态链或验收标准。 |
+
+attempt 7 是有效 `failed_during_window`：创建了 Model 10 和 ModelInstance 25，后者在 300 秒
+观察期内始终为 `pending`、未分配 Worker，未创建 ModelFile、端口、Docker/vLLM workload、
+GPU compute 或推理。统一 cleanup 恢复 maintenance 和原 Python Worker，删除本次资源并通过
+前后全局 ID、Docker、GPU 和模型 manifest 比较。D143 只授权实现和离线验证；任何新的正式
+维护窗口仍须新证据路径、完整门禁和单独明确授权。

@@ -550,3 +550,15 @@ Managed ModelFile 准备链，不进入 M6-B Docker/vLLM runtime。
 D142 已冻结 attempt 7 路径和相对 attempt 6 的最小差异；只读预检、预窗口故障注入和完整
 外部漂移门均通过，正式目录保持不存在。绑定最终治理 HEAD并复跑外部门后，状态转为
 `ready_for_maintenance_authorization`；维护窗口不因准备门通过而自动获准。
+
+attempt 7 在授权后成功验证 D141：Server 接受 `cluster_id=1` 的 Model 10 并创建 Instance 25。
+但实例在 300 秒内保持 `pending`，调度器明确只在 READY 门排除了目标 Worker。maintenance
+解除后 Rust Worker仍为 `not_ready`，因为 `managed-file-only` 的健康状态报告持续发送非空
+受限模式 `state_message`，触发固定 Server 的显式 NOT_READY 保留规则。cleanup 已删除测试
+资源、恢复 maintenance/Python Worker并通过全部零残留比较；没有 ModelFile、端口、Docker、
+GPU compute、推理或 `RUNNING`。M6-A.3.1 仍未通过。
+
+D143 将下一实现范围冻结为：仅在 `managed-file-only` 健康状态报告中发送空
+`state_message`，保留启动 maintenance 门和 operator 显式切换；`resource-api-only` 继续保持
+不可调度。完成两种模式回归、workspace 测试、格式和 Clippy 后，才能讨论 attempt 8 的新
+证据路径和维护窗口；不得直接复用 attempt 7 或进入 M6-B。

@@ -61,8 +61,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第五次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-5-watchdog`，清单文件 SHA-256 为 `4ed10c279a5afb982885a64172c3b9805be0b7767e1dae830550c28afead8d60`，不得修改 |
 | 第六次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-6`，已在维护窗口内以 `FAIL/maintenance_window_or_cleanup_failed` 封存；`manifest.sha256` 文件 SHA-256 为 `79c532457a5106eb7e81829c19d81fb682cdb2335fc922467da454d74419bd1d`，不得修改 |
 | 第六次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-6-watchdog`，清单文件 SHA-256 为 `5c456c399188bbe2a6097831a03ef7f19eb860f7e390c12862edb54cda418b94`，不得修改 |
-| 第七次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-7`，D142 已冻结但尚未创建；只有最终 HEAD/脚本 identity、准备门和维护窗口授权全部通过后才可创建 |
-| 第七次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-7-watchdog`，D142 已冻结但尚未创建 |
+| 第七次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-7`，已在维护窗口内以 `FAIL/state_chain_did_not_reach_starting` 封存；`manifest.sha256` 文件 SHA-256 为 `81e34f127d853eaf8bd5e326e071156a3fd539f958c08ab82371aecc48d0a43e`，不得修改 |
+| 第七次 smoke watchdog 证据 | 未创建；正式 executor 在 watchdog 时限内完成失败恢复和封存 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -239,6 +239,13 @@ D141 已在 `208ac76dfd78beca4c697afd05235e0c974bdd8d` 修复该缺口：CLI 从
 D142 固定 attempt 7 继续使用同一输入、状态链、超时、成功标准和 cleanup；只更新新路径、
 HEAD/代码/预检 identity、attempt 编号，并修正遗留的 cleanup 提示文本。只读预检、预窗口
 故障注入和外部漂移门已通过；停止 Python Worker和真实运行仍需单独授权。
+
+attempt 7 在授权后成功创建 Model 10/Instance 25，但实例始终为 `pending`，调度器报告目标
+Worker 未通过 READY 门。Rust Worker 在 maintenance 解除后仍上报非空受限模式
+`state_message`，固定 Server 因而保留 `not_ready`。300 秒门失败后 cleanup 完整恢复且没有
+ModelFile、端口、Docker/GPU workload 或推理。D143 只修正 `managed-file-only` 的健康报告为
+空 `state_message`；`resource-api-only` 仍保持不可调度，其他正式输入和成功标准不变。新的
+正式尝试必须使用新目录并重新取得维护窗口授权。
 
 ## M6-A.3.0：独立只读预检
 

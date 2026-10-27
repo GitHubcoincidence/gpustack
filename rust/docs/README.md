@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D141 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D143 operator
   Context/API Key 准备和 Worker identity 恢复门禁均已 `frozen`；完整 R1 架构继续按门禁
   推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
@@ -45,9 +45,11 @@
   发现 Rust Worker 只监听冻结的 `10.213.80.90`，而执行器仍探测 `127.0.0.1`，最终按超时门失败；
   attempt 5 修正地址后又发现启动门错误要求 `state=ready`，而 maintenance 开启时 Server 的合法
   状态是 `state=maintenance`；attempt 6 首次通过启动门并解除 maintenance，但 Rust CLI 的
-  `ModelCreate` 未携带手工 GPU 选择所需的目标 Worker `cluster_id`，Server 以 HTTP 400 拒绝，
-  未创建模型。四次统一 cleanup 均恢复 Python Worker，且未创建 Docker/GPU workload 或推理。尚未证明真实 Server 上的 Managed
-  ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
+  `ModelCreate` 未携带手工 GPU 选择所需的目标 Worker `cluster_id`，Server 以 HTTP 400 拒绝。
+  attempt 7 已证明 D141 修复能创建正确集群的 Model/Instance，但目标 Worker 的健康上报仍携带
+  非空受限模式消息，Server 将其保留为 `not_ready`，实例因此停在 `pending`。各次统一 cleanup
+  均恢复 Python Worker，且未创建 Docker/GPU workload 或推理。尚未证明真实 Server 上的完整
+  Managed ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
 - 当前停止位置：M6-A.3.0 attempt 6 为 `passed_preflight`。正式证据位于
   `m6a3-formal-attempt-6`，清单文件 SHA-256 为
   `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`；预检没有改变
@@ -63,11 +65,11 @@
   解析目标 Worker、要求其具有集群归属，并将 `cluster_id` 写入 `ModelCreate`；CLI 参数和
   调度范围不变。90 上 `cargo test --locked --offline --workspace` 的 150 个测试全部通过，相关
   crate 的全 target Clippy 以 `-D warnings` 通过。
-- attempt 7 准备状态：D142 已冻结新正式路径；只读预检、预窗口故障注入和外部漂移门均已
-  通过，正式目录仍不存在。执行器绑定最终治理 HEAD并再次通过只读门后，状态为
-  `ready_for_maintenance_authorization`。
-- 下一项允许执行的工作：取得单独明确授权后，才可再次停止 Python Worker并执行一次
-  attempt 7；在此之前不得切换 maintenance、创建测试资源、启动 Rust Worker或进入 M6-B。
+- 当前停止位置：attempt 7 为 `failed_during_window`，证据目录的 `manifest.sha256` 文件
+  SHA-256 为 `81e34f127d853eaf8bd5e326e071156a3fd539f958c08ab82371aecc48d0a43e`；清理与恢复
+  审计通过，没有 ModelFile、端口、Docker/GPU workload 或推理残留。
+- 下一项允许执行的工作：按 D143 修复 `managed-file-only` 健康状态报告并完成离线回归；新的
+  正式维护窗口必须使用新证据路径并另行取得明确授权，M6-B 仍未开始。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
