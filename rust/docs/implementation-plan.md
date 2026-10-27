@@ -567,3 +567,7 @@ D143 已在 `85d6b8f478de2b096e35d0c22ddaa8ab1768fa39` 完成并通过 150 个 w
 测试、全 workspace/all-targets Clippy 和格式门。D144 已把 attempt 8 固定为新的预检、正式和
 watchdog 路径；下一步允许执行脚本审计、冻结构建和完整只读漂移门。即使准备通过，也不得
 自动进入真实维护窗口或 M6-B。
+
+attempt 8 的只读预检和预窗口故障注入已经通过，现有服务、maintenance、资源、端口与 GPU
+保持未变。提交准备检查点并把 executor 绑定到最终治理 HEAD后，只须重跑最终无写漂移门即可
+进入 `ready_for_maintenance_authorization`；这仍不构成真实维护窗口授权。

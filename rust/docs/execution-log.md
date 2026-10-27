@@ -2903,6 +2903,25 @@
 - 当前停止位置：D143 已同步本地、origin 和 90。D144 冻结 attempt 8 的全新证据路径并只允许
   无中断准备门；真实维护窗口仍需单独明确授权，M6-B 未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 8 无中断准备门通过
+
+- 冻结输入：D144 保持 Server v2.2.3、Worker ID 5、Qwen2.5 revision、Runner digest、GPU0、
+  端口、状态链、300 秒到 STARTING、60 秒 hold、900 秒 watchdog 和 cleanup 不变；接受代码为
+  `85d6b8f478de2b096e35d0c22ddaa8ab1768fa39`。
+- 只读预检：`m6a3-formal-attempt-8` 在治理 HEAD
+  `af9ea236ddd949ca6718beed7f023718b336f8a5` 上 `PASS`；目录 0700、45 个文件全 0600、秘密
+  扫描为 0、manifest 全通过，清单文件 SHA-256 为
+  `2acf1400baea3948a5e823ea91100c8728431d500794cd7822053f104b5ff777`。
+- 故障注入：`m6a3-managed-file-smoke-attempt-8-pre-window-injection` 使用错误 HEAD，在正式
+  baseline 和窗口前以 `STOP/source_head_mismatch` 停止；`baseline_ready=0`、
+  `window_entered=0`、`cleanup_ok=1`，19 个文件全 0600、秘密扫描为 0、manifest 全通过，
+  清单文件 SHA-256 为 `e94f833beceb96bf3ba881cc4619803d31ba9cf42dc35650f07b8679fa732262`。
+- 外部状态：Server/Python Worker health 和 metrics 为 200，Worker ID 5 仍为 maintenance，目标
+  Model/ModelFile 为 0，Rust 进程与受管端口为空，两张 GPU 的显存/利用率为 0；正式和 watchdog
+  目录保持不存在。准备未执行任何运行态写操作。
+- 当前停止位置：提交本检查点后只允许把 executor 的 EXPECTED_HEAD 绑定到最终治理提交并重跑
+  无写外部门；通过后为 `ready_for_maintenance_authorization`。真实 attempt 8 和 M6-B 均未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

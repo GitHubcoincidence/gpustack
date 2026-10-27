@@ -50,6 +50,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第四次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4`，已保存 GPU0 被既有 Lab 占用的停止证据，不得修改 |
 | 第五次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5`，因 Cargo working directory 错误按非评分 `INVALIDATED` 封存，不得修改 |
 | 第六次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-6`，已通过并封存；`manifest.sha256` 文件 SHA-256 为 `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`，不得修改 |
+| 第七次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-7`，已通过并封存；`manifest.sha256` 文件 SHA-256 为 `f018b990caf44cf2201101d6468aebb2421e2b978eae69d170b70b3c58ef622a`，不得修改 |
+| 第八次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-8`，已通过并封存；`manifest.sha256` 文件 SHA-256 为 `2acf1400baea3948a5e823ea91100c8728431d500794cd7822053f104b5ff777`，不得修改 |
 | 第一次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-1`，已在维护窗口前以 `STOP/persisted_worker_id_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `acca6ea071ebae4ed3c52d7bf32b81fb85ed7dca375671c3bcd19f240283999c`，不得修改 |
 | 第二次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-2`，已在维护窗口前以 `STOP/persisted_worker_name_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `5777af9731fe639a10840217f02f598d3e0ed03b6b2ff62f5ba006db1cd17b0a`，不得修改 |
 | 第二次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-2-watchdog`，清单文件 SHA-256 为 `220c46ec3d01dddc762d2219e0bc00b379d57091e10cb397d1bbed088f48911b`，不得修改 |
@@ -63,6 +65,9 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第六次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-6-watchdog`，清单文件 SHA-256 为 `5c456c399188bbe2a6097831a03ef7f19eb860f7e390c12862edb54cda418b94`，不得修改 |
 | 第七次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-7`，已在维护窗口内以 `FAIL/state_chain_did_not_reach_starting` 封存；`manifest.sha256` 文件 SHA-256 为 `81e34f127d853eaf8bd5e326e071156a3fd539f958c08ab82371aecc48d0a43e`，不得修改 |
 | 第七次 smoke watchdog 证据 | 未创建；正式 executor 在 watchdog 时限内完成失败恢复和封存 |
+| 第八次预窗口故障注入 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8-pre-window-injection`，以 `STOP/source_head_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `e94f833beceb96bf3ba881cc4619803d31ba9cf42dc35650f07b8679fa732262`，不得修改 |
+| 第八次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8`，D144 已冻结但尚未创建 |
+| 第八次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8-watchdog`，D144 已冻结但尚未创建 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用

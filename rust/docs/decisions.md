@@ -632,3 +632,12 @@ Clippy `-D warnings` 和 rustfmt 全部通过。
 D144 只授权准备脚本、静态审计、冻结构建、真实只读查询和 Git 外受保护证据；不授权停止
 Python Worker、切换 maintenance、创建 Server 测试资源或启动 Rust Worker。准备门全部通过后
 状态只能成为 `ready_for_maintenance_authorization`，真实 attempt 8 仍须单独明确授权。
+
+attempt 8 的只读预检已 `PASS`，证据目录为 `m6a3-formal-attempt-8`，其
+`manifest.sha256` 文件 SHA-256 为
+`2acf1400baea3948a5e823ea91100c8728431d500794cd7822053f104b5ff777`。预窗口故障注入按预期以
+`STOP/source_head_mismatch`、`baseline_ready=0`、`window_entered=0`、`cleanup_ok=1` 结束，
+清单文件 SHA-256 为 `e94f833beceb96bf3ba881cc4619803d31ba9cf42dc35650f07b8679fa732262`。
+准备过程没有切换 maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建
+Docker/GPU workload。提交本检查点后还须把正式 executor 绑定到最终治理 HEAD并重跑外部
+只读门，才能成为 `ready_for_maintenance_authorization`。

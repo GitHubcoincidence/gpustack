@@ -72,8 +72,11 @@
   `managed-file-only` 的健康报告清空显式 NOT_READY 消息，同时保持 `resource-api-only` 不可
   调度和注册 maintenance 门。90 上 150 个 workspace 测试、全 workspace/all-targets Clippy
   和格式门全部通过。
-- 下一项允许执行的工作：按 D144 完成 attempt 8 的新路径与无中断准备门；真实维护窗口仍需
-  单独明确授权，M6-B 尚未开始。
+- attempt 8 的只读预检与预窗口故障注入已通过，清单文件 SHA-256 分别为
+  `2acf1400baea3948a5e823ea91100c8728431d500794cd7822053f104b5ff777` 和
+  `e94f833beceb96bf3ba881cc4619803d31ba9cf42dc35650f07b8679fa732262`；现有服务与资源未改变。
+- 下一项允许执行的工作：提交准备检查点、绑定最终 HEAD并通过无写漂移门后，请求一次新的
+  attempt 8 维护窗口授权；M6-B 尚未开始。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
