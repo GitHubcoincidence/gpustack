@@ -37,20 +37,22 @@
   协调器；只读 `worker get` 与按 Worker 的 `model file list` 已完成离线验收。
 - 当前证据边界：M5 已真实证明宿主机进程形态的单 GPU Lab Qwen2.5/vLLM 全流程；M6-A
   已真实证明 operator Context、当前 Worker ID 5 的持久身份和 M6-A.3.0 全部只读门禁。
-  attempt 1、2、4 的有效停止及 attempt 3、5 的非评分失效证据均保持不变；attempt 6 已从
-  冻结提交完成独立构建，并通过 Server/Context/identity、资源零冲突、固定模型、GPU0、
-  端口、Python Worker 可恢复性、回滚 CLI 和全局资源 ID 基线检查。尚未证明真实 Server
-  上的 Managed ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
+  M6-A.3.1 attempt 1 在维护窗口之前因执行器把持久 identity 的 `worker_id` 错读为 `id`
+  而 fail-closed；没有停止 Python Worker、切换 maintenance、创建模型、启动 Rust Worker、
+  创建 Docker/GPU workload 或推理。尚未证明真实 Server 上的 Managed
+  ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
 - 当前停止位置：M6-A.3.0 attempt 6 为 `passed_preflight`。正式证据位于
   `m6a3-formal-attempt-6`，清单文件 SHA-256 为
   `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`；预检没有改变
   maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建 Docker/GPU
   workload，结束后服务健康且受管端口无监听。
-- 下一项允许执行的工作：用户已共同审阅并授权 M6-A.3.1 attempt 1，证据路径固定为
-  `m6a3-managed-file-smoke-attempt-1`，当前为 `authorized_pending_execution`。授权只包含
-  停止并恢复精确 Python Worker、切换精确 Rust Worker maintenance、创建并清理唯一测试
-  Model/ModelInstance/ModelFile，以及启动并停止 `--managed-file-only`；不包含任何 M6-B
-  Docker/vLLM workload、GPU 使用或推理。
+- 当前停止位置：M6-A.3.1 attempt 1 为 `stopped_before_window`，证据固定在
+  `m6a3-managed-file-smoke-attempt-1`，其 `manifest.sha256` 文件 SHA-256 为
+  `acca6ea071ebae4ed3c52d7bf32b81fb85ed7dca375671c3bcd19f240283999c`。M6-A.3.0 的
+  `passed_preflight` 结论不变，但 M6-A.3.1 仍未通过。
+- 下一项允许执行的工作：共同审阅 attempt 1 的停止证据，修订下一次执行器和冻结新的唯一
+  证据路径；只有重新完成外部漂移门禁并取得新的维护窗口授权后才能执行 attempt 2。不得在
+  attempt 1 目录中修正或续跑，也不得自动进入 M6-B。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

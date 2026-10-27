@@ -469,3 +469,13 @@ attempt 6 的证据目录外静态审计与完整只读预检随后全部通过�
 D126–D128 不改变固定 Server、Worker、模型、Runner、GPU、端口策略、状态链、900 秒总时限、
 证据要求或回滚顺序。执行前仍须复核 attempt 6 manifest、源码 identity、外部服务状态和新
 证据路径；复核失败令 attempt 1 保持未开始，不得进入维护窗口。
+
+attempt 1 随后通过源码、构建、Server/Context 和外部漂移门禁，但在读取当前持久 identity
+时把文件契约中的 `worker_id` 错写为 `.id`，因此以
+`STOP/persisted_worker_id_mismatch` 在维护窗口之前 fail-closed。证据目录已封存，不能修改
+或续跑。由于运行前全局 ID 基线尚未建立，通用 cleanup/final-check 又因缺少
+`before-global-ids.json` 把 `cleanup_ok` 记为 0；独立审计确认这不是资源残留：停止 Python
+Worker、解除 maintenance、模型部署和 Rust Worker 启动的 artifact 均未生成，当前服务、
+Worker maintenance、资源、端口和 GPU 与运行前一致。下一次执行器必须同时修正 identity
+字段和“基线尚未建立”的 pre-window cleanup 分支，并使用新的证据路径、新的执行授权；
+D126–D128 不能自动延伸为 attempt 2 授权。

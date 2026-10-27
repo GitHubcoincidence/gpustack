@@ -472,3 +472,12 @@ D123–D125 随后把第六次证据固定为尚未创建的 `m6a3-formal-attemp
 `m6a3-managed-file-smoke-attempt-1`。当前状态为 `authorized_pending_execution`。正式执行
 仍须先通过外部漂移门禁；授权只覆盖无 Docker 文件准备状态链和完整回滚，不覆盖 M6-B
 runtime、GPU workload 或推理。
+
+attempt 1 的静态审计和外部漂移门禁通过，但正式执行在维护窗口前停止。执行器对持久
+identity 使用 `.id`，而冻结文件契约字段为 `worker_id`，因此得到
+`STOP/persisted_worker_id_mismatch`；源码构建已完成，后续资源基线尚未开始。Python Worker
+未停止、Worker ID 5 maintenance 未改变、没有创建 Model/ModelInstance/ModelFile、没有
+启动 Rust Worker，也没有 Docker、GPU 或推理副作用。证据以 0700/0600 权限封存，秘密
+扫描为 0，独立恢复审计通过。M6-A.3.1 当前为 `stopped_before_window`，不能把 attempt 1
+修正为通过或在原目录续跑。下一步只允许修订 pre-window identity/cleanup 门禁、冻结新的
+attempt 2 证据路径并重新取得维护窗口授权；M6-B 仍未开始。

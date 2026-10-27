@@ -50,7 +50,7 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第四次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-4`，已保存 GPU0 被既有 Lab 占用的停止证据，不得修改 |
 | 第五次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5`，因 Cargo working directory 错误按非评分 `INVALIDATED` 封存，不得修改 |
 | 第六次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-6`，已通过并封存；`manifest.sha256` 文件 SHA-256 为 `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`，不得修改 |
-| 第一次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-1`，已冻结并获 D127 维护窗口授权，执行前必须仍不存在 |
+| 第一次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-1`，已在维护窗口前以 `STOP/persisted_worker_id_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `acca6ea071ebae4ed3c52d7bf32b81fb85ed7dca375671c3bcd19f240283999c`，不得修改 |
 | 后续重试证据 | 尚未冻结；后续任何预检或 smoke 重试均须使用新的未占用目录并另获执行授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
@@ -150,6 +150,20 @@ M6-A.3.1 仅为 `ready_for_authorization`，仍未获得维护窗口授权。
 `--managed-file-only` 生命周期；不允许 Docker/vLLM workload、GPU compute 或推理。
 正式执行前必须重新通过外部漂移门禁，不能仅复用 M6-A.3.0 的历史快照。
 
+attempt 1 的静态审计和外部漂移门禁通过，但执行器随后把
+`managed/worker-identity.json` 的 `worker_id` 字段错误读取为 `.id`，在资源基线和维护窗口
+之前以 `STOP/persisted_worker_id_mismatch` 退出。由于 `before-global-ids.json` 尚未生成，
+通用 cleanup/final-check 同时把 `cleanup_ok` 记为 0；独立审计确认没有停止 Python Worker、
+没有切换 maintenance、没有创建测试资源、没有启动 Rust Worker，也没有端口、Docker 或
+GPU 残留。attempt 1 证据保持不可变。任何 attempt 2 必须先修正 identity 字段和
+pre-window cleanup 的基线前分支，冻结新证据路径，并重新取得维护窗口授权。
+
+正式 seal 后才生成的 watchdog log/PID/exit 使用独立补充目录
+`m6a3-managed-file-smoke-attempt-1-watchdog-2` 保存，其 `manifest.sha256` 文件 SHA-256 为
+`c16b337f85b0b14a96f22277bb74bb65a200bb94fa2a2e57d3dadbafc487934f`。此前同名不带 `-2`
+的补充目录因零匹配秘密扫描与 `pipefail` 组合而中断，未 seal、不得作为通过证据，也不得
+覆盖；`watchdog-2` 已记录其文件哈希。该补充封装失误不改变正式 attempt 1 的 STOP 判定。
+
 ## M6-A.3.0：独立只读预检
 
 ### 目的
@@ -242,7 +256,8 @@ Managed 文件准备正确，也不授予维护窗口权限。
 - Rust 从 `40000-40063` 分配或安全复用一个端口，并把 `port`、`ports` 和
   `INITIALIZING` 作为一次完整更新写回；
 - Server 创建关联的本地 ModelFile，并把实例推进为 `DOWNLOADING`；
-- Rust canonicalize 固定路径，写入 `resolved_paths`、精确递归 `size`、
+- Rust canonicalize 固定路径；目录模型的 `resolved_paths` 是只含规范化目录的单元素数组，
+  目录内文件数由独立 manifest 校验；同时写入精确递归 `size`、
   `download_progress=100` 和 ModelFile `ready`；
 - Server 在文件 ready 后把实例推进为 `STARTING`；
 - Rust 观察 `STARTING` 并记录 no-op，60 秒内不创建 runtime 或写入 `RUNNING`。

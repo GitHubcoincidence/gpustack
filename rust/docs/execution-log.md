@@ -2561,6 +2561,46 @@
   全量外部漂移门禁；全部通过后才能执行一次 900 秒内的真实无 Docker smoke。任一失败先
   恢复 Python Worker 和 Rust Worker maintenance，再封存 attempt 1，不能自动重试。
 
+### 2026-10-27：M6-A.3.1 attempt 1 在维护窗口前停止
+
+- 预执行审计：执行器和独立 900 秒 watchdog 均通过 `bash -n`；目录模型的
+  `resolved_paths` 断言已在正式执行前按代码契约修正为单个规范化目录。最终 executor
+  SHA-256 为 `ff5362b84327f4bf8bd462b45347ea8e8b7bf2d90e500f9179cd5f8143c3bb52`，
+  watchdog SHA-256 为
+  `a206010455c5d99bbbc4a2084d1fc60c47c252be86459e3759305bcf45761c44`，二者均复制进证据链。
+- 外部漂移门禁：源码、origin 和 90 HEAD 均为
+  `581c95f632116e14d69b9b1504a865e4a1e8e675`，远端工作树干净；Server/Python Worker
+  health/metrics 为 200，Worker ID 5 处于 maintenance，目标 Model/ModelFile 无冲突，
+  固定模型 manifest 通过，GPU0、`20150/20151` 和 `40000-40063` 均空闲。
+- 停止原因：冻结源码完成 `--locked --offline` 构建后，执行器使用
+  `jq -r '.id' managed/worker-identity.json`，而该文件的权威字段是 `worker_id=5`，因此在
+  `identity_resource_and_environment_gate` 返回
+  `STOP/persisted_worker_id_mismatch`。这是执行器字段错误，不是 Worker identity 漂移。
+- 未进入范围：`python-worker-stop.txt`、`rust-worker.pid`、`maintenance-disable.json` 和
+  `model-deploy.json` 均未生成；Python Worker 未停止，Rust Worker 未启动，maintenance 未
+  解除，没有创建 Model/ModelInstance/ModelFile、Docker/vLLM workload、GPU compute 或
+  推理。`model_id`、`model_instance_id`、`model_file_id` 和 assigned port 均为 `none`。
+- cleanup 判读：停止发生在 `before-global-ids.json` 建立之前，通用 cleanup/final-check 因
+  缺少该基线把 `cleanup_ok` 记录为 0；其窄范围发现逻辑没有匹配到任何可删除资源，也没有
+  执行 maintenance enable、Model 删除或 ModelFile 删除。独立事后审计确认 target Model/
+  ModelFile 为 0，Worker 仍为 maintenance，Python Worker 与 Server 健康，Rust 进程和端口
+  无残留，GPU0 显存与 compute process 为 0，远端工作树仍干净。
+- 证据：正式目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-1`
+  为 0700，42 个文件均为 0600，41 个 manifest 条目逐项校验通过，秘密扫描为 0；
+  `manifest.sha256` 文件 SHA-256 为
+  `acca6ea071ebae4ed3c52d7bf32b81fb85ed7dca375671c3bcd19f240283999c`。watchdog 在正式
+  seal 后生成的 log/PID/exit 另存于
+  `m6a3-managed-file-smoke-attempt-1-watchdog-2`：目录为 0700，7 个文件均为 0600，6 个
+  manifest 条目通过，秘密扫描为 0，清单文件 SHA-256 为
+  `c16b337f85b0b14a96f22277bb74bb65a200bb94fa2a2e57d3dadbafc487934f`。第一次补充封装目录
+  `m6a3-managed-file-smoke-attempt-1-watchdog` 因零匹配 `grep` 在 `pipefail` 下退出而未 seal，
+  作为不计分的 incomplete artifact 原样保留并由 `watchdog-2` 记录其文件哈希。
+- 判定与停止位置：attempt 1 为有效 `stopped_before_window`，不是 M6-A.3.1 PASS，也不能
+  在原目录修正或续跑。下一项只允许共同审阅停止证据、修订 identity 与 pre-window cleanup
+  分支并冻结新的 attempt 2 证据路径；再次执行必须重新通过外部漂移门禁并取得新的维护窗口
+  授权。M6-B 仍未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
