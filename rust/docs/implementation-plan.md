@@ -519,3 +519,10 @@ readiness fixture、pre-window failure injection 和完整只读漂移门禁通�
 维护窗口。对不改变产品代码、固定输入、资源范围、超时、成功标准或回滚协议的后续同类
 执行器缺陷，可在封存和恢复审计通过后按新目录/最小差异/全门禁自主处理；超出该边界仍须
 询问。当前 attempt 4 为 `authorized_pending_execution`。
+
+attempt 4 随后通过全部准备门和 Python Worker stop 门，Rust Worker 也在冻结 Worker IP
+`10.213.80.90:20150/20151` 正常启动；但执行器的两个 readiness probe 仍访问 loopback，
+该地址返回 000，最终触发 `rust_worker_startup_gate_timeout`。统一 cleanup 已停止 Rust Worker、
+恢复 Python Worker并通过全部零残留检查，且没有模型资源、Docker/GPU workload 或推理。
+按 D138–D139，attempt 5 只把这两个 probe 改为 Worker IP，使用新证据目录并重新完成全部
+准备门；当前状态为 `authorized_pending_execution`，M6-B 仍未开始。

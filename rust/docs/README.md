@@ -41,24 +41,25 @@
   attempt 1 把 `worker_id` 错读为 `id`，attempt 2 又把 `worker_name` 错读为 `name`。两次均
   未停止 Python Worker、切换 maintenance、创建模型、启动 Rust Worker、创建 Docker/GPU
   workload 或推理。attempt 3 首次进入维护窗口并启动了真实 `--managed-file-only`，但
-  readiness 轮询第一次 `curl` 连接拒绝被 `set -e` 提前解释为失败；统一 cleanup 已恢复
-  Python Worker，且未创建模型、Docker/GPU workload 或推理。尚未证明真实 Server 上的 Managed
+  readiness 轮询第一次 `curl` 连接拒绝被 `set -e` 提前解释为失败；attempt 4 修复重试语义后
+  发现 Rust Worker 只监听冻结的 `10.213.80.90`，而执行器仍探测 `127.0.0.1`，最终按超时门失败。
+  两次统一 cleanup 均恢复 Python Worker，且未创建模型、Docker/GPU workload 或推理。尚未证明真实 Server 上的 Managed
   ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
 - 当前停止位置：M6-A.3.0 attempt 6 为 `passed_preflight`。正式证据位于
   `m6a3-formal-attempt-6`，清单文件 SHA-256 为
   `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`；预检没有改变
   maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建 Docker/GPU
   workload，结束后服务健康且受管端口无监听。
-- 当前停止位置：M6-A.3.1 attempt 3 为 `failed_during_window`，证据固定在
-  `m6a3-managed-file-smoke-attempt-3`，其 `manifest.sha256` 文件 SHA-256 为
-  `e7d3d05710ebb5755a363658daf7580fcbc0701065ee49ca9b33873347a6e180`；watchdog 补充
+- 当前停止位置：M6-A.3.1 attempt 4 为 `failed_during_window`，证据固定在
+  `m6a3-managed-file-smoke-attempt-4`，其 `manifest.sha256` 文件 SHA-256 为
+  `bb259eb9b0162c86f24417f1ae20b28091d6a15d0ac8f0daf4446cc8d7775e5e`；watchdog 补充
   证据清单文件 SHA-256 为
-  `a51a74bbb9e3a1fec29bb512d0527dd3813f0133f6f4446f8b6e111ba879c324`。M6-A.3.0 的
+  `65495a2d2835f07bf8ff09628035e622ded1e57905e857462538f6f060b601ae`。M6-A.3.0 的
   `passed_preflight` 结论不变，但 M6-A.3.1 仍未通过。
-- 下一项允许执行的工作：D136–D138 已冻结 attempt 4 新证据路径、readiness probe
-  `errexit` 窄修正、一次维护窗口授权和同类执行器缺陷的有限自主处理边界。当前允许准备并
-  完成增强的静态/合成/只读门禁，全部通过后执行 attempt 4；不改变产品代码、正式输入、
-  成功标准或 M6-B 边界。
+- 下一项允许执行的工作：D138–D139 已冻结 attempt 5 新证据路径，并把两个 readiness probe
+  的主机从错误的 loopback 窄修正为冻结 Worker IP `10.213.80.90`。当前允许按新路径完成
+  静态/合成/failure-injection/只读门禁，全部通过后直接执行 attempt 5；不改变产品代码、
+  正式输入、资源范围、超时、成功标准或 M6-B 边界。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

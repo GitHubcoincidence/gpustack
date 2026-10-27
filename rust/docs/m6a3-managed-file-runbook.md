@@ -55,8 +55,10 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第二次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-2-watchdog`，清单文件 SHA-256 为 `220c46ec3d01dddc762d2219e0bc00b379d57091e10cb397d1bbed088f48911b`，不得修改 |
 | 第三次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-3`，已在维护窗口内以 `FAIL/maintenance_window_or_cleanup_failed` 封存；`manifest.sha256` 文件 SHA-256 为 `e7d3d05710ebb5755a363658daf7580fcbc0701065ee49ca9b33873347a6e180`，不得修改 |
 | 第三次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-3-watchdog`，清单文件 SHA-256 为 `a51a74bbb9e3a1fec29bb512d0527dd3813f0133f6f4446f8b6e111ba879c324`，不得修改 |
-| 第四次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-4`，D136–D138 已冻结并授权；正式门禁通过前必须保持不存在 |
-| 后续重试证据 | attempt 4 之后尚未冻结；符合 D138 的同类执行器窄修正可在新路径、完整恢复和全门禁条件下自主继续，其他变化仍须另获授权 |
+| 第四次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-4`，已在维护窗口内以 `FAIL/rust_worker_startup_gate_timeout` 封存；`manifest.sha256` 文件 SHA-256 为 `bb259eb9b0162c86f24417f1ae20b28091d6a15d0ac8f0daf4446cc8d7775e5e`，不得修改 |
+| 第四次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-4-watchdog`，清单文件 SHA-256 为 `65495a2d2835f07bf8ff09628035e622ded1e57905e857462538f6f060b601ae`，不得修改 |
+| 第五次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-5`，D138–D139 已冻结并授权；正式门禁通过前必须保持不存在 |
+| 后续重试证据 | attempt 5 之后尚未冻结；符合 D138 的同类执行器窄修正可在新路径、完整恢复和全门禁条件下自主继续，其他变化仍须另获授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -207,6 +209,12 @@ D136–D138 将 attempt 4 的变化限制为两个 readiness probe 增加 `|| tr
 在 `set -e` 下不会提前退出，并审计其他等待预期瞬态状态的命令。用户同时授权在严格不改变
 产品代码、固定输入、资源/维护范围、超时、成功标准和回滚协议时，自主修正同类执行器缺陷；
 每个正式 attempt 仍必须使用唯一目录、保留失败历史并先证明上次完整恢复。
+
+attempt 4 通过全部增强准备门后进入维护窗口，并证明 Rust Worker 正常监听冻结 Worker IP
+`10.213.80.90:20150/20151`；但执行器仍探测 `127.0.0.1`，该地址返回 000，120 次循环后按
+`rust_worker_startup_gate_timeout` 失败。cleanup 通过且没有模型、Docker/GPU workload 或推理。
+D139 因此把 attempt 5 的唯一变化限定为两个 readiness probe 使用 `10.213.80.90`；正式运行
+前必须同时证明 Worker IP 路径可达、loopback 不可达，并重跑既有全部门禁。
 
 ## M6-A.3.0：独立只读预检
 

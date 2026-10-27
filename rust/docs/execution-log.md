@@ -2724,6 +2724,38 @@
 - 当前停止位置：attempt 4 为 `authorized_pending_execution`。下一项允许执行的工作是提交并
   同步本检查点、准备和审计最小差异执行器，门禁全部通过后执行一次正式维护窗口。
 
+### 2026-10-27：M6-A.3.1 attempt 4 因探针地址错误失败并完成恢复
+
+- 准备与输入：授权检查点 HEAD 为
+  `9ec413929492a02d6558b2fe75809f5e59948d5a`；executor SHA-256 为
+  `6235fe0b2e84c7e7c29272b1c0695d3fa99293a6a31cb0d4a2fec358c4e40875`，watchdog SHA-256 为
+  `6f1dcb6de3dc837eb21add81a03712394f1daacf4e6828f4b88e065fb4328cb7`。与 attempt 3 的行为差异
+  仅为两个 readiness curl 增加 `|| true`；静态审计、三步 synthetic retry、真实空端口、
+  pre-window failure injection 和完整只读漂移门禁均通过。
+- 执行经过：source/build、identity/resource/environment 和 Python Worker stop 门全部通过。
+  Rust Worker 使用持久 ID 5 正常启动并监听 `10.213.80.90:20150/20151`，两个 Worker IP 探针
+  均返回 200；执行器却仍轮询 `127.0.0.1`，现场该地址返回 000，因此在 120 次重试后以
+  `rust_worker_startup_gate_timeout` 进入 cleanup。
+- 结果与范围：正式结果为 `FAIL/rust_worker_startup_gate_timeout`，记录
+  `baseline_ready=1`、`window_entered=1`、`smoke_passed=0`、`cleanup_ok=1`。maintenance 从未
+  disable，Model、ModelInstance、ModelFile、assigned port 均为 none；没有 Docker/vLLM
+  workload、GPU compute 或推理。
+- 恢复与独立审计：cleanup 精确停止 Rust Worker并恢复原 `gpustack-worker`。Server、Python
+  Worker health/metrics 为 200；Worker ID 5 仍处于 maintenance；目标资源、Rust 进程、
+  `20150/20151`、`40000-40063` 监听和 GPU0 负载均为 0。前后全局资源 ID、Docker ID 集和
+  模型 manifest 一致，远端工作树干净。
+- 证据：正式目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-4`
+  为 0700，60 个文件均为 0600，manifest 全部通过，秘密扫描为 0；清单文件 SHA-256 为
+  `bb259eb9b0162c86f24417f1ae20b28091d6a15d0ac8f0daf4446cc8d7775e5e`。watchdog 补充目录
+  `m6a3-managed-file-smoke-attempt-4-watchdog` 为 0700，7 个文件均为 0600，manifest 通过，秘密
+  扫描为 0；清单文件 SHA-256 为
+  `65495a2d2835f07bf8ff09628035e622ded1e57905e857462538f6f060b601ae`。
+- 判定与下一步：attempt 4 是有效 `failed_during_window`，不能在原目录续跑。该问题属于 D138
+  允许自主处理的执行器传输地址缺陷；D139 将 attempt 5 固定为新证据目录，并只把两个
+  readiness probe 改向冻结 Worker IP `10.213.80.90`。完成最小差异、现场地址、
+  failure-injection 和全量漂移门禁后可直接执行 attempt 5；M6-B 仍未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

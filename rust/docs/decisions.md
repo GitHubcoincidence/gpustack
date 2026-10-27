@@ -539,3 +539,19 @@ Docker/GPU workload 或推理。任何 attempt 4 必须冻结新目录、仅让�
 attempt 4 在正式执行前额外要求一个 synthetic readiness fixture：前两次 probe 模拟 curl 7，
 第三次返回 200，并证明 `set -e` 下循环继续且成功退出。还须审计执行器中所有用于等待预期
 瞬态状态的外部命令，避免同类未保护命令再次绕过重试语义。
+
+attempt 4 的增强门禁全部通过，正式运行也通过 source/build、identity/resource/environment
+和 Python Worker stop 门。Rust Worker 随后以持久 ID 5 正常启动，并在冻结 Worker IP
+`10.213.80.90:20150/20151` 返回 200；但执行器仍只探测 `127.0.0.1`，120 次轮询最终以
+`rust_worker_startup_gate_timeout` 失败。cleanup 精确停止 Rust Worker、恢复原 Python Worker，
+且 `cleanup_ok=1`；未解除 maintenance、创建模型、Docker/GPU workload 或推理。
+
+## 2026-10-27 M6-A.3.1 第五次真实无 Docker 维护窗口
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D139 | 第五次 smoke 路径与 Worker 地址窄修正 | attempt 5 固定使用尚未创建的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-5`；从 attempt 4 封存 executor 派生，仅把两个 readiness probe 的目标从 `127.0.0.1` 改为冻结 Worker IP `10.213.80.90`，并更新 attempt/路径/HEAD/脚本 identity。其余正式输入、资源范围、超时、成功标准和回滚不变；按 D138 在全门禁通过后可直接执行 | Rust Worker 明确只绑定配置的 Worker IP，现场已同时证明该地址为 200、loopback 为 000；这是执行器传输地址修正，不是产品行为或实验方法变化。 |
+
+attempt 5 仍须完成最小差异审计、ShellCheck/`bash -n`、同时覆盖 Worker IP 成功与 loopback 失败的
+合成/现场探针、pre-window failure injection 和完整只读漂移门禁。任一门禁失败不得进入维护
+窗口；正式失败仍须先封存、恢复和审计，再判断是否符合 D138。
