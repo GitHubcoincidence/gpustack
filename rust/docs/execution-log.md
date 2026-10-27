@@ -26,42 +26,31 @@
 
 ## 当前状态
 
-- 状态：`ready`
-- 当前阶段：M5-D.0、M5-D.1、M5-D.2 和整个 M5-D 已接受；M5-E.0、D082 与
-  M5-E.0.1 已接受。Qwen-7B 的一次无效端口尝试和一次正式不兼容失败保持原分类；D084
-  改选 Qwen2.5-0.5B-Instruct、D085 清理与回滚修复完成后，新模型 M5-E.1 正式 smoke
-  已通过全部运行、推理、清理和恢复门禁。用户审阅详细报告后已接受 M5-E.1、M5-E 和
-  整个 M5。M6-A.0 设计已接受，D086–D091 已冻结。用户已审阅并接受 M6-A.1 和
-  M6-A.2；M6-A.2 的接受范围仍限于离线 CLI 实现、mock 契约和构建门禁。用户已接受
-  D092–D094。用户已审阅 D033 详细实现报告并接受 M6-A.2.1；接受范围仅为正式
-  managed-file-only 入口、离线 fake/mock 契约和构建门禁。用户已接受 D095–D097，并在
-  审阅详细实现报告后接受 M6-A.2.2 ModelFile 清理 CLI。M6-A.3.0/.3.1 手册和
-  D098–D102 已冻结，但尚未执行任何真实预检或维护窗口步骤。
-- 分支：`codex/rust-worker`；M5-D.0 代码检查点为
-  `0fbc8d14b1792210e52aab782f92b15bc1fd9a32`，接受前治理基线为
-  `3f02c644d5928c7ae54ae8ca697d79a483dfe115`；M6-A.2 实现提交为
-  `aff61fe2c7e98c50d3b5d273f6fbc582877a633f`；M6-A.2.1 实现提交为
-  `e1e3ee4a662099c1acfc60a8cfae0c8129b7d762`，CLI 帮助补充提交为
-  `dc53b9aedd6465a0564ecc07aeda03b1cf0c70fb`；M6-A.2.2 实现提交为
-  `f19a8fcd41ed8368931509ae3120a6b0d7098043`，接受检查点为
-  `93021744086dd806e30f55a695e87df71c452d3e`。
+- 状态：`attempt_9_preparation_ready`
+- 当前阶段：M1～M5、M6-A.0～M6-A.2.3 已接受。M6-A.3.0 只读预检已通过；
+  M6-A.3.1 attempt 8 是有效 `failed_during_window`，尚未通过完整 Managed 文件准备状态链，
+  M6-B Docker/vLLM runtime 尚未开始。
+- 最新代码检查点：`8b06832440f222600721171f8d1ede7e9bab4004`。D145 将 Worker
+  注册和周期状态的 `system_reserved` 从 `null` 修复为强类型 `{ram: 0, vram: 0}`；本地、
+  origin 和 90 主机已同步。
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
   `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
-- 实现状态：M1～M4、M5-A、M5-B、M5-C、整个 M5-D、M6-A.1 和 M6-A.2 已接受。
-  M6-A.2 提供 Context、最小 Model CRUD/status、精确 Worker maintenance CLI、稳定
-  table/JSON、确认、退出码、状态跟踪与凭据文件安全读取；接受依据仍只有离线 mock 证据。
-  M6-A.2.1 正式 managed-file-only CLI/supervisor 接线和 M6-A.2.2 ModelFile 元数据安全清理
-  CLI 已经用户接受。M6-A.3.0/.3.1 的固定输入、状态链、超时、证据、清理和回滚协议见
-  `m6a3-managed-file-runbook.md`。静态 CLI 核对发现预检所需的只读 Server Worker 查询和
-  按 Worker 的 ModelFile 列表尚无产品命令，M6-A.3.0 当前为 `not_ready`。
-- 当前停止位置：本次只冻结治理文档，没有启动 Rust Worker、读取真实 token、连接真实
-  Server API、改变 maintenance、停止 Python Worker、访问 Docker socket、创建容器或使用
-  GPU。M5 完成时的运行环境结论仍是历史接受证据，本次没有重新探测或刷新它。
-- 下一项允许执行的工作：先讨论并冻结候选 `worker get <worker>` 与
-  `model file list --worker <worker>` 的最小离线 CLI 前置门禁，不能用 Web UI 或原始 curl
-  绕过。前置门禁实现并接受后，M6-A.3.0 仍需单独授权；M6-A.3.1 还须在预检共同审阅后
-  第二次授权。任何一步都不授权 Docker/GPU workload 或推理。
+- attempt 8 结果：冻结 HEAD `57a47a92cb425152ec455e768fc69c71f723ea86` 创建 Model 11/
+  Instance 26 后，目标 Worker 已通过 READY 门，但 Server 调度器因
+  `system_reserved=null` 报告 `NoneType.vram`，实例保持 `pending`、`worker_id=null`。
+  没有 ModelFile、分配端口、Docker/GPU workload 或推理。统一 cleanup 为 `cleanup_ok=1`，
+  原 Python Worker、maintenance、服务、资源 ID、Docker、GPU、端口、模型文件和仓库状态
+  均恢复。
+- attempt 8 证据：正式目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8`
+  为 0700、文件全 0600。发现两份 Docker 快照携带 `GPUSTACK_TOKEN` 环境项后，已在受保护
+  目录内只替换该字段并记录原/新哈希；脱敏后 72 条 manifest 全部通过，清单文件 SHA-256 为
+  `efdf1c89566cf9936bdb8bf066b66c262367e04065e2246b9eb487ea4a7bb735`。
+- 下一项允许执行的工作：冻结 attempt 9 的新预检、正式和 watchdog 路径；正式脚本须在
+  `docker inspect` 落盘前过滤秘密环境项，然后完成静态审计、pre-window failure injection 和
+  完整只读漂移门。准备通过不自动授权维护窗口；停止 Python Worker、切换 maintenance、创建
+  Server 测试资源或启动 Rust Worker仍需新的明确授权，M6-B 不得提前开始。
 
 ## 里程碑
 
@@ -2921,6 +2910,48 @@
   目录保持不存在。准备未执行任何运行态写操作。
 - 当前停止位置：提交本检查点后只允许把 executor 的 EXPECTED_HEAD 绑定到最终治理提交并重跑
   无写外部门；通过后为 `ready_for_maintenance_authorization`。真实 attempt 8 和 M6-B 均未开始。
+
+### 2026-10-27：M6-A.3.1 attempt 8 暴露资源保留字段缺口并完整恢复
+
+- 执行与结果：用户明确授权固定维护窗口后，attempt 8 在冻结 HEAD
+  `57a47a92cb425152ec455e768fc69c71f723ea86` 通过源码、身份、服务、Python Worker stop、Rust
+  Worker 启动和 maintenance disable 门。D143 修复生效，Worker 进入 READY；CLI 创建 Model
+  11 和 ModelInstance 26。
+- 失败证据：实例在 300 秒观察期内保持 `pending`、`worker_id=null`，权威消息为
+  `Failed to find candidate: 'NoneType' object has no attribute 'vram'`。没有 ModelFile、分配端口、
+  Docker/vLLM container、GPU workload 或推理。
+- 根因：Rust 的注册与周期状态请求发送 `system_reserved=null`；固定 Server 的资源计算直接读取
+  `worker.system_reserved.vram`。Python Worker 对未配置值发送 `{ram: 0, vram: 0}`，因此该差异是
+  Rust wire contract 缺口，不是调度时序或执行器问题。
+- 恢复：正式结果为 `FAIL/state_chain_did_not_reach_starting`，`baseline_ready=1`、
+  `window_entered=1`、`cleanup_ok=1`。Model 11/Instance 26 已删除，Worker ID 5 恢复 maintenance，
+  精确 Python Worker 容器、health/metrics 恢复；Rust 进程和受管端口为 0，GPU0 为 0 MiB/0%，
+  前后全局资源 ID、Docker ID、GPU 摘要和模型 manifest 一致，仓库仍处于冻结提交且干净。
+- 证据安全：正式目录原 seal 后发现 `before/after-python-worker-inspect.json` 的容器环境包含
+  `GPUSTACK_TOKEN`。文件始终为 0600 且从未进入 Git/聊天；立即只把该字段替换为 `<redacted>`，
+  `security-redaction.txt` 记录原 manifest SHA-256
+  `ab6865984cf59718295f1c353870e5c18303642162ecd3b016b1a9838f4b7eef`、原/新快照哈希和
+  `experiment_result_changed=false`。重新封存后目录含 73 个文件、72 个 manifest 条目，校验
+  通过，清单文件 SHA-256 为
+  `efdf1c89566cf9936bdb8bf066b66c262367e04065e2246b9eb487ea4a7bb735`。
+- 当前停止位置：attempt 8 保留为有效 `failed_during_window`，M6-A.3.1 未通过，M6-B 未开始。
+
+### 2026-10-27：D145 Worker 资源保留字段修复完成离线验收
+
+- 实现：代码检查点 `8b06832440f222600721171f8d1ede7e9bab4004` 在 client wire types 中
+  新增 `SystemReserved { ram, vram }`，并让 control-plane-only、resource-api-only 和
+  managed-file-only 的注册请求与周期状态都明确发送默认双零对象。没有新增配置、CLI 参数、
+  runtime 行为或 Server schema。
+- 回归：resource-api-only 与 managed-file-only 测试均断言注册和状态上报为双零对象；既有 frozen
+  Server fixture、认证、状态消息和协调器测试继续通过。90 上
+  `cargo test --workspace --all-targets --locked --offline` 为 153/153；
+  `cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings`、rustfmt、
+  workspace build 和 `git diff --check` 均通过。
+- 漂移判断：D145 只恢复 Python Worker 已实现的固定 v2.2.3 请求语义，不改变正式模型、Worker、
+  GPU、Runner、端口、状态链、超时、清理或成功标准；结论为 `aligned`。
+- 当前停止位置：代码已同步本地、origin 和 90，工作树仅保留用户已有的本地 `output/`。下一项
+  允许工作是冻结 attempt 9 新路径并准备经过预落盘 secret 过滤的 executor；准备门通过后仍需
+  新的明确维护窗口授权。
 
 ## 未解决风险与待确认事项
 

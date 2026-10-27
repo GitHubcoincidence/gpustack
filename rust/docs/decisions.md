@@ -641,3 +641,28 @@ attempt 8 的只读预检已 `PASS`，证据目录为 `m6a3-formal-attempt-8`，
 准备过程没有切换 maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建
 Docker/GPU workload。提交本检查点后还须把正式 executor 绑定到最终治理 HEAD并重跑外部
 只读门，才能成为 `ready_for_maintenance_authorization`。
+
+## 2026-10-27 M6-A.3.1 Worker 资源保留字段修复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D145 | `system_reserved` 上报契约 | 在 Rust client 中用强类型 `SystemReserved { ram, vram }` 取代该请求字段的任意 JSON；所有 Worker 模式的注册请求和周期状态报告均显式发送 `{ram: 0, vram: 0}`。不新增 CLI 配置，不改变 Server schema、资源探测、调度范围、状态链或 runtime 边界；为 resource-api-only 与 managed-file-only 增加双零回归断言 | attempt 8 已证明 D143 生效并通过 READY 门，但固定 Server 的调度资源计算直接读取 `worker.system_reserved.vram`。Python Worker 始终发送双零对象，Rust 的 `null` 导致 `Failed to find candidate: 'NoneType' object has no attribute 'vram'`。双零与未配置系统保留量的既有 Python 语义一致，是恢复固定 v2.2.3 wire contract 的最小修复。 |
+
+attempt 8 是有效 `failed_during_window`：在冻结 HEAD
+`57a47a92cb425152ec455e768fc69c71f723ea86` 上创建 Model 11/Instance 26 后，实例在 300 秒
+内保持 `pending`、`worker_id=null`，未创建 ModelFile、分配端口、Docker/GPU workload 或
+执行推理。统一 cleanup 恢复 Worker maintenance 和原 Python Worker，删除本次资源并通过
+服务、全局 ID、Docker、GPU、端口、模型 manifest 和仓库状态复核，`cleanup_ok=1`。
+
+正式证据的两份 `docker inspect` 快照最初包含现有 Python Worker 的 `GPUSTACK_TOKEN`
+环境项。该值从未进入 Git 或聊天，证据目录始终为 0700、文件为 0600；发现后立即只对这两
+个字段做 `<redacted>` 替换，并在 `security-redaction.txt` 保存原清单及快照哈希、脱敏后哈希和
+`experiment_result_changed=false`。脱敏后 72 个 manifest 条目全部通过，清单文件 SHA-256 为
+`efdf1c89566cf9936bdb8bf066b66c262367e04065e2246b9eb487ea4a7bb735`。后续正式脚本不得再保存
+未过滤的容器环境。
+
+D145 实现在代码检查点 `8b06832440f222600721171f8d1ede7e9bab4004`。90 上
+`cargo test --workspace --all-targets --locked --offline` 共 153 个测试通过；
+all-features/all-targets Clippy `-D warnings`、rustfmt 和 workspace build 均通过。该检查点只
+接受兼容性修复和离线验证；attempt 9 必须使用新证据路径并重新完成全部准备门，真实维护窗口
+仍须单独授权。

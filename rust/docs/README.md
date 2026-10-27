@@ -28,9 +28,9 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D144 operator
-  Context/API Key 准备和 Worker identity 恢复门禁均已 `frozen`；完整 R1 架构继续按门禁
-  推进。
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D145 operator
+  Context、Worker identity、READY 和资源保留字段门禁均已 `frozen`；完整 R1 架构继续按
+  门禁推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
   M6-A.2.3。当前 Rust CLI 已具备 Context、Model、Worker 查询/maintenance 和安全 ModelFile
   元数据清理能力，`worker run --managed-file-only` 已接入离线验证的 Managed 文件准备
@@ -47,20 +47,10 @@
   状态是 `state=maintenance`；attempt 6 首次通过启动门并解除 maintenance，但 Rust CLI 的
   `ModelCreate` 未携带手工 GPU 选择所需的目标 Worker `cluster_id`，Server 以 HTTP 400 拒绝。
   attempt 7 已证明 D141 修复能创建正确集群的 Model/Instance，但目标 Worker 的健康上报仍携带
-  非空受限模式消息，Server 将其保留为 `not_ready`，实例因此停在 `pending`。各次统一 cleanup
-  均恢复 Python Worker，且未创建 Docker/GPU workload 或推理。尚未证明真实 Server 上的完整
-  Managed ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
-- 当前停止位置：M6-A.3.0 attempt 6 为 `passed_preflight`。正式证据位于
-  `m6a3-formal-attempt-6`，清单文件 SHA-256 为
-  `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`；预检没有改变
-  maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建 Docker/GPU
-  workload，结束后服务健康且受管端口无监听。
-- 当前停止位置：M6-A.3.1 attempt 6 为 `failed_during_window`，证据固定在
-  `m6a3-managed-file-smoke-attempt-6`，其 `manifest.sha256` 文件 SHA-256 为
-  `79c532457a5106eb7e81829c19d81fb682cdb2335fc922467da454d74419bd1d`；watchdog 补充
-  证据清单文件 SHA-256 为
-  `5c456c399188bbe2a6097831a03ef7f19eb860f7e390c12862edb54cda418b94`。M6-A.3.0 的
-  `passed_preflight` 结论不变，但 M6-A.3.1 仍未通过。
+  非空受限模式消息，Server 将其保留为 `not_ready`。attempt 8 进一步证明 D143 已使 Worker
+  通过 READY 门，但调度器随后因 Rust 上报 `system_reserved=null` 在访问 `.vram` 时失败，实例
+  仍停在 `pending`。各次统一 cleanup 均恢复 Python Worker，且未创建 Docker/GPU workload 或
+  推理。尚未证明真实 Server 上的完整 Managed ModelInstance/ModelFile 状态链，也未进入 M6-B。
 - 已接受修复：代码检查点 `208ac76dfd78beca4c697afd05235e0c974bdd8d` 让 deploy 先唯一
   解析目标 Worker、要求其具有集群归属，并将 `cluster_id` 写入 `ModelCreate`；CLI 参数和
   调度范围不变。90 上 `cargo test --locked --offline --workspace` 的 150 个测试全部通过，相关
@@ -75,8 +65,15 @@
 - attempt 8 的只读预检与预窗口故障注入已通过，清单文件 SHA-256 分别为
   `2acf1400baea3948a5e823ea91100c8728431d500794cd7822053f104b5ff777` 和
   `e94f833beceb96bf3ba881cc4619803d31ba9cf42dc35650f07b8679fa732262`；现有服务与资源未改变。
-- 下一项允许执行的工作：提交准备检查点、绑定最终 HEAD并通过无写漂移门后，请求一次新的
-  attempt 8 维护窗口授权；M6-B 尚未开始。
+- attempt 8 已作为有效 `failed_during_window` 封存：Model 11/Instance 26 未被分配 Worker，
+  没有 ModelFile、端口、容器、GPU workload 或推理；`cleanup_ok=1`，全部运行状态恢复。证据在
+  安全脱敏后重新封存，清单文件 SHA-256 为
+  `efdf1c89566cf9936bdb8bf066b66c262367e04065e2246b9eb487ea4a7bb735`。
+- 已接受修复：代码检查点 `8b06832440f222600721171f8d1ede7e9bab4004` 新增强类型
+  `SystemReserved`，让注册和周期状态都明确上报 `{ram: 0, vram: 0}`。90 上 153 个 all-target
+  测试、all-features/all-targets Clippy、rustfmt 和 workspace build 全部通过。
+- 下一项允许执行的工作：为 D145 冻结新的 attempt 9 证据路径，完成静态、故障注入和只读
+  漂移门；任何真实维护窗口仍需用户单独明确授权，M6-B 尚未开始。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

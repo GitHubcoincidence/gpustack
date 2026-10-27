@@ -66,8 +66,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第七次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-7`，已在维护窗口内以 `FAIL/state_chain_did_not_reach_starting` 封存；`manifest.sha256` 文件 SHA-256 为 `81e34f127d853eaf8bd5e326e071156a3fd539f958c08ab82371aecc48d0a43e`，不得修改 |
 | 第七次 smoke watchdog 证据 | 未创建；正式 executor 在 watchdog 时限内完成失败恢复和封存 |
 | 第八次预窗口故障注入 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8-pre-window-injection`，以 `STOP/source_head_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `e94f833beceb96bf3ba881cc4619803d31ba9cf42dc35650f07b8679fa732262`，不得修改 |
-| 第八次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8`，D144 已冻结但尚未创建 |
-| 第八次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8-watchdog`，D144 已冻结但尚未创建 |
+| 第八次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8`，已在维护窗口内以 `FAIL/state_chain_did_not_reach_starting` 封存；安全脱敏后 `manifest.sha256` 文件 SHA-256 为 `efdf1c89566cf9936bdb8bf066b66c262367e04065e2246b9eb487ea4a7bb735`，不得修改 |
+| 第八次 smoke watchdog 证据 | 未创建独立目录；正式 executor 在 watchdog 时限内完成失败恢复和封存，supervisor identity 保留在正式目录与 `/tmp` 日志中 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -256,6 +256,21 @@ D143 已在代码检查点 `85d6b8f478de2b096e35d0c22ddaa8ab1768fa39` 通过目�
 workspace 测试、全 workspace/all-targets Clippy 和格式门。D144 固定 attempt 8 使用新的
 预检、正式和 watchdog 路径，并要求重新完成全部静态、故障注入和只读漂移门；准备通过仍不
 授权真实维护窗口。
+
+attempt 8 证明 D143 已使 Worker 在 maintenance 解除后通过 READY 门，但固定 Server 随即在
+候选资源计算中报告 `Failed to find candidate: 'NoneType' object has no attribute 'vram'`。
+Rust 注册和周期状态的 `system_reserved` 为 `null`，而 Python Worker 对未配置保留量发送
+`{ram: 0, vram: 0}`；实例因此保持 `pending` 且未分配 Worker。300 秒门失败后统一 cleanup
+删除 Model 11/Instance 26、恢复 maintenance 和精确 Python Worker，且没有 ModelFile、端口、
+Docker/GPU workload 或推理残留。
+
+D145 把 `system_reserved` 固定为强类型双零对象并已在代码检查点
+`8b06832440f222600721171f8d1ede7e9bab4004` 通过完整离线质量门。attempt 8 封存后发现两份
+Python Worker `docker inspect` 快照携带 `GPUSTACK_TOKEN` 环境项；证据始终受 0700/0600
+保护且秘密未进入 Git 或聊天。两个字段已原位脱敏，`security-redaction.txt` 保存原/新哈希和
+不改变实验结论的说明，随后重新生成并校验 manifest。以后任何正式 executor 都必须在证据
+落盘前过滤容器环境，不得依赖事后脱敏。attempt 9 只能使用新的预检、正式和 watchdog 路径，
+并重新完成静态、故障注入和只读漂移门；准备通过仍不授权真实维护窗口。
 
 ## M6-A.3.0：独立只读预检
 

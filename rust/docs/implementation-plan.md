@@ -571,3 +571,15 @@ watchdog 路径；下一步允许执行脚本审计、冻结构建和完整只�
 attempt 8 的只读预检和预窗口故障注入已经通过，现有服务、maintenance、资源、端口与 GPU
 保持未变。提交准备检查点并把 executor 绑定到最终治理 HEAD后，只须重跑最终无写漂移门即可
 进入 `ready_for_maintenance_authorization`；这仍不构成真实维护窗口授权。
+
+attempt 8 随后在明确授权下进入维护窗口。D143 修复生效，目标 Worker 通过 READY 门；但固定
+Server 在计算候选资源时因 Rust 上报 `system_reserved=null` 无法读取 `.vram`，Model 11/
+Instance 26 始终停在 `pending`。正式结果为 `FAIL/state_chain_did_not_reach_starting`、
+`cleanup_ok=1`：没有 ModelFile、端口、容器、GPU workload 或推理，测试资源、maintenance、
+Python Worker、服务、端口、Docker、GPU、模型 manifest 和仓库状态均恢复到基线。
+
+D145 已在 `8b06832440f222600721171f8d1ede7e9bab4004` 让注册和周期状态明确发送
+`SystemReserved { ram: 0, vram: 0 }`，与 Python Worker 的未配置语义对齐。153 个
+all-target 测试、all-features/all-targets Clippy、格式和 workspace build 均通过。当前停止位置
+为 `attempt_9_preparation_ready`：下一步只允许冻结新证据路径、修正正式脚本使容器环境在落盘
+前脱敏，并完成静态、故障注入和只读漂移门。新的真实维护窗口仍需单独明确授权，M6-B 未开始。
