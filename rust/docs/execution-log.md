@@ -2705,6 +2705,25 @@
   窄修正，随后重新执行静态/failure-injection/只读门禁并取得新的维护窗口授权。不得自动
   重试，M6-B 仍未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 4 已冻结并获维护窗口授权
+
+- 用户决定：用户询问近期问题偏多的原因，并明确要求后续同类问题由执行者直接解决、必要时
+  再询问；同时对上一条 attempt 4 精确授权文本回复“没问题”。D136–D138 因此冻结 attempt 4
+  和有限自主处理边界。
+- 证据路径与唯一修正：正式目录固定为尚未创建的
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-4`。
+  executor 从 attempt 3 封存副本派生，只在两个 readiness curl 后增加 `|| true`，并更新
+  attempt/路径/HEAD/脚本 identity；其他正式输入、状态链、超时、回滚和排除项不变。
+- 增强准备门禁：除 `bash -n`、ShellCheck、最小 diff、pre-window failure injection 和完整
+  只读漂移检查外，新增三步 synthetic readiness fixture，必须证明两次 curl 7 后第三次 200
+  能在 `set -e` 下继续并成功；同时审计所有等待预期瞬态状态的外部命令。
+- 自主处理边界：若后续仍出现纯执行器字段、shell 错误处理、传输或证据封装缺陷，只有在上次
+  已封存、恢复审计通过、新证据路径、最小差异和完整门禁同时满足，且不改变产品代码、正式
+  输入、资源范围、超时、成功标准或回滚协议时，才可不再逐次询问。任何方法/风险扩大、破坏性
+  清理或恢复不确定仍须停止询问。
+- 当前停止位置：attempt 4 为 `authorized_pending_execution`。下一项允许执行的工作是提交并
+  同步本检查点、准备和审计最小差异执行器，门禁全部通过后执行一次正式维护窗口。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

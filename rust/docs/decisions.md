@@ -527,3 +527,15 @@ Python Worker 随后恢复。结果为 `FAIL/maintenance_window_or_cleanup_faile
 `baseline_ready=1`、`window_entered=1`、`cleanup_ok=1`；没有解除 maintenance、创建模型、
 Docker/GPU workload 或推理。任何 attempt 4 必须冻结新目录、仅让这两个 readiness probe
 在连接尚未建立时返回可比较的空值/HTTP code 而不触发 `errexit`，并重新取得授权。
+
+## 2026-10-27 M6-A.3.1 第四次真实无 Docker 维护窗口
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D136 | 第四次 smoke 路径与窄修正 | attempt 4 固定使用尚未创建的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-4`；从 attempt 3 封存 executor 派生，仅将两个 readiness probe 改为 `curl ... || true`，使连接尚未建立时得到可重试结果而不触发顶层 `set -e`。attempt/路径/HEAD/脚本 identity 随新尝试更新，其余逻辑与固定输入不变 | attempt 3 已证明 Worker 稍后正常启动，失败来自 probe 与 `errexit` 的组合；窄修正恢复原已冻结的 120 次轮询语义。 |
+| D137 | 第四次维护窗口授权 | 用户在 attempt 3 完整恢复和精确授权文本后回复“没问题”，授权在增强静态/合成/只读门禁全部通过后执行一次 attempt 4；允许的维护写操作和禁止项与 D135 相同 | 将授权绑定到唯一证据目录和唯一修正，同时避免重复征询已经明确接受的同一维护范围。 |
+| D138 | 同类执行器缺陷的有限自主处理 | 对不修改 Rust 产品代码、正式输入、资源范围、超时、成功标准或回滚协议的执行器字段、shell 错误处理、传输和证据封装缺陷，执行者可在上次 attempt 已封存且恢复审计通过后，使用新证据目录、最小差异和完整前置门禁直接修正并继续，无须逐次询问。涉及产品行为、模型/Worker/GPU/Runner、维护范围、验收标准、破坏性清理，或恢复状态不确定时仍必须停止并询问 | 用户明确要求同类问题后续直接解决、必要时再询问；该边界减少无效往返，同时不把操作授权扩展到方法或风险变化。 |
+
+attempt 4 在正式执行前额外要求一个 synthetic readiness fixture：前两次 probe 模拟 curl 7，
+第三次返回 200，并证明 `set -e` 下循环继续且成功退出。还须审计执行器中所有用于等待预期
+瞬态状态的外部命令，避免同类未保护命令再次绕过重试语义。

@@ -512,3 +512,10 @@ Rust Worker 实际稍后完成 ID 5 持久身份、双 GPU 和 maintenance-requi
 零残留检查。没有 maintenance disable、模型资源、Docker/GPU workload 或推理。M6-A.3.1
 当前为 `failed_during_window`；下一步只能讨论并冻结 attempt 4 的新路径及两个 readiness
 probe 的 `errexit` 窄修正，再重新完成准备门禁和维护窗口授权，不得自动重试或进入 M6-B。
+
+用户随后接受 D136–D138：attempt 4 固定使用 `m6a3-managed-file-smoke-attempt-4`，只把两个
+readiness curl 改为不触发 `errexit` 的可重试采样，并授权在增强静态、三步 synthetic
+readiness fixture、pre-window failure injection 和完整只读漂移门禁通过后执行一次真实
+维护窗口。对不改变产品代码、固定输入、资源范围、超时、成功标准或回滚协议的后续同类
+执行器缺陷，可在封存和恢复审计通过后按新目录/最小差异/全门禁自主处理；超出该边界仍须
+询问。当前 attempt 4 为 `authorized_pending_execution`。
