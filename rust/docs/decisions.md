@@ -617,3 +617,18 @@ attempt 7 是有效 `failed_during_window`：创建了 Model 10 和 ModelInstanc
 GPU compute 或推理。统一 cleanup 恢复 maintenance 和原 Python Worker，删除本次资源并通过
 前后全局 ID、Docker、GPU 和模型 manifest 比较。D143 只授权实现和离线验证；任何新的正式
 维护窗口仍须新证据路径、完整门禁和单独明确授权。
+
+D143 实现在代码检查点 `85d6b8f478de2b096e35d0c22ddaa8ab1768fa39`。`resource-api-only`
+继续报告受限模式消息，`managed-file-only` 的周期健康状态改为空消息，注册时的 maintenance
+消息保持不变。90 上目标测试 6/6、整个 Rust workspace 150/150、全 workspace/all-targets
+Clippy `-D warnings` 和 rustfmt 全部通过。
+
+## 2026-10-27 M6-A.3.1 第八次真实无 Docker 维护窗口准备
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D144 | 第八次 smoke 路径与方法 | attempt 8 只使用新的 `m6a3-formal-attempt-8`、`m6a3-managed-file-smoke-attempt-8` 和对应 watchdog 路径；执行器从 attempt 7 封存副本派生，只更新 attempt/路径/HEAD/代码与预检 identity。固定 Server、Worker、模型、Runner、GPU0、端口、状态链、超时、成功标准和 cleanup 均不变 | attempt 7 已完整恢复，D143 只修正阻塞 READY 的健康消息语义。新路径与全量门禁保证结果不与旧失败证据拼接，并保持可归因。 |
+
+D144 只授权准备脚本、静态审计、冻结构建、真实只读查询和 Git 外受保护证据；不授权停止
+Python Worker、切换 maintenance、创建 Server 测试资源或启动 Rust Worker。准备门全部通过后
+状态只能成为 `ready_for_maintenance_authorization`，真实 attempt 8 仍须单独明确授权。

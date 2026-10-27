@@ -2888,6 +2888,21 @@
 - 当前停止位置：attempt 7 已封存为有效 `failed_during_window`，M6-B 未开始。下一项允许工作是
   按 D143 实现健康状态上报修复并完成离线回归；新的真实维护窗口需另行冻结和授权。
 
+### 2026-10-27：D143 Managed 健康状态修复完成离线验收
+
+- 实现：代码检查点 `85d6b8f478de2b096e35d0c22ddaa8ab1768fa39` 为不同受限模式分离
+  周期状态消息。`resource-api-only` 继续发送 maintenance 原因，防止误调度；
+  `managed-file-only` 的健康报告发送 `state_message=null`，使 operator 解除 maintenance 后
+  Server 可按 heartbeat、可达性和资源状态计算 READY。注册请求仍以 maintenance 和原消息启动。
+- 回归：两种模式分别断言非空和空状态消息，防止安全模式互相污染。90 上目标测试 6/6；
+  `cargo test --locked --offline --workspace` 共 150 个测试通过；rustfmt 与
+  `cargo clippy --locked --offline --workspace --all-targets -- -D warnings` 通过。测试没有连接
+  Server、Docker 或 GPU，也没有改变现有服务。
+- 漂移判断：该修复实现 `architecture.md` 已冻结的 operator-controlled 调度语义，不改变 CLI、
+  Server schema、协调器、状态链、固定输入、Docker/runtime 边界或成功标准。
+- 当前停止位置：D143 已同步本地、origin 和 90。D144 冻结 attempt 8 的全新证据路径并只允许
+  无中断准备门；真实维护窗口仍需单独明确授权，M6-B 未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

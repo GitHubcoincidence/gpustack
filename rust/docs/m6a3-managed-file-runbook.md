@@ -247,6 +247,11 @@ ModelFile、端口、Docker/GPU workload 或推理。D143 只修正 `managed-fil
 空 `state_message`；`resource-api-only` 仍保持不可调度，其他正式输入和成功标准不变。新的
 正式尝试必须使用新目录并重新取得维护窗口授权。
 
+D143 已在代码检查点 `85d6b8f478de2b096e35d0c22ddaa8ab1768fa39` 通过目标回归、150 个
+workspace 测试、全 workspace/all-targets Clippy 和格式门。D144 固定 attempt 8 使用新的
+预检、正式和 watchdog 路径，并要求重新完成全部静态、故障注入和只读漂移门；准备通过仍不
+授权真实维护窗口。
+
 ## M6-A.3.0：独立只读预检
 
 ### 目的

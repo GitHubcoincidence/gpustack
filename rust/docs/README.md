@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D143 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D144 operator
   Context/API Key 准备和 Worker identity 恢复门禁均已 `frozen`；完整 R1 架构继续按门禁
   推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
@@ -68,8 +68,12 @@
 - 当前停止位置：attempt 7 为 `failed_during_window`，证据目录的 `manifest.sha256` 文件
   SHA-256 为 `81e34f127d853eaf8bd5e326e071156a3fd539f958c08ab82371aecc48d0a43e`；清理与恢复
   审计通过，没有 ModelFile、端口、Docker/GPU workload 或推理残留。
-- 下一项允许执行的工作：按 D143 修复 `managed-file-only` 健康状态报告并完成离线回归；新的
-  正式维护窗口必须使用新证据路径并另行取得明确授权，M6-B 仍未开始。
+- 已接受修复：代码检查点 `85d6b8f478de2b096e35d0c22ddaa8ab1768fa39` 让
+  `managed-file-only` 的健康报告清空显式 NOT_READY 消息，同时保持 `resource-api-only` 不可
+  调度和注册 maintenance 门。90 上 150 个 workspace 测试、全 workspace/all-targets Clippy
+  和格式门全部通过。
+- 下一项允许执行的工作：按 D144 完成 attempt 8 的新路径与无中断准备门；真实维护窗口仍需
+  单独明确授权，M6-B 尚未开始。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

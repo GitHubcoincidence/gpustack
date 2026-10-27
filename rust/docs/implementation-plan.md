@@ -562,3 +562,8 @@ D143 将下一实现范围冻结为：仅在 `managed-file-only` 健康状态报
 `state_message`，保留启动 maintenance 门和 operator 显式切换；`resource-api-only` 继续保持
 不可调度。完成两种模式回归、workspace 测试、格式和 Clippy 后，才能讨论 attempt 8 的新
 证据路径和维护窗口；不得直接复用 attempt 7 或进入 M6-B。
+
+D143 已在 `85d6b8f478de2b096e35d0c22ddaa8ab1768fa39` 完成并通过 150 个 workspace
+测试、全 workspace/all-targets Clippy 和格式门。D144 已把 attempt 8 固定为新的预检、正式和
+watchdog 路径；下一步允许执行脚本审计、冻结构建和完整只读漂移门。即使准备通过，也不得
+自动进入真实维护窗口或 M6-B。
