@@ -61,7 +61,7 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第五次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-5-watchdog`，清单文件 SHA-256 为 `4ed10c279a5afb982885a64172c3b9805be0b7767e1dae830550c28afead8d60`，不得修改 |
 | 第六次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-6`，已在维护窗口内以 `FAIL/maintenance_window_or_cleanup_failed` 封存；`manifest.sha256` 文件 SHA-256 为 `79c532457a5106eb7e81829c19d81fb682cdb2335fc922467da454d74419bd1d`，不得修改 |
 | 第六次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-6-watchdog`，清单文件 SHA-256 为 `5c456c399188bbe2a6097831a03ef7f19eb860f7e390c12862edb54cda418b94`，不得修改 |
-| 后续重试证据 | attempt 7 尚未冻结；必须先接受并验证 Rust CLI cluster context 产品修正，不能按 D138 自动继续 |
+| 第七次真实 smoke 证据 | 尚未创建；只有在 D141 修复检查点、新源码 HEAD、脚本 identity、静态/failure-injection/只读门禁和维护窗口授权全部冻结后，才可分配 `m6a3-managed-file-smoke-attempt-7` |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -230,6 +230,10 @@ attempt 6 首次通过启动门并解除 maintenance，但固定 `model deploy` 
 而 Rust `ModelCreate` 当前没有该字段，CLI 也没有先解析 Worker 集群。cleanup 已恢复
 maintenance/Python Worker且零残留；这属于产品契约缺口，必须先共同接受代码修正并完成回归
 验证，不能作为执行器问题直接冻结 attempt 7。
+
+D141 已在 `208ac76dfd78beca4c697afd05235e0c974bdd8d` 修复该缺口：CLI 从唯一目标 Worker
+推导非空集群并写入 ModelCreate，无集群时在 POST 前失败；全 workspace 150 个离线测试及
+相关 Clippy 通过。该结果只解锁 attempt 7 的无中断准备，不自动授权维护窗口。
 
 ## M6-A.3.0：独立只读预检
 

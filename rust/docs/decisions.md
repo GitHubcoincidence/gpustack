@@ -582,3 +582,14 @@ attempt 6 随后首次通过 `rust_worker_start_gate` 并成功解除 maintenanc
 待共同决定的产品修正是：在 tolerant `WorkerPublic` 中显式解析可选 `cluster_id`，让 deploy
 先唯一解析目标 Worker并拒绝缺失集群的 Worker，再把该非空 ID 写入 `ModelCreate.cluster_id`；
 同时增加请求体和缺失 cluster 的回归测试。该方案在接受前不分配决策 ID，不创建 attempt 7。
+
+## 2026-10-27 M6-A.3.1 cluster context 产品修复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D141 | 手工 GPU 部署的集群上下文 | 保持 `model deploy` CLI 不变；先用现有精确选择规则唯一解析目标 Worker，从其 typed `WorkerPublic.cluster_id` 取得集群；缺失时在 Model POST 前 fail closed，否则写入 `ModelCreate.cluster_id`。保留 `WorkerPublic` 对未知 Server 字段的 tolerant 扩展；增加请求体、无集群拒绝和既有 wait 流程回归测试 | 固定 v2.2.3 Server 按集群验证手工 GPU ID，attempt 6 已证明缺失该字段必然 HTTP 400。由唯一目标 Worker 推导集群避免新增易错参数，且不扩大 Worker/GPU/Runner 或调度范围。用户已授权这类范围明确问题由执行者直接修复，风险操作仍另行询问。 |
+
+D141 实现在代码检查点 `208ac76dfd78beca4c697afd05235e0c974bdd8d`。90 上格式门、
+Server v2.2.3 契约测试 6/6、Managed CLI 测试 18/18、相关 crate 全 target Clippy 和整个 Rust
+workspace 150 个测试全部通过。该检查点只接受产品修复及离线验证，不授权停止 Python Worker
+或执行 attempt 7 维护窗口。

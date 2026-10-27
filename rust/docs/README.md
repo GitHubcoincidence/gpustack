@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D140 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D141 operator
   Context/API Key 准备和 Worker identity 恢复门禁均已 `frozen`；完整 R1 架构继续按门禁
   推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
@@ -59,9 +59,13 @@
   证据清单文件 SHA-256 为
   `5c456c399188bbe2a6097831a03ef7f19eb860f7e390c12862edb54cda418b94`。M6-A.3.0 的
   `passed_preflight` 结论不变，但 M6-A.3.1 仍未通过。
-- 下一项允许执行的工作：共同审阅 attempt 6 暴露的 Rust CLI 产品缺口，并决定是否允许修改
-  `WorkerPublic`/`ModelCreate` 和 deploy 流程，使 CLI 从唯一目标 Worker推导并提交
-  `cluster_id`。该变更尚未获准，不得继续 attempt 7 或进入 M6-B。
+- 已接受修复：代码检查点 `208ac76dfd78beca4c697afd05235e0c974bdd8d` 让 deploy 先唯一
+  解析目标 Worker、要求其具有集群归属，并将 `cluster_id` 写入 `ModelCreate`；CLI 参数和
+  调度范围不变。90 上 `cargo test --locked --offline --workspace` 的 150 个测试全部通过，相关
+  crate 的全 target Clippy 以 `-D warnings` 通过。
+- 下一项允许执行的工作：从该修复和新治理 HEAD 准备 attempt 7，完成静态、failure-injection
+  和只读漂移门禁。再次停止 Python Worker并进入真实维护窗口仍须单独明确授权；不得直接进入
+  M6-B。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

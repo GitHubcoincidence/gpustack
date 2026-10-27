@@ -2812,6 +2812,26 @@
   产品代码：从唯一目标 Worker 推导非空 `cluster_id` 并写入 `ModelCreate`，配套请求体和失败
   回归测试。未经接受不得冻结 attempt 7，M6-B 仍未开始。
 
+### 2026-10-27：D141 cluster context 修复完成离线验收
+
+- 决策与范围：用户授权后续同类范围明确问题由执行者直接解决，仅在风险或设计选择必要时
+  询问。D141 保持现有 `model deploy` 参数和固定 Worker/GPU/Runner 输入不变：deploy 先按既有
+  规则唯一解析 Worker，读取 typed `cluster_id` 并写入 `ModelCreate`；无集群归属时在 Model
+  POST 前 fail closed。
+- 实现：`WorkerPublic` 增加可选 `cluster_id`，`ModelCreate` 显式携带可选字段；CLI 从唯一
+  Worker 填入非空值。代码仅保留一处解释 Server 集群作用域的关键注释，没有逐行注释或无关
+  重构。代码检查点为 `208ac76dfd78beca4c697afd05235e0c974bdd8d`。
+- 回归覆盖：部署请求先 GET Worker、随后 POST Model且 body `cluster_id=7`；无集群 Worker 只
+  产生一次 GET并返回 typed control-plane error；既有 `--wait` 状态转换测试适配新请求顺序。
+  固定 Server fixture 继续验证 `cluster_id=null` 的兼容反序列化。
+- 证据：90 上 `cargo fmt --all -- --check` 通过；Server v2.2.3 契约测试 6/6、Managed CLI
+  测试 18/18 通过；`cargo clippy --locked --offline -p gpustack-client -p gpustack-cli
+  --all-targets -- -D warnings` 通过；`cargo test --locked --offline --workspace` 共 150 个测试
+  全部通过。测试未连接网络、数据库、Docker 或真实 GPU。
+- 当前停止位置：产品修复已接受并同步到本地、origin 和 90；真实服务状态未因该修复改变。
+  下一步允许冻结并完成 attempt 7 的无中断准备门。停止 Python Worker、切换 maintenance 和
+  执行真实 smoke 仍需单独明确授权；M6-B 尚未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

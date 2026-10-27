@@ -540,3 +540,9 @@ attempt 6 首次通过启动门并解除 maintenance，但 `model deploy` 被真
 不在 D138 的自主执行器修正范围内；cleanup 已完整恢复且 Model 未创建。当前状态为
 `product_fix_decision_pending`：需共同决定是否让 CLI 唯一解析目标 Worker、要求其 cluster ID
 非空并写入 ModelCreate，同时增加回归测试；接受前不得开始 attempt 7。
+
+D141 已按上述方案完成并在代码检查点
+`208ac76dfd78beca4c697afd05235e0c974bdd8d` 通过整个 Rust workspace 150 个离线测试及相关
+Clippy 门禁。当前状态更新为 `attempt_7_preparation_ready`：可建立新的不可复用证据目录并完成
+静态、failure-injection 和只读漂移门禁；真实维护窗口仍需单独授权，且本阶段仍只验证
+Managed ModelFile 准备链，不进入 M6-B Docker/vLLM runtime。
