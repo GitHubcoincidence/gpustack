@@ -51,7 +51,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第五次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-5`，因 Cargo working directory 错误按非评分 `INVALIDATED` 封存，不得修改 |
 | 第六次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-6`，已通过并封存；`manifest.sha256` 文件 SHA-256 为 `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`，不得修改 |
 | 第一次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-1`，已在维护窗口前以 `STOP/persisted_worker_id_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `acca6ea071ebae4ed3c52d7bf32b81fb85ed7dca375671c3bcd19f240283999c`，不得修改 |
-| 后续重试证据 | 尚未冻结；后续任何预检或 smoke 重试均须使用新的未占用目录并另获执行授权 |
+| 第二次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-2`，D129 已冻结；执行授权前必须保持不存在 |
+| 后续重试证据 | attempt 2 之后尚未冻结；任何后续重试均须使用新的未占用目录并另获执行授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -163,6 +164,12 @@ pre-window cleanup 的基线前分支，冻结新证据路径，并重新取得�
 `c16b337f85b0b14a96f22277bb74bb65a200bb94fa2a2e57d3dadbafc487934f`。此前同名不带 `-2`
 的补充目录因零匹配秘密扫描与 `pipefail` 组合而中断，未 seal、不得作为通过证据，也不得
 覆盖；`watchdog-2` 已记录其文件哈希。该补充封装失误不改变正式 attempt 1 的 STOP 判定。
+
+D129–D131 将 attempt 2 的执行器修正限制为两点：identity 使用权威 `worker_id`；增加
+`baseline_ready`，只有全局 ID、Docker、Worker 和模型基线都写入后才允许执行依赖 baseline
+的 cleanup/final comparison。此前发生 STOP 且尚未进入窗口时，只执行无写安全复核并封存，
+不得把“基线尚不存在”误报为清理失败。基线完成或进入窗口后仍执行本文完整回滚，不得因
+该修正跳过资源清理。当前只允许准备和只读审计，attempt 2 维护窗口尚未授权。
 
 ## M6-A.3.0：独立只读预检
 

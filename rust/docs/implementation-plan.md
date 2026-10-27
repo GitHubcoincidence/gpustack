@@ -481,3 +481,11 @@ identity 使用 `.id`，而冻结文件契约字段为 `worker_id`，因此得�
 扫描为 0，独立恢复审计通过。M6-A.3.1 当前为 `stopped_before_window`，不能把 attempt 1
 修正为通过或在原目录续跑。下一步只允许修订 pre-window identity/cleanup 门禁、冻结新的
 attempt 2 证据路径并重新取得维护窗口授权；M6-B 仍未开始。
+
+用户随后接受 D129–D131：attempt 2 的唯一正式路径固定为
+`m6a3-managed-file-smoke-attempt-2`；持久 identity 改用权威 `worker_id` 字段；执行器引入
+`baseline_ready`，在基线完成前的 STOP 只做无写安全复核，不再调用依赖缺失 baseline 的
+资源 cleanup 或集合比较，基线完成后仍执行原完整回滚。当前阶段只授权执行器准备、静态
+审计和只读漂移检查，不授权停止 Python Worker、切换 maintenance、创建测试资源或启动
+Rust Worker。静态门禁通过后状态才能成为 `ready_for_authorization`，随后仍需单独维护窗口
+授权；固定输入、状态链和 M6-B 边界不变。

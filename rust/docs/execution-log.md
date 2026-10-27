@@ -2601,6 +2601,26 @@
   分支并冻结新的 attempt 2 证据路径；再次执行必须重新通过外部漂移门禁并取得新的维护窗口
   授权。M6-B 仍未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 2 修订方案已冻结
+
+- 决策范围：用户审阅 attempt 1 STOP 报告后回复“没问题”，接受 D129–D131。attempt 2
+  正式证据固定为尚未创建的
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-2`；
+  attempt 1 正式证据和 watchdog 补充 artifact 均不得修改。
+- 执行器修正：持久 identity 改为读取 `worker_id`；新增 `baseline_ready`。全局 ID、Docker、
+  Worker 和模型基线完成前若 fail-closed，且 `window_entered=0`，finalizer 只做无写安全复核，
+  不执行依赖 `before-global-ids.json` 的删除和集合比较。基线完成或进入窗口后继续使用 D128
+  的完整 maintenance、资源、Rust PID、Python Worker、模型数据和零残留回滚。
+- 不变项：Server v2.2.3、Worker ID 5/name/UUID、Qwen2.5 revision、Runner digest、GPU0、
+  模型参数、`20150/20151`、`40000-40063`、状态链、60 秒 `STARTING` 保持和 900 秒 watchdog
+  均不改变；仍禁止 Docker/vLLM workload、GPU compute、推理和 `RUNNING`。
+- 授权边界：本次“没问题”只授权文档冻结、执行器准备、证据目录外静态审计和真实只读
+  漂移检查。不得创建 attempt 2 正式证据目录，不得停止 Python Worker、改变 maintenance、
+  创建测试资源或启动 Rust Worker。
+- 当前停止位置：attempt 2 为 `executor_preparation_authorized`。下一项允许执行的工作是完成
+  修正执行器、语法/fixture/cleanup 分支审计和只读外部门禁；通过后报告精确脚本 identity，
+  状态转为 `ready_for_authorization`，再由用户单独授权维护窗口。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

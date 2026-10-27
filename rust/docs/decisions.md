@@ -479,3 +479,15 @@ Worker、解除 maintenance、模型部署和 Rust Worker 启动的 artifact 均
 Worker maintenance、资源、端口和 GPU 与运行前一致。下一次执行器必须同时修正 identity
 字段和“基线尚未建立”的 pre-window cleanup 分支，并使用新的证据路径、新的执行授权；
 D126–D128 不能自动延伸为 attempt 2 授权。
+
+## 2026-10-27 M6-A.3.1 第二次真实无 Docker 维护窗口修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D129 | 第二次 smoke 证据路径 | M6-A.3.1 attempt 2 固定使用尚未创建的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-2`；attempt 1 正式证据及两个 watchdog 补充目录均保持原样 | attempt 1 已被有效 pre-window STOP 占用；新路径防止修正执行器后覆盖失败历史或把两次运行拼成一次通过。 |
+| D130 | identity 与 pre-window cleanup 修正 | 持久 identity 必须读取 `worker_id`、`worker_name`、`worker_uuid`。执行器新增显式 `baseline_ready`：运行前全局 ID、Docker、Worker 和模型基线全部完成后才置 1；若在此之前失败且 `window_entered=0`，finalizer 不运行依赖 baseline 的资源删除或前后集合比较，只执行无写的服务、maintenance、目标资源、端口、进程和 GPU 安全复核并封存 `STOP`。一旦 `baseline_ready=1` 或进入窗口，继续使用 D128 的完整精确回滚 | 修正 attempt 1 的唯一 identity 字段错误，同时让 pre-window STOP 不再因尚不存在的 baseline 产生误导性 `cleanup_ok=0`；不能放宽维护窗口后的清理门禁。 |
+| D131 | 准备与执行授权分离 | 用户回复“没问题”只接受 D129–D130 的方案冻结、执行器准备、证据目录外静态审计和只读漂移检查；attempt 2 的停止 Python Worker、maintenance 写入、测试资源创建和 Rust Worker 生命周期仍需下一次明确维护窗口授权 | 执行器修订可以先验证，但 attempt 1 的 D127 授权不能自动延伸到新的正式尝试。 |
+
+D129–D131 不改变 Server、Worker ID 5、模型、Runner、GPU0、端口池、状态链、60 秒
+`STARTING` 保持、900 秒 watchdog、成功标准或 M6-B 排除项。attempt 2 在执行授权前只能
+达到 `ready_for_authorization`，不得创建正式证据目录或进入维护窗口。

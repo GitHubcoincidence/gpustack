@@ -50,9 +50,10 @@
   `m6a3-managed-file-smoke-attempt-1`，其 `manifest.sha256` 文件 SHA-256 为
   `acca6ea071ebae4ed3c52d7bf32b81fb85ed7dca375671c3bcd19f240283999c`。M6-A.3.0 的
   `passed_preflight` 结论不变，但 M6-A.3.1 仍未通过。
-- 下一项允许执行的工作：共同审阅 attempt 1 的停止证据，修订下一次执行器和冻结新的唯一
-  证据路径；只有重新完成外部漂移门禁并取得新的维护窗口授权后才能执行 attempt 2。不得在
-  attempt 1 目录中修正或续跑，也不得自动进入 M6-B。
+- 下一项允许执行的工作：D129–D131 已冻结 attempt 2 的新证据路径、identity 与
+  pre-window cleanup 修正，以及准备/执行授权分离。当前只允许准备执行器、在证据目录外
+  完成静态审计和只读漂移检查；达到 `ready_for_authorization` 后仍须取得新的维护窗口授权
+  才能创建正式 attempt 2 证据或执行写路径。不得自动进入 M6-B。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
