@@ -754,3 +754,8 @@ SHA-256 分别为 `737d35976a595cadc3f21fdff8e67e603656e43ef5bd95cb6d5ab046f2e64
 `768cd133fbf7d026c7d684f36c5dfd3ae165e4c826f05ca96ab9472eebebaa0b` 和
 `2dffa63f45943d0b630d5f4e1d41a5fcc8988d5a9b7ddcccdaf7c39aae930613`；三处秘密扫描均为 0，
 原 Python Worker、maintenance、资源集合、Docker、端口和 GPU 均恢复到运行前基线。
+
+M6-A.3.1 接受后已执行 D108 的凭据生命周期清理：唯一阶段 API Key ID 19 删除返回 200，原
+token 随后返回 401，`lab90` Context 和 token 文件均已删除。退役证据清单文件 SHA-256 为
+`a30b8840776ea7b7bbd16c4e894208de81f900a4f096813341dce377ade8f605`，秘密扫描为 0。M6-B
+若需要 operator 权限，必须创建新的阶段专用最小权限凭据，不能恢复或复用该 Key。

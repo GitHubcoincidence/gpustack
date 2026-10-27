@@ -467,3 +467,8 @@ ModelFile ID 都必须失败，不能进入 60 秒保持阶段。
 
 M6-A.3.1 因此更新为 `accepted`。该状态不授权 M6-B，也不改变本手册关于失败后不得自动重试、
 秘密不得落盘和维护窗口必须独立授权的规则。
+
+阶段接受后已按凭据生命周期要求删除专用 API Key ID 19、`lab90` Context 和 token 文件。退役
+证据目录为 `m6a3-credential-retirement-attempt-11`，清单文件 SHA-256 为
+`a30b8840776ea7b7bbd16c4e894208de81f900a4f096813341dce377ade8f605`；原 token 的 401 响应、
+空 Context 列表、token 文件不存在和服务健康均已独立记录。

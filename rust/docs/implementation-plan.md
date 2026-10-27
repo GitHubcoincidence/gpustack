@@ -634,3 +634,7 @@ attempt 11 随后在明确维护授权下通过最终只读漂移门和全部正
 inference listener、Docker/GPU workload、推理、`RUNNING` 或 `ERROR`。统一 cleanup 和独立
 事后审计均通过，全部服务与资源恢复基线。M6-A.3.1 状态更新为 `accepted`；下一步只允许讨论
 并冻结 M6-B runtime 启动方案，尚未授权创建 Docker/vLLM/GPU workload 或执行推理。
+
+接受后已按 D108 删除 M6-A.3.1 专用 Server API Key、`lab90` Context 和本地 token 文件，
+并封存独立 PASS 证据。M6-B 不能依赖或复用该凭据；若正式验证需要管理权限，必须把新的最小
+权限凭据及其销毁时点纳入 M6-B 设计和授权门禁。

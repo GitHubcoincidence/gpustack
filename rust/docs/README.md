@@ -110,6 +110,9 @@
   maintenance、Python Worker、端口和 GPU 全部恢复基线，M6-A.3.1 更新为 `accepted`。
 - 当前停止位置：M6-B 尚未开始。下一项允许执行的工作是共同讨论并冻结 Docker/vLLM runtime
   启动、GPU 隔离、推理验收与回滚方案；本次授权不能复用于创建 workload 或执行推理。
+  M6-A.3.1 专用 API Key、`lab90` Context 和 token 文件已按 D108 删除，退役证据清单文件
+  SHA-256 为 `a30b8840776ea7b7bbd16c4e894208de81f900a4f096813341dce377ade8f605`；
+  M6-B 若需要管理权限必须建立新的阶段专用凭据。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

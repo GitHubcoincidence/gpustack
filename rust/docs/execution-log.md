@@ -3141,6 +3141,21 @@
   讨论并冻结 M6-B 的 runtime 启动范围、维护窗口、成功门和回滚设计，不得直接复用本次授权
   创建 Docker/GPU workload 或执行推理。
 
+### 2026-10-28：M6-A.3.1 阶段专用凭据已退役
+
+- 目的与范围：按 D108 的完成条件，只清理 M6-A.3.1 专用凭据，不修改模型、Worker、Docker、
+  GPU 或服务。删除前只读确认唯一 API Key ID 19、名称
+  `rust-worker-m6a3-operator-20261024`、描述和有效期均与阶段记录一致。
+- 结果：Server `DELETE /v2/api-keys/19` 返回 200，原 token 随后访问管理 API 返回 401；
+  `lab90` Context 已通过 Rust CLI 删除，`m6a3-operator.token` 文件已删除，最终 Context 列表
+  为空。Server 和 Python Worker health 仍为 200，Rust 进程与 listener 仍为 0。
+- 证据：`m6a3-credential-retirement-attempt-11` 为 0700，15 个文件全为 0600，14 个 manifest
+  条目通过、秘密扫描为 0，清单文件 SHA-256 为
+  `a30b8840776ea7b7bbd16c4e894208de81f900a4f096813341dce377ade8f605`。
+- 当前停止位置：M6-A.3.1 保持 `accepted` 且不再保留管理凭据。若后续 M6-B 真实 Server
+  验证需要 operator 权限，必须在其设计冻结后重新创建新的阶段专用最小权限凭据；不得恢复或
+  复用已撤销的 Key 19。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
