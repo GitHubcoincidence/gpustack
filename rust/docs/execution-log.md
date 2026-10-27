@@ -2832,6 +2832,34 @@
   下一步允许冻结并完成 attempt 7 的无中断准备门。停止 Python Worker、切换 maintenance 和
   执行真实 smoke 仍需单独明确授权；M6-B 尚未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 7 无中断准备门通过
+
+- 冻结输入：D142 固定 attempt 7 正式/Watchdog 新目录，继续使用 Server v2.2.3、Worker
+  ID 5/name/UUID、Qwen2.5 固定 revision、Runner digest、GPU0、`20150/20151`、
+  `40000-40063`、60 秒 STARTING hold 和 900 秒 watchdog。产品修复检查点为
+  `208ac76dfd78beca4c697afd05235e0c974bdd8d`。
+- 只读预检：`m6a3-formal-attempt-7` 在治理 HEAD
+  `092e1e20afe04d42ca97e85318d867e5a3dd09ae` 上 `PASS`；45 个文件、目录 0700、文件全 0600、
+  秘密扫描为 0，清单通过且清单文件 SHA-256 为
+  `f018b990caf44cf2201101d6468aebb2421e2b978eae69d170b70b3c58ef622a`。结果明确记录未改变
+  maintenance、未停止 Python Worker、未启动 Rust Worker、未写 Server 资源且无 Docker/GPU
+  workload。
+- 执行器审计：相对 attempt 6 的差异只有 attempt/路径/identity 常量、接受 D141 的代码
+  checkpoint，以及将 cleanup 维护提示从错误的 attempt 2 改为 attempt 7；两个脚本均通过
+  `bash -n`。当前 90 环境没有 ShellCheck 命令，因此未声称重新运行；逻辑主体直接继承此前
+  已通过 ShellCheck 的 attempt 6 封存脚本，并以最小 diff、故障注入和完整外部门补强。
+- 故障注入：非正式目录 `m6a3-managed-file-smoke-attempt-7-pre-window-injection` 故意使用错误
+  HEAD，在 source gate 以 `STOP/source_head_mismatch` 退出；`baseline_ready=0`、
+  `window_entered=0`、`cleanup_ok=1`，19 个文件 manifest 通过、秘密扫描为 0，Server/Python
+  Worker健康且 Rust 进程为 0。清单文件 SHA-256 为
+  `e9a1090a3fedd3c5dc27d04a8e97ed656d77182d56ad069d5ca3d724bdd3f398`。
+- 外部漂移门：源码/origin/90、binary、预检 manifest、模型 manifest、脚本 identity、Worker
+  cluster/maintenance、目标资源、Docker/Python Worker、GPU0、Rust 进程和端口全部通过；正式
+  attempt 7/Watchdog 目录保持不存在。
+- 当前停止位置：提交本 D142 检查点后，只允许把 executor 的 EXPECTED_HEAD 绑定到最终治理
+  commit并重跑无写外部门。通过后状态为 `ready_for_maintenance_authorization`；未获明确授权前
+  不得停止 Python Worker、切 maintenance、创建 Server 资源或启动 Rust Worker，M6-B 未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

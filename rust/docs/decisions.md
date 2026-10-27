@@ -593,3 +593,15 @@ D141 实现在代码检查点 `208ac76dfd78beca4c697afd05235e0c974bdd8d`。90 �
 Server v2.2.3 契约测试 6/6、Managed CLI 测试 18/18、相关 crate 全 target Clippy 和整个 Rust
 workspace 150 个测试全部通过。该检查点只接受产品修复及离线验证，不授权停止 Python Worker
 或执行 attempt 7 维护窗口。
+
+## 2026-10-27 M6-A.3.1 第七次真实无 Docker 维护窗口准备
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D142 | 第七次 smoke 路径与方法 | attempt 7 固定使用尚未创建的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-7`，watchdog 使用对应 `-watchdog` 目录。执行器从 attempt 6 封存副本派生，只更新 attempt/路径/HEAD/已接受代码/预检 identity，并把遗留恢复消息中的错误 attempt 2 改为 attempt 7；固定 Server、Worker、模型、Runner、GPU0、端口、状态链、超时、成功标准和 cleanup 不变 | D141 只修复创建请求缺失的集群上下文，无需改变正式工作负载或解释规则；新路径防止覆盖 attempt 6，有界差异保持结果可归因。 |
+
+attempt 7 的独立只读预检 `m6a3-formal-attempt-7` 已 `PASS`，清单文件 SHA-256 为
+`f018b990caf44cf2201101d6468aebb2421e2b978eae69d170b70b3c58ef622a`；预窗口故障注入以
+`STOP/source_head_mismatch`、`baseline_ready=0`、`window_entered=0`、`cleanup_ok=1` 通过。
+外部漂移门确认 Worker `cluster_id=1`、maintenance、目标资源为零、Python Worker健康，GPU0
+和受管端口空闲。attempt 7 正式维护窗口仍须用户单独明确授权。

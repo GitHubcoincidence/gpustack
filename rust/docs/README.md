@@ -63,9 +63,11 @@
   解析目标 Worker、要求其具有集群归属，并将 `cluster_id` 写入 `ModelCreate`；CLI 参数和
   调度范围不变。90 上 `cargo test --locked --offline --workspace` 的 150 个测试全部通过，相关
   crate 的全 target Clippy 以 `-D warnings` 通过。
-- 下一项允许执行的工作：从该修复和新治理 HEAD 准备 attempt 7，完成静态、failure-injection
-  和只读漂移门禁。再次停止 Python Worker并进入真实维护窗口仍须单独明确授权；不得直接进入
-  M6-B。
+- attempt 7 准备状态：D142 已冻结新正式路径；只读预检、预窗口故障注入和外部漂移门均已
+  通过，正式目录仍不存在。执行器绑定最终治理 HEAD并再次通过只读门后，状态为
+  `ready_for_maintenance_authorization`。
+- 下一项允许执行的工作：取得单独明确授权后，才可再次停止 Python Worker并执行一次
+  attempt 7；在此之前不得切换 maintenance、创建测试资源、启动 Rust Worker或进入 M6-B。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

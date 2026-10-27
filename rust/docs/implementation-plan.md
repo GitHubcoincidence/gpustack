@@ -546,3 +546,7 @@ D141 已按上述方案完成并在代码检查点
 Clippy 门禁。当前状态更新为 `attempt_7_preparation_ready`：可建立新的不可复用证据目录并完成
 静态、failure-injection 和只读漂移门禁；真实维护窗口仍需单独授权，且本阶段仍只验证
 Managed ModelFile 准备链，不进入 M6-B Docker/vLLM runtime。
+
+D142 已冻结 attempt 7 路径和相对 attempt 6 的最小差异；只读预检、预窗口故障注入和完整
+外部漂移门均通过，正式目录保持不存在。绑定最终治理 HEAD并复跑外部门后，状态转为
+`ready_for_maintenance_authorization`；维护窗口不因准备门通过而自动获准。
