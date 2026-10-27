@@ -729,3 +729,14 @@ starting`，ModelFile 7 的规范路径、999604126 bytes 和 100% 进度正确�
 D149-D150 是观察真实 wire shape 后对验收脚本的显式修订，不修改 Rust 产品代码或既有阶段
 能力边界。attempt 11 必须使用新的预检、故障注入、正式、watchdog 和事后审计路径，先完成
 无中断准备门；再次停止 Python Worker和写 Server 资源仍须新的明确维护窗口授权。
+
+attempt 11 无中断准备门已通过。只读预检 `m6a3-formal-attempt-11` 为 0700，45 个文件全为
+0600，44 个 manifest 条目通过、秘密扫描为 0，清单文件 SHA-256 为
+`ec5cb0c271285f79e243bc8b8ac699d149dd86f1e50d7f667bb936925b24b1d7`。预窗口故障注入以
+`STOP/source_head_mismatch`、`baseline_ready=0`、`window_entered=0`、`cleanup_ok=1` 封存；
+19 个文件/18 个条目通过、秘密扫描为 0、容器快照不含 `Config.Env`，清单文件 SHA-256 为
+`c4d7841b520c4823bf056c56085b0496a2d9d080cb9355d66b489874a182a2f2`。准备期间没有改变
+maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建 Docker/GPU workload。
+
+提交本准备记录后，仅允许把最终 executor/supervisor 绑定到新的治理 HEAD并执行最后一次无写
+漂移门；通过后状态为 `ready_for_maintenance_authorization`，真实 attempt 11 仍须单独明确授权。

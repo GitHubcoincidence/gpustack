@@ -622,3 +622,8 @@ D149-D150 已冻结 attempt 11：ready 和 cleanup 都接受 null/false 两种�
 硬失败。下一步可完成 attempt 11 的全新路径、静态/最小差异审计、故障注入、冻结构建和只读
 漂移门。准备通过后状态最多为 `ready_for_maintenance_authorization`；不得自动进入维护窗口或
 M6-B。
+
+attempt 11 的静态/语义审计、冻结构建、完整只读预检和预窗口故障注入均已通过，服务、资源、
+maintenance、Python Worker、端口与 GPU 未改变。当前状态为
+`attempt_11_post_checkpoint_binding_pending`：提交准备记录后，只允许把最终 executor/supervisor
+绑定到新的治理 HEAD并重跑无写漂移门。通过后才能请求新的维护窗口授权；M6-B 仍未开始。

@@ -3077,6 +3077,33 @@
   attempt 11 的协议修订已冻结，可执行新路径的静态审计、预窗口故障注入、冻结构建和只读
   漂移门；新的维护窗口仍须用户另行明确授权，M6-B 尚未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 11 无中断准备门通过
+
+- 方法与范围：从 attempt 10 封存脚本派生，只更新 attempt/路径/HEAD/前序证据 identity，并按
+  D149-D150 把 ready/cleanup 的 `cleanup_on_delete` 谓词修为 null 或 false、增加独立
+  `state_chain_complete` 标志及超时后硬断言。Server、Worker、模型、Runner、GPU0、端口、
+  300/60/900 秒界限、无 runtime/Docker/GPU workload 终点和统一恢复顺序均未改变。
+- 静态与语义审计：preflight、executor、故障注入和 supervisor 均通过远端 `bash -n`；SHA-256
+  分别为 `f1c01e491c9d453b11c983540e75bd9de1435fc78ef1c5d933efb615020a1211`、
+  `e8d7cdf5738dac251713bb916be56e115bf1fa47840563afc1071f366b6597d0`、
+  `a34bd745ec5a7a43cb4aea7fc094edc04fcc52d3eace293588f0db1853485d12` 和
+  `7f837c88650d793e44298743dc675b4affc7a0cf0e1b24f5dd752dfdbd4e8427`。独立 jq 探针只选中
+  字段存在且值为 null/false 的对象，拒绝 true 与缺失字段。
+- 只读预检：治理 HEAD `538cb499563229546de3ea1ab15acad7239b1440` 上结果为 PASS；
+  `m6a3-formal-attempt-11` 为 0700、45 个文件全为 0600、44 个 manifest 条目通过、秘密扫描为
+  0，清单文件 SHA-256 为
+  `ec5cb0c271285f79e243bc8b8ac699d149dd86f1e50d7f667bb936925b24b1d7`。
+- 故障注入：全零错误 HEAD 在窗口前按 `STOP/source_head_mismatch`、`baseline_ready=0`、
+  `window_entered=0`、`cleanup_ok=1` 封存；目录 0700、19 个文件全 0600、18 个条目通过、
+  秘密扫描为 0，唯一容器快照不含 `Config.Env`，清单文件 SHA-256 为
+  `c4d7841b520c4823bf056c56085b0496a2d9d080cb9355d66b489874a182a2f2`。
+- 外部状态：目标 Model、Worker 5 的 ModelFile 均为 0；Worker保持 maintenance。Server/Python
+  Worker health/metrics 为 200，Python Worker容器运行；精确 Rust 进程、`20150/20151`、
+  `40000-40063` listener 为 0，两张 GPU 均 0 MiB/0%。正式与 watchdog 证据路径未创建。
+- 当前停止位置：提交本准备记录后，把最终 executor/supervisor 绑定到新的治理 HEAD并执行最后
+  一次无写漂移门。通过后才能请求 attempt 11 的独立维护授权；不得自动重跑正式 smoke，M6-B
+  尚未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

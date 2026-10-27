@@ -97,8 +97,12 @@
   `44671e99ac99883e8b8489d52a89be2f0f92a6b20ed75b1213a5512c2e912ad8`。独立恢复审计清单
   SHA-256 为 `f8b95648a83601d3b34dee451e8e752f5c5b9b40a8df3cd966bb6fb71e190466`，证明唯一残留
   ModelFile 已精确删除且服务、资源、Docker、端口和 GPU 均恢复基线。
-- 下一项允许执行的工作：按 D149-D150 完成 attempt 11 新路径的无中断准备门。准备通过后才能
-  请求新的维护窗口授权；不得自动重跑正式 smoke，M6-B 尚未开始。
+- attempt 11 的只读预检与预窗口故障注入已通过，清单文件 SHA-256 分别为
+  `ec5cb0c271285f79e243bc8b8ac699d149dd86f1e50d7f667bb936925b24b1d7` 和
+  `c4d7841b520c4823bf056c56085b0496a2d9d080cb9355d66b489874a182a2f2`；现有服务、资源、
+  maintenance、端口与 GPU 未改变。
+- 下一项允许执行的工作：提交准备记录后，将最终 executor/supervisor 绑定到该 HEAD并执行最后
+  一次无写漂移门。通过后才能请求 attempt 11 的独立维护窗口授权；M6-B 尚未开始。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
