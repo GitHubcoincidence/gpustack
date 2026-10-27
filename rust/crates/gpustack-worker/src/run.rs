@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use gpustack_client::http::{ReqwestTransport, Transport, TransportError};
 use gpustack_client::types::{
-    ProxyMode, SERVER_BASELINE_GIT_COMMIT, SERVER_BASELINE_VERSION, WorkerCreate,
+    ProxyMode, SERVER_BASELINE_GIT_COMMIT, SERVER_BASELINE_VERSION, SystemReserved, WorkerCreate,
     WorkerMaintenance, WorkerPublic, WorkerResourceStatus, WorkerStatusReport,
 };
 use gpustack_client::{ClientError, SecretToken, ServerClient};
@@ -103,7 +103,7 @@ impl ControlPlaneOnlyProfile {
             proxy_mode: ProxyMode::Worker,
             state_message: Some(MAINTENANCE_MESSAGE.to_owned()),
             status: Some(empty_resource_status()),
-            system_reserved: None,
+            system_reserved: Some(SystemReserved::default()),
             // v2.2.3 replaces this value on first registration. Recovery uses
             // the persisted Server UUID instead of trusting this placeholder.
             worker_uuid: UNASSIGNED_WORKER_UUID.to_owned(),
@@ -124,7 +124,7 @@ impl ControlPlaneOnlyProfile {
             proxy_mode: ProxyMode::Worker,
             state_message: Some(MAINTENANCE_MESSAGE.to_owned()),
             status: Some(empty_resource_status()),
-            system_reserved: None,
+            system_reserved: Some(SystemReserved::default()),
             worker_uuid,
         }
     }

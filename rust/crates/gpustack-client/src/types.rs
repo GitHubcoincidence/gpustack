@@ -176,6 +176,13 @@ pub struct WorkerMaintenance {
     pub message: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SystemReserved {
+    pub ram: u64,
+    pub vram: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkerCreate {
@@ -195,7 +202,7 @@ pub struct WorkerCreate {
     pub proxy_mode: ProxyMode,
     pub state_message: Option<String>,
     pub status: Option<WorkerResourceStatus>,
-    pub system_reserved: Option<Value>,
+    pub system_reserved: Option<SystemReserved>,
     pub worker_uuid: String,
     pub worker_version: String,
 }
@@ -214,7 +221,7 @@ pub struct WorkerStatusReport {
     pub proxy_mode: ProxyMode,
     pub state_message: Option<String>,
     pub status: Option<WorkerResourceStatus>,
-    pub system_reserved: Option<Value>,
+    pub system_reserved: Option<SystemReserved>,
     pub worker_uuid: String,
 }
 

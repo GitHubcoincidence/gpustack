@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use gpustack_client::http::{ReqwestTransport, TransportError};
 use gpustack_client::types::{
-    ProxyMode, SERVER_BASELINE_GIT_COMMIT, SERVER_BASELINE_VERSION, WorkerCreate,
+    ProxyMode, SERVER_BASELINE_GIT_COMMIT, SERVER_BASELINE_VERSION, SystemReserved, WorkerCreate,
     WorkerMaintenance, WorkerPublic, WorkerStatusReport,
 };
 use gpustack_client::{ClientError, ServerClient};
@@ -174,7 +174,7 @@ impl ResourceApiProfile {
             proxy_mode: ProxyMode::Worker,
             state_message: Some(self.mode.maintenance_message().to_owned()),
             status: Some(resources.status.clone()),
-            system_reserved: None,
+            system_reserved: Some(SystemReserved::default()),
             worker_uuid: UNASSIGNED_WORKER_UUID.to_owned(),
             worker_version: SERVER_BASELINE_VERSION.to_owned(),
         }
@@ -197,7 +197,7 @@ impl ResourceApiProfile {
             proxy_mode: ProxyMode::Worker,
             state_message: self.mode.status_message().map(str::to_owned),
             status: Some(resources.status.clone()),
-            system_reserved: None,
+            system_reserved: Some(SystemReserved::default()),
             worker_uuid,
         }
     }
@@ -956,6 +956,8 @@ mod tests {
         assert_eq!(report.metrics_port, Some(20151));
         assert_eq!(report.status, Some(resources.status));
         assert_eq!(report.state_message.as_deref(), Some(MAINTENANCE_MESSAGE));
+        assert_eq!(create.system_reserved, Some(SystemReserved::default()));
+        assert_eq!(report.system_reserved, Some(SystemReserved::default()));
         assert!(create.labels.values().all(|value| value != "docker"));
     }
 
@@ -993,6 +995,8 @@ mod tests {
                 .is_some_and(|message| message.contains("runtime execution disabled"))
         );
         assert_eq!(report.state_message, None);
+        assert_eq!(create.system_reserved, Some(SystemReserved::default()));
+        assert_eq!(report.system_reserved, Some(SystemReserved::default()));
     }
 
     #[test]
