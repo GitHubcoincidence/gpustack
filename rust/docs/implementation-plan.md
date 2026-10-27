@@ -489,3 +489,12 @@ attempt 2 证据路径并重新取得维护窗口授权；M6-B 仍未开始。
 审计和只读漂移检查，不授权停止 Python Worker、切换 maintenance、创建测试资源或启动
 Rust Worker。静态门禁通过后状态才能成为 `ready_for_authorization`，随后仍需单独维护窗口
 授权；固定输入、状态链和 M6-B 边界不变。
+
+attempt 2 的执行器、pre-window failure injection 和只读漂移门禁随后通过，用户再按 D132
+明确授权一次真实维护窗口。正式执行完成冻结构建后，在 identity 门禁把权威
+`worker_name` 错读为 `.name`，因此以 `STOP/persisted_worker_name_mismatch` 在运行基线和
+维护窗口之前停止。`baseline_ready=0`、`window_entered=0`、`cleanup_ok=1`；Python Worker
+未停止，maintenance 未改变，没有创建测试资源、Rust Worker、Docker/GPU workload 或推理。
+正式与 watchdog 证据清单均校验通过，事后零残留和服务恢复审计通过。M6-A.3.1 当前仍为
+`stopped_before_window`；下一步只能共同审阅并冻结 attempt 3 的新路径和 `.worker_name`
+窄修正，再完成静态/只读门禁并重新取得维护窗口授权。不得自动重试或进入 M6-B。

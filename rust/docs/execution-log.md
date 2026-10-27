@@ -2621,6 +2621,39 @@
   修正执行器、语法/fixture/cleanup 分支审计和只读外部门禁；通过后报告精确脚本 identity，
   状态转为 `ready_for_authorization`，再由用户单独授权维护窗口。
 
+### 2026-10-27：M6-A.3.1 attempt 2 在维护窗口前停止
+
+- 授权与准备：attempt 2 executor SHA-256 为
+  `0bc46ec6394fa6a7e335323e54a43617c7c2ac5297cecf011f7dc02360ef274c`，watchdog SHA-256 为
+  `b879ddb3a078b7af3f9ecf8aad33dee82f83fb3f34c579e1005ee76d5f4e80ad`。两者通过 `bash -n`
+  和 ShellCheck；pre-window failure injection 证明 `baseline_ready=0` 时只做无写安全复核。
+  完整只读门禁确认源码/origin/90 HEAD 均为
+  `a199649f7818a248e74a21f1dcc27e117d226a08`，工作树干净，Server/Python Worker 健康，
+  Worker ID 5 处于 maintenance，目标资源为 0，固定模型 manifest 通过，GPU0 和受管端口空闲。
+  用户随后在精确维护范围后回复“没问题”，按 D132 授权一次真实 attempt 2。
+- 停止原因：正式执行完成冻结构建和 source gate 后，identity 门禁正确读取
+  `worker_id=5`，但把同一持久文件的 `worker_name` 错读为 `.name`，因此返回
+  `STOP/persisted_worker_name_mismatch`。受保护文件实际为 `worker_id=5`、
+  `worker_name=rust-m3d-r760xa` 和固定 UUID，与 Server 当前 Worker 一致；这是执行器错误，
+  不是实现或外部身份漂移。
+- 范围与恢复：结果记录 `baseline_ready=0`、`window_entered=0`、`cleanup_ok=1`。没有停止
+  Python Worker、切换 maintenance、创建 Model/ModelInstance/ModelFile、启动 Rust Worker、
+  创建 Docker/vLLM workload、使用 GPU 或推理。事后审计确认 Server、Python Worker
+  health/metrics 为 200，精确 Python Worker 容器仍运行；Worker ID 5 仍为 maintenance，
+  目标 Model/ModelFile 为 0，Rust 进程、`20150/20151` 和 `40000-40063` 监听均为 0，GPU0
+  显存/利用率/compute process 为 0，远端源码仍干净。
+- 证据：正式目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-2`
+  为 0700，30 个文件均为 0600，29 个 manifest 条目通过，秘密扫描为 0；清单文件 SHA-256
+  为 `5777af9731fe639a10840217f02f598d3e0ed03b6b2ff62f5ba006db1cd17b0a`。watchdog 补充目录
+  `m6a3-managed-file-smoke-attempt-2-watchdog` 为 0700，7 个文件均为 0600，6 个 manifest
+  条目通过，秘密扫描为 0；清单文件 SHA-256 为
+  `220c46ec3d01dddc762d2219e0bc00b379d57091e10cb397d1bbed088f48911b`。
+- 判定与停止位置：attempt 2 是有效 `stopped_before_window`，不能在原目录修正或续跑，
+  M6-A.3.1 仍未通过。下一项只允许共同审阅该 STOP，冻结 attempt 3 新证据路径和
+  `.worker_name` 窄修正；随后重新执行静态/只读门禁并取得新的维护窗口授权。不得自动重试，
+  M6-B 仍未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

@@ -491,3 +491,17 @@ D126–D128 不能自动延伸为 attempt 2 授权。
 D129–D131 不改变 Server、Worker ID 5、模型、Runner、GPU0、端口池、状态链、60 秒
 `STARTING` 保持、900 秒 watchdog、成功标准或 M6-B 排除项。attempt 2 在执行授权前只能
 达到 `ready_for_authorization`，不得创建正式证据目录或进入维护窗口。
+
+## 2026-10-27 M6-A.3.1 第二次真实无 Docker 维护窗口执行
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D132 | 第二次维护窗口授权 | attempt 2 的执行器静态审计、pre-window failure injection 和完整只读漂移门禁通过后，用户在明确列出停止/恢复 `gpustack-worker`、maintenance 切换、唯一测试资源创建/清理和 `--managed-file-only` 生命周期的范围后回复“没问题”，授权执行一次 attempt 2；仍禁止 Docker/vLLM workload、GPU compute、推理和 `RUNNING` | 把 D131 的准备权限与真实维护窗口权限分开，同时让授权精确覆盖固定 runbook 的必要写操作。 |
+
+attempt 2 随后在维护窗口之前以 `STOP/persisted_worker_name_mismatch` fail-closed。执行器已
+正确读取 `worker_id`，但把同一文件契约中的 `worker_name` 错写为 `.name`；权威文件实际为
+`worker_id=5`、`worker_name=rust-m3d-r760xa` 和固定 UUID。`baseline_ready=0`、
+`window_entered=0`、`cleanup_ok=1`，因此没有停止 Python Worker、改变 maintenance、创建
+测试资源或启动 Rust Worker。正式证据与 watchdog 补充证据均已封存，下一次重试必须冻结
+新的证据目录、只把该读取修正为 `.worker_name`，重新完成静态/只读门禁并取得新的维护窗口
+授权；D132 不自动延伸为后续授权。

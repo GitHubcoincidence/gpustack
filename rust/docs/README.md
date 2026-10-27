@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D125 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D132 operator
   Context/API Key 准备和 Worker identity 恢复门禁均已 `frozen`；完整 R1 架构继续按门禁
   推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
@@ -37,23 +37,25 @@
   协调器；只读 `worker get` 与按 Worker 的 `model file list` 已完成离线验收。
 - 当前证据边界：M5 已真实证明宿主机进程形态的单 GPU Lab Qwen2.5/vLLM 全流程；M6-A
   已真实证明 operator Context、当前 Worker ID 5 的持久身份和 M6-A.3.0 全部只读门禁。
-  M6-A.3.1 attempt 1 在维护窗口之前因执行器把持久 identity 的 `worker_id` 错读为 `id`
-  而 fail-closed；没有停止 Python Worker、切换 maintenance、创建模型、启动 Rust Worker、
-  创建 Docker/GPU workload 或推理。尚未证明真实 Server 上的 Managed
+  M6-A.3.1 attempt 1 和 attempt 2 都在维护窗口之前因执行器字段读取错误而 fail-closed：
+  attempt 1 把 `worker_id` 错读为 `id`，attempt 2 又把 `worker_name` 错读为 `name`。两次均
+  未停止 Python Worker、切换 maintenance、创建模型、启动 Rust Worker、创建 Docker/GPU
+  workload 或推理。尚未证明真实 Server 上的 Managed
   ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
 - 当前停止位置：M6-A.3.0 attempt 6 为 `passed_preflight`。正式证据位于
   `m6a3-formal-attempt-6`，清单文件 SHA-256 为
   `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`；预检没有改变
   maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建 Docker/GPU
   workload，结束后服务健康且受管端口无监听。
-- 当前停止位置：M6-A.3.1 attempt 1 为 `stopped_before_window`，证据固定在
-  `m6a3-managed-file-smoke-attempt-1`，其 `manifest.sha256` 文件 SHA-256 为
-  `acca6ea071ebae4ed3c52d7bf32b81fb85ed7dca375671c3bcd19f240283999c`。M6-A.3.0 的
+- 当前停止位置：M6-A.3.1 attempt 2 为 `stopped_before_window`，证据固定在
+  `m6a3-managed-file-smoke-attempt-2`，其 `manifest.sha256` 文件 SHA-256 为
+  `5777af9731fe639a10840217f02f598d3e0ed03b6b2ff62f5ba006db1cd17b0a`；watchdog 补充
+  证据清单文件 SHA-256 为
+  `220c46ec3d01dddc762d2219e0bc00b379d57091e10cb397d1bbed088f48911b`。M6-A.3.0 的
   `passed_preflight` 结论不变，但 M6-A.3.1 仍未通过。
-- 下一项允许执行的工作：D129–D131 已冻结 attempt 2 的新证据路径、identity 与
-  pre-window cleanup 修正，以及准备/执行授权分离。当前只允许准备执行器、在证据目录外
-  完成静态审计和只读漂移检查；达到 `ready_for_authorization` 后仍须取得新的维护窗口授权
-  才能创建正式 attempt 2 证据或执行写路径。不得自动进入 M6-B。
+- 下一项允许执行的工作：共同审阅 attempt 2 STOP，并冻结 attempt 3 的新证据路径和
+  `worker_name` 字段修正。任何 attempt 3 只能先准备执行器、完成静态审计和只读漂移检查；
+  正式维护窗口仍须取得新的明确授权。不得自动重试，也不得进入 M6-B。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
