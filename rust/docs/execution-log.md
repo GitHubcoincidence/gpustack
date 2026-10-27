@@ -2672,6 +2672,39 @@
   同步本检查点，准备并审计最小差异执行器；准备门禁失败不得创建正式目录，正式运行失败则
   必须恢复、封存并停止，不能自动重试或进入 M6-B。
 
+### 2026-10-27：M6-A.3.1 attempt 3 在维护窗口内失败并完成恢复
+
+- 准备与输入：授权检查点 HEAD 为
+  `8d371da6e37732f6ddcd69c333c54aff52db81c1`；executor SHA-256 为
+  `9b9c85846239fd2454e917470e6858981d872919c39d6fa6ad0a30d14b9ed73b`，watchdog SHA-256 为
+  `8098c8b2ee911552784e410a1f377d82a3e60e7fb9ad640aeeb1fc5cf8e597cf`。与 attempt 2 的差异只含
+  attempt/路径/HEAD/脚本 identity 和 `.worker_name` 修正；`bash -n`、ShellCheck、pre-window
+  failure injection 及完整只读漂移门禁通过。
+- 执行经过：源码构建和 identity/resource/environment 门禁通过，记录完整 baseline 后停止
+  精确 Python Worker，`python_worker_stop_gate` 通过。`rust_worker_start_gate` 启动 Rust
+  Worker 后，第一次 API probe 尚未监听；命令替换内的 curl 返回 7，在顶层 `set -e` 下直接
+  触发 EXIT trap，未进入设计的 120 次重试。Rust 日志稍后证明 Worker 已使用持久 ID 5 启动、
+  上报两张 GPU，并保持 maintenance-required/runtime-disabled。
+- 结果与范围：正式结果为 `FAIL/maintenance_window_or_cleanup_failed`，记录
+  `baseline_ready=1`、`window_entered=1`、`smoke_passed=0`、`cleanup_ok=1`。maintenance 从未
+  disable，`model_id`、ModelInstance、ModelFile 和 assigned port 均为 none；没有 Docker/vLLM
+  workload、GPU compute 或推理。
+- 恢复与独立审计：cleanup 对精确 Rust PID 先 SIGINT、后 SIGTERM，随后恢复原
+  `gpustack-worker`。Server、Python Worker health/metrics 均为 200；Worker ID 5 仍处于
+  maintenance；目标 Model/ModelFile、Rust 进程、`20150/20151`、`40000-40063` 监听和 GPU0
+  负载均为 0。前后全局资源 ID、Docker ID 集和模型 manifest 一致，远端工作树干净。
+- 证据：正式目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-3`
+  为 0700，60 个文件均为 0600，59 条 manifest 全部通过，秘密扫描为 0；清单文件 SHA-256
+  为 `e7d3d05710ebb5755a363658daf7580fcbc0701065ee49ca9b33873347a6e180`。watchdog 补充目录
+  `m6a3-managed-file-smoke-attempt-3-watchdog` 为 0700，7 个文件均为 0600，6 条 manifest 通过，
+  秘密扫描为 0；清单文件 SHA-256 为
+  `a51a74bbb9e3a1fec29bb512d0527dd3813f0133f6f4446f8b6e111ba879c324`。
+- 判定与停止位置：attempt 3 是有效 `failed_during_window`，不能在原目录续跑；M6-A.3.1
+  仍未通过。下一项只允许讨论并冻结 attempt 4 新证据路径和 readiness probe 的 `errexit`
+  窄修正，随后重新执行静态/failure-injection/只读门禁并取得新的维护窗口授权。不得自动
+  重试，M6-B 仍未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

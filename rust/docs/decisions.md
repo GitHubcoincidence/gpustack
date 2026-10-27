@@ -517,3 +517,13 @@ attempt 2 随后在维护窗口之前以 `STOP/persisted_worker_name_mismatch` f
 D133–D135 不授权跳过任何前置门禁，也不改变 900 秒 watchdog、60 秒 `STARTING` 保持、
 固定模型/Runner/GPU/端口或恢复顺序。静态或只读门禁失败时 attempt 3 保持未开始；正式运行
 开始后任一硬门禁失败都必须先执行精确恢复并封存结果，不得自动进行 attempt 4。
+
+attempt 3 随后通过源码、identity、资源基线和 Python Worker stop 门禁，首次启动了真实
+`--managed-file-only`。但启动轮询中的 `api_code="$(curl ...)"` 和
+`metrics_code="$(curl ...)"` 仍受顶层 `set -e` 约束；API 尚未监听时第一次 curl 返回 7，
+shell 在 120 次轮询语义生效前触发 EXIT trap。Rust Worker 随后实际完成启动并上报 ID 5、
+maintenance-required 和两张 GPU，但 cleanup 已开始，因此被精确 SIGINT/SIGTERM 停止，
+Python Worker 随后恢复。结果为 `FAIL/maintenance_window_or_cleanup_failed`、
+`baseline_ready=1`、`window_entered=1`、`cleanup_ok=1`；没有解除 maintenance、创建模型、
+Docker/GPU workload 或推理。任何 attempt 4 必须冻结新目录、仅让这两个 readiness probe
+在连接尚未建立时返回可比较的空值/HTTP code 而不触发 `errexit`，并重新取得授权。

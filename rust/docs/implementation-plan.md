@@ -504,3 +504,11 @@ attempt 2 的执行器、pre-window failure injection 和只读漂移门禁随�
 静态、pre-window failure injection 和完整只读漂移门禁全部通过后执行一次真实维护窗口。
 当前状态为 `authorized_pending_execution`；任何准备门禁失败都不得创建正式证据目录，正式
 运行失败则必须恢复并封存，且不能自动进入后续 attempt 或 M6-B。
+
+attempt 3 随后进入真实维护窗口并通过 Python Worker stop 门禁，但 readiness 循环中的两个
+`curl` 命令替换在首次连接拒绝时以退出码 7 触发顶层 `set -e`，没有执行原定的 120 次重试。
+Rust Worker 实际稍后完成 ID 5 持久身份、双 GPU 和 maintenance-required 启动，但 cleanup
+已经开始；执行器按精确 PID 停止 Rust Worker、恢复原 Python Worker并通过全部前后基线与
+零残留检查。没有 maintenance disable、模型资源、Docker/GPU workload 或推理。M6-A.3.1
+当前为 `failed_during_window`；下一步只能讨论并冻结 attempt 4 的新路径及两个 readiness
+probe 的 `errexit` 窄修正，再重新完成准备门禁和维护窗口授权，不得自动重试或进入 M6-B。

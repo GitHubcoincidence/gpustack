@@ -53,7 +53,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第一次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-1`，已在维护窗口前以 `STOP/persisted_worker_id_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `acca6ea071ebae4ed3c52d7bf32b81fb85ed7dca375671c3bcd19f240283999c`，不得修改 |
 | 第二次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-2`，已在维护窗口前以 `STOP/persisted_worker_name_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `5777af9731fe639a10840217f02f598d3e0ed03b6b2ff62f5ba006db1cd17b0a`，不得修改 |
 | 第二次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-2-watchdog`，清单文件 SHA-256 为 `220c46ec3d01dddc762d2219e0bc00b379d57091e10cb397d1bbed088f48911b`，不得修改 |
-| 第三次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-3`，D133–D135 已冻结并授权；正式门禁通过前必须保持不存在 |
+| 第三次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-3`，已在维护窗口内以 `FAIL/maintenance_window_or_cleanup_failed` 封存；`manifest.sha256` 文件 SHA-256 为 `e7d3d05710ebb5755a363658daf7580fcbc0701065ee49ca9b33873347a6e180`，不得修改 |
+| 第三次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-3-watchdog`，清单文件 SHA-256 为 `a51a74bbb9e3a1fec29bb512d0527dd3813f0133f6f4446f8b6e111ba879c324`，不得修改 |
 | 后续重试证据 | attempt 3 之后尚未冻结；任何后续重试均须使用新的未占用目录并另获执行授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
@@ -189,6 +190,16 @@ D133–D135 随后把 attempt 3 固定为新证据目录，并把 executor 差�
 pre-window failure injection 和完整只读漂移门禁全部通过后，可执行一次本文定义的维护
 窗口；允许的写操作和禁止项与 D135 完全一致。前置门禁失败不得创建正式目录，正式运行失败
 不得自动重试。
+
+attempt 3 的静态、failure injection 和只读漂移门禁全部通过后进入维护窗口。Python Worker
+stop 成功，但 `rust_worker_start_gate` 中两个 probe 把 `curl` 直接放在命令替换赋值里；在
+顶层 `set -e` 下，API 尚未监听时第一次连接拒绝返回 7，导致 120 次 readiness 重试尚未生效
+就进入 cleanup。Rust Worker 随后实际启动并上报 ID 5、maintenance-required 与两张 GPU，
+但未解除 maintenance，也未创建测试模型。统一 cleanup 以精确 PID 停止 Rust Worker并恢复
+原 Python Worker，前后全局资源 ID、Docker 和模型 manifest 一致，`cleanup_ok=1`。正式目录
+0700、60 个文件均为 0600、59 条 manifest 通过、秘密扫描为 0；watchdog 目录 0700、7 个
+文件均为 0600、6 条 manifest 通过、秘密扫描为 0。后续尝试只能将两个 probe 改为连接未就绪
+时不触发 `errexit` 的可重试采样，并使用新目录和新授权。
 
 ## M6-A.3.0：独立只读预检
 

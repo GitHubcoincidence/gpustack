@@ -40,23 +40,24 @@
   M6-A.3.1 attempt 1 和 attempt 2 都在维护窗口之前因执行器字段读取错误而 fail-closed：
   attempt 1 把 `worker_id` 错读为 `id`，attempt 2 又把 `worker_name` 错读为 `name`。两次均
   未停止 Python Worker、切换 maintenance、创建模型、启动 Rust Worker、创建 Docker/GPU
-  workload 或推理。尚未证明真实 Server 上的 Managed
+  workload 或推理。attempt 3 首次进入维护窗口并启动了真实 `--managed-file-only`，但
+  readiness 轮询第一次 `curl` 连接拒绝被 `set -e` 提前解释为失败；统一 cleanup 已恢复
+  Python Worker，且未创建模型、Docker/GPU workload 或推理。尚未证明真实 Server 上的 Managed
   ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
 - 当前停止位置：M6-A.3.0 attempt 6 为 `passed_preflight`。正式证据位于
   `m6a3-formal-attempt-6`，清单文件 SHA-256 为
   `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`；预检没有改变
   maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建 Docker/GPU
   workload，结束后服务健康且受管端口无监听。
-- 当前停止位置：M6-A.3.1 attempt 2 为 `stopped_before_window`，证据固定在
-  `m6a3-managed-file-smoke-attempt-2`，其 `manifest.sha256` 文件 SHA-256 为
-  `5777af9731fe639a10840217f02f598d3e0ed03b6b2ff62f5ba006db1cd17b0a`；watchdog 补充
+- 当前停止位置：M6-A.3.1 attempt 3 为 `failed_during_window`，证据固定在
+  `m6a3-managed-file-smoke-attempt-3`，其 `manifest.sha256` 文件 SHA-256 为
+  `e7d3d05710ebb5755a363658daf7580fcbc0701065ee49ca9b33873347a6e180`；watchdog 补充
   证据清单文件 SHA-256 为
-  `220c46ec3d01dddc762d2219e0bc00b379d57091e10cb397d1bbed088f48911b`。M6-A.3.0 的
+  `a51a74bbb9e3a1fec29bb512d0527dd3813f0133f6f4446f8b6e111ba879c324`。M6-A.3.0 的
   `passed_preflight` 结论不变，但 M6-A.3.1 仍未通过。
-- 下一项允许执行的工作：D133–D135 已冻结 attempt 3 的新证据路径、`.worker_name` 窄修正
-  和一次真实维护窗口授权。当前允许准备执行器并完成静态、failure injection 和只读漂移
-  门禁；全部通过后执行一次正式 attempt 3。任一门禁失败必须停止，不得自动重试或进入
-  M6-B。
+- 下一项允许执行的工作：共同审阅 attempt 3 FAIL，并讨论 attempt 4 的新证据路径和
+  readiness 轮询窄修正。下一次只能把两个 probe `curl` 变为可重试的非致命采样；仍须重新
+  完成静态/failure-injection/只读门禁并取得新的维护窗口授权。不得自动重试或进入 M6-B。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
