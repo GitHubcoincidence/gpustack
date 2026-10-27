@@ -666,3 +666,14 @@ D145 实现在代码检查点 `8b06832440f222600721171f8d1ede7e9bab4004`。90 �
 all-features/all-targets Clippy `-D warnings`、rustfmt 和 workspace build 均通过。该检查点只
 接受兼容性修复和离线验证；attempt 9 必须使用新证据路径并重新完成全部准备门，真实维护窗口
 仍须单独授权。
+
+## 2026-10-27 M6-A.3.1 第九次真实无 Docker 维护窗口准备
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D146 | 第九次 smoke 路径与证据安全 | attempt 9 只使用尚未占用的 `m6a3-formal-attempt-9`、`m6a3-managed-file-smoke-attempt-9`、对应 `-pre-window-injection` 和 `-watchdog` 路径。执行器从 attempt 8 封存副本派生，只更新 attempt/路径/HEAD/D145 代码与前置证据 identity；所有 `docker inspect` 证据在写盘前通过 `jq` 删除 `Config.Env`，未过滤输出不得落盘。固定 Server、Worker、模型、Runner、GPU0、端口、状态链、超时、成功标准和 cleanup 不变 | D145 只修复固定 Server 已要求的资源保留字段，不需要改变正式方法。attempt 8 的恢复审计已通过，但其证据暴露了快照落盘秘密风险；预落盘删除整个环境数组比枚举单一 token 名更稳健，并且不影响容器 ID、镜像、命令、restart policy、network、mount 或运行状态的恢复证明。新路径和全量门禁保持可归因且不覆盖既有失败。 |
+
+D146 只授权脚本准备、静态/最小差异审计、冻结构建、pre-window failure injection、真实只读
+查询和 Git 外受保护证据写入。准备过程不得停止 Python Worker、切换 maintenance、创建或删除
+Server 测试资源、启动 Rust Worker、创建 Docker/GPU workload 或执行推理。全部准备门通过后
+状态最多为 `ready_for_maintenance_authorization`；真实 attempt 9 仍须用户单独明确授权。

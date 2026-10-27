@@ -583,3 +583,8 @@ D145 已在 `8b06832440f222600721171f8d1ede7e9bab4004` 让注册和周期状态�
 all-target 测试、all-features/all-targets Clippy、格式和 workspace build 均通过。当前停止位置
 为 `attempt_9_preparation_ready`：下一步只允许冻结新证据路径、修正正式脚本使容器环境在落盘
 前脱敏，并完成静态、故障注入和只读漂移门。新的真实维护窗口仍需单独明确授权，M6-B 未开始。
+
+D146 已将 attempt 9 的预检、故障注入、正式和 watchdog 路径冻结，并规定所有容器 inspect
+证据在写盘前删除 `Config.Env`。当前状态为 `attempt_9_preparation_authorized`：可执行脚本
+最小差异审计、冻结构建、故障注入和完整只读漂移门；不得进入维护窗口。准备结果必须另行记录，
+只有全部通过后才能请求真实 attempt 9 授权。

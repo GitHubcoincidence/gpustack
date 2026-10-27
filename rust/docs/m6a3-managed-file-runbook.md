@@ -68,6 +68,10 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第八次预窗口故障注入 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8-pre-window-injection`，以 `STOP/source_head_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `e94f833beceb96bf3ba881cc4619803d31ba9cf42dc35650f07b8679fa732262`，不得修改 |
 | 第八次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8`，已在维护窗口内以 `FAIL/state_chain_did_not_reach_starting` 封存；安全脱敏后 `manifest.sha256` 文件 SHA-256 为 `efdf1c89566cf9936bdb8bf066b66c262367e04065e2246b9eb487ea4a7bb735`，不得修改 |
 | 第八次 smoke watchdog 证据 | 未创建独立目录；正式 executor 在 watchdog 时限内完成失败恢复和封存，supervisor identity 保留在正式目录与 `/tmp` 日志中 |
+| 第九次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-9`，D146 已冻结但尚未创建 |
+| 第九次预窗口故障注入 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-9-pre-window-injection`，D146 已冻结但尚未创建 |
+| 第九次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-9`，D146 已冻结但尚未创建 |
+| 第九次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-9-watchdog`，D146 已冻结但尚未创建 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -271,6 +275,12 @@ Python Worker `docker inspect` 快照携带 `GPUSTACK_TOKEN` 环境项；证据�
 不改变实验结论的说明，随后重新生成并校验 manifest。以后任何正式 executor 都必须在证据
 落盘前过滤容器环境，不得依赖事后脱敏。attempt 9 只能使用新的预检、正式和 watchdog 路径，
 并重新完成静态、故障注入和只读漂移门；准备通过仍不授权真实维护窗口。
+
+D146 冻结 attempt 9 的四个新路径以及唯一证据安全变化：预检、正式运行、cleanup 和 final
+check 中的全部 `docker inspect` JSON 必须经 `jq` 删除 `Config.Env` 后才能写入证据文件，原始
+环境不得先写临时文件。该过滤不得删除容器 ID、镜像、命令、restart policy、network、mount
+或运行状态。除此之外只更新 attempt/路径/HEAD/D145 与前置证据 identity；正式方法和解释规则
+保持不变。D146 只授权无中断准备，不授权真实维护窗口。
 
 ## M6-A.3.0：独立只读预检
 

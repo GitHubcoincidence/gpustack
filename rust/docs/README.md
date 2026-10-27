@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D145 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D146 operator
   Context、Worker identity、READY 和资源保留字段门禁均已 `frozen`；完整 R1 架构继续按
   门禁推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
@@ -72,8 +72,9 @@
 - 已接受修复：代码检查点 `8b06832440f222600721171f8d1ede7e9bab4004` 新增强类型
   `SystemReserved`，让注册和周期状态都明确上报 `{ram: 0, vram: 0}`。90 上 153 个 all-target
   测试、all-features/all-targets Clippy、rustfmt 和 workspace build 全部通过。
-- 下一项允许执行的工作：为 D145 冻结新的 attempt 9 证据路径，完成静态、故障注入和只读
-  漂移门；任何真实维护窗口仍需用户单独明确授权，M6-B 尚未开始。
+- 下一项允许执行的工作：按 D146 在新 attempt 9 路径完成静态、故障注入和只读漂移门；
+  `docker inspect` 必须在落盘前删除 `Config.Env`。任何真实维护窗口仍需用户单独明确授权，
+  M6-B 尚未开始。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

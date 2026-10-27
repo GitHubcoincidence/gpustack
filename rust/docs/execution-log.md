@@ -26,7 +26,7 @@
 
 ## 当前状态
 
-- 状态：`attempt_9_preparation_ready`
+- 状态：`attempt_9_preparation_authorized`
 - 当前阶段：M1～M5、M6-A.0～M6-A.2.3 已接受。M6-A.3.0 只读预检已通过；
   M6-A.3.1 attempt 8 是有效 `failed_during_window`，尚未通过完整 Managed 文件准备状态链，
   M6-B Docker/vLLM runtime 尚未开始。
@@ -47,10 +47,10 @@
   为 0700、文件全 0600。发现两份 Docker 快照携带 `GPUSTACK_TOKEN` 环境项后，已在受保护
   目录内只替换该字段并记录原/新哈希；脱敏后 72 条 manifest 全部通过，清单文件 SHA-256 为
   `efdf1c89566cf9936bdb8bf066b66c262367e04065e2246b9eb487ea4a7bb735`。
-- 下一项允许执行的工作：冻结 attempt 9 的新预检、正式和 watchdog 路径；正式脚本须在
-  `docker inspect` 落盘前过滤秘密环境项，然后完成静态审计、pre-window failure injection 和
-  完整只读漂移门。准备通过不自动授权维护窗口；停止 Python Worker、切换 maintenance、创建
-  Server 测试资源或启动 Rust Worker仍需新的明确授权，M6-B 不得提前开始。
+- 下一项允许执行的工作：按 D146 派生 attempt 9 脚本，在所有 `docker inspect` 写盘前删除
+  `Config.Env`，完成静态审计、pre-window failure injection 和完整只读漂移门。准备通过不自动
+  授权维护窗口；停止 Python Worker、切换 maintenance、创建 Server 测试资源或启动 Rust Worker
+  仍需新的明确授权，M6-B 不得提前开始。
 
 ## 里程碑
 
@@ -2952,6 +2952,19 @@
 - 当前停止位置：代码已同步本地、origin 和 90，工作树仅保留用户已有的本地 `output/`。下一项
   允许工作是冻结 attempt 9 新路径并准备经过预落盘 secret 过滤的 executor；准备门通过后仍需
   新的明确维护窗口授权。
+
+### 2026-10-27：M6-A.3.1 attempt 9 无中断准备方法冻结
+
+- 决策：D146 固定 `m6a3-formal-attempt-9`、`m6a3-managed-file-smoke-attempt-9`、对应
+  `-pre-window-injection` 和 `-watchdog` 四个尚未占用的路径。固定输入、状态链、时间限制、通过
+  标准和 cleanup 均继承 attempt 8。
+- 唯一安全修订：预检、正式执行、cleanup 和 final check 的每份 `docker inspect` JSON 都必须
+  在写盘前通过 `jq` 删除整个 `Config.Env`；未过滤环境不得落盘。其余恢复所需字段必须保留。
+- 授权边界：当前只允许脚本准备、静态与最小差异审计、冻结构建、故障注入、真实只读查询和
+  Git 外受保护证据写入。不得停止 Python Worker、改变 maintenance、写 Server 测试资源、启动
+  Rust Worker、创建 Docker/GPU workload 或推理。
+- 当前停止位置：执行 attempt 9 无中断准备门；全部通过后状态只能成为
+  `ready_for_maintenance_authorization`，不能自动执行真实维护窗口。
 
 ## 未解决风险与待确认事项
 
