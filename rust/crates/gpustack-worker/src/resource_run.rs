@@ -79,6 +79,15 @@ impl WorkerSurfaceMode {
         }
     }
 
+    const fn status_message(self) -> Option<&'static str> {
+        match self {
+            Self::ResourceApiOnly => Some(MAINTENANCE_MESSAGE),
+            // Server treats a non-empty message as an explicit NOT_READY reason after
+            // operator-controlled maintenance is disabled.
+            Self::ManagedFileOnly => None,
+        }
+    }
+
     const fn reconciles_managed_files(self) -> bool {
         matches!(self, Self::ManagedFileOnly)
     }
@@ -186,7 +195,7 @@ impl ResourceApiProfile {
             metrics_port: Some(self.metrics_port),
             port: self.worker_port,
             proxy_mode: ProxyMode::Worker,
-            state_message: Some(self.mode.maintenance_message().to_owned()),
+            state_message: self.mode.status_message().map(str::to_owned),
             status: Some(resources.status.clone()),
             system_reserved: None,
             worker_uuid,
@@ -946,6 +955,7 @@ mod tests {
         assert_eq!(create.metrics_port, Some(20151));
         assert_eq!(report.metrics_port, Some(20151));
         assert_eq!(report.status, Some(resources.status));
+        assert_eq!(report.state_message.as_deref(), Some(MAINTENANCE_MESSAGE));
         assert!(create.labels.values().all(|value| value != "docker"));
     }
 
@@ -969,6 +979,7 @@ mod tests {
         };
 
         let create = profile.registration_request(&resources);
+        let report = profile.status_report("contract-uuid".to_owned(), &resources);
 
         assert_eq!(
             create.labels.get("mode").map(String::as_str),
@@ -981,6 +992,7 @@ mod tests {
                 .state_message
                 .is_some_and(|message| message.contains("runtime execution disabled"))
         );
+        assert_eq!(report.state_message, None);
     }
 
     #[test]
