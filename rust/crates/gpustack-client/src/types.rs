@@ -476,6 +476,13 @@ pub struct ModelInstancePublic {
     pub extensions: BTreeMap<String, Value>,
 }
 
+impl ModelInstancePublic {
+    /// Treats the Server's empty distributed envelope as a single-Worker placement.
+    pub fn spans_workers(&self) -> bool {
+        distributed_servers_span_workers(self.distributed_servers.as_ref())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 /// Complete replacement body for a Worker-owned ModelInstance.
@@ -542,12 +549,23 @@ impl ModelInstanceUpdate {
                 "local_path model instance requires a non-empty local_path".to_owned(),
             ));
         }
-        if self.distributed_servers.is_some() {
+        if distributed_servers_span_workers(self.distributed_servers.as_ref()) {
             return Err(ClientError::Contract(
                 "R1 does not support cross-Worker distributed inference".to_owned(),
             ));
         }
         Ok(())
+    }
+}
+
+fn distributed_servers_span_workers(distributed_servers: Option<&Value>) -> bool {
+    let Some(Value::Object(distributed_servers)) = distributed_servers else {
+        return distributed_servers.is_some();
+    };
+    match distributed_servers.get("subordinate_workers") {
+        None | Some(Value::Null) => false,
+        Some(Value::Array(workers)) => !workers.is_empty(),
+        Some(_) => true,
     }
 }
 

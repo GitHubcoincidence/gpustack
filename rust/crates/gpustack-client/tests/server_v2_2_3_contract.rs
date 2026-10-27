@@ -244,3 +244,32 @@ fn typed_responses_are_tolerant_and_preserve_the_update_contract() {
         parse_json("model file update", MODEL_FILE_UPDATE)
     );
 }
+
+#[test]
+fn single_worker_distributed_envelope_is_not_cross_worker_inference() {
+    let instances: Paginated<ModelInstancePublic> =
+        serde_json::from_str(MODEL_INSTANCES_FULL_SYNC).expect("typed ModelInstances response");
+    let mut instance = instances.items[0].clone();
+    instance.distributed_servers = Some(serde_json::json!({
+        "download_model_files": true,
+        "mode": "initialize_later",
+        "subordinate_workers": null
+    }));
+
+    assert!(!instance.spans_workers());
+    ModelInstanceUpdate::from(&instance)
+        .validate_for_worker(101)
+        .expect("single-Worker Server envelope");
+
+    instance.distributed_servers = Some(serde_json::json!({
+        "download_model_files": true,
+        "mode": "initialize_later",
+        "subordinate_workers": [{"worker_id": 202}]
+    }));
+    assert!(instance.spans_workers());
+    assert!(
+        ModelInstanceUpdate::from(&instance)
+            .validate_for_worker(101)
+            .is_err()
+    );
+}

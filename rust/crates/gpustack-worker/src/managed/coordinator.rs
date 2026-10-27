@@ -346,7 +346,7 @@ impl<A: ManagedApi, P: PortProbe> ManagedCoordinator<A, P> {
         if !instance.source.is_local_path()
             || instance.backend.as_deref() != Some("vLLM")
             || instance.local_path.as_deref().is_none_or(str::is_empty)
-            || instance.distributed_servers.is_some()
+            || instance.spans_workers()
             || instance.draft_model_source.is_some()
             || instance.mounted_loras.is_some()
             || instance
@@ -718,6 +718,67 @@ mod tests {
         assert_eq!(state.instance_updates[0].state.0, "initializing");
         assert_eq!(state.instance_updates[0].ports, Some(vec![40_000]));
         assert_eq!(state.get_instance_count, 3);
+    }
+
+    #[tokio::test]
+    async fn initializes_an_instance_with_the_server_single_worker_envelope() {
+        let root = tempfile::tempdir().expect("model root");
+        let (mut instance, model_file) = fixtures();
+        instance.local_path = Some(root.path().to_string_lossy().into_owned());
+        instance.distributed_servers = Some(serde_json::json!({
+            "download_model_files": true,
+            "mode": "initialize_later",
+            "subordinate_workers": null
+        }));
+        let api = FakeApi::new(instance, model_file);
+        let worker = coordinator(api.clone(), root.path().to_path_buf(), 40_000..=40_003);
+
+        let result = worker
+            .reconcile_targets([ManagedTarget::ModelInstance(301)])
+            .await;
+
+        assert_eq!(
+            result[0].outcome,
+            ManagedOutcome::InstanceInitialized {
+                port: 40_000,
+                reused: false
+            }
+        );
+        let state = api.state.lock().expect("fake lock");
+        assert_eq!(state.instance_updates.len(), 1);
+        assert_eq!(state.instance_updates[0].state.0, "initializing");
+    }
+
+    #[tokio::test]
+    async fn rejects_an_instance_with_subordinate_workers() {
+        let root = tempfile::tempdir().expect("model root");
+        let (mut instance, model_file) = fixtures();
+        instance.local_path = Some(root.path().to_string_lossy().into_owned());
+        instance.distributed_servers = Some(serde_json::json!({
+            "download_model_files": true,
+            "mode": "initialize_later",
+            "subordinate_workers": [{"worker_id": 202}]
+        }));
+        let api = FakeApi::new(instance, model_file);
+        let worker = coordinator(api.clone(), root.path().to_path_buf(), 40_000..=40_003);
+
+        let result = worker
+            .reconcile_targets([ManagedTarget::ModelInstance(301)])
+            .await;
+
+        assert_eq!(
+            result[0].outcome,
+            ManagedOutcome::Noop {
+                reason: "ModelInstance is outside the R1 Managed scope"
+            }
+        );
+        assert!(
+            api.state
+                .lock()
+                .expect("fake lock")
+                .instance_updates
+                .is_empty()
+        );
     }
 
     #[tokio::test]
