@@ -208,6 +208,7 @@ fn typed_responses_are_tolerant_and_preserve_the_update_contract() {
 
     let workers: Paginated<WorkerPublic> =
         serde_json::from_str(WORKER_MAINTENANCE_ME).expect("typed maintenance Worker response");
+    assert_eq!(workers.items[0].cluster_id, None);
     let maintenance = workers.items[0]
         .maintenance
         .as_ref()

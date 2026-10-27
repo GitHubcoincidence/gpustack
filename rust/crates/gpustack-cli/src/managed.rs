@@ -294,7 +294,16 @@ pub async fn run_model_command<T: Transport>(
     match arguments.command {
         ModelSubcommand::Deploy(arguments) => {
             let wait = arguments.wait;
-            let request = build_model_create(arguments)?;
+            let worker_selector = arguments.worker.clone();
+            let mut request = build_model_create(arguments)?;
+            let worker = resolve_worker(client, token, &worker_selector).await?;
+            // Manual GPU IDs are validated within a cluster by the Server, so
+            // the request must carry the cluster of the uniquely resolved Worker.
+            request.cluster_id = Some(
+                worker
+                    .cluster_id
+                    .ok_or_else(|| ManagedError::WorkerClusterUnavailable(worker.name.clone()))?,
+            );
             let model = client.create_model(token, &request).await?;
             if wait {
                 let (instances, transitions) =
@@ -516,6 +525,7 @@ fn build_model_create(arguments: ModelDeployArgs) -> Result<ModelCreate, Managed
     let mut worker_selector = BTreeMap::new();
     worker_selector.insert("worker-name".to_owned(), arguments.worker);
     Ok(ModelCreate {
+        cluster_id: None,
         name: arguments.name,
         source: ModelSource("local_path".to_owned()),
         local_path: arguments.local_path.display().to_string(),
@@ -1240,6 +1250,8 @@ pub enum ManagedError {
     NotFound(&'static str, String),
     #[error("{0} selector '{1}' is ambiguous")]
     Ambiguous(&'static str, String),
+    #[error("Worker '{0}' has no cluster assignment required for manual GPU selection")]
+    WorkerClusterUnavailable(String),
     #[error("Model entered error state while waiting: {states}")]
     ModelFailed { states: String },
     #[error("timed out waiting for Model to run; last states: {states}")]
@@ -1258,6 +1270,7 @@ impl ManagedError {
             Self::Client(_)
                 | Self::NotFound(_, _)
                 | Self::Ambiguous(_, _)
+                | Self::WorkerClusterUnavailable(_)
                 | Self::ModelFailed { .. }
                 | Self::WaitTimeout { .. }
                 | Self::UnsafeModelFile(_)
@@ -1348,6 +1361,13 @@ mod tests {
             "message": enabled.then_some("planned maintenance")
         });
         serde_json::to_vec(&value["items"][0]).expect("Worker item JSON")
+    }
+
+    fn worker_page_with_cluster(name: &str, cluster_id: Option<i64>) -> Vec<u8> {
+        let mut value: Value = serde_json::from_str(WORKERS_ME).expect("Worker page JSON");
+        value["items"][0]["name"] = json!(name);
+        value["items"][0]["cluster_id"] = json!(cluster_id);
+        serde_json::to_vec(&value).expect("Worker page JSON")
     }
 
     #[test]
@@ -1507,6 +1527,7 @@ mod tests {
     #[tokio::test]
     async fn deploy_builds_an_explicit_local_vllm_request_without_runtime_access() {
         let transport = MockTransport::default();
+        transport.push_json(200, worker_page_with_cluster("rust-worker", Some(7)));
         transport.push_json(200, item_from_page(MODEL_PAGE));
         let client = ServerClient::new(
             Url::parse("http://127.0.0.1/base").expect("URL"),
@@ -1548,11 +1569,16 @@ mod tests {
         .expect("deploy");
 
         let requests = transport.requests();
-        assert_eq!(requests.len(), 1);
-        assert_eq!(requests[0].url.path(), "/base/v2/models");
+        assert_eq!(requests.len(), 2);
+        assert_eq!(
+            requests[0].url.as_str(),
+            "http://127.0.0.1/base/v2/workers?page=-1&name=rust-worker"
+        );
+        assert_eq!(requests[1].url.path(), "/base/v2/models");
         let body: Value =
-            serde_json::from_slice(requests[0].body.as_deref().expect("request body"))
+            serde_json::from_slice(requests[1].body.as_deref().expect("request body"))
                 .expect("request JSON");
+        assert_eq!(body["cluster_id"], 7);
         assert_eq!(body["source"], "local_path");
         assert_eq!(body["worker_selector"]["worker-name"], "rust-worker");
         assert_eq!(body["gpu_selector"]["gpu_ids"][0], "rust-worker:cuda:0");
@@ -1565,6 +1591,57 @@ mod tests {
                 "--enforce-eager"
             ])
         );
+        assert!(!format!("{requests:?}").contains("operator-secret"));
+    }
+
+    #[tokio::test]
+    async fn deploy_rejects_a_worker_without_cluster_before_model_creation() {
+        let transport = MockTransport::default();
+        transport.push_json(200, worker_page_with_cluster("rust-worker-contract", None));
+        let client = ServerClient::new(
+            Url::parse("http://127.0.0.1/base").expect("URL"),
+            transport.clone(),
+        )
+        .expect("client");
+        let token = SecretToken::new("operator-secret").expect("token");
+        let cli = Cli::try_parse_from([
+            "gpustack-rs",
+            "model",
+            "deploy",
+            "demo",
+            "--worker",
+            "rust-worker-contract",
+            "--local-path",
+            "/models/demo",
+            "--image",
+            "runner@sha256:aaaa",
+            "--gpu",
+            "0",
+        ])
+        .expect("parse deploy");
+        let Command::Model(arguments) = cli.command else {
+            panic!("model command");
+        };
+
+        let error = run_model_command(
+            OutputFormat::Json,
+            Duration::from_secs(1),
+            &client,
+            &token,
+            arguments,
+            None,
+        )
+        .await
+        .expect_err("Worker without cluster must be rejected");
+
+        assert!(matches!(
+            error,
+            ManagedError::WorkerClusterUnavailable(name)
+                if name == "rust-worker-contract"
+        ));
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, Method::Get);
         assert!(!format!("{requests:?}").contains("operator-secret"));
     }
 
@@ -1951,6 +2028,7 @@ mod tests {
     #[tokio::test]
     async fn deploy_wait_reports_each_observed_state_transition() {
         let transport = MockTransport::default();
+        transport.push_json(200, worker_page_with_cluster("rust-worker", Some(7)));
         transport.push_json(200, item_from_page(MODEL_PAGE));
         transport.push_json(200, INSTANCE_PAGE);
         let mut running: Value = serde_json::from_str(INSTANCE_PAGE).expect("instance page JSON");

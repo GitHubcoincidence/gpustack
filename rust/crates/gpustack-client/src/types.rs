@@ -221,6 +221,7 @@ pub struct WorkerStatusReport {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorkerPublic {
     pub id: i64,
+    pub cluster_id: Option<i64>,
     pub name: String,
     pub labels: BTreeMap<String, String>,
     pub maintenance: Option<WorkerMaintenance>,
@@ -307,6 +308,7 @@ pub struct GpuSelector {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelCreate {
+    pub cluster_id: Option<i64>,
     pub name: String,
     pub source: ModelSource,
     pub local_path: String,
