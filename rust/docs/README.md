@@ -72,9 +72,12 @@
 - 已接受修复：代码检查点 `8b06832440f222600721171f8d1ede7e9bab4004` 新增强类型
   `SystemReserved`，让注册和周期状态都明确上报 `{ram: 0, vram: 0}`。90 上 153 个 all-target
   测试、all-features/all-targets Clippy、rustfmt 和 workspace build 全部通过。
-- 下一项允许执行的工作：按 D146 在新 attempt 9 路径完成静态、故障注入和只读漂移门；
-  `docker inspect` 必须在落盘前删除 `Config.Env`。任何真实维护窗口仍需用户单独明确授权，
-  M6-B 尚未开始。
+- attempt 9 的只读预检和预窗口故障注入已通过，清单文件 SHA-256 分别为
+  `c1e7fcbdea35d2a142c8259a5abc724e8a35e414fcfaf0ac8907d270d6d2fb1d` 和
+  `1cdb433cf52ba63d681b79ed39cffabd371511eefbb6deb79d1095fa86bf4743`；`Config.Env` 未进入
+  故障注入证据，现有服务与资源未改变。
+- 下一项允许执行的工作：提交本准备检查点后把最终 executor 绑定到该 HEAD，并通过最后一次
+  无写漂移门。通过后才能请求 attempt 9 维护窗口授权；M6-B 尚未开始。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

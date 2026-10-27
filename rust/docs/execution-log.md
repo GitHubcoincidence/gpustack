@@ -26,7 +26,7 @@
 
 ## 当前状态
 
-- 状态：`attempt_9_preparation_authorized`
+- 状态：`attempt_9_post_checkpoint_binding_pending`
 - 当前阶段：M1～M5、M6-A.0～M6-A.2.3 已接受。M6-A.3.0 只读预检已通过；
   M6-A.3.1 attempt 8 是有效 `failed_during_window`，尚未通过完整 Managed 文件准备状态链，
   M6-B Docker/vLLM runtime 尚未开始。
@@ -47,10 +47,9 @@
   为 0700、文件全 0600。发现两份 Docker 快照携带 `GPUSTACK_TOKEN` 环境项后，已在受保护
   目录内只替换该字段并记录原/新哈希；脱敏后 72 条 manifest 全部通过，清单文件 SHA-256 为
   `efdf1c89566cf9936bdb8bf066b66c262367e04065e2246b9eb487ea4a7bb735`。
-- 下一项允许执行的工作：按 D146 派生 attempt 9 脚本，在所有 `docker inspect` 写盘前删除
-  `Config.Env`，完成静态审计、pre-window failure injection 和完整只读漂移门。准备通过不自动
-  授权维护窗口；停止 Python Worker、切换 maintenance、创建 Server 测试资源或启动 Rust Worker
-  仍需新的明确授权，M6-B 不得提前开始。
+- 下一项允许执行的工作：提交本准备检查点，把最终 attempt 9 executor/supervisor 绑定到该
+  治理 HEAD，然后执行最后一次外部只读漂移门。通过后才可请求维护窗口授权；停止 Python
+  Worker、切换 maintenance、创建 Server 测试资源或启动 Rust Worker仍需新的明确授权。
 
 ## 里程碑
 
@@ -2965,6 +2964,25 @@
   Rust Worker、创建 Docker/GPU workload 或推理。
 - 当前停止位置：执行 attempt 9 无中断准备门；全部通过后状态只能成为
   `ready_for_maintenance_authorization`，不能自动执行真实维护窗口。
+
+### 2026-10-27：M6-A.3.1 attempt 9 无中断准备门通过
+
+- 静态审计：attempt 9 的 preflight、executor 和 supervisor 均从 attempt 8 封存副本派生并
+  通过 `bash -n`。除 attempt/路径/HEAD/D145/前序证据 identity 外，行为差异仅为三份完整
+  `docker inspect` 在写盘前执行 `jq 'map(del(.Config.Env))'`；状态链、超时和 cleanup 未改变。
+- 只读预检：`m6a3-formal-attempt-9` 在治理 HEAD
+  `6a61fd2966f34481e8f8bdddf3db77a2c410681c` 上 `PASS`；目录 0700、45 个文件全 0600、
+  秘密扫描为 0、44 个 manifest 条目全部通过，清单文件 SHA-256 为
+  `c1e7fcbdea35d2a142c8259a5abc724e8a35e414fcfaf0ac8907d270d6d2fb1d`。
+- 故障注入：`m6a3-managed-file-smoke-attempt-9-pre-window-injection` 故意使用错误 HEAD，按
+  `STOP/source_head_mismatch`、`baseline_ready=0`、`window_entered=0`、`cleanup_ok=1`
+  封存；18 个 manifest 条目通过、秘密扫描为 0、`Config.Env` 路径数为 0，清单文件 SHA-256
+  为 `1cdb433cf52ba63d681b79ed39cffabd371511eefbb6deb79d1095fa86bf4743`。
+- 外部状态：Server/Python Worker health/metrics 为 200，原 Python Worker容器仍运行，Rust
+  进程和受管端口为 0，GPU0 为 0 MiB/0%；正式和 watchdog 路径未创建，准备没有运行态写入。
+- 当前停止位置：提交本检查点后，把最终 executor/supervisor 绑定到新的治理 HEAD并重跑完整
+  无写漂移门。通过后状态为 `ready_for_maintenance_authorization`；真实 attempt 9 和 M6-B
+  均未开始。
 
 ## 未解决风险与待确认事项
 

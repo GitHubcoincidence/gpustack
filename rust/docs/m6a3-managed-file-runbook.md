@@ -68,8 +68,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第八次预窗口故障注入 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8-pre-window-injection`，以 `STOP/source_head_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `e94f833beceb96bf3ba881cc4619803d31ba9cf42dc35650f07b8679fa732262`，不得修改 |
 | 第八次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8`，已在维护窗口内以 `FAIL/state_chain_did_not_reach_starting` 封存；安全脱敏后 `manifest.sha256` 文件 SHA-256 为 `efdf1c89566cf9936bdb8bf066b66c262367e04065e2246b9eb487ea4a7bb735`，不得修改 |
 | 第八次 smoke watchdog 证据 | 未创建独立目录；正式 executor 在 watchdog 时限内完成失败恢复和封存，supervisor identity 保留在正式目录与 `/tmp` 日志中 |
-| 第九次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-9`，D146 已冻结但尚未创建 |
-| 第九次预窗口故障注入 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-9-pre-window-injection`，D146 已冻结但尚未创建 |
+| 第九次预检证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-formal-attempt-9`，已通过并封存；`manifest.sha256` 文件 SHA-256 为 `c1e7fcbdea35d2a142c8259a5abc724e8a35e414fcfaf0ac8907d270d6d2fb1d`，不得修改 |
+| 第九次预窗口故障注入 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-9-pre-window-injection`，以 `STOP/source_head_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `1cdb433cf52ba63d681b79ed39cffabd371511eefbb6deb79d1095fa86bf4743`，不得修改 |
 | 第九次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-9`，D146 已冻结但尚未创建 |
 | 第九次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-9-watchdog`，D146 已冻结但尚未创建 |
 
@@ -281,6 +281,11 @@ check 中的全部 `docker inspect` JSON 必须经 `jq` 删除 `Config.Env` 后�
 环境不得先写临时文件。该过滤不得删除容器 ID、镜像、命令、restart policy、network、mount
 或运行状态。除此之外只更新 attempt/路径/HEAD/D145 与前置证据 identity；正式方法和解释规则
 保持不变。D146 只授权无中断准备，不授权真实维护窗口。
+
+attempt 9 只读预检和预窗口故障注入已通过。故障注入的脱敏容器快照经结构检查确认不存在
+`Config.Env`，同时仍能验证原 Python Worker运行状态；正式与 watchdog 路径保持未创建。最终
+executor/supervisor 还须绑定准备检查点 HEAD，并重新核对预检清单、Worker maintenance、目标
+资源、Python Worker、GPU0、受管端口和仓库状态；该无写门通过才可请求维护窗口授权。
 
 ## M6-A.3.0：独立只读预检
 

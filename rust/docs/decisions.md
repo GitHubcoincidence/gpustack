@@ -677,3 +677,13 @@ D146 只授权脚本准备、静态/最小差异审计、冻结构建、pre-wind
 查询和 Git 外受保护证据写入。准备过程不得停止 Python Worker、切换 maintenance、创建或删除
 Server 测试资源、启动 Rust Worker、创建 Docker/GPU workload 或执行推理。全部准备门通过后
 状态最多为 `ready_for_maintenance_authorization`；真实 attempt 9 仍须用户单独明确授权。
+
+attempt 9 的只读预检已 `PASS`：`m6a3-formal-attempt-9` 为 0700，45 个文件全为 0600，
+44 个 manifest 条目校验通过、秘密扫描为 0；清单文件 SHA-256 为
+`c1e7fcbdea35d2a142c8259a5abc724e8a35e414fcfaf0ac8907d270d6d2fb1d`。预窗口故障注入按
+预期以 `STOP/source_head_mismatch`、`baseline_ready=0`、`window_entered=0`、
+`cleanup_ok=1` 结束；18 个 manifest 条目通过、秘密扫描为 0、容器快照不含 `Config.Env`，
+清单文件 SHA-256 为 `1cdb433cf52ba63d681b79ed39cffabd371511eefbb6deb79d1095fa86bf4743`。
+准备过程没有改变 maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建
+Docker/GPU workload。提交本检查点后还须把最终 executor/supervisor 绑定到新的治理 HEAD并
+重跑外部只读门，才能成为 `ready_for_maintenance_authorization`。

@@ -588,3 +588,8 @@ D146 已将 attempt 9 的预检、故障注入、正式和 watchdog 路径冻结
 证据在写盘前删除 `Config.Env`。当前状态为 `attempt_9_preparation_authorized`：可执行脚本
 最小差异审计、冻结构建、故障注入和完整只读漂移门；不得进入维护窗口。准备结果必须另行记录，
 只有全部通过后才能请求真实 attempt 9 授权。
+
+attempt 9 只读预检和预窗口故障注入已通过，且证明 `Config.Env` 不进入新证据。当前停止位置
+为 `attempt_9_post_checkpoint_binding_pending`：提交准备记录后，只允许把最终 executor 和
+supervisor 绑定到新的治理 HEAD并执行最后一次无写漂移门。门禁通过后状态才能变为
+`ready_for_maintenance_authorization`；真实窗口和 M6-B 仍未授权。
