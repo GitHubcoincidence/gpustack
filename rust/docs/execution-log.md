@@ -2756,6 +2756,34 @@
   readiness probe 改向冻结 Worker IP `10.213.80.90`。完成最小差异、现场地址、
   failure-injection 和全量漂移门禁后可直接执行 attempt 5；M6-B 仍未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 5 因 Worker 状态断言错误失败并完成恢复
+
+- 准备与输入：检查点 HEAD 为 `5606b09ca8594bead150aa041190d1b6a2947e89`；executor
+  SHA-256 为 `f83919bf0409fecf96eb3d67da0ab1c0643a9105a7d94fd63f2496a366484181`，watchdog
+  SHA-256 为 `2293a9f73a18a37cec417394062b946c4cab63977e3ff2b7b0605f00ab58d862`。相对
+  attempt 4 的行为差异只有两个 readiness URL 改为 Worker IP；地址 fixture、failure
+  injection 和全量漂移门禁通过。
+- 执行经过：source/build、identity/resource/environment 和 Python Worker stop 门通过；Rust
+  Worker 在 `10.213.80.90:20150/20151` 正常监听，探针均为 200。Server 权威响应为
+  `state=maintenance`、`maintenance.enabled=true`、`unreachable=false`、`gpu_count=2`；执行器
+  却要求 `.state == "ready"`，因此在 120 次循环后以 `rust_worker_startup_gate_timeout` 失败。
+- 结果与恢复：正式结果为 `FAIL/rust_worker_startup_gate_timeout`，`baseline_ready=1`、
+  `window_entered=1`、`smoke_passed=0`、`cleanup_ok=1`。maintenance 从未 disable，Model、
+  ModelInstance、ModelFile 和 assigned port 均为 none；无 Docker/GPU workload 或推理。cleanup
+  精确停止 Rust Worker并恢复原 Python Worker；服务、端口、GPU、全局资源、Docker 集和模型
+  manifest 的独立审计全部通过。
+- 证据：正式目录 `m6a3-managed-file-smoke-attempt-5` 为 0700，62 个文件均为 0600，manifest
+  通过、秘密扫描为 0；清单文件 SHA-256 为
+  `139821ac350946463a1413da0f455decb8172ab006f02d468004122407ecfb2b`。watchdog 目录为 0700，
+  7 个文件均为 0600，manifest 通过、秘密扫描为 0；清单文件 SHA-256 为
+  `4ed10c279a5afb982885a64172c3b9805be0b7767e1dae830550c28afead8d60`。
+- 整体下游排练：为避免继续逐点暴露执行器假设，随后运行 CLI Managed 17 个测试、Worker
+  coordinator 8 个测试和 STARTING no-op 事件测试 1 个，全部通过；另用正式脚本同一组 jq/
+  regex/cleanup 表达式演练 STARTING、ModelFile ready、端口和事件链，也全部通过。
+- 判定与下一步：attempt 5 是有效 `failed_during_window`。D140 按 D138 冻结 attempt 6 新目录，
+  唯一行为修正是 readiness 要求合法的 `state=maintenance`，同时保留 maintenance、reachable
+  和双 GPU 收紧条件。全部准备门通过后可直接执行 attempt 6；M6-B 仍未开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

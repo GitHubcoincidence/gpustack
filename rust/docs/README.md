@@ -42,24 +42,25 @@
   未停止 Python Worker、切换 maintenance、创建模型、启动 Rust Worker、创建 Docker/GPU
   workload 或推理。attempt 3 首次进入维护窗口并启动了真实 `--managed-file-only`，但
   readiness 轮询第一次 `curl` 连接拒绝被 `set -e` 提前解释为失败；attempt 4 修复重试语义后
-  发现 Rust Worker 只监听冻结的 `10.213.80.90`，而执行器仍探测 `127.0.0.1`，最终按超时门失败。
-  两次统一 cleanup 均恢复 Python Worker，且未创建模型、Docker/GPU workload 或推理。尚未证明真实 Server 上的 Managed
+  发现 Rust Worker 只监听冻结的 `10.213.80.90`，而执行器仍探测 `127.0.0.1`，最终按超时门失败；
+  attempt 5 修正地址后又发现启动门错误要求 `state=ready`，而 maintenance 开启时 Server 的合法
+  状态是 `state=maintenance`。三次统一 cleanup 均恢复 Python Worker，且未创建模型、Docker/GPU workload 或推理。尚未证明真实 Server 上的 Managed
   ModelInstance/ModelFile 状态链，也未进入 M6-B Docker/vLLM runtime。
 - 当前停止位置：M6-A.3.0 attempt 6 为 `passed_preflight`。正式证据位于
   `m6a3-formal-attempt-6`，清单文件 SHA-256 为
   `984919960979ff8d0df503da0a0355d5b703850ad162bd4f585e0c4a0ea04c59`；预检没有改变
   maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或创建 Docker/GPU
   workload，结束后服务健康且受管端口无监听。
-- 当前停止位置：M6-A.3.1 attempt 4 为 `failed_during_window`，证据固定在
-  `m6a3-managed-file-smoke-attempt-4`，其 `manifest.sha256` 文件 SHA-256 为
-  `bb259eb9b0162c86f24417f1ae20b28091d6a15d0ac8f0daf4446cc8d7775e5e`；watchdog 补充
+- 当前停止位置：M6-A.3.1 attempt 5 为 `failed_during_window`，证据固定在
+  `m6a3-managed-file-smoke-attempt-5`，其 `manifest.sha256` 文件 SHA-256 为
+  `139821ac350946463a1413da0f455decb8172ab006f02d468004122407ecfb2b`；watchdog 补充
   证据清单文件 SHA-256 为
-  `65495a2d2835f07bf8ff09628035e622ded1e57905e857462538f6f060b601ae`。M6-A.3.0 的
+  `4ed10c279a5afb982885a64172c3b9805be0b7767e1dae830550c28afead8d60`。M6-A.3.0 的
   `passed_preflight` 结论不变，但 M6-A.3.1 仍未通过。
-- 下一项允许执行的工作：D138–D139 已冻结 attempt 5 新证据路径，并把两个 readiness probe
-  的主机从错误的 loopback 窄修正为冻结 Worker IP `10.213.80.90`。当前允许按新路径完成
-  静态/合成/failure-injection/只读门禁，全部通过后直接执行 attempt 5；不改变产品代码、
-  正式输入、资源范围、超时、成功标准或 M6-B 边界。
+- 下一项允许执行的工作：D138–D140 已冻结 attempt 6 新证据路径和 Worker 状态窄修正。后续
+  CLI/协调器/事件测试及正式 jq/正则/cleanup 表达式已整体排练通过；当前允许重新完成静态、
+  state fixture、failure-injection 和只读门禁，全部通过后直接执行 attempt 6。不改变产品
+  代码、正式输入、资源范围、超时、成功标准或 M6-B 边界。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

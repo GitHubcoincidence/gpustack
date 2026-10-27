@@ -57,8 +57,10 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第三次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-3-watchdog`，清单文件 SHA-256 为 `a51a74bbb9e3a1fec29bb512d0527dd3813f0133f6f4446f8b6e111ba879c324`，不得修改 |
 | 第四次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-4`，已在维护窗口内以 `FAIL/rust_worker_startup_gate_timeout` 封存；`manifest.sha256` 文件 SHA-256 为 `bb259eb9b0162c86f24417f1ae20b28091d6a15d0ac8f0daf4446cc8d7775e5e`，不得修改 |
 | 第四次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-4-watchdog`，清单文件 SHA-256 为 `65495a2d2835f07bf8ff09628035e622ded1e57905e857462538f6f060b601ae`，不得修改 |
-| 第五次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-5`，D138–D139 已冻结并授权；正式门禁通过前必须保持不存在 |
-| 后续重试证据 | attempt 5 之后尚未冻结；符合 D138 的同类执行器窄修正可在新路径、完整恢复和全门禁条件下自主继续，其他变化仍须另获授权 |
+| 第五次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-5`，已在维护窗口内以 `FAIL/rust_worker_startup_gate_timeout` 封存；`manifest.sha256` 文件 SHA-256 为 `139821ac350946463a1413da0f455decb8172ab006f02d468004122407ecfb2b`，不得修改 |
+| 第五次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-5-watchdog`，清单文件 SHA-256 为 `4ed10c279a5afb982885a64172c3b9805be0b7767e1dae830550c28afead8d60`，不得修改 |
+| 第六次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-6`，D138–D140 已冻结并授权；正式门禁通过前必须保持不存在 |
+| 后续重试证据 | attempt 6 之后尚未冻结；符合 D138 的同类执行器窄修正可在新路径、完整恢复和全门禁条件下自主继续，其他变化仍须另获授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -215,6 +217,12 @@ attempt 4 通过全部增强准备门后进入维护窗口，并证明 Rust Work
 `rust_worker_startup_gate_timeout` 失败。cleanup 通过且没有模型、Docker/GPU workload 或推理。
 D139 因此把 attempt 5 的唯一变化限定为两个 readiness probe 使用 `10.213.80.90`；正式运行
 前必须同时证明 Worker IP 路径可达、loopback 不可达，并重跑既有全部门禁。
+
+attempt 5 通过地址门并在 Worker IP 上返回 200，但 Server 在 maintenance 开启时按协议返回
+`state=maintenance`，而执行器错误要求 `ready`，因此再次按启动超时失败；恢复和零残留审计
+通过。D140 将 attempt 6 的唯一行为修正限定为要求 `state=maintenance`、
+`maintenance.enabled=true`、`unreachable=false` 和双 GPU。正式前已整体排练 CLI Managed、
+coordinator、事件格式以及状态链/清理表达式；仍须使用新目录并重跑全部门禁。
 
 ## M6-A.3.0：独立只读预检
 

@@ -526,3 +526,10 @@ attempt 4 随后通过全部准备门和 Python Worker stop 门，Rust Worker �
 恢复 Python Worker并通过全部零残留检查，且没有模型资源、Docker/GPU workload 或推理。
 按 D138–D139，attempt 5 只把这两个 probe 改为 Worker IP，使用新证据目录并重新完成全部
 准备门；当前状态为 `authorized_pending_execution`，M6-B 仍未开始。
+
+attempt 5 证明 Worker IP 探针正常，但 readiness 错把 maintenance 开启时的 Server 状态断言为
+`ready`；权威响应和既有协议均要求 `maintenance`。cleanup 再次完整恢复且没有创建模型资源。
+D140 将 attempt 6 的唯一行为变化限定为断言 `state=maintenance`，并同时检查
+`maintenance.enabled=true`、`unreachable=false` 和双 GPU。为避免再次逐点暴露执行器假设，
+后续 CLI、协调器、事件与正式 jq/cleanup 表达式已整体排练通过；attempt 6 仍须重跑全部
+准备门，当前状态为 `authorized_pending_execution`。

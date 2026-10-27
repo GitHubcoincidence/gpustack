@@ -555,3 +555,20 @@ attempt 4 的增强门禁全部通过，正式运行也通过 source/build、ide
 attempt 5 仍须完成最小差异审计、ShellCheck/`bash -n`、同时覆盖 Worker IP 成功与 loopback 失败的
 合成/现场探针、pre-window failure injection 和完整只读漂移门禁。任一门禁失败不得进入维护
 窗口；正式失败仍须先封存、恢复和审计，再判断是否符合 D138。
+
+attempt 5 证明 Worker IP 上的 API/metrics 均为 200，但 readiness 同时要求
+`.state == "ready"`。Server 的实际安全状态为 `state="maintenance"`、
+`maintenance.enabled=true`、`unreachable=false` 和两张 GPU，与既有 M3-D 协议和 M6-A.3
+runbook 一致；因此仍在 120 次循环后以 `rust_worker_startup_gate_timeout` 失败。cleanup 和
+恢复审计通过，未改变 maintenance、创建模型、Docker/GPU workload 或推理。
+
+## 2026-10-27 M6-A.3.1 第六次真实无 Docker 维护窗口
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D140 | 第六次 smoke 路径、状态窄修正和整体下游排练 | attempt 6 固定使用尚未创建的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-6`；从 attempt 5 封存 executor 派生，仅把 readiness 的 Worker 状态断言从 `ready` 改为 `maintenance`，并同时要求 `maintenance.enabled=true`、`unreachable=false`、双 GPU。attempt/路径/HEAD/脚本 identity 随新尝试更新，其他语义不变。正式运行前一次性排练后续 CLI JSON、状态链 jq、事件正则和 cleanup 选择器 | 固定 v2.2.3 在 maintenance 开启时权威状态就是 `maintenance`；该修正收紧而非放宽安全门。整体排练用于避免继续逐次发现执行器假设，不改变正式证据或成功标准。 |
+
+D140 的下游排练已覆盖 CLI Managed 17 个测试、协调器 8 个测试、STARTING no-op 事件测试，
+以及正式表达式对 ModelInstance STARTING、ModelFile ready、端口、事件链和 cleanup ID 的合成
+输入；共 26 个测试和表达式演练全部通过。attempt 6 仍须重新执行最小差异、ShellCheck、真实
+attempt 5 状态 fixture、pre-window failure injection 和完整漂移门禁。
