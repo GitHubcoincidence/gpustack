@@ -2654,6 +2654,24 @@
   `.worker_name` 窄修正；随后重新执行静态/只读门禁并取得新的维护窗口授权。不得自动重试，
   M6-B 仍未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 3 已冻结并获维护窗口授权
+
+- 决策与路径：用户审阅 attempt 2 STOP 和零副作用审计后回复“没问题”，接受 D133–D135。
+  attempt 3 唯一正式目录固定为尚未创建的
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-3`；
+  attempt 1、attempt 2 及 watchdog artifact 均保持不可变。
+- 唯一方法修正：从 attempt 2 封存 executor 派生，把持久 identity 名称读取从 `.name` 改为
+  `.worker_name`；同时只更新 attempt、证据路径、冻结 HEAD 和脚本 identity。`worker_id`、
+  `worker_uuid`、`baseline_ready`、完整回滚、固定 Server/Worker/模型/Runner/GPU/端口、
+  状态链、超时和成功标准不变。
+- 授权：静态、pre-window failure injection 和完整只读漂移门禁全部通过后，允许执行一次
+  attempt 3，包括停止/恢复精确 Python Worker、切换 Worker ID 5 maintenance、创建/清理
+  唯一 Model/ModelInstance/ModelFile 和启动/停止 `--managed-file-only`。不允许 Docker/vLLM
+  workload、GPU compute、推理或 `RUNNING`。
+- 当前停止位置：attempt 3 为 `authorized_pending_execution`。下一项允许执行的工作是提交并
+  同步本检查点，准备并审计最小差异执行器；准备门禁失败不得创建正式目录，正式运行失败则
+  必须恢复、封存并停止，不能自动重试或进入 M6-B。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

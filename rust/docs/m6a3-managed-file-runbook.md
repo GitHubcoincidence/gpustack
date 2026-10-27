@@ -53,7 +53,8 @@ vLLM，不监听推理端口、不执行推理、不产生 GPU compute process�
 | 第一次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-1`，已在维护窗口前以 `STOP/persisted_worker_id_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `acca6ea071ebae4ed3c52d7bf32b81fb85ed7dca375671c3bcd19f240283999c`，不得修改 |
 | 第二次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-2`，已在维护窗口前以 `STOP/persisted_worker_name_mismatch` 封存；`manifest.sha256` 文件 SHA-256 为 `5777af9731fe639a10840217f02f598d3e0ed03b6b2ff62f5ba006db1cd17b0a`，不得修改 |
 | 第二次 smoke watchdog 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-2-watchdog`，清单文件 SHA-256 为 `220c46ec3d01dddc762d2219e0bc00b379d57091e10cb397d1bbed088f48911b`，不得修改 |
-| 后续重试证据 | attempt 2 之后尚未冻结；任何后续重试均须使用新的未占用目录并另获执行授权 |
+| 第三次真实 smoke 证据 | `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-3`，D133–D135 已冻结并授权；正式门禁通过前必须保持不存在 |
+| 后续重试证据 | attempt 3 之后尚未冻结；任何后续重试均须使用新的未占用目录并另获执行授权 |
 
 Runner image 和 vLLM 参数仍进入 Server Model spec，保证后续 M6-B 可以沿用同类输入；
 M6-A.3 不 inspect、pull 或运行该镜像。模型使用内置 chat template，不启用
@@ -182,6 +183,12 @@ manifest 条目通过，秘密扫描为 0；watchdog 目录 0700、7 个文件�
 条目通过，秘密扫描为 0。事后复核确认服务健康、Worker 仍为 maintenance、目标 Model 和
 ModelFile 均为 0、受管端口和 GPU0 空闲。下一次尝试只能使用新证据目录，并把读取窄修正为
 `.worker_name`；不得修改 attempt 2 或沿用其执行授权。
+
+D133–D135 随后把 attempt 3 固定为新证据目录，并把 executor 差异限制为 `.name` 到
+`.worker_name`、attempt/路径/提交和脚本 identity 更新。用户已授权：静态审计、
+pre-window failure injection 和完整只读漂移门禁全部通过后，可执行一次本文定义的维护
+窗口；允许的写操作和禁止项与 D135 完全一致。前置门禁失败不得创建正式目录，正式运行失败
+不得自动重试。
 
 ## M6-A.3.0：独立只读预检
 

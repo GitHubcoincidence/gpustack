@@ -505,3 +505,15 @@ attempt 2 随后在维护窗口之前以 `STOP/persisted_worker_name_mismatch` f
 测试资源或启动 Rust Worker。正式证据与 watchdog 补充证据均已封存，下一次重试必须冻结
 新的证据目录、只把该读取修正为 `.worker_name`，重新完成静态/只读门禁并取得新的维护窗口
 授权；D132 不自动延伸为后续授权。
+
+## 2026-10-27 M6-A.3.1 第三次真实无 Docker 维护窗口
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D133 | 第三次 smoke 证据路径 | M6-A.3.1 attempt 3 固定使用尚未创建的 `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-3`；attempt 1、attempt 2 及各自 watchdog artifact 保持不可变 | attempt 2 已被有效 pre-window STOP 占用，新目录防止覆盖失败证据或拼接不同执行。 |
+| D134 | Worker name 窄修正 | attempt 3 从已封存的 attempt 2 executor 派生，只把持久 identity 名称读取从 `.name` 修正为权威 `.worker_name`，并更新 attempt、证据路径、源码提交和脚本 identity；`worker_id`、`worker_uuid`、`baseline_ready`、完整回滚、固定输入、状态链和成功标准均不改变 | 权威 identity 文件的 schema 已由受保护文件和 Rust 实现共同确认；最小差异可避免把重试变成方法变更。 |
+| D135 | 第三次维护窗口授权 | 用户在 attempt 2 STOP、零副作用审计和精确授权文本后回复“没问题”，授权准备并在静态/failure-injection/只读漂移门禁全部通过后执行一次 attempt 3：停止并恢复精确 `gpustack-worker`、切换 Worker ID 5 maintenance、创建并清理唯一测试资源，以及启动并停止 `--managed-file-only`；仍禁止 Docker/vLLM workload、GPU compute、推理和 `RUNNING` | 将本次授权绑定到唯一新证据路径、唯一字段修正和 fail-closed 前置门禁，避免把旧授权无界延伸。 |
+
+D133–D135 不授权跳过任何前置门禁，也不改变 900 秒 watchdog、60 秒 `STARTING` 保持、
+固定模型/Runner/GPU/端口或恢复顺序。静态或只读门禁失败时 attempt 3 保持未开始；正式运行
+开始后任一硬门禁失败都必须先执行精确恢复并封存结果，不得自动进行 attempt 4。

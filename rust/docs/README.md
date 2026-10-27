@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D132 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D135 operator
   Context/API Key 准备和 Worker identity 恢复门禁均已 `frozen`；完整 R1 架构继续按门禁
   推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
@@ -53,9 +53,10 @@
   证据清单文件 SHA-256 为
   `220c46ec3d01dddc762d2219e0bc00b379d57091e10cb397d1bbed088f48911b`。M6-A.3.0 的
   `passed_preflight` 结论不变，但 M6-A.3.1 仍未通过。
-- 下一项允许执行的工作：共同审阅 attempt 2 STOP，并冻结 attempt 3 的新证据路径和
-  `worker_name` 字段修正。任何 attempt 3 只能先准备执行器、完成静态审计和只读漂移检查；
-  正式维护窗口仍须取得新的明确授权。不得自动重试，也不得进入 M6-B。
+- 下一项允许执行的工作：D133–D135 已冻结 attempt 3 的新证据路径、`.worker_name` 窄修正
+  和一次真实维护窗口授权。当前允许准备执行器并完成静态、failure injection 和只读漂移
+  门禁；全部通过后执行一次正式 attempt 3。任一门禁失败必须停止，不得自动重试或进入
+  M6-B。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

@@ -498,3 +498,9 @@ attempt 2 的执行器、pre-window failure injection 和只读漂移门禁随�
 正式与 watchdog 证据清单均校验通过，事后零残留和服务恢复审计通过。M6-A.3.1 当前仍为
 `stopped_before_window`；下一步只能共同审阅并冻结 attempt 3 的新路径和 `.worker_name`
 窄修正，再完成静态/只读门禁并重新取得维护窗口授权。不得自动重试或进入 M6-B。
+
+用户随后接受 D133–D135，将 attempt 3 正式目录固定为
+`m6a3-managed-file-smoke-attempt-3`，仅允许把持久名称读取修正为 `.worker_name`，并授权在
+静态、pre-window failure injection 和完整只读漂移门禁全部通过后执行一次真实维护窗口。
+当前状态为 `authorized_pending_execution`；任何准备门禁失败都不得创建正式证据目录，正式
+运行失败则必须恢复并封存，且不能自动进入后续 attempt 或 M6-B。
