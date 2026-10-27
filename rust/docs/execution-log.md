@@ -3104,6 +3104,43 @@
   一次无写漂移门。通过后才能请求 attempt 11 的独立维护授权；不得自动重跑正式 smoke，M6-B
   尚未开始。
 
+### 2026-10-27：M6-A.3.1 attempt 11 正式通过并完成独立恢复审计
+
+- 执行与身份：用户明确授权后，在治理 HEAD
+  `0c1ff02ab4b3d30f4cf1fb71ebdacf9e62c2ed12` 通过最终只读漂移门，再启动冻结的
+  executor/supervisor。最终脚本 SHA-256 分别为
+  `a4dd35aedce9d3682945fae8aaca57d15d4465a85700833b4fec406a9112640f` 和
+  `757c55823ab23f8ce6c1eacf9b9c93614205832e9e63a120de7a9168ea592de0`；总 watchdog
+  仍为 900 秒，没有修改固定 Server、Worker、模型、Runner、GPU、端口或超时边界。
+- 正向状态链：Python Worker按协议停止后，Rust Worker以持久 Worker ID 5 启动并由 operator
+  CLI 解除 maintenance。Model 14/Instance 29 被调度到 GPU0 和端口 40000；同一次权威快照
+  证明 Instance=`starting`，ModelFile 8=`ready`、`download_progress=100`、
+  `size=999604126`、规范本地路径正确且 `cleanup_on_delete=null`，因此 D149-D150 的
+  `state_chain_complete` 复合硬门通过。
+- 隔离与恢复：`starting` 保持 60 秒期间 assigned port 无 listener，Docker ID 集不变，GPU0
+  无 compute process 且显存为 0，没有 runtime、vLLM、推理、`RUNNING` 或 `ERROR`。统一
+  cleanup 删除精确 Model/Instance/ModelFile 元数据、保留宿主机模型文件，恢复 Worker
+  maintenance，停止 Rust Worker并启动原 Python Worker。
+- 正式判定：runner 返回 `exit_code=0`，正式结果为
+  `PASS/managed_file_state_chain_and_cleanup_passed`，其中 `smoke_passed=1`、`cleanup_ok=1`、
+  `baseline_ready=1`、`window_entered=1`。正式目录
+  `m6a3-managed-file-smoke-attempt-11` 为 0700，87 个文件全为 0600，86 个 manifest 条目
+  全部通过、秘密扫描为 0，清单文件 SHA-256 为
+  `737d35976a595cadc3f21fdff8e67e603656e43ef5bd95cb6d5ab046f2e64a3a`。watchdog 目录
+  7 个文件/6 个条目，清单文件 SHA-256 为
+  `768cd133fbf7d026c7d684f36c5dfd3ae165e4c826f05ca96ab9472eebebaa0b`。
+- 独立审计：`m6a3-managed-file-smoke-attempt-11-post-run-audit` 独立重验正式和 watchdog
+  清单、文件权限、秘密扫描、关键状态谓词、源码与脚本 identity，并重新读取实时 Server、
+  Docker、端口、进程和 GPU 状态。结果为 PASS；24 个文件/23 个 manifest 条目，清单文件
+  SHA-256 为 `2dffa63f45943d0b630d5f4e1d41a5fcc8988d5a9b7ddcccdaf7c39aae930613`。
+  审计时全局资源 ID 和 Docker ID 与基线一致，测试资源为 0，Worker 5 保持 maintenance，
+  Server/Python Worker health/metrics 为 200，Rust 进程、`20150/20151` 和受管端口 listener
+  为 0，两张 GPU 均为 0 MiB/0%。全部持久化 Docker inspect 快照均不含 `Config.Env`。
+- 判定与停止位置：M6-A.3.1 状态更新为 `accepted`。该结论只接受 Managed 文件准备状态链和
+  无 runtime 隔离，不证明 Docker/vLLM 启动或推理。M6-B 尚未开始；下一项允许工作是共同
+  讨论并冻结 M6-B 的 runtime 启动范围、维护窗口、成功门和回滚设计，不得直接复用本次授权
+  创建 Docker/GPU workload 或执行推理。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

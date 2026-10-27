@@ -627,3 +627,10 @@ attempt 11 的静态/语义审计、冻结构建、完整只读预检和预窗�
 maintenance、Python Worker、端口与 GPU 未改变。当前状态为
 `attempt_11_post_checkpoint_binding_pending`：提交准备记录后，只允许把最终 executor/supervisor
 绑定到新的治理 HEAD并重跑无写漂移门。通过后才能请求新的维护窗口授权；M6-B 仍未开始。
+
+attempt 11 随后在明确维护授权下通过最终只读漂移门和全部正式门禁：Model 14/Instance 29
+被调度到 Worker ID 5 的 GPU0/端口 40000，ModelFile 8 的 ready、100% 进度、精确大小、规范
+路径和 null/false 保留语义与同一快照的 Instance `starting` 共同满足 D150；60 秒内没有
+inference listener、Docker/GPU workload、推理、`RUNNING` 或 `ERROR`。统一 cleanup 和独立
+事后审计均通过，全部服务与资源恢复基线。M6-A.3.1 状态更新为 `accepted`；下一步只允许讨论
+并冻结 M6-B runtime 启动方案，尚未授权创建 Docker/vLLM/GPU workload 或执行推理。

@@ -28,7 +28,7 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D150 operator
+- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D151 operator
   Context、Worker identity、READY、资源保留字段和单 Worker分布式占位门禁均已 `frozen`；完整 R1 架构继续按
   门禁推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
@@ -101,8 +101,15 @@
   `ec5cb0c271285f79e243bc8b8ac699d149dd86f1e50d7f667bb936925b24b1d7` 和
   `c4d7841b520c4823bf056c56085b0496a2d9d080cb9355d66b489874a182a2f2`；现有服务、资源、
   maintenance、端口与 GPU 未改变。
-- 下一项允许执行的工作：提交准备记录后，将最终 executor/supervisor 绑定到该 HEAD并执行最后
-  一次无写漂移门。通过后才能请求 attempt 11 的独立维护窗口授权；M6-B 尚未开始。
+- attempt 11 已正式通过并由独立审计确认恢复：Model 14/Instance 29/ModelFile 8 完成
+  `starting` + ready 复合状态门和 60 秒无 runtime 隔离，`smoke_passed=1`、`cleanup_ok=1`。
+  正式、Watchdog 和独立审计清单文件 SHA-256 分别为
+  `737d35976a595cadc3f21fdff8e67e603656e43ef5bd95cb6d5ab046f2e64a3a`、
+  `768cd133fbf7d026c7d684f36c5dfd3ae165e4c826f05ca96ab9472eebebaa0b` 和
+  `2dffa63f45943d0b630d5f4e1d41a5fcc8988d5a9b7ddcccdaf7c39aae930613`。测试资源、Docker ID、
+  maintenance、Python Worker、端口和 GPU 全部恢复基线，M6-A.3.1 更新为 `accepted`。
+- 当前停止位置：M6-B 尚未开始。下一项允许执行的工作是共同讨论并冻结 Docker/vLLM runtime
+  启动、GPU 隔离、推理验收与回滚方案；本次授权不能复用于创建 workload 或执行推理。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

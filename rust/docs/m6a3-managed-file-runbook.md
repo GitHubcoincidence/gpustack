@@ -453,3 +453,17 @@ Git 外；Git 只记录证据路径、文件 identity、摘要、结论和相关
 `starting`，且唯一 ModelFile 的 Worker/source/path/state/progress/size/resolved_paths 与固定输入
 一致、`cleanup_on_delete` 为 null 或 false，才能置为通过。超时后仅看到 `starting` 或仅捕获
 ModelFile ID 都必须失败，不能进入 60 秒保持阶段。
+
+## attempt 11 正式结果
+
+2026-10-27，attempt 11 在治理 HEAD
+`0c1ff02ab4b3d30f4cf1fb71ebdacf9e62c2ed12` 和独立维护窗口授权下执行。Model 14、Instance
+29、ModelFile 8 满足本手册的完整状态链与 60 秒隔离门，正式结果为 PASS，统一 cleanup 和
+独立事后审计同样通过。正式、watchdog 和事后审计清单文件 SHA-256 分别为：
+
+- `737d35976a595cadc3f21fdff8e67e603656e43ef5bd95cb6d5ab046f2e64a3a`
+- `768cd133fbf7d026c7d684f36c5dfd3ae165e4c826f05ca96ab9472eebebaa0b`
+- `2dffa63f45943d0b630d5f4e1d41a5fcc8988d5a9b7ddcccdaf7c39aae930613`
+
+M6-A.3.1 因此更新为 `accepted`。该状态不授权 M6-B，也不改变本手册关于失败后不得自动重试、
+秘密不得落盘和维护窗口必须独立授权的规则。

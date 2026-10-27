@@ -740,3 +740,17 @@ maintenance、停止 Python Worker、启动 Rust Worker、写 Server 资源或�
 
 提交本准备记录后，仅允许把最终 executor/supervisor 绑定到新的治理 HEAD并执行最后一次无写
 漂移门；通过后状态为 `ready_for_maintenance_authorization`，真实 attempt 11 仍须单独明确授权。
+
+## 2026-10-27 M6-A.3.1 第十一次结果与阶段边界
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D151 | M6-A.3.1 正式接受与 M6-B 边界 | attempt 11 在冻结治理 HEAD、脚本和输入上通过最终漂移门、完整状态链、60 秒无 runtime 隔离、统一 cleanup 与独立事后审计，因此 M6-A.3.1 更新为 `accepted`。该结论只覆盖 Managed ModelFile 准备到 Instance `starting`；M6-B 的 Docker/vLLM runtime、GPU workload 与推理仍为未开始，必须先共同冻结设计并另行授权风险操作 | 预先冻结的成功标准全部满足，且正式证据、watchdog 和独立审计三条证据链同时证明资源、服务、Docker、端口和 GPU 完整恢复。把 M6-A.3.1 的结论限制在已观测能力，避免用无 runtime smoke 外推尚未验证的启动与推理能力。 |
+
+attempt 11 使用治理 HEAD `0c1ff02ab4b3d30f4cf1fb71ebdacf9e62c2ed12`。Model 14、
+Instance 29 和 ModelFile 8 完成 D149-D150 的复合状态门，端口 40000 在 60 秒保持期间没有
+listener，Docker ID 不变且 GPU0 无 compute/显存占用。正式、watchdog 和独立审计清单文件
+SHA-256 分别为 `737d35976a595cadc3f21fdff8e67e603656e43ef5bd95cb6d5ab046f2e64a3a`、
+`768cd133fbf7d026c7d684f36c5dfd3ae165e4c826f05ca96ab9472eebebaa0b` 和
+`2dffa63f45943d0b630d5f4e1d41a5fcc8988d5a9b7ddcccdaf7c39aae930613`；三处秘密扫描均为 0，
+原 Python Worker、maintenance、资源集合、Docker、端口和 GPU 均恢复到运行前基线。
