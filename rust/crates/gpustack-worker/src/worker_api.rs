@@ -1,24 +1,30 @@
-//! Authenticated, read-only Worker HTTP API for resource-api-only mode.
+//! Authenticated Worker HTTP API for resources, logs, and Managed inference.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::fs;
+use std::future::Future;
 use std::io;
 use std::path::{Component, Path, PathBuf};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 use std::time::UNIX_EPOCH;
 
 use axum::Json;
 use axum::Router;
-use axum::body::{Body, Bytes};
+use axum::body::{Body, Bytes, to_bytes};
 use axum::extract::rejection::QueryRejection;
 use axum::extract::{Path as AxumPath, Query, State};
-use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
-use axum::http::{HeaderMap, Request, StatusCode};
+use axum::http::header::{
+    AUTHORIZATION, CONNECTION, CONTENT_LENGTH, CONTENT_TYPE, HOST, PROXY_AUTHENTICATE,
+    PROXY_AUTHORIZATION, TE, TRAILER, TRANSFER_ENCODING, UPGRADE,
+};
+use axum::http::{HeaderMap, HeaderName, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
-use futures_util::stream;
+use axum::routing::{get, post};
+use futures_util::{StreamExt, stream};
 use gpustack_client::SecretToken;
 use gpustack_client::types::{SERVER_BASELINE_GIT_COMMIT, SERVER_BASELINE_VERSION};
 use serde::{Deserialize, Serialize};
@@ -26,9 +32,14 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::config::WorkerConfig;
+use crate::managed::ManagedRuntimeRegistry;
 use crate::resources::unix_seconds_to_rfc3339;
 
 const MAX_MODEL_CONFIG_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_INFERENCE_BODY_BYTES: usize = 16 * 1024 * 1024;
+const MODEL_INSTANCE_HEADER: &str = "x-gpustack-model-instance";
+const CHAT_COMPLETIONS_PATH: &str = "/v1/chat/completions";
+const COMPLETIONS_PATH: &str = "/v1/completions";
 // Build-script variables are package-scoped, so the Worker crate owns the API identity.
 const BUILD_GIT_COMMIT: &str = env!("GPUSTACK_GIT_COMMIT");
 const BUILD_TARGET: &str = env!("GPUSTACK_BUILD_TARGET");
@@ -50,6 +61,8 @@ pub enum WorkerApiBuildError {
     RelativeModelRoot,
     #[error("failed to canonicalize model root: {0}")]
     ModelRoot(io::Error),
+    #[error("failed to build Managed inference client: {0}")]
+    InferenceClient(reqwest::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -58,11 +71,18 @@ struct AllowedRoot {
     canonical: PathBuf,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct WorkerApiState {
     token: SecretToken,
     roots: Arc<Vec<AllowedRoot>>,
     log_dir: PathBuf,
+    managed: Option<ManagedApiState>,
+}
+
+#[derive(Clone)]
+struct ManagedApiState {
+    registry: Arc<ManagedRuntimeRegistry>,
+    proxy: Arc<dyn ManagedInferenceProxy>,
 }
 
 impl WorkerApiState {
@@ -82,24 +102,48 @@ impl WorkerApiState {
             token,
             roots: Arc::new(roots),
             log_dir: config.log_dir.clone(),
+            managed: None,
         })
+    }
+
+    pub fn new_managed(
+        config: &WorkerConfig,
+        token: SecretToken,
+        registry: Arc<ManagedRuntimeRegistry>,
+    ) -> Result<Self, WorkerApiBuildError> {
+        let mut state = Self::new(config, token)?;
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .build()
+            .map_err(WorkerApiBuildError::InferenceClient)?;
+        state.managed = Some(ManagedApiState {
+            registry,
+            proxy: Arc::new(ReqwestManagedInferenceProxy { client }),
+        });
+        Ok(state)
     }
 }
 
 pub fn router(state: WorkerApiState) -> Router {
+    let supports_managed_inference = state.managed.is_some();
     let state = Arc::new(state);
-    let protected = Router::new()
+    let mut protected = Router::new()
         .route("/token-auth", get(token_auth))
         .route("/files/file-exists", get(file_exists))
         .route("/files/model-config", get(model_config))
         .route("/files/model-weight-size", get(model_weight_size))
         .route("/serveLogOptions/{id}", get(serve_log_options))
         .route("/serveLogs/{id}", get(serve_logs))
-        .route("/v2/config", get(get_config).put(put_config))
-        .route_layer(middleware::from_fn_with_state(
-            state.clone(),
-            require_worker_token,
-        ));
+        .route("/v2/config", get(get_config).put(put_config));
+    if supports_managed_inference {
+        protected = protected
+            .route(CHAT_COMPLETIONS_PATH, post(proxy_chat_completions))
+            .route(COMPLETIONS_PATH, post(proxy_completions));
+    }
+    protected = protected.route_layer(middleware::from_fn_with_state(
+        state.clone(),
+        require_worker_token,
+    ));
     Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
@@ -113,8 +157,172 @@ async fn healthz() -> Json<&'static str> {
     Json("ok")
 }
 
-async fn readyz() -> ApiError {
-    ApiError::service_unavailable()
+async fn readyz(State(state): State<Arc<WorkerApiState>>) -> Response {
+    match &state.managed {
+        Some(managed) if managed.registry.is_ready() => Json("ok").into_response(),
+        Some(_) => ApiError::managed_service_unavailable().into_response(),
+        None => ApiError::service_unavailable().into_response(),
+    }
+}
+
+struct ManagedProxyRequest {
+    target: String,
+    headers: HeaderMap,
+    body: Bytes,
+}
+
+struct ManagedProxyResponse {
+    status: StatusCode,
+    headers: HeaderMap,
+    body: Body,
+}
+
+trait ManagedInferenceProxy: Send + Sync {
+    fn forward<'a>(
+        &'a self,
+        request: ManagedProxyRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<ManagedProxyResponse, ManagedProxyFailure>> + Send + 'a>>;
+}
+
+#[derive(Debug)]
+struct ManagedProxyFailure;
+
+struct ReqwestManagedInferenceProxy {
+    client: reqwest::Client,
+}
+
+impl ManagedInferenceProxy for ReqwestManagedInferenceProxy {
+    fn forward<'a>(
+        &'a self,
+        request: ManagedProxyRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<ManagedProxyResponse, ManagedProxyFailure>> + Send + 'a>>
+    {
+        Box::pin(async move {
+            let response = self
+                .client
+                .post(&request.target)
+                .headers(request.headers)
+                .body(request.body)
+                .send()
+                .await
+                .map_err(|_| ManagedProxyFailure)?;
+            let status = response.status();
+            let headers = response.headers().clone();
+            let body = Body::from_stream(response.bytes_stream().map(|chunk| {
+                chunk.map_err(|_| io::Error::other("Managed upstream response stream failed"))
+            }));
+            Ok(ManagedProxyResponse {
+                status,
+                headers,
+                body,
+            })
+        })
+    }
+}
+
+async fn proxy_chat_completions(
+    State(state): State<Arc<WorkerApiState>>,
+    request: Request<Body>,
+) -> Result<Response, ApiError> {
+    proxy_managed_inference(&state, request, CHAT_COMPLETIONS_PATH).await
+}
+
+async fn proxy_completions(
+    State(state): State<Arc<WorkerApiState>>,
+    request: Request<Body>,
+) -> Result<Response, ApiError> {
+    proxy_managed_inference(&state, request, COMPLETIONS_PATH).await
+}
+
+async fn proxy_managed_inference(
+    state: &WorkerApiState,
+    request: Request<Body>,
+    path: &'static str,
+) -> Result<Response, ApiError> {
+    let managed = state
+        .managed
+        .as_ref()
+        .ok_or_else(ApiError::managed_service_unavailable)?;
+    if !managed.registry.is_ready() {
+        return Err(ApiError::managed_service_unavailable());
+    }
+    let instance_id = parse_model_instance_header(request.headers())?;
+    let route = managed
+        .registry
+        .route(instance_id)
+        .map_err(|_| ApiError::internal())?
+        .ok_or_else(ApiError::not_found)?;
+    let headers = forwarded_headers(request.headers());
+    let body = to_bytes(request.into_body(), MAX_INFERENCE_BODY_BYTES)
+        .await
+        .map_err(|_| ApiError::inference_payload_too_large())?;
+    let upstream = managed
+        .proxy
+        .forward(ManagedProxyRequest {
+            target: format!("http://127.0.0.1:{}{path}", route.port),
+            headers,
+            body,
+        })
+        .await
+        .map_err(|_| ApiError::bad_gateway())?;
+    let mut response = Response::new(upstream.body);
+    *response.status_mut() = upstream.status;
+    *response.headers_mut() = forwarded_headers(&upstream.headers);
+    Ok(response)
+}
+
+fn parse_model_instance_header(headers: &HeaderMap) -> Result<i64, ApiError> {
+    let mut values = headers.get_all(MODEL_INSTANCE_HEADER).iter();
+    let value = values.next().ok_or_else(ApiError::bad_request)?;
+    if values.next().is_some() {
+        return Err(ApiError::bad_request());
+    }
+    let value = value.to_str().map_err(|_| ApiError::bad_request())?;
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(ApiError::bad_request());
+    }
+    value
+        .parse::<i64>()
+        .ok()
+        .filter(|id| *id > 0)
+        .ok_or_else(ApiError::bad_request)
+}
+
+fn forwarded_headers(headers: &HeaderMap) -> HeaderMap {
+    let connection_headers = headers
+        .get_all(CONNECTION)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .map(|name| name.trim().to_ascii_lowercase())
+        .collect::<BTreeSet<_>>();
+    let mut forwarded = HeaderMap::new();
+    for (name, value) in headers {
+        if is_hop_by_hop(name, &connection_headers)
+            || *name == AUTHORIZATION
+            || name.as_str() == "x-api-key"
+            || name.as_str() == MODEL_INSTANCE_HEADER
+        {
+            continue;
+        }
+        forwarded.append(name.clone(), value.clone());
+    }
+    forwarded
+}
+
+fn is_hop_by_hop(name: &HeaderName, connection_headers: &BTreeSet<String>) -> bool {
+    *name == CONNECTION
+        || name.as_str() == "keep-alive"
+        || name.as_str() == "proxy-connection"
+        || *name == PROXY_AUTHENTICATE
+        || *name == PROXY_AUTHORIZATION
+        || *name == TE
+        || *name == TRAILER
+        || *name == TRANSFER_ENCODING
+        || *name == UPGRADE
+        || *name == HOST
+        || *name == CONTENT_LENGTH
+        || connection_headers.contains(name.as_str())
 }
 
 #[derive(Serialize)]
@@ -467,14 +675,16 @@ fn validate_serve_logs_query(query: &ServeLogsQuery) -> Result<(), ApiError> {
 }
 
 fn select_restart(restarts_descending: &[u64], previous: bool) -> Result<u64, ApiError> {
-    if previous && restarts_descending.len() >= 2 {
-        Ok(restarts_descending[1])
-    } else {
-        restarts_descending
-            .first()
+    if previous {
+        return restarts_descending
+            .get(1)
             .copied()
-            .ok_or_else(ApiError::not_found)
+            .ok_or_else(ApiError::not_found);
     }
+    restarts_descending
+        .first()
+        .copied()
+        .ok_or_else(ApiError::not_found)
 }
 
 fn discover_main_restarts(directory: &Path, id: u64) -> Result<Vec<u64>, ApiError> {
@@ -716,6 +926,14 @@ impl ApiError {
         )
     }
 
+    fn inference_payload_too_large() -> Self {
+        Self::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "PayloadTooLarge",
+            "Inference request body is too large",
+        )
+    }
+
     fn method_not_allowed() -> Self {
         Self::new(
             StatusCode::METHOD_NOT_ALLOWED,
@@ -748,6 +966,22 @@ impl ApiError {
         )
     }
 
+    fn managed_service_unavailable() -> Self {
+        Self::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "ServiceUnavailable",
+            "Managed Worker runtime is not ready",
+        )
+    }
+
+    fn bad_gateway() -> Self {
+        Self::new(
+            StatusCode::BAD_GATEWAY,
+            "BadGateway",
+            "Managed inference upstream failed",
+        )
+    }
+
     fn internal() -> Self {
         Self::new(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -767,11 +1001,55 @@ impl IntoResponse for ApiError {
 mod tests {
     use std::io::Write;
     use std::os::unix::fs::symlink;
+    use std::sync::Mutex;
 
     use futures_util::StreamExt;
     use tempfile::TempDir;
 
     use super::*;
+
+    struct FakeInferenceProxy {
+        request: Mutex<Option<ManagedProxyRequest>>,
+        status: StatusCode,
+        headers: HeaderMap,
+        chunks: Vec<Bytes>,
+    }
+
+    impl ManagedInferenceProxy for FakeInferenceProxy {
+        fn forward<'a>(
+            &'a self,
+            request: ManagedProxyRequest,
+        ) -> Pin<
+            Box<dyn Future<Output = Result<ManagedProxyResponse, ManagedProxyFailure>> + Send + 'a>,
+        > {
+            *self.request.lock().expect("proxy request lock") = Some(request);
+            let status = self.status;
+            let headers = self.headers.clone();
+            let chunks = self.chunks.clone();
+            Box::pin(async move {
+                let stream = stream::iter(chunks.into_iter().map(Ok::<_, io::Error>));
+                Ok(ManagedProxyResponse {
+                    status,
+                    headers,
+                    body: Body::from_stream(stream),
+                })
+            })
+        }
+    }
+
+    fn managed_state(proxy: Arc<dyn ManagedInferenceProxy>) -> WorkerApiState {
+        let registry = Arc::new(ManagedRuntimeRegistry::default());
+        registry
+            .publish(301, 40_000, "qwen".to_string())
+            .expect("Managed route");
+        registry.set_ready(true);
+        WorkerApiState {
+            token: SecretToken::new("worker-token").expect("test token"),
+            roots: Arc::new(Vec::new()),
+            log_dir: PathBuf::new(),
+            managed: Some(ManagedApiState { registry, proxy }),
+        }
+    }
 
     #[tokio::test]
     async fn version_uses_worker_crate_build_identity() {
@@ -811,6 +1089,143 @@ mod tests {
             "Bearer contract-worker-token".parse().expect("header"),
         );
         assert!(authenticate(&headers, &token));
+    }
+
+    #[test]
+    fn model_instance_header_is_exactly_one_strict_positive_decimal() {
+        for invalid in ["", "0", "-1", "+1", " 1", "1 ", "1,2", "abc"] {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                MODEL_INSTANCE_HEADER,
+                invalid.parse().expect("test header value"),
+            );
+            assert!(
+                parse_model_instance_header(&headers).is_err(),
+                "{invalid:?}"
+            );
+        }
+        let mut headers = HeaderMap::new();
+        headers.append(MODEL_INSTANCE_HEADER, "301".parse().expect("header"));
+        headers.append(MODEL_INSTANCE_HEADER, "302".parse().expect("header"));
+        assert!(parse_model_instance_header(&headers).is_err());
+
+        let mut headers = HeaderMap::new();
+        headers.insert(MODEL_INSTANCE_HEADER, "301".parse().expect("header"));
+        assert_eq!(
+            parse_model_instance_header(&headers).expect("valid ID"),
+            301
+        );
+    }
+
+    #[tokio::test]
+    async fn readiness_tracks_only_the_managed_runtime_registry() {
+        let proxy = Arc::new(FakeInferenceProxy {
+            request: Mutex::new(None),
+            status: StatusCode::OK,
+            headers: HeaderMap::new(),
+            chunks: Vec::new(),
+        });
+        let state = managed_state(proxy);
+        let registry = Arc::clone(&state.managed.as_ref().expect("Managed API").registry);
+
+        assert_eq!(
+            readyz(State(Arc::new(state.clone()))).await.status(),
+            StatusCode::OK
+        );
+        registry.set_ready(false);
+        assert_eq!(
+            readyz(State(Arc::new(state))).await.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+    }
+
+    #[tokio::test]
+    async fn inference_proxy_uses_loopback_route_and_strips_sensitive_headers() {
+        let mut response_headers = HeaderMap::new();
+        response_headers.insert(CONTENT_TYPE, "text/event-stream".parse().expect("header"));
+        response_headers.insert(TRANSFER_ENCODING, "chunked".parse().expect("header"));
+        response_headers.insert(AUTHORIZATION, "Bearer upstream".parse().expect("header"));
+        let proxy = Arc::new(FakeInferenceProxy {
+            request: Mutex::new(None),
+            status: StatusCode::OK,
+            headers: response_headers,
+            chunks: vec![
+                Bytes::from_static(b"data: one\n\n"),
+                Bytes::from_static(b"data: [DONE]\n\n"),
+            ],
+        });
+        let state = managed_state(proxy.clone());
+        let request = Request::builder()
+            .uri(CHAT_COMPLETIONS_PATH)
+            .header(AUTHORIZATION, "Bearer worker-token")
+            .header("x-api-key", "worker-token")
+            .header(MODEL_INSTANCE_HEADER, "301")
+            .header(CONNECTION, "x-remove")
+            .header("x-remove", "secret-hop")
+            .header("x-safe", "preserved")
+            .body(Body::from(r#"{"model":"qwen"}"#))
+            .expect("request");
+
+        let response = proxy_managed_inference(&state, request, CHAT_COMPLETIONS_PATH)
+            .await
+            .expect("proxy response");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(CONTENT_TYPE).expect("content type"),
+            "text/event-stream"
+        );
+        assert!(!response.headers().contains_key(TRANSFER_ENCODING));
+        assert!(!response.headers().contains_key(AUTHORIZATION));
+        let mut body = response.into_body().into_data_stream();
+        assert_eq!(
+            body.next().await.expect("first chunk").expect("body"),
+            Bytes::from_static(b"data: one\n\n")
+        );
+        assert_eq!(
+            body.next().await.expect("second chunk").expect("body"),
+            Bytes::from_static(b"data: [DONE]\n\n")
+        );
+
+        let forwarded = proxy
+            .request
+            .lock()
+            .expect("proxy request lock")
+            .take()
+            .expect("forwarded request");
+        assert_eq!(
+            forwarded.target,
+            "http://127.0.0.1:40000/v1/chat/completions"
+        );
+        assert!(!forwarded.headers.contains_key(AUTHORIZATION));
+        assert!(!forwarded.headers.contains_key("x-api-key"));
+        assert!(!forwarded.headers.contains_key(MODEL_INSTANCE_HEADER));
+        assert!(!forwarded.headers.contains_key(CONNECTION));
+        assert!(!forwarded.headers.contains_key("x-remove"));
+        assert_eq!(forwarded.headers["x-safe"], "preserved");
+    }
+
+    #[tokio::test]
+    async fn inference_proxy_preserves_buffered_error_status_and_body() {
+        let proxy = Arc::new(FakeInferenceProxy {
+            request: Mutex::new(None),
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            headers: HeaderMap::new(),
+            chunks: vec![Bytes::from_static(br#"{"error":"invalid prompt"}"#)],
+        });
+        let state = managed_state(proxy);
+        let request = Request::builder()
+            .header(MODEL_INSTANCE_HEADER, "301")
+            .body(Body::from("{}"))
+            .expect("request");
+
+        let response = proxy_managed_inference(&state, request, COMPLETIONS_PATH)
+            .await
+            .expect("proxy response");
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            to_bytes(response.into_body(), 1024).await.expect("body"),
+            Bytes::from_static(br#"{"error":"invalid prompt"}"#)
+        );
     }
 
     #[test]
@@ -968,7 +1383,12 @@ mod tests {
         );
         assert_eq!(select_restart(&[2, 1], false).expect("current"), 2);
         assert_eq!(select_restart(&[2, 1], true).expect("previous"), 1);
-        assert_eq!(select_restart(&[2], true).expect("current fallback"), 2);
+        assert_eq!(
+            select_restart(&[2], true)
+                .expect_err("previous restart is unavailable")
+                .status,
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]

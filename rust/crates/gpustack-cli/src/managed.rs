@@ -6,20 +6,25 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::{Args, Subcommand, ValueEnum};
-use gpustack_client::http::Transport;
+use futures_util::StreamExt;
+use gpustack_client::http::{ByteStream, Transport};
 use gpustack_client::types::{
     GpuSelector, ModelCreate, ModelFilePublic, ModelInstancePublic, ModelPublic, ModelSource,
     WorkerMaintenance, WorkerPublic, WorkerUpdate,
 };
 use gpustack_client::{
-    ClientError, Context, ContextStore, ContextStoreError, SecretToken, ServerClient,
+    ClientError, Context, ContextStore, ContextStoreError, InferenceResponse, SecretToken,
+    ServerClient,
 };
 use serde::Serialize;
+use serde_json::{Value, json};
 use thiserror::Error;
 use tokio::time::Instant;
 use url::Url;
 
 use crate::{EXIT_SUCCESS, Execution, OutputFormat};
+
+pub(crate) type ServerStreamSink<'a> = &'a mut dyn FnMut(&[u8]);
 
 #[derive(Debug, Args)]
 pub struct ContextArgs {
@@ -85,10 +90,59 @@ pub enum ModelSubcommand {
     Get(ModelSelectorArgs),
     /// Show a model and all of its ModelInstance states.
     Status(ModelSelectorArgs),
+    /// Stream logs for the model's single R1 ModelInstance through Server.
+    Logs(ModelLogsArgs),
     /// Inspect or remove Server ModelFile metadata.
     File(ModelFileArgs),
     /// Delete a model by numeric ID or exact name.
     Delete(ModelDeleteArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ModelLogsArgs {
+    /// Numeric Model ID or exact Model name.
+    pub model: String,
+    /// Number of trailing lines, or -1 for all current-session logs.
+    #[arg(long, default_value_t = -1)]
+    pub tail: i64,
+    /// Continue streaming appended log bytes.
+    #[arg(long)]
+    pub follow: bool,
+    /// Request the previous restart without falling back to the current session.
+    #[arg(long)]
+    pub previous: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct InferenceArgs {
+    #[command(subcommand)]
+    pub command: InferenceSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum InferenceSubcommand {
+    /// List models with ready Server inference routes.
+    Models,
+    /// Send an OpenAI-compatible chat completion through Server.
+    Chat(InferenceRequestArgs),
+    /// Send an OpenAI-compatible text completion through Server.
+    Completion(InferenceRequestArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct InferenceRequestArgs {
+    /// Server-routed model name.
+    #[arg(long)]
+    pub model: String,
+    /// User prompt text.
+    #[arg(long)]
+    pub prompt: String,
+    /// Maximum number of output tokens.
+    #[arg(long)]
+    pub max_tokens: Option<u32>,
+    /// Emit Server-Sent Events incrementally.
+    #[arg(long)]
+    pub stream: bool,
 }
 
 #[derive(Debug, Args)]
@@ -283,6 +337,7 @@ pub fn run_context_command(
     }
 }
 
+#[cfg(test)]
 pub async fn run_model_command<T: Transport>(
     output_format: OutputFormat,
     timeout: Duration,
@@ -290,6 +345,27 @@ pub async fn run_model_command<T: Transport>(
     token: &SecretToken,
     arguments: ModelArgs,
     transition_sink: Option<&mut dyn FnMut(&ModelTransition)>,
+) -> Result<Execution, ManagedError> {
+    run_model_command_with_stream(
+        output_format,
+        timeout,
+        client,
+        token,
+        arguments,
+        transition_sink,
+        None,
+    )
+    .await
+}
+
+pub async fn run_model_command_with_stream<T: Transport>(
+    output_format: OutputFormat,
+    timeout: Duration,
+    client: &ServerClient<T>,
+    token: &SecretToken,
+    arguments: ModelArgs,
+    transition_sink: Option<&mut dyn FnMut(&ModelTransition)>,
+    stream_sink: Option<ServerStreamSink<'_>>,
 ) -> Result<Execution, ManagedError> {
     match arguments.command {
         ModelSubcommand::Deploy(arguments) => {
@@ -328,6 +404,34 @@ pub async fn run_model_command<T: Transport>(
                 .await?
                 .items;
             render_model_status(output_format, &model, &instances)
+        }
+        ModelSubcommand::Logs(arguments) => {
+            if arguments.tail < -1 {
+                return Err(ManagedError::InvalidArgument(
+                    "model logs --tail must be -1 or a non-negative integer".to_owned(),
+                ));
+            }
+            let model = resolve_model(client, token, &arguments.model).await?;
+            let instances = client
+                .list_model_instances_for_model(token, model.id)
+                .await?
+                .items;
+            let [instance] = instances.as_slice() else {
+                return Err(ManagedError::ModelLogInstanceCount {
+                    model: model.name,
+                    count: instances.len(),
+                });
+            };
+            let stream = client
+                .model_instance_logs(
+                    token,
+                    instance.id,
+                    arguments.tail,
+                    arguments.follow,
+                    arguments.previous,
+                )
+                .await?;
+            render_stream(stream, stream_sink).await
         }
         ModelSubcommand::File(arguments) => match arguments.command {
             ModelFileSubcommand::List(arguments) => {
@@ -371,6 +475,111 @@ pub async fn run_model_command<T: Transport>(
             render_deleted_model(output_format, &model)
         }
     }
+}
+
+pub async fn run_inference_command<T: Transport>(
+    output_format: OutputFormat,
+    client: &ServerClient<T>,
+    token: &SecretToken,
+    arguments: InferenceArgs,
+    stream_sink: Option<ServerStreamSink<'_>>,
+) -> Result<Execution, ManagedError> {
+    match arguments.command {
+        InferenceSubcommand::Models => {
+            let models = client.list_inference_models(token).await?;
+            render_openai_json(output_format, &models)
+        }
+        InferenceSubcommand::Chat(arguments) => {
+            let (body, streaming) = inference_body(arguments, true)?;
+            render_inference_response(
+                output_format,
+                client.chat_completions(token, &body, streaming).await?,
+                stream_sink,
+            )
+            .await
+        }
+        InferenceSubcommand::Completion(arguments) => {
+            let (body, streaming) = inference_body(arguments, false)?;
+            render_inference_response(
+                output_format,
+                client.completions(token, &body, streaming).await?,
+                stream_sink,
+            )
+            .await
+        }
+    }
+}
+
+fn inference_body(
+    arguments: InferenceRequestArgs,
+    chat: bool,
+) -> Result<(Value, bool), ManagedError> {
+    if arguments.model.trim().is_empty() || arguments.prompt.is_empty() {
+        return Err(ManagedError::InvalidArgument(
+            "inference model and prompt must be non-empty".to_owned(),
+        ));
+    }
+    if arguments.max_tokens == Some(0) {
+        return Err(ManagedError::InvalidArgument(
+            "inference --max-tokens must be positive".to_owned(),
+        ));
+    }
+    let mut body = if chat {
+        json!({
+            "model": arguments.model,
+            "messages": [{"role": "user", "content": arguments.prompt}],
+            "stream": arguments.stream,
+        })
+    } else {
+        json!({
+            "model": arguments.model,
+            "prompt": arguments.prompt,
+            "stream": arguments.stream,
+        })
+    };
+    if let Some(max_tokens) = arguments.max_tokens {
+        body["max_tokens"] = json!(max_tokens);
+    }
+    Ok((body, arguments.stream))
+}
+
+async fn render_inference_response(
+    output_format: OutputFormat,
+    response: InferenceResponse,
+    stream_sink: Option<ServerStreamSink<'_>>,
+) -> Result<Execution, ManagedError> {
+    match response {
+        InferenceResponse::Buffered(value) => render_openai_json(output_format, &value),
+        InferenceResponse::Streaming(stream) => render_stream(stream, stream_sink).await,
+    }
+}
+
+async fn render_stream(
+    mut stream: ByteStream,
+    mut stream_sink: Option<ServerStreamSink<'_>>,
+) -> Result<Execution, ManagedError> {
+    let mut buffered = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(ClientError::Transport)?;
+        if let Some(sink) = stream_sink.as_mut() {
+            sink(&chunk);
+        } else {
+            buffered.extend_from_slice(&chunk);
+        }
+    }
+    success(String::from_utf8_lossy(&buffered).into_owned())
+}
+
+fn render_openai_json(
+    output_format: OutputFormat,
+    value: &Value,
+) -> Result<Execution, ManagedError> {
+    let mut output = match output_format {
+        OutputFormat::Json => serde_json::to_string(value)?,
+        OutputFormat::Table => serde_json::to_string_pretty(value)?,
+    };
+    output.push('\n');
+    success(output)
 }
 
 pub async fn run_worker_get_command<T: Transport>(
@@ -539,9 +748,9 @@ fn build_model_create(arguments: ModelDeployArgs) -> Result<ModelCreate, Managed
         },
         backend_parameters,
         distributed_inference_across_workers: false,
-        // File preparation does not create an inference route before a
-        // serving endpoint exists.
-        enable_model_route: false,
+        // Server exposes the route only after a healthy instance reaches
+        // RUNNING, so enabling it here does not bypass Worker readiness.
+        enable_model_route: true,
     })
 }
 
@@ -1254,6 +1463,8 @@ pub enum ManagedError {
     WorkerClusterUnavailable(String),
     #[error("Model entered error state while waiting: {states}")]
     ModelFailed { states: String },
+    #[error("Model '{model}' has {count} ModelInstances; R1 logs require exactly one")]
+    ModelLogInstanceCount { model: String, count: usize },
     #[error("timed out waiting for Model to run; last states: {states}")]
     WaitTimeout { states: String },
     #[error("refusing ModelFile deletion: {0}")]
@@ -1272,6 +1483,7 @@ impl ManagedError {
                 | Self::Ambiguous(_, _)
                 | Self::WorkerClusterUnavailable(_)
                 | Self::ModelFailed { .. }
+                | Self::ModelLogInstanceCount { .. }
                 | Self::WaitTimeout { .. }
                 | Self::UnsafeModelFile(_)
         )
@@ -1284,6 +1496,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use clap::Parser;
+    use futures_util::stream;
     use gpustack_client::http::{
         HttpRequest, HttpResponse, Method, StreamResponse, TransportError,
     };
@@ -1311,6 +1524,7 @@ mod tests {
     struct MockState {
         requests: Vec<HttpRequest>,
         responses: VecDeque<Result<HttpResponse, TransportError>>,
+        streams: VecDeque<Result<StreamResponse, TransportError>>,
     }
 
     impl MockTransport {
@@ -1329,6 +1543,23 @@ mod tests {
         fn requests(&self) -> Vec<HttpRequest> {
             self.state.lock().expect("mock lock").requests.clone()
         }
+
+        fn push_stream(&self, content_type: &str, chunks: Vec<&'static [u8]>) {
+            let chunks = chunks
+                .into_iter()
+                .map(|chunk| Ok(chunk.to_vec()))
+                .collect::<Vec<_>>();
+            self.state
+                .lock()
+                .expect("mock lock")
+                .streams
+                .push_back(Ok(StreamResponse {
+                    status: 200,
+                    content_type: Some(content_type.to_owned()),
+                    chunks: Box::pin(stream::iter(chunks)),
+                    error_body: None,
+                }));
+        }
     }
 
     impl Transport for MockTransport {
@@ -1343,9 +1574,14 @@ mod tests {
 
         async fn open_stream(
             &self,
-            _request: HttpRequest,
+            request: HttpRequest,
         ) -> Result<StreamResponse, TransportError> {
-            Err(TransportError::Request("unexpected stream".to_owned()))
+            let mut state = self.state.lock().expect("mock lock");
+            state.requests.push(request);
+            state
+                .streams
+                .pop_front()
+                .unwrap_or_else(|| Err(TransportError::Request("missing stream".to_owned())))
         }
     }
 
@@ -1406,6 +1642,15 @@ mod tests {
             vec![
                 "gpustack-rs",
                 "model",
+                "logs",
+                "demo",
+                "--tail",
+                "20",
+                "--follow",
+            ],
+            vec![
+                "gpustack-rs",
+                "model",
                 "file",
                 "list",
                 "--worker",
@@ -1414,6 +1659,26 @@ mod tests {
             vec!["gpustack-rs", "model", "file", "get", "401"],
             vec!["gpustack-rs", "model", "file", "delete", "401", "--yes"],
             vec!["gpustack-rs", "model", "delete", "demo", "--yes"],
+            vec!["gpustack-rs", "inference", "models"],
+            vec![
+                "gpustack-rs",
+                "inference",
+                "chat",
+                "--model",
+                "demo",
+                "--prompt",
+                "hello",
+                "--stream",
+            ],
+            vec![
+                "gpustack-rs",
+                "inference",
+                "completion",
+                "--model",
+                "demo",
+                "--prompt",
+                "hello",
+            ],
             vec!["gpustack-rs", "worker", "get", "rust-worker"],
             vec![
                 "gpustack-rs",
@@ -1433,6 +1698,147 @@ mod tests {
         ] {
             Cli::try_parse_from(command).expect("parse managed command");
         }
+    }
+
+    #[tokio::test]
+    async fn model_logs_resolves_one_instance_and_streams_only_through_server() {
+        let transport = MockTransport::default();
+        transport.push_json(200, item_from_page(MODEL_PAGE));
+        transport.push_json(200, INSTANCE_PAGE);
+        transport.push_stream("application/octet-stream", vec![b"first\n", b"second\n"]);
+        let client = ServerClient::new(
+            Url::parse("http://127.0.0.1/base/").expect("URL"),
+            transport.clone(),
+        )
+        .expect("client");
+        let token = SecretToken::new("operator-secret").expect("token");
+        let mut streamed = Vec::new();
+        let mut sink = |chunk: &[u8]| streamed.extend_from_slice(chunk);
+
+        let execution = run_model_command_with_stream(
+            OutputFormat::Table,
+            Duration::from_secs(1),
+            &client,
+            &token,
+            ModelArgs {
+                command: ModelSubcommand::Logs(ModelLogsArgs {
+                    model: "201".to_string(),
+                    tail: 20,
+                    follow: true,
+                    previous: false,
+                }),
+            },
+            None,
+            Some(&mut sink),
+        )
+        .await
+        .expect("model logs");
+
+        assert!(execution.output.is_empty());
+        assert_eq!(streamed, b"first\nsecond\n");
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 3);
+        assert_eq!(requests[0].url.path(), "/base/v2/models/201");
+        assert_eq!(
+            requests[1].url.as_str(),
+            "http://127.0.0.1/base/v2/model-instances?page=-1&model_id=201"
+        );
+        assert_eq!(
+            requests[2].url.as_str(),
+            "http://127.0.0.1/base/v2/model-instances/301/logs?tail=20&follow=true&previous=false"
+        );
+        assert_eq!(requests[2].method, Method::Get);
+        assert!(requests[2].timeout.is_none());
+    }
+
+    #[tokio::test]
+    async fn inference_commands_use_server_openai_paths_and_preserve_stream_chunks() {
+        let transport = MockTransport::default();
+        transport.push_json(200, br#"{"object":"list","data":[]}"#);
+        transport.push_json(200, br#"{"id":"chat-1","choices":[]}"#);
+        transport.push_stream(
+            "text/event-stream; charset=utf-8",
+            vec![b"data: one\n\n", b"data: [DONE]\n\n"],
+        );
+        let client = ServerClient::new(
+            Url::parse("http://127.0.0.1/base/").expect("URL"),
+            transport.clone(),
+        )
+        .expect("client");
+        let token = SecretToken::new("operator-secret").expect("token");
+
+        let models = run_inference_command(
+            OutputFormat::Json,
+            &client,
+            &token,
+            InferenceArgs {
+                command: InferenceSubcommand::Models,
+            },
+            None,
+        )
+        .await
+        .expect("inference models");
+        assert_eq!(models.output, "{\"data\":[],\"object\":\"list\"}\n");
+
+        let buffered = run_inference_command(
+            OutputFormat::Json,
+            &client,
+            &token,
+            InferenceArgs {
+                command: InferenceSubcommand::Chat(InferenceRequestArgs {
+                    model: "contract-qwen".to_string(),
+                    prompt: "hello".to_string(),
+                    max_tokens: Some(8),
+                    stream: false,
+                }),
+            },
+            None,
+        )
+        .await
+        .expect("buffered inference");
+        assert_eq!(buffered.output, "{\"choices\":[],\"id\":\"chat-1\"}\n");
+
+        let mut streamed = Vec::new();
+        let mut sink = |chunk: &[u8]| streamed.extend_from_slice(chunk);
+        run_inference_command(
+            OutputFormat::Table,
+            &client,
+            &token,
+            InferenceArgs {
+                command: InferenceSubcommand::Completion(InferenceRequestArgs {
+                    model: "contract-qwen".to_string(),
+                    prompt: "Once".to_string(),
+                    max_tokens: None,
+                    stream: true,
+                }),
+            },
+            Some(&mut sink),
+        )
+        .await
+        .expect("streaming inference");
+        assert_eq!(streamed, b"data: one\n\ndata: [DONE]\n\n");
+
+        let requests = transport.requests();
+        assert_eq!(requests[0].url.path(), "/base/v1/models");
+        assert_eq!(requests[1].url.path(), "/base/v1/chat/completions");
+        assert_eq!(requests[2].url.path(), "/base/v1/completions");
+        assert_eq!(requests[1].method, Method::Post);
+        let chat: Value =
+            serde_json::from_slice(requests[1].body.as_deref().expect("chat request body"))
+                .expect("chat request JSON");
+        assert_eq!(chat["messages"][0]["role"], "user");
+        assert_eq!(chat["max_tokens"], 8);
+        assert_eq!(chat["stream"], false);
+        let completion: Value = serde_json::from_slice(
+            requests[2]
+                .body
+                .as_deref()
+                .expect("completion request body"),
+        )
+        .expect("completion request JSON");
+        assert_eq!(completion["prompt"], "Once");
+        assert_eq!(completion["stream"], true);
+        assert!(!format!("{requests:?}").contains("operator-secret"));
     }
 
     #[test]
@@ -1582,7 +1988,7 @@ mod tests {
         assert_eq!(body["source"], "local_path");
         assert_eq!(body["worker_selector"]["worker-name"], "rust-worker");
         assert_eq!(body["gpu_selector"]["gpu_ids"][0], "rust-worker:cuda:0");
-        assert_eq!(body["enable_model_route"], false);
+        assert_eq!(body["enable_model_route"], true);
         assert_eq!(
             body["backend_parameters"],
             json!([

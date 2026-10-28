@@ -15,7 +15,7 @@ pub mod types;
 pub mod watch;
 
 pub use auth::{SecretToken, SecretTokenError};
-pub use client::ServerClient;
+pub use client::{InferenceResponse, ServerClient};
 pub use context::{ContextSnapshot, ContextStore, ContextStoreError, load_context_token};
 pub use error::ClientError;
 

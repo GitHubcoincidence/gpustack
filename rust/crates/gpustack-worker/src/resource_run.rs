@@ -6,6 +6,7 @@ use std::future::IntoFuture;
 use std::io;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use gpustack_client::http::{ReqwestTransport, TransportError};
@@ -27,8 +28,8 @@ use crate::identity::{
 };
 use crate::managed::{
     LocalModelResolver, ManagedCoordinator, ManagedOutcome, ManagedPortAllocator, ManagedResult,
-    ManagedRuntimeError, ManagedRuntimeOutcome, ManagedRuntimeResult, ManagedTarget, ResolveError,
-    run_production_managed_runtime,
+    ManagedRuntimeError, ManagedRuntimeOutcome, ManagedRuntimeRegistry, ManagedRuntimeResult,
+    ManagedTarget, ResolveError, run_production_managed_runtime,
 };
 use crate::metrics::{MetricIdentity, MetricsState, router as metrics_router};
 use crate::resources::{
@@ -910,7 +911,16 @@ where
         worker_name: identity.name.clone(),
     });
 
-    let api_state = WorkerApiState::new(config, identity.token.clone())?;
+    let runtime_registry = Arc::new(ManagedRuntimeRegistry::default());
+    let api_state = if mode.executes_managed_runtime() {
+        WorkerApiState::new_managed(
+            config,
+            identity.token.clone(),
+            Arc::clone(&runtime_registry),
+        )?
+    } else {
+        WorkerApiState::new(config, identity.token.clone())?
+    };
     let (resources_tx, resources_rx) = watch::channel(initial_resources.clone());
     let (status_tx, status_rx) =
         watch::channel(profile.status_report(identity.worker_uuid.clone(), &initial_resources));
@@ -974,6 +984,7 @@ where
     let runtime_worker_uuid = identity.worker_uuid.clone();
     let runtime_worker_ip = profile.worker_ip;
     let runtime_worker_id = identity.id;
+    let runtime_registry = Arc::clone(&runtime_registry);
     let runtime_future = async move {
         if let Some(client) = runtime_client {
             run_production_managed_runtime(
@@ -985,6 +996,7 @@ where
                 runtime_config,
                 desired_runtime,
                 runtime_shutdown,
+                runtime_registry,
                 |result| {
                     let _ = runtime_tx.send(result);
                 },

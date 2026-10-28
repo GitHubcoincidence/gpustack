@@ -28,9 +28,10 @@ use thiserror::Error;
 mod managed;
 
 use managed::{
-    ContextArgs, ContextSubcommand, ManagedError, ModelArgs, ModelFileArgs, ModelFileSubcommand,
-    ModelSubcommand, WorkerMaintenanceArgs, WorkerMaintenanceSubcommand, WorkerSelectorArgs,
-    run_context_command, run_model_command, run_worker_get_command, run_worker_maintenance_command,
+    ContextArgs, ContextSubcommand, InferenceArgs, ManagedError, ModelArgs, ModelFileArgs,
+    ModelFileSubcommand, ModelSubcommand, ServerStreamSink, WorkerMaintenanceArgs,
+    WorkerMaintenanceSubcommand, WorkerSelectorArgs, run_context_command, run_inference_command,
+    run_model_command_with_stream, run_worker_get_command, run_worker_maintenance_command,
 };
 
 pub const EXIT_SUCCESS: u8 = 0;
@@ -70,6 +71,8 @@ pub enum Command {
     Context(ContextArgs),
     /// Manage Server-owned model deployments.
     Model(ModelArgs),
+    /// Invoke OpenAI-compatible inference through the active Server context.
+    Inference(InferenceArgs),
     /// Print the Rust CLI build identity.
     Version,
     /// Run, inspect, or maintain a Worker.
@@ -414,7 +417,7 @@ impl CliError {
 
 /// Executes an already parsed command without directly accessing process streams.
 pub async fn execute(cli: Cli) -> Result<Execution, CliError> {
-    execute_inner(cli, None).await
+    execute_inner(cli, None, None).await
 }
 
 /// Executes a command and emits Docker log frames as they arrive.
@@ -422,12 +425,22 @@ pub async fn execute_with_lab_log_sink(
     cli: Cli,
     sink: &mut dyn FnMut(&LabLogLine),
 ) -> Result<Execution, CliError> {
-    execute_inner(cli, Some(sink)).await
+    execute_inner(cli, Some(sink), None).await
+}
+
+/// Executes a command while emitting local Lab logs and Server byte streams.
+pub async fn execute_with_output_sinks(
+    cli: Cli,
+    lab_log_sink: &mut dyn FnMut(&LabLogLine),
+    server_stream_sink: &mut dyn FnMut(&[u8]),
+) -> Result<Execution, CliError> {
+    execute_inner(cli, Some(lab_log_sink), Some(server_stream_sink)).await
 }
 
 async fn execute_inner(
     cli: Cli,
     lab_log_sink: Option<&mut dyn FnMut(&LabLogLine)>,
+    server_stream_sink: Option<ServerStreamSink<'_>>,
 ) -> Result<Execution, CliError> {
     let quiet = cli.quiet;
     let output_format = cli.output;
@@ -456,13 +469,31 @@ async fn execute_inner(
                     eprintln!("{}", transition.event_line());
                 }
             };
-            run_model_command(
+            run_model_command_with_stream(
                 output_format,
                 timeout,
                 &client,
                 &token,
                 arguments,
                 Some(&mut transition_sink),
+                server_stream_sink,
+            )
+            .await?
+        }
+        Command::Inference(arguments) => {
+            if cli.config.is_some() {
+                return Err(CliError::InvalidArgument(
+                    "--config is a Worker runtime option and does not apply to inference commands"
+                        .to_owned(),
+                ));
+            }
+            let (client, token) = operator_client(context_name.as_deref(), timeout)?;
+            run_inference_command(
+                output_format,
+                &client,
+                &token,
+                arguments,
+                server_stream_sink,
             )
             .await?
         }
@@ -494,7 +525,7 @@ async fn execute_inner(
                 command => {
                     if context_name.is_some() {
                         return Err(CliError::InvalidArgument(
-                            "--context applies only to model, Worker get, and Worker maintenance commands"
+                            "--context applies only to model, inference, Worker get, and Worker maintenance commands"
                                 .to_owned(),
                         ));
                     }
@@ -647,6 +678,7 @@ impl Cli {
                 ),
                 &mut arguments.yes,
             ),
+            Command::Inference(_) => return Ok(()),
             Command::Model(ModelArgs {
                 command:
                     ModelSubcommand::File(ModelFileArgs {

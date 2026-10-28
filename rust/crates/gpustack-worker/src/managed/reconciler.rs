@@ -33,8 +33,8 @@ use crate::workload::{LABEL_MODEL_INSTANCE_ID, WorkloadSpecV2};
 
 use super::{
     FsManagedRuntimeStore, LocalModelResolver, MANAGED_MANIFEST_SCHEMA_VERSION, ManagedGpu,
-    ManagedRuntimeManifest, ManagedRuntimePlanError, ManagedRuntimeStore, ManagedStoreError,
-    ManagedWorkloadPlanner, ResolveError,
+    ManagedRegistryError, ManagedRuntimeManifest, ManagedRuntimePlanError, ManagedRuntimeRegistry,
+    ManagedRuntimeStore, ManagedStoreError, ManagedWorkloadPlanner, ResolveError,
 };
 
 const PUBLIC_MESSAGE_LIMIT: usize = 512;
@@ -51,6 +51,7 @@ pub async fn run_production_managed_runtime<F>(
     config: WorkerConfig,
     desired: watch::Receiver<DesiredState>,
     shutdown: watch::Receiver<bool>,
+    registry: Arc<ManagedRuntimeRegistry>,
     observe: F,
 ) -> Result<(), ManagedRuntimeError>
 where
@@ -61,6 +62,7 @@ where
         &config.docker_socket,
         Duration::from_secs(30),
     )?);
+    runtime.daemon_info().await?;
     let health = Arc::new(
         ReqwestLabHttpClient::new(Duration::from_secs(10))
             .map_err(|error| ManagedRuntimeError::Environment(error.to_string()))?,
@@ -79,6 +81,7 @@ where
         NvmlManagedGpuProbe,
         store,
         SystemManagedClock,
+        registry,
     );
     coordinator.run(desired, shutdown, observe).await;
     Ok(())
@@ -256,6 +259,7 @@ pub struct ManagedRuntimeCoordinator<A, G, S, C> {
     gpus: Arc<G>,
     store: Arc<S>,
     clock: Arc<C>,
+    registry: Arc<ManagedRuntimeRegistry>,
     log_tasks: Mutex<BTreeMap<i64, tokio::task::JoinHandle<()>>>,
 }
 
@@ -280,6 +284,7 @@ where
         gpus: G,
         store: S,
         clock: C,
+        registry: Arc<ManagedRuntimeRegistry>,
     ) -> Self {
         Self {
             api: Arc::new(api),
@@ -294,6 +299,7 @@ where
             gpus: Arc::new(gpus),
             store: Arc::new(store),
             clock: Arc::new(clock),
+            registry,
             log_tasks: Mutex::new(BTreeMap::new()),
         }
     }
@@ -345,20 +351,29 @@ where
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             if *shutdown.borrow() {
+                self.registry.set_ready(false);
                 return;
             }
-            for result in self.reconcile_snapshot(&desired.borrow().clone()).await {
+            let results = self.reconcile_snapshot(&desired.borrow().clone()).await;
+            self.registry.set_ready(
+                !results
+                    .iter()
+                    .any(|result| matches!(result.outcome, ManagedRuntimeOutcome::Failed { .. })),
+            );
+            for result in results {
                 observe(result);
             }
             tokio::select! {
                 _ = interval.tick() => {}
                 changed = desired.changed() => {
                     if changed.is_err() {
+                        self.registry.set_ready(false);
                         return;
                     }
                 }
                 changed = shutdown.changed() => {
                     if changed.is_err() || *shutdown.borrow() {
+                        self.registry.set_ready(false);
                         return;
                     }
                 }
@@ -367,6 +382,9 @@ where
     }
 
     async fn reconcile_starting(&self, instance_id: i64) -> ManagedRuntimeOutcome {
+        if let Err(error) = self.registry.remove(instance_id) {
+            return failed(error);
+        }
         match self.reconcile_starting_inner(instance_id).await {
             Ok(outcome) => outcome,
             Err(ManagedRuntimeError::Api(error)) => failed(error),
@@ -552,23 +570,36 @@ where
         container_id: &str,
     ) -> Result<ManagedRuntimeOutcome, ManagedRuntimeError> {
         let refreshed = self.refresh_same_plan(previous, false).await?;
+        self.registry.publish(
+            refreshed.instance.id,
+            refreshed.spec.service_port,
+            refreshed.spec.served_model_name.clone(),
+        )?;
         let mut update = ModelInstanceUpdate::from(&refreshed.instance);
         update.state = ModelInstanceState("running".to_string());
         update.state_message = None;
-        self.api
+        if let Err(error) = self
+            .api
             .update_model_instance(
                 &self.worker_token,
                 self.worker_id,
                 refreshed.instance.id,
                 &update,
             )
-            .await?;
+            .await
+        {
+            self.registry.remove(refreshed.instance.id)?;
+            return Err(error.into());
+        }
         Ok(ManagedRuntimeOutcome::Running {
             container_id: container_id.to_string(),
         })
     }
 
     async fn report_error(&self, instance_id: i64, message: &str) -> ManagedRuntimeOutcome {
+        if let Err(error) = self.registry.remove(instance_id) {
+            return failed(error);
+        }
         let latest = match self
             .api
             .get_model_instance(&self.worker_token, instance_id)
@@ -663,6 +694,7 @@ where
         manifest: &ManagedRuntimeManifest,
     ) -> Result<bool, ManagedRuntimeError> {
         self.confirm_instance_deleted(manifest.instance_id).await?;
+        self.registry.remove(manifest.instance_id)?;
         let filters = BTreeMap::from([(
             LABEL_MODEL_INSTANCE_ID.to_string(),
             manifest.instance_id.to_string(),
@@ -836,6 +868,8 @@ pub enum ManagedRuntimeError {
     Runtime(#[from] RuntimeError),
     #[error(transparent)]
     Store(#[from] ManagedStoreError),
+    #[error(transparent)]
+    Registry(#[from] ManagedRegistryError),
     #[error("Managed GPU probe failed: {0}")]
     Gpu(String),
     #[error("Managed runtime safety check failed: {0}")]
@@ -1128,6 +1162,7 @@ mod tests {
         api: FakeApi,
         runtime: Arc<FakeRuntime>,
         clock: FakeClock,
+        registry: Arc<ManagedRuntimeRegistry>,
         desired: DesiredState,
         coordinator:
             ManagedRuntimeCoordinator<FakeApi, FakeGpuProbe, FsManagedRuntimeStore, FakeClock>,
@@ -1206,6 +1241,7 @@ mod tests {
             });
             let clock = FakeClock(Arc::new(AtomicU64::new(10)));
             let store = FsManagedRuntimeStore::open(&data_dir, &log_dir).expect("Managed store");
+            let registry = Arc::new(ManagedRuntimeRegistry::default());
             let coordinator = ManagedRuntimeCoordinator::new(
                 api.clone(),
                 SecretToken::new("worker-token").expect("token"),
@@ -1219,6 +1255,7 @@ mod tests {
                 FakeGpuProbe,
                 store,
                 clock.clone(),
+                Arc::clone(&registry),
             );
             let desired = DesiredState {
                 models: BTreeMap::from([(model.id, model)]),
@@ -1233,6 +1270,7 @@ mod tests {
                 api,
                 runtime,
                 clock,
+                registry,
                 desired,
                 coordinator,
             }
@@ -1258,6 +1296,14 @@ mod tests {
         ));
         let running = fixture.create().await;
         assert!(matches!(running, ManagedRuntimeOutcome::Running { .. }));
+        assert_eq!(
+            fixture.registry.route(301).expect("Managed route"),
+            Some(super::super::ManagedRoute {
+                instance_id: 301,
+                port: 40_000,
+                served_model_name: "qwen".to_string(),
+            })
+        );
         tokio::task::yield_now().await;
 
         let runtime = fixture.runtime.state.lock().expect("runtime lock");
@@ -1297,6 +1343,29 @@ mod tests {
         let runtime = fixture.runtime.state.lock().expect("runtime lock");
         assert_eq!(runtime.created_specs.len(), 1);
         assert_eq!(runtime.starts, 1);
+    }
+
+    #[tokio::test]
+    async fn coordinator_readiness_starts_after_convergence_and_clears_on_shutdown() {
+        let fixture = Fixture::new(false);
+        let (_desired_tx, desired_rx) = watch::channel(fixture.desired.clone());
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let run = fixture.coordinator.run(desired_rx, shutdown_rx, |_| {});
+        tokio::pin!(run);
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !fixture.registry.is_ready() {
+                tokio::select! {
+                    () = &mut run => panic!("coordinator stopped before readiness"),
+                    () = tokio::task::yield_now() => {}
+                }
+            }
+        })
+        .await
+        .expect("coordinator readiness");
+        shutdown_tx.send_replace(true);
+        run.await;
+        assert!(!fixture.registry.is_ready());
     }
 
     #[tokio::test]
@@ -1391,6 +1460,13 @@ mod tests {
         assert!(!fixture.data_dir.join("managed/manifests/301.json").exists());
         assert!(!fixture.data_dir.join("managed/cache/301").exists());
         assert!(!fixture.log_dir.join("serve/301.0.log").exists());
+        assert!(
+            fixture
+                .registry
+                .route(301)
+                .expect("Managed route")
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -1446,6 +1522,13 @@ mod tests {
                 .expect("API lock")
                 .updates
                 .is_empty()
+        );
+        assert!(
+            fixture
+                .registry
+                .route(301)
+                .expect("Managed route")
+                .is_none()
         );
     }
 }

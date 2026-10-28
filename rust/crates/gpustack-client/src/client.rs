@@ -3,11 +3,12 @@
 use std::time::Duration;
 
 use serde::{Serialize, de::DeserializeOwned};
+use serde_json::Value;
 use url::Url;
 
 use crate::{
     ClientError, SecretToken,
-    http::{HttpRequest, HttpResponse, Method, Transport},
+    http::{ByteStream, HttpRequest, HttpResponse, Method, StreamResponse, Transport},
     types::{
         ErrorResponse, ModelCreate, ModelFilePublic, ModelFileUpdate, ModelInstancePublic,
         ModelInstanceUpdate, ModelPublic, Paginated, ServerVersion, WorkerCreate, WorkerPublic,
@@ -18,6 +19,7 @@ use crate::{
 
 const JSON_CONTENT_TYPE: &str = "application/json";
 const EVENT_STREAM_CONTENT_TYPE: &str = "text/event-stream";
+const OCTET_STREAM_CONTENT_TYPE: &str = "application/octet-stream";
 const MAX_ERROR_PREVIEW_CHARS: usize = 1024;
 const BUFFERED_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -26,6 +28,11 @@ pub struct ServerClient<T> {
     base_url: Url,
     transport: T,
     buffered_timeout: Duration,
+}
+
+pub enum InferenceResponse {
+    Buffered(Value),
+    Streaming(ByteStream),
 }
 
 impl<T: Transport> ServerClient<T> {
@@ -153,6 +160,83 @@ impl<T: Transport> ServerClient<T> {
             )?)
             .await?;
         self.decode_json(response, "Model full sync", Some(worker_token))
+    }
+
+    pub async fn list_inference_models(
+        &self,
+        operator_token: &SecretToken,
+    ) -> Result<Value, ClientError> {
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Get,
+                "v1/models",
+                Some(operator_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "OpenAI model list", Some(operator_token))
+    }
+
+    pub async fn chat_completions(
+        &self,
+        operator_token: &SecretToken,
+        body: &Value,
+        streaming: bool,
+    ) -> Result<InferenceResponse, ClientError> {
+        self.openai_inference(
+            operator_token,
+            "v1/chat/completions",
+            "chat completion",
+            body,
+            streaming,
+        )
+        .await
+    }
+
+    pub async fn completions(
+        &self,
+        operator_token: &SecretToken,
+        body: &Value,
+        streaming: bool,
+    ) -> Result<InferenceResponse, ClientError> {
+        self.openai_inference(
+            operator_token,
+            "v1/completions",
+            "completion",
+            body,
+            streaming,
+        )
+        .await
+    }
+
+    pub async fn model_instance_logs(
+        &self,
+        operator_token: &SecretToken,
+        instance_id: i64,
+        tail: i64,
+        follow: bool,
+        previous: bool,
+    ) -> Result<ByteStream, ClientError> {
+        let tail = tail.to_string();
+        let query = encoded_query(&[
+            ("tail", tail.as_str()),
+            ("follow", if follow { "true" } else { "false" }),
+            ("previous", if previous { "true" } else { "false" }),
+        ]);
+        let mut request = self.request(
+            Method::Get,
+            &format!("v2/model-instances/{instance_id}/logs?{query}"),
+            Some(operator_token),
+            None,
+            OCTET_STREAM_CONTENT_TYPE,
+        )?;
+        if follow {
+            request.timeout = None;
+        }
+        let response = self.transport.open_stream(request).await?;
+        self.successful_stream(response, operator_token)
     }
 
     pub async fn search_models(
@@ -515,6 +599,71 @@ impl<T: Transport> ServerClient<T> {
             )));
         }
         Ok(WatchConnection::new(response.chunks))
+    }
+
+    async fn openai_inference(
+        &self,
+        operator_token: &SecretToken,
+        path: &'static str,
+        context: &'static str,
+        body: &Value,
+        streaming: bool,
+    ) -> Result<InferenceResponse, ClientError> {
+        let body = encode_json(body, "OpenAI inference request")?;
+        if streaming {
+            let response = self
+                .transport
+                .open_stream(self.request(
+                    Method::Post,
+                    path,
+                    Some(operator_token),
+                    Some(body),
+                    EVENT_STREAM_CONTENT_TYPE,
+                )?)
+                .await?;
+            let content_type = response.content_type.clone();
+            let stream = self.successful_stream(response, operator_token)?;
+            if !content_type
+                .as_deref()
+                .is_some_and(|value| value.starts_with(EVENT_STREAM_CONTENT_TYPE))
+            {
+                return Err(ClientError::Contract(format!(
+                    "streaming {context} response must use {EVENT_STREAM_CONTENT_TYPE}"
+                )));
+            }
+            Ok(InferenceResponse::Streaming(stream))
+        } else {
+            let response = self
+                .transport
+                .execute(self.request(
+                    Method::Post,
+                    path,
+                    Some(operator_token),
+                    Some(body),
+                    JSON_CONTENT_TYPE,
+                )?)
+                .await?;
+            self.decode_json(response, context, Some(operator_token))
+                .map(InferenceResponse::Buffered)
+        }
+    }
+
+    fn successful_stream(
+        &self,
+        response: StreamResponse,
+        token: &SecretToken,
+    ) -> Result<ByteStream, ClientError> {
+        if !(200..300).contains(&response.status) {
+            return Err(map_error_response(
+                HttpResponse {
+                    status: response.status,
+                    content_type: response.content_type,
+                    body: response.error_body.unwrap_or_default(),
+                },
+                Some(token),
+            ));
+        }
+        Ok(response.chunks)
     }
 
     fn request(

@@ -4,6 +4,7 @@ mod coordinator;
 mod model_file;
 mod port;
 mod reconciler;
+mod registry;
 mod runtime;
 mod store;
 
@@ -20,6 +21,7 @@ pub use reconciler::{
     ManagedRuntimeError, ManagedRuntimeOutcome, ManagedRuntimeResult, NvmlManagedGpuProbe,
     SystemManagedClock, run_production_managed_runtime,
 };
+pub use registry::{ManagedRegistryError, ManagedRoute, ManagedRuntimeRegistry};
 pub use runtime::{ManagedGpu, ManagedRuntimePlanError, ManagedWorkloadPlanner};
 pub use store::{
     FsManagedRuntimeStore, MANAGED_MANIFEST_SCHEMA_VERSION, ManagedRuntimeManifest,
