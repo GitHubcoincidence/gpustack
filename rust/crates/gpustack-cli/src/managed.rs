@@ -2557,8 +2557,11 @@ mod tests {
             200,
             serde_json::to_vec(&running).expect("running instance page"),
         );
-        let client = ServerClient::new(Url::parse("http://127.0.0.1").expect("URL"), transport)
-            .expect("client");
+        let client = ServerClient::new(
+            Url::parse("http://127.0.0.1").expect("URL"),
+            transport.clone(),
+        )
+        .expect("client");
         let token = SecretToken::new("operator-secret").expect("token");
         let arguments = ModelArgs {
             command: ModelSubcommand::Deploy(ModelDeployArgs {
