@@ -776,3 +776,18 @@ token 随后返回 401，`lab90` Context 和 token 文件均已删除。退役�
 M6-B.0 的通过只冻结上述设计和后续门禁。当前允许直接进入 M6-B.1 离线实现；它不授权
 连接真实 Docker socket、写真实 Server、停止 Python Worker、解除 maintenance、占用 GPU
 或执行真实推理。每个实现门禁仍须完成自动化验证和 D033 详细实现报告后由用户共同审阅。
+
+## 2026-10-28 M6-B.5 正式 Managed smoke 方案冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D160 | 三段授权门 | M6-B.5 拆为 B.5.0 文档冻结、B.5.1 短期凭据与最终只读准备、B.5.2 独立授权的正式维护窗口。B.5.1 不得停止 Python Worker、写业务资源或使用 GPU；B.5.2 必须在新的明确授权后才能执行 | 把凭据/执行器准备和高风险服务切换分离，避免方案接受被解释成维护窗口授权。 |
+| D161 | 阶段凭据 | 新建名称 `rust-worker-m6b5-operator-20261028`、有效期不超过 24 小时的平台管理 API Key，token 由用户直接写入 90 的 0600 文件，Context 固定为 `m6b5-operator`。不能复用 Cluster token 或 M6-A 已退役 Key；验收后删除 Key、Context 和 token，并验证旧 token 为 401 | 满足真实 maintenance、Model 和 ModelFile 运维权限，同时限制凭据用途、生命周期和泄漏面。 |
+| D162 | 唯一 workload | Model/served name 固定为 `m6b5-qwen25-05b-gpu0`，复用固定 Qwen2.5 revision/path、Runner digest、GPU0 UUID、TP=1、max length 2048、GPU memory 0.5、dtype auto、eager 和无 trust-remote-code。端口仍由 Worker 从 `40000-40063` 分配 | 复用 M5/M6-A/M6-B.4 已验证输入，使正式差异只来自 Managed runtime、代理、日志和清理链路。 |
+| D163 | watchdog 与窗口进入 | 最终漂移门后先启动独立 1200 秒 watchdog，再精确停止预检记录的 Python Worker container ID。Rust Worker以 maintenance 启动，全部基础门通过后才显式解除 maintenance；PID 操作必须同时匹配 PID/starttime/exe/hash | SSH 或主执行器失败时仍能恢复服务，并防止按名称误杀或在 Rust Worker 未就绪时让 Server 调度任务。 |
+| D164 | 正式能力门 | CLI transition/watch 必须记录完整 `PENDING -> ANALYZING -> SCHEDULED -> INITIALIZING -> DOWNLOADING -> STARTING -> RUNNING`；随后只经 Server 验证 models、buffered/streaming chat、completion、tail/follow logs。RUNNING 后等待至少 6 秒覆盖三轮 2 秒重复协调，容器 ID、端口、route 和单实例语义必须不变 | 同时证明状态所有权、健康门、Server 数据面、日志链和同进程幂等，不用额外 Server 写入制造重复事件。 |
+| D165 | 清理、恢复和证据 | 推理后先恢复 maintenance，再删除精确 Model；Rust Worker保持运行直到权威 Instance 404 后完成完整 owned tuple 清理。独立 local-path ModelFile 只删除元数据且保留文件。最后优雅停止精确 Rust PID并恢复精确 Python Worker。正式、watchdog 和独立事后审计使用分离的 0700/0600 证据链；未知资源、标签冲突或 Server 状态不明时 fail closed | 把零残留和 Python Worker恢复作为成功的一部分，并防止清理测试资源时误伤用户资源。 |
+
+D160-D165 只授权记录方案。下一项允许在用户直接创建阶段 API Key 后执行 B.5.1 凭据验证、
+只读预检和执行器准备；它们不授权 B.5.2 的服务停止、maintenance 变化、Server 业务写入、
+Docker/GPU workload 或推理。

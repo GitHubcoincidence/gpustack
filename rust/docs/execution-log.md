@@ -3341,6 +3341,20 @@
   零残留和 Python Worker 恢复方案。尚未授权创建凭据、停止 Python Worker、改变
   maintenance、创建模型/容器、申请 GPU、启动 vLLM 或推理。
 
+### 2026-10-28：M6-B.5.0 正式 Managed smoke 方案已冻结
+
+- 决策：用户接受三段式 M6-B.5；新增 `m6b5-managed-runtime-smoke.md` 和 D160–D165，冻结
+  B.5.0 文档、B.5.1 短期凭据/只读准备、B.5.2 独立维护窗口，以及唯一模型、GPU0、Runner、
+  20 分钟 watchdog、完整状态链、Server-only 推理/日志、三轮重复协调、精确清理、Python
+  Worker恢复和三条证据链。
+- 凭据：API Key name 固定为 `rust-worker-m6b5-operator-20261028`，有效期不超过 24 小时；
+  Context 为 `m6b5-operator`，token file 为
+  `/home/wujiaxing2/.config/gpustack-rust/m6b5-operator-token`。用户须直接把 token 写入 90，
+  不能通过聊天或日志传递；不能复用 Cluster token 或 M6-A Key。
+- 当前停止位置：M6-B.5.0 为 `accepted_design`。下一项只允许用户创建阶段 API Key，以及在
+  token 安全落盘后执行 B.5.1 的认证 GET、只读漂移门、locked/offline build、执行器/watchdog
+  静态审计和无写故障注入。B.5.2 仍须新的明确维护窗口授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

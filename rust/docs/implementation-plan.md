@@ -714,3 +714,10 @@ before/after 不变性、秘密扫描和独立证据清单复核。Server、Pyth
 端口和 Server 资源没有改变；用户已接受详细验证报告，当前状态为 `accepted`。M6-B.5 的
 新短期最小权限 operator Context、正式资源 identity、watchdog、回滚方案和维护窗口仍未
 冻结或授权；下一项只允许讨论并冻结这些边界。
+
+M6-B.5.0 方案和 D160–D165 已获用户接受。正式阶段拆为 B.5.1 短期 operator 凭据与最终
+只读准备，以及另行明确授权的 B.5.2 维护窗口；唯一 workload 固定为本地
+`Qwen2.5-0.5B-Instruct`、GPU0、固定 Runner digest、TP=1 和既有参数。B.5.2 必须证明完整
+状态链、Server-only buffered/streaming 推理、日志、至少三轮同进程幂等、权威删除后零残留、
+Python Worker恢复和凭据退役。当前只允许准备新 API Key并执行 B.5.1，不授权停止服务、
+改变 maintenance、创建模型/容器、申请 GPU 或推理。
