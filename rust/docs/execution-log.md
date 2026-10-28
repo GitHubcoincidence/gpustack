@@ -26,7 +26,7 @@
 
 ## 当前状态
 
-- 状态：`retry_6_preflight_pending`
+- 状态：`ready_for_maintenance_authorization`
 - 当前阶段：M1～M5、M6-A 和 M6-B.1～M6-B.4 已完成既定验收。M6-B.5.2 attempt 5 是
   有效 `failed_during_window`：Rust Worker完成稳定 READY、完整七状态链和
   `inference models`，但 buffered chat 因网关复合路由头解析不兼容返回 HTTP 400。
@@ -43,10 +43,11 @@
   `65f2d38720a25714234c363ddf8386e5f72d3dfb93a841aca188ea4d5cf5af6f`。独立审计
   22 个条目全部通过，证明 Python Worker、maintenance、Server 资源、Docker、GPU、端口、
   模型文件和仓库状态恢复；它不改变 attempt 5 的失败判定。
-- 下一项允许执行的工作：把 executor/preflight 固定到 `c725436b`，创建全新 preflight
-  attempt 10 和无写注入路径并执行离线/只读门。只有全部通过后才能请求 formal attempt 6
-  的新维护窗口授权；当前不得停止 Python Worker、切换 maintenance、创建 Server 测试资源、
-  创建容器或使用 GPU。
+- preflight attempt 10 和无写注入均已通过；清单文件 SHA-256 分别为
+  `1c08a998d040a2a264d29194c1ecb3aeccb0c798299a62e39eeeccd88f9b06d2` 和
+  `6c9f520e16bad891aaffa24a83e61f3d037d604592fb318bcc8b9c29e0bfae2f`。下一项只能
+  请求 formal attempt 6 的新维护窗口授权；当前不得停止 Python Worker、切换 maintenance、
+  创建 Server 测试资源、创建容器或使用 GPU。
 
 ## 里程碑
 
@@ -3675,6 +3676,23 @@
   workspace 190 个测试、fmt、Clippy `-D warnings`、doc-tests 和 locked/offline build 全部通过。
 - 当前停止位置：`retry_6_preflight_pending`。下一项只允许绑定新产品提交、建立 preflight/
   injection attempt 10 并运行离线/只读门；formal attempt 6 必须重新取得明确授权。
+
+### 2026-10-28：M6-B.5.1 preflight attempt 10 通过
+
+- 结果：治理 HEAD `255f87c916462b485e4ddb69bd4bf9d65de262a9` 上九组准备门全部
+  通过；产品 ancestry 固定到 `c725436b`，新增复合 destination 解析回归测试和原推理代理测试
+  均通过，locked/offline workspace build、凭据元数据、双 scope 与 Cluster token 只读认证、
+  Runner/模型/GPU0/端口/Python Worker身份和脚本静态门全部通过。
+- 证据：`m6b5-preflight-attempt-10` 为 0700、57 个 manifest 条目全部通过、文件均为 0600，
+  清单文件 SHA-256 为
+  `1c08a998d040a2a264d29194c1ecb3aeccb0c798299a62e39eeeccd88f9b06d2`。对应无写注入目录
+  为 0700、9 个条目全部通过，清单文件 SHA-256 为
+  `6c9f520e16bad891aaffa24a83e61f3d037d604592fb318bcc8b9c29e0bfae2f`；结果按预期保持
+  `STOP/source_head_mismatch`、`window_entered=0`、`cleanup_ok=1`。
+- 独立复核：Server、Python Worker health/metrics 均为 200；精确 Python Worker运行；无 Rust
+  进程或 Managed 容器；GPU0/GPU1 均为 0 MiB/0%；HEAD、origin 和工作树一致且干净。
+- 当前停止位置：`ready_for_maintenance_authorization`。下一项只能由用户明确授权 formal
+  attempt 6，attempt 5 的授权不延伸。
 
 ## 未解决风险与待确认事项
 

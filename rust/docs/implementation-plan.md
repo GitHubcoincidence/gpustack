@@ -798,3 +798,10 @@ GPUStack/Python Worker协议解析该头，并通过 workspace 190 个测试和�
 统一 cleanup、watchdog 和独立事后审计均证明完整恢复，但该次仍为正式 FAIL。当前状态为
 `retry_6_preflight_pending`：下一步只能把 preflight/injection attempt 10 绑定到新提交并运行
 离线/只读门；formal attempt 6 仍须新的明确维护授权。
+
+preflight attempt 10 随后在治理 HEAD `255f87c916462b485e4ddb69bd4bf9d65de262a9` 通过。
+预检和无写注入清单文件 SHA-256 分别为
+`1c08a998d040a2a264d29194c1ecb3aeccb0c798299a62e39eeeccd88f9b06d2` 和
+`6c9f520e16bad891aaffa24a83e61f3d037d604592fb318bcc8b9c29e0bfae2f`；独立复核证明
+57/9 个条目、凭据和秘密扫描、服务、Server 资源、Docker、GPU、端口、进程与源码前后不变。
+当前状态为 `ready_for_maintenance_authorization`，下一步只能请求 formal attempt 6 的新授权。

@@ -153,8 +153,8 @@
   拒绝。该次 cleanup/watchdog/post-audit 均证明完整恢复，仍保持正式 FAIL。
 - 产品提交 `c725436bb2e117228866441f59715c332bfa042a` 已按原 GPUStack/Python Worker格式解析
   `X-GPUStack-Model-Instance`，并通过 Worker 131 项、workspace 190 项测试及全部离线质量门。
-  当前为 `retry_6_preflight_pending`；只允许执行全新 preflight/injection attempt 10，正式
-  attempt 6 仍须新的独立维护窗口授权。
+  preflight/injection attempt 10 随后通过 57/9 个清单条目、秘密扫描和全部外部不变式复核。
+  当前为 `ready_for_maintenance_authorization`；正式 attempt 6 仍须新的独立维护窗口授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

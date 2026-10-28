@@ -218,7 +218,13 @@ Worker相同的复合 destination 语义解析 Instance ID，并继续执行单�
 - watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-6`；
 - 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-6`。
 
-当前为 `retry_6_preflight_pending`。attempt 5 的授权不延伸；即使 attempt 10 准备通过，formal
+preflight attempt 10 已在治理 HEAD `255f87c916462b485e4ddb69bd4bf9d65de262a9` 通过。
+准备门目录为 0700、57 个 manifest 条目全部通过，清单文件 SHA-256 为
+`1c08a998d040a2a264d29194c1ecb3aeccb0c798299a62e39eeeccd88f9b06d2`；对应无写注入目录
+9 个条目全部通过，清单文件 SHA-256 为
+`6c9f520e16bad891aaffa24a83e61f3d037d604592fb318bcc8b9c29e0bfae2f`。独立复核确认三项
+服务 200、Python Worker运行、无 Rust 进程或 Managed 容器、两张 GPU 均为 0 MiB/0%，源码
+一致且干净。当前为 `ready_for_maintenance_authorization`；attempt 5 的授权不延伸，formal
 attempt 6 仍须新的明确授权。
 
 ## M6-B.5.1 准备门
