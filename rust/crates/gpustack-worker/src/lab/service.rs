@@ -3,9 +3,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use gpustack_runtime::docker::{
-    ContainerDetails, ContainerRuntime, ContainerState, DockerRuntime,
-};
+use gpustack_runtime::docker::{ContainerDetails, ContainerRuntime, ContainerState, DockerRuntime};
 
 use super::{
     FsLabStore, FsModelPathResolver, KernelUuidSource, LAB_MODE, LAB_PORT_END, LAB_PORT_START,
@@ -526,10 +524,7 @@ impl<'a> LabService<'a> {
                     deployment.last_error = None;
                     deployment.updated_at_unix = self.clock.now_unix();
                     session.save_deployment(deployment)?;
-                    return Ok(status_from(
-                        deployment,
-                        Some(observation.container.state),
-                    ));
+                    return Ok(status_from(deployment, Some(observation.container.state)));
                 }
                 VllmHealthState::Failed => {
                     return Err(LabError::DeploymentFailed {
@@ -595,10 +590,7 @@ impl<'a> LabService<'a> {
         }
         deployment.updated_at_unix = self.clock.now_unix();
         session.save_deployment(deployment)?;
-        Ok(status_from(
-            deployment,
-            Some(observation.container.state),
-        ))
+        Ok(status_from(deployment, Some(observation.container.state)))
     }
 
     async fn inspect_optional(
@@ -640,7 +632,6 @@ impl<'a> LabService<'a> {
             )))
         }
     }
-
 }
 
 pub struct LabEnvironment {

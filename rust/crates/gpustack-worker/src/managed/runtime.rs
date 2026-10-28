@@ -17,9 +17,7 @@ use crate::workload::{
     WorkloadGpu, WorkloadMode, WorkloadSpecV2,
 };
 
-use super::{
-    LocalModelResolver, MANAGED_PORT_END, MANAGED_PORT_START, ResolveError,
-};
+use super::{LocalModelResolver, MANAGED_PORT_END, MANAGED_PORT_START, ResolveError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManagedGpu {
@@ -67,9 +65,10 @@ impl ManagedWorkloadPlanner {
         instance: &ModelInstancePublic,
     ) -> Result<WorkloadSpecV2, ManagedRuntimePlanError> {
         self.validate_model_and_instance(model, instance)?;
-        let resolved_path = instance.resolved_path.as_deref().ok_or_else(|| {
-            contract("STARTING ModelInstance requires a non-empty resolved_path")
-        })?;
+        let resolved_path = instance
+            .resolved_path
+            .as_deref()
+            .ok_or_else(|| contract("STARTING ModelInstance requires a non-empty resolved_path"))?;
         let resolved = self.resolver.resolve(Path::new(resolved_path))?;
         let canonical_path = fs::canonicalize(resolved_path)
             .map_err(|error| contract(format!("cannot canonicalize resolved_path: {error}")))?;
@@ -146,7 +145,9 @@ impl ManagedWorkloadPlanner {
         spec: &WorkloadSpecV2,
     ) -> Result<OwnedContainer, ManagedRuntimePlanError> {
         if spec.mode != WorkloadMode::Managed {
-            return Err(contract("Managed discovery requires a Managed workload spec"));
+            return Err(contract(
+                "Managed discovery requires a Managed workload spec",
+            ));
         }
         // The broad instance-only query exposes partially labelled conflicts before mutation.
         let filters = BTreeMap::from([(
@@ -186,11 +187,15 @@ impl ManagedWorkloadPlanner {
             || model.backend.as_deref() != Some("vLLM")
             || model.local_path != instance.local_path
         {
-            return Err(contract("Model and ModelInstance runtime inputs do not match"));
+            return Err(contract(
+                "Model and ModelInstance runtime inputs do not match",
+            ));
         }
         let worker_ip = self.worker_ip.to_string();
         if instance.worker_ip.as_deref() != Some(worker_ip.as_str()) {
-            return Err(contract("ModelInstance Worker IP does not match this Worker"));
+            return Err(contract(
+                "ModelInstance Worker IP does not match this Worker",
+            ));
         }
         if instance
             .gpu_indexes
@@ -199,8 +204,14 @@ impl ManagedWorkloadPlanner {
         {
             return Err(contract("Managed R1 requires exactly one GPU index"));
         }
-        if model.env.as_ref().is_some_and(|environment| !environment.is_empty()) {
-            return Err(contract("Managed R1 does not accept Model environment overrides"));
+        if model
+            .env
+            .as_ref()
+            .is_some_and(|environment| !environment.is_empty())
+        {
+            return Err(contract(
+                "Managed R1 does not accept Model environment overrides",
+            ));
         }
         if instance
             .injected_backend_parameters
@@ -279,10 +290,7 @@ fn parse_vllm_parameters(
     Ok(options)
 }
 
-fn parse_positive_u32(
-    flag: &str,
-    value: Option<&str>,
-) -> Result<u32, ManagedRuntimePlanError> {
+fn parse_positive_u32(flag: &str, value: Option<&str>) -> Result<u32, ManagedRuntimePlanError> {
     let value = required_value(flag, value)?
         .parse::<u32>()
         .map_err(|_| contract(format!("{flag} must be a positive integer")))?;
