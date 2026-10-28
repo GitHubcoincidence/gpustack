@@ -113,8 +113,9 @@
   `c78cfc5652808ee5c16b40b11df411dadc7d6b6d` 完成。90 服务器精确 HEAD 已通过格式、
   all-targets/all-features Clippy、181 项 locked/offline 测试、doc-tests 和 workspace build。
   本阶段没有连接真实 Docker/Server、创建 workload、停止 Python Worker、切换 maintenance、
-  占用 GPU 或执行真实推理；当前为 `ready_for_review`，用户接受详细报告后才能进入
-  M6-B.4 只读预检与离线故障注入。
+  占用 GPU 或执行真实推理；用户已接受详细实现报告，当前为 `accepted`。下一项允许执行
+  M6-B.4 只读预检与离线故障注入，但不得停止 Python Worker、写 Server、改变容器、申请
+  GPU 或执行真实推理；M6-B.4 通过不自动授权 M6-B.5。
   M6-A.3.1 专用 API Key、`lab90` Context 和 token 文件已按 D108 删除，退役证据清单文件
   SHA-256 为 `a30b8840776ea7b7bbd16c4e894208de81f900a4f096813341dce377ade8f605`；
   M6-B 若需要管理权限必须建立新的阶段专用凭据。

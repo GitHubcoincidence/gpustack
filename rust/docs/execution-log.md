@@ -3283,6 +3283,17 @@
   D033 详细实现报告；接受后才能记录验收检查点并进入 M6-B.4 只读预检与离线故障注入。
   M6-B.4 的通过也不自动授权 M6-B.5 维护窗口或真实 GPU smoke。
 
+### 2026-10-28：M6-B.3 详细实现报告已接受
+
+- 验收：用户已审阅 M6-B.3 的内部健康路由表、动态 readiness、Worker 推理代理、
+  Server-only 日志/推理 CLI、测试证据、安全边界、局限和后续范围，并明确确认无问题。
+  阶段状态从 `ready_for_review` 更新为 `accepted`。
+- 当前停止位置：下一项允许执行 M6-B.4 只读预检与离线故障注入。该阶段只允许读取并核对
+  Server/Python Worker、Docker daemon 与固定镜像、Qwen manifest、GPU0、端口、冲突项、
+  回滚材料和凭据准备边界，并用 fake 或执行门禁证明失败时不产生真实副作用；不得停止
+  Python Worker、切换 maintenance、写入真实 Server、创建或改变真实容器、申请 GPU、
+  启动 vLLM 或执行真实推理。M6-B.4 通过后仍需另行讨论和明确授权 M6-B.5 维护窗口。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

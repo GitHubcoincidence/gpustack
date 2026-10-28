@@ -702,5 +702,7 @@ M6-B.3 已在产品代码检查点 `c78cfc5652808ee5c16b40b11df411dadc7d6b6d`
 完成内部健康路由表、动态 readiness、安全 Worker 推理代理、Server-only 日志/推理 CLI 和
 `enable_model_route=true`。精确 HEAD 通过 181 项 locked/offline workspace 测试、格式、
 all-targets/all-features Clippy、doc-tests 与 build；真实 Docker、Server、maintenance、
-Python Worker、GPU 和推理均未触碰。当前状态为 `ready_for_review`；只有用户接受 D033
-详细报告后才允许进入 M6-B.4 只读预检与离线故障注入，且不得据此自动进入 M6-B.5。
+Python Worker、GPU 和推理均未触碰。用户已接受 D033 详细实现报告，当前状态为
+`accepted`；下一项允许执行 M6-B.4 只读预检与离线故障注入。该授权不包括停止 Python
+Worker、写入 Server、改变真实 Docker 资源、申请 GPU、启动 vLLM 或执行推理，也不得据此
+自动进入 M6-B.5。
