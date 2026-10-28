@@ -61,9 +61,14 @@ mount，并只允许停止和恢复该对象。若身份相对 M6-B.4 漂移，�
 
 ## 证据路径
 
-attempt 1 使用以下尚未创建的路径：
+准备门的失败或不采纳 attempt 必须保留并递增目录。attempt 1 因 API Key 路径版本错误安全
+停止；attempt 2 技术门通过但 attempt 字段标注错误，不作为维护窗口授权证据。最终准备门使用：
 
-- 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-1`；
+- 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-3`；
+- 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-3-pre-window-injection`；
+
+B.5.2 第一次正式执行仍使用独立的 attempt 1 路径：
+
 - 正式执行：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-1`；
 - watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-1`；
 - 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-1`。

@@ -3372,6 +3372,27 @@
   `m6b5-operator` Context 并执行 B.5.1 只读预检/执行器准备；仍不授权停止 Python Worker、
   改变 maintenance、创建模型/容器、申请 GPU 或推理。
 
+### 2026-10-28：M6-B.5.1 正式门脚本与前两次准备结果
+
+- 正式脚本：提交 `03fe57bd385a61441db26052ed01fb9b39cb3adc` 新增 Git 管理的
+  `preflight.sh`、`executor.sh` 和独立 `watchdog.sh`。执行器只使用 `worker run
+  --managed-runtime`，覆盖完整状态链、Server-only models/chat stream/chat buffered/completion、
+  tail/follow 日志、三轮同进程幂等、精确 Model/ModelFile/owned runtime 清理、精确 Rust PID
+  终止和 Python Worker恢复；watchdog 的硬超时为 1200 秒。
+- attempt 1：在 HEAD `03fe57bd385a61441db26052ed01fb9b39cb3adc` 的凭据门停止。原因是
+  deployed Server v2.2.3 的 API Key 管理路径为 `/v2/api-keys`，脚本误写为 `/v1/api-keys`；
+  Context 正确，未进入构建、服务切换或业务写入。修正提交为
+  `120096f10fba429385bf9c31d7a2a20c0149b60d`。
+- attempt 2：九组准备门实质通过。locked/offline workspace build、六项 Managed failure
+  injection、脚本静态审计、错误 HEAD 无写执行器注入、前后资源/容器/GPU/端口/进程不变、
+  秘密扫描和独立清单复核均通过；清单文件 SHA-256 为
+  `4a9218109ef6792faeeb80a9d03ae9ed48b2344c00a7ad216a3c48d0deac9dd2`。独立复核时发现
+  `preflight-result.txt` 的 attempt 字段仍硬编码为 1，因此该证据保留但不作为最终维护窗口
+  授权门。
+- 当前停止位置：预检 attempt 号已改为强制显式输入。必须在包含本记录的最终干净治理 HEAD
+  上执行 attempt 3；只有 attempt 3 完整通过才能请求 B.5.2 的独立维护窗口授权。此前未停止
+  Python Worker、未改变 maintenance、未创建模型/容器、未使用 GPU、未执行推理。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

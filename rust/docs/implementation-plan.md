@@ -727,3 +727,9 @@ D166 已修订 operator 凭据：首次 Web Key ID 20 的单一 `management` sco
 `rust-worker-m6b5-operator-20261028-v2`、scope `management,inference`、有效期 86400 秒；
 新 Key 的双 scope GET 均为 200，旧 Key 已删除且返回 401。当前状态为
 `operator_credential_ready`，下一项只允许在新治理 HEAD 上执行 B.5.1 Context 和只读准备门。
+
+M6-B.5.1 的 Git 管理正式执行器、预检器和独立 watchdog 已实现。预检 attempt 1 因 deployed
+Server API Key 路径版本写错而在凭据门安全停止；attempt 2 的全部技术门通过且外部状态不变，
+但结果文件的 attempt 字段仍硬编码为 1，因此不采纳为最终授权证据。该字段已改为强制显式
+输入；下一步只允许在最终干净治理 HEAD 上运行 attempt 3。attempt 3 通过后状态最多为
+`ready_for_maintenance_authorization`，B.5.2 仍需用户新的明确授权。

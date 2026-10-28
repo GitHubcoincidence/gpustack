@@ -7,6 +7,7 @@ readonly REPO='/home/wujiaxing2/workspaces/gpustack'
 readonly EVIDENCE="${M6B5_PREFLIGHT_EVIDENCE:?M6B5_PREFLIGHT_EVIDENCE is required}"
 readonly INJECTION_EVIDENCE="${M6B5_INJECTION_EVIDENCE:?M6B5_INJECTION_EVIDENCE is required}"
 readonly EXPECTED_HEAD="${M6B5_EXPECTED_HEAD:?M6B5_EXPECTED_HEAD is required}"
+readonly PREFLIGHT_ATTEMPT="${M6B5_PREFLIGHT_ATTEMPT:?M6B5_PREFLIGHT_ATTEMPT is required}"
 readonly PRODUCT_COMMIT='c78cfc5652808ee5c16b40b11df411dadc7d6b6d'
 readonly EXPECTED_LOCK_SHA='90f1aeaa22b4f06dc77e48497f2fe3394ab07ab55441c8ddb3124a67dca07010'
 readonly EXECUTOR="$REPO/rust/scripts/m6b5/executor.sh"
@@ -36,8 +37,8 @@ finish() {
   local code=$?
   trap - EXIT
   if [[ -d "$EVIDENCE" && "$result_written" -eq 0 ]]; then
-    printf 'status=STOP\nstage=M6-B.5.1\nfailed_step=%s\nexit_code=%s\n' \
-      "$current_step" "$code" >"$EVIDENCE/preflight-result.txt"
+    printf 'status=STOP\nstage=M6-B.5.1\nattempt=%s\nfailed_step=%s\nexit_code=%s\n' \
+      "$PREFLIGHT_ATTEMPT" "$current_step" "$code" >"$EVIDENCE/preflight-result.txt"
     chmod 0600 "$EVIDENCE/preflight-result.txt"
   fi
   exit "$code"
@@ -328,8 +329,8 @@ if grep -REIl 'gpustack_[[:alnum:]]{20,}|BEGIN [A-Z ]*PRIVATE KEY|Authorization:
   exit 1
 fi
 printf 'secret_scan=PASS\n' >"$EVIDENCE/secret-scan.txt"
-printf 'status=PASS\nstage=M6-B.5.1\nattempt=1\nexternal_mutation=none\nstatus_detail=ready_for_maintenance_authorization\n' \
-  >"$EVIDENCE/preflight-result.txt"
+printf 'status=PASS\nstage=M6-B.5.1\nattempt=%s\nexternal_mutation=none\nstatus_detail=ready_for_maintenance_authorization\n' \
+  "$PREFLIGHT_ATTEMPT" >"$EVIDENCE/preflight-result.txt"
 result_written=1
 find "$EVIDENCE" -maxdepth 1 -type f -exec chmod 0600 {} +
 find "$EVIDENCE" -maxdepth 1 -type f ! -name manifest.sha256 -print0 |
