@@ -99,6 +99,14 @@ attempt 5 又因 90 的本地 `origin/codex/rust-worker` 远端跟踪引用尚�
 目录须为 0700，文件须为 0600；每条证据链独立生成 SHA-256 清单并执行秘密扫描。失败和
 无效 attempt 不重用目录，也不覆盖原始结果。
 
+preflight attempt 6 已通过：准备门清单文件 SHA-256 为
+`bb394acc499cf03169ea74547554a76f44d77e7cd414b7001e7b762abe26dab2`，55 个条目全部复核
+通过；无写注入清单文件 SHA-256 为
+`6a071b9d646687d7a6a0c8c1da9af4982126223193bd12eee579b1b23f78e0cc`，9 个条目全部复核
+通过。两个目录均为 0700、文件均为 0600、秘密扫描通过；注入结果为
+`source_head_mismatch`、`baseline_ready=0`、`window_entered=0`、`cleanup_ok=1`。状态只提升为
+`ready_for_maintenance_authorization`。
+
 ## M6-B.5.1 准备门
 
 准备门必须证明：

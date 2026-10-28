@@ -807,7 +807,8 @@ maintenance 授权边界、正式状态链、推理方法、watchdog、清理与
 | D170 | retry 2 唯一路径与授权 | 下一次准备门使用全新的 `m6b5-preflight-attempt-4` 和对应 `m6b5-managed-runtime-smoke-attempt-4-pre-window-injection`；正式 retry 使用 `m6b5-managed-runtime-smoke-attempt-2`、`m6b5-managed-runtime-watchdog-attempt-2` 和 `m6b5-managed-runtime-post-audit-attempt-2`。脚本 attempt 号改为强制输入。只读准备通过后仍须用户重新明确授权 B.5.2；attempt 1 的授权不得自动延伸 | 每次证据路径唯一并显式携带 attempt，可防止覆盖、错误标号或把两次运行拼成一次通过；代码修复与维护窗口授权继续分离。 |
 | D171 | 产品检查点滚动与第五次预检 | preflight attempt 4 保持 `STOP/source_and_scripts`：它在任何凭据、服务、Docker 或 GPU 检查前，正确发现脚本仍将旧产品提交 `c78cfc5652808ee5c16b40b11df411dadc7d6b6d` 作为固定检查点，而 D167-D169 的已验证修复使 `rust/crates` 相对该提交发生预期变化。retry 2 的产品代码检查点显式滚动为 `e66634c523ca37c2e08d50a7656710cb6b16480b`；下一次准备使用全新 `m6b5-preflight-attempt-5` 和 `m6b5-managed-runtime-smoke-attempt-5-pre-window-injection`，正式 attempt 2 三个路径不变 | 旧门禁的安全停止不能被覆盖或改判；把修复提交作为新的显式输入并递增证据目录，既承认预期产品变化，又不放宽源码漂移检查、业务验收或维护授权边界。 |
 | D172 | 远端跟踪引用同步与第六次预检 | preflight attempt 5 保持 `STOP/source_and_scripts`：90 工作树和 GitHub 分支都已是治理提交 `5912b4eedc1cf983acb0775d1f1004441a84d27c`，但此前由本机推送，90 的本地 `origin/codex/rust-worker` 远端跟踪引用仍停在 `2817aef01e93a61f0889399d4511fb41054ac7ef`。精确 `git fetch origin codex/rust-worker` 已把该引用同步到 `5912b4ee`。下一次准备使用全新 `m6b5-preflight-attempt-6` 和 `m6b5-managed-runtime-smoke-attempt-6-pre-window-injection` | 预检要求 HEAD、GitHub 身份和远端工作副本三者一致；缓存引用不一致也必须 fail closed。保留 attempt 5 并在真实 fetch 后递增，避免手工伪造远端引用或覆盖失败证据。 |
+| D173 | retry 2 准备门通过与停止边界 | preflight attempt 6 和对应无写注入均通过独立清单、权限和秘密扫描复核，外部运行状态前后不变。当前状态为 `ready_for_maintenance_authorization`；只有用户针对正式 B.5.2 attempt 2 再次明确授权后，才允许停止/恢复精确 Python Worker、切换 maintenance、创建和删除唯一测试资源、创建和删除唯一 Rust vLLM 容器以及使用 GPU0。此前任何授权均不延伸 | 准备门只证明输入、执行器、恢复材料和当前环境满足进入条件，不等于授权或业务验收。把状态停在授权门可避免只读检查自动触发高风险窗口。 |
 
-D167-D172 不改变唯一模型、Runner、GPU0、TP、Server-only 推理、日志、三轮幂等、零残留、
+D167-D173 不改变唯一模型、Runner、GPU0、TP、Server-only 推理、日志、三轮幂等、零残留、
 Python Worker恢复和凭据退役等原验收标准。它们只修复观测完整性、权威删除收敛、退出安全
 和重试产品身份治理。

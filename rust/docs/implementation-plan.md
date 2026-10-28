@@ -757,3 +757,10 @@ preflight attempt 5 又在同一第一组门安全停止；产品 ancestry/diff�
 提交。90 已通过精确 fetch 把该引用同步到治理 HEAD，attempt 5 未进入任何运行态检查。
 D172 要求全新的 attempt 6 准备和无写注入目录；通过后仍只能进入
 `ready_for_maintenance_authorization`。
+
+preflight attempt 6 已在治理 HEAD `cdb2a5eeaf7f8f7ffe11fb4eff34ec6259867562` 通过全部九组
+门禁。预检和无写注入清单文件 SHA-256 分别为
+`bb394acc499cf03169ea74547554a76f44d77e7cd414b7001e7b762abe26dab2` 和
+`6a071b9d646687d7a6a0c8c1da9af4982126223193bd12eee579b1b23f78e0cc`；独立复核证明
+权限、清单、秘密扫描、服务、资源、Docker、GPU、端口、进程和源码前后不变。当前状态为
+`ready_for_maintenance_authorization`，下一步只能请求正式 B.5.2 attempt 2 的新维护窗口授权。

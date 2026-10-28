@@ -3460,6 +3460,25 @@
   `m6b5-preflight-attempt-6` 和 `m6b5-managed-runtime-smoke-attempt-6-pre-window-injection`
   完整重跑只读准备门；正式 B.5.2 attempt 2 仍须新的明确维护窗口授权。
 
+### 2026-10-28：M6-B.5.1 preflight attempt 6 通过并停在维护授权门
+
+- 执行：治理 HEAD `cdb2a5eeaf7f8f7ffe11fb4eff34ec6259867562` 上的九组准备门全部
+  通过，包括固定产品代码/工具链/脚本、双 scope Context、完整外部基线、Runner/模型/GPU0/
+  端口/Python Worker身份、locked/offline build、Managed failure injection、脚本静态审计、
+  错误 HEAD 无写执行器注入，以及前后不变式和证据封存。
+- 证据：`m6b5-preflight-attempt-6` 为 0700，55 个 manifest 条目全通过，文件均为 0600，
+  秘密扫描 PASS，清单文件 SHA-256 为
+  `bb394acc499cf03169ea74547554a76f44d77e7cd414b7001e7b762abe26dab2`。对应无写注入目录
+  同为 0700，9 个 manifest 条目全通过、文件均为 0600、秘密文件数为 0，清单文件 SHA-256
+  为 `6a071b9d646687d7a6a0c8c1da9af4982126223193bd12eee579b1b23f78e0cc`；注入以
+  `source_head_mismatch`、`window_entered=0`、`cleanup_ok=1` 正确停止。
+- 独立复核：Server、Python Worker health/metrics 均为 200；Rust 进程和 Rust Managed 容器为
+  0；GPU0/GPU1 均为 0 MiB、0%；90 HEAD、远端跟踪引用与 GitHub 一致且工作树干净。没有
+  停止服务、改变 maintenance、写 Server 资源、创建容器或使用 GPU。
+- 当前停止位置：`ready_for_maintenance_authorization`。下一项只能由用户明确授权正式
+  B.5.2 attempt 2；该授权应限定精确 Python Worker stop/restore、Worker maintenance、唯一
+  测试 Model/Instance/File、唯一 Rust vLLM 容器、GPU0、Server-only 推理/日志及精确回滚。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
