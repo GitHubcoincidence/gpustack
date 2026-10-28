@@ -733,3 +733,18 @@ Server API Key 路径版本写错而在凭据门安全停止；attempt 2 的全�
 但结果文件的 attempt 字段仍硬编码为 1，因此不采纳为最终授权证据。该字段已改为强制显式
 输入；下一步只允许在最终干净治理 HEAD 上运行 attempt 3。attempt 3 通过后状态最多为
 `ready_for_maintenance_authorization`，B.5.2 仍需用户新的明确授权。
+
+M6-B.5.1 attempt 3 随后在治理 HEAD `145437bc852cd30fae318aceeb9dea1e07f84adc`
+通过。M6-B.5.2 attempt 1 在明确授权下进入窗口，但因解除 maintenance 后未等待 Worker
+稳定 READY，时间线出现 `ANALYZING -> PENDING` 且 CLI 漏掉初始 `PENDING`，正式状态链门
+失败。实例随后仍完成真实 ModelFile、Docker/vLLM 和 `RUNNING`；失败 finalizer 删除模型时，
+固定 Server 未及时送达删除 watch，而 5 分钟 full sync 超过 180 秒 cleanup 门，随后 Rust
+进程又未在 SIGINT/SIGTERM 后有界退出。精确 fallback 清理和独立事后审计证明 Server 资源、
+Python Worker、maintenance、容器、端口、GPU0、本地状态和模型文件全部恢复。
+
+D167-D170 已把 attempt 1 保持为正式 FAIL，并实现创建前 watch、稳定 READY 门、30 秒权威
+full sync、可中断协调、15 秒顶层退出上界、精确 watchdog 信号升级和强制 attempt 参数。
+代码 HEAD `e66634c523ca37c2e08d50a7656710cb6b16480b` 已通过 188 项 locked/offline
+workspace 测试、格式、all-features/all-targets Clippy、build 和 doc-tests。当前状态为
+`retry_fix_offline_verified`；下一步只允许补齐治理提交、同步三端并执行 attempt 4 的无中断
+只读准备门。即使通过，正式 attempt 2 仍须新的明确维护窗口授权。

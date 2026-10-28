@@ -73,6 +73,14 @@ B.5.2 第一次正式执行仍使用独立的 attempt 1 路径：
 - watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-1`；
 - 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-1`。
 
+attempt 1 已固定判为 `failed_during_window`，上述目录不得复用或覆盖。retry 2 使用：
+
+- 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-4`；
+- 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-4-pre-window-injection`；
+- 正式执行：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-2`；
+- watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-2`；
+- 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-2`。
+
 目录须为 0700，文件须为 0600；每条证据链独立生成 SHA-256 清单并执行秘密扫描。失败和
 无效 attempt 不重用目录，也不覆盖原始结果。
 
@@ -136,6 +144,11 @@ PENDING -> ANALYZING -> SCHEDULED -> INITIALIZING
 -> DOWNLOADING -> STARTING -> RUNNING
 ```
 
+CLI 必须在创建 Model 前建立 watch。原始时间线允许保留重复状态或 Scheduler 回退；验收以
+上述七个状态均被真实观察且按给定顺序构成子序列为准，不能去掉重复事件来伪造时间线，也不能
+用最终状态反推漏失的中间状态。解除 maintenance 后必须先连续两次确认 Worker 为 READY、
+reachable、maintenance=false 且 GPU inventory 完整，才能创建 Model。
+
 vLLM `/v1/models` 健康时间必须早于或等于 Server `RUNNING` 写回；容器 running 本身不能作为
 模型就绪证据。
 
@@ -197,6 +210,11 @@ watchdog 或 finalizer 只能操作本 attempt 记录的精确身份：
   恢复后仍保持 maintenance，避免重新调度；
 - 不修改 GPU1、未知容器、非测试 Server 资源或宿主机模型文件；
 - 失败 attempt 保留全部日志并标记 `FAIL` 或 `invalidated`，不得改写成 PASS。
+
+默认权威 full sync 周期为 30 秒，用于在固定 Server 未送达删除 watch 时仍有界发现删除。
+shutdown 时协调 future 必须可被取消，顶层等待上限为 15 秒。watchdog 依次发送 SIGINT 和
+SIGTERM；只有精确 PID/starttime/exe/hash 仍匹配且该 Worker 的 Rust-managed 容器为零时，
+才允许对该 PID 使用 SIGKILL。
 
 ## 验收门
 

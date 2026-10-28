@@ -3393,6 +3393,39 @@
   上执行 attempt 3；只有 attempt 3 完整通过才能请求 B.5.2 的独立维护窗口授权。此前未停止
   Python Worker、未改变 maintenance、未创建模型/容器、未使用 GPU、未执行推理。
 
+### 2026-10-28：M6-B.5.2 attempt 1 正式失败、恢复完成并完成离线修复
+
+- 准备与窗口：attempt 3 在治理 HEAD
+  `145437bc852cd30fae318aceeb9dea1e07f84adc` 通过，清单文件 SHA-256 为
+  `c570b918ad7a6b1f6cd70ee2f605ee830c5ba96aadb031dd2ab5ba27f22813e5`；用户随后明确授权
+  B.5.2 attempt 1。最终漂移门和 watchdog 先行门通过，精确 Python Worker停止后 Rust
+  Worker启动、readiness 和两张 A100 上报均通过。
+- 正式失败：解除 maintenance 后执行器立即创建 Model 15/Instance 30，Worker 尚未稳定
+  READY；CLI 先观察 `analyzing`，随后观察因 READY 排除而回退的 `pending`，因此完整状态链
+  门已不可满足。该实例之后仍经 ModelFile 9（999,604,126 字节、ready）进入 `starting`，
+  创建唯一容器 `f1d9876d28bd21fbfccffb4e98aba70dd942aa15e9f0c6c52192a9b9989b1b78`，并在真实
+  vLLM 健康后进入 `running`；这些只作为失败诊断证据，不能提升为正式通过。
+- 清理与恢复：finalizer 恢复 maintenance 并删除 Model，权威 Instance 30 返回 404；固定
+  Server 未及时向 Worker送达删除 watch，原 5 分钟 full sync 又超过 180 秒 cleanup 门，
+  因而自动 runtime 清理未发生。严格核对唯一完整 ownership tuple 后只对该测试容器执行
+  fallback stop/remove，并删除精确 manifest/cache/session log；ModelFile 9 元数据删除，宿主
+  模型目录保持完整。Rust PID 未在 SIGINT/SIGTERM 后退出，最终在精确 PID/starttime/exe/hash
+  核对且 workload 为零后 SIGKILL。精确 Python Worker恢复。
+- 证据判定：watchdog `status=FAIL`、executor exit 137、`recovery_ok=0`，其清单文件 SHA-256
+  为 `5b558069d35cf8f6a0530ff151db0a2f690ce00e1dc7bba6f400d3f79266dc3a`。独立事后审计为
+  PASS，清单文件 SHA-256 为
+  `4d7c71a269cc6d965ff6d649afaf9d38de646ff4da3fbc095ec8b20d435e28a8`，证明 Server
+  资源集合、Python Worker、maintenance、Docker、端口、GPU0、本地状态和 Qwen 文件恢复
+  基线。它只证明恢复，不改变 attempt 1 的 `failed_during_window` 判定。
+- 修复：D167-D170 在代码 HEAD `e66634c523ca37c2e08d50a7656710cb6b16480b` 实现创建前
+  ModelInstance watch、稳定 READY 门、七状态有序子序列检查、30 秒权威 full sync、协调中
+  shutdown、15 秒顶层退出上界、精确 watchdog 信号升级和显式 attempt 号。新增五个针对性
+  回归测试，完整 locked/offline 门通过 188 项测试、格式、all-features/all-targets Clippy、
+  build 与 doc-tests；没有停止服务、写 Server、创建容器或使用 GPU。
+- 当前停止位置：`retry_fix_offline_verified`。下一步只允许把本记录纳入干净治理 HEAD，三端
+  同步后运行全新的 preflight attempt 4 和无写注入。通过后状态最多为
+  `ready_for_maintenance_authorization`；正式 attempt 2 必须重新取得明确维护窗口授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

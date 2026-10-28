@@ -127,6 +127,12 @@
   M6-A.3.1 专用 API Key、`lab90` Context 和 token 文件已按 D108 删除，退役证据清单文件
   SHA-256 为 `a30b8840776ea7b7bbd16c4e894208de81f900a4f096813341dce377ade8f605`；
   M6-B 若需要管理权限必须建立新的阶段专用凭据。
+- M6-B.5.1 preflight attempt 3 已通过，随后获授权的 M6-B.5.2 attempt 1 因 Worker READY
+  竞态、删除收敛滞后和退出阻塞判为 `failed_during_window`。独立事后审计清单文件 SHA-256
+  `4d7c71a269cc6d965ff6d649afaf9d38de646ff4da3fbc095ec8b20d435e28a8` 证明 Python
+  Worker、maintenance、Server 资源、Docker、GPU、端口、本地状态和模型文件全部恢复，但
+  不改变失败判定。D167-D170 的离线修复已通过 188 项测试、格式、Clippy、build 和 doc-tests；
+  下一项只允许新的 preflight attempt 4，正式 retry 2 仍需独立维护授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
