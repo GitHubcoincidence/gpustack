@@ -5,6 +5,7 @@ use std::convert::Infallible;
 use std::fs;
 use std::future::Future;
 use std::io;
+use std::net::{IpAddr, SocketAddr};
 use std::path::{Component, Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -63,6 +64,8 @@ pub enum WorkerApiBuildError {
     ModelRoot(io::Error),
     #[error("failed to build Managed inference client: {0}")]
     InferenceClient(reqwest::Error),
+    #[error("managed inference requires worker_ip")]
+    MissingWorkerIp,
 }
 
 #[derive(Debug, Clone)]
@@ -84,6 +87,7 @@ pub struct WorkerApiState {
 struct ManagedApiState {
     registry: Arc<ManagedRuntimeRegistry>,
     proxy: Arc<dyn ManagedInferenceProxy>,
+    worker_ip: IpAddr,
 }
 
 impl WorkerApiState {
@@ -115,6 +119,9 @@ impl WorkerApiState {
         registry: Arc<ManagedRuntimeRegistry>,
     ) -> Result<Self, WorkerApiBuildError> {
         let mut state = Self::new(config, token)?;
+        let worker_ip = config
+            .worker_ip
+            .ok_or(WorkerApiBuildError::MissingWorkerIp)?;
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .build()
@@ -122,6 +129,7 @@ impl WorkerApiState {
         state.managed = Some(ManagedApiState {
             registry,
             proxy: Arc::new(ReqwestManagedInferenceProxy { client }),
+            worker_ip,
         });
         state.managed_inference_token = Some(managed_inference_token);
         Ok(state)
@@ -264,10 +272,14 @@ async fn proxy_managed_inference(
     let body = to_bytes(request.into_body(), MAX_INFERENCE_BODY_BYTES)
         .await
         .map_err(|_| ApiError::inference_payload_too_large())?;
+    // Managed vLLM listens on the advertised Worker IP used by the runtime health probe.
     let upstream = managed
         .proxy
         .forward(ManagedProxyRequest {
-            target: format!("http://127.0.0.1:{}{path}", route.port),
+            target: format!(
+                "http://{}{path}",
+                SocketAddr::new(managed.worker_ip, route.port)
+            ),
             headers,
             body,
         })
@@ -1111,7 +1123,11 @@ mod tests {
             ),
             roots: Arc::new(Vec::new()),
             log_dir: PathBuf::new(),
-            managed: Some(ManagedApiState { registry, proxy }),
+            managed: Some(ManagedApiState {
+                registry,
+                proxy,
+                worker_ip: "10.213.80.90".parse().expect("test Worker IP"),
+            }),
         }
     }
 
@@ -1279,7 +1295,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn inference_proxy_uses_loopback_route_and_strips_sensitive_headers() {
+    async fn inference_proxy_uses_worker_address_and_strips_sensitive_headers() {
         let mut response_headers = HeaderMap::new();
         response_headers.insert(CONTENT_TYPE, "text/event-stream".parse().expect("header"));
         response_headers.insert(TRANSFER_ENCODING, "chunked".parse().expect("header"));
@@ -1333,7 +1349,7 @@ mod tests {
             .expect("forwarded request");
         assert_eq!(
             forwarded.target,
-            "http://127.0.0.1:40000/v1/chat/completions"
+            "http://10.213.80.90:40000/v1/chat/completions"
         );
         assert!(!forwarded.headers.contains_key(AUTHORIZATION));
         assert!(!forwarded.headers.contains_key("x-api-key"));
