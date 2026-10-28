@@ -684,6 +684,6 @@ M6-B.0 设计已接受，M6-B.1 已在产品代码检查点
 workload planner 的离线实现。它已通过固定 Rust 1.99.1 下的 workspace
 格式、all-features/all-targets Clippy、162 项测试、locked/offline build 和
 `git diff --check`；本阶段未增加 Cargo 依赖，也未修改 `Cargo.lock`。当前状态为
-`ready_for_review`：未连接真实 Docker socket，未写入 Server，未变更 maintenance，
-未停止 Python Worker，未创建 GPU workload 或执行真实推理。在用户审阅详细
-实现报告前不得进入 M6-B.2。
+`accepted`：未连接真实 Docker socket，未写入 Server，未变更 maintenance，
+未停止 Python Worker，未创建 GPU workload 或执行真实推理。用户已审阅并接受详细
+实现报告；下一项允许执行 M6-B.2 Managed reconciler 离线实现。

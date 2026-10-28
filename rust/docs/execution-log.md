@@ -3204,6 +3204,16 @@
   未占用 GPU 或执行推理。状态为 `ready_for_review`；用户接受详细报告前不得
   进入 M6-B.2。
 
+### 2026-10-28：M6-B.1 详细实现报告已接受
+
+- 验收：用户已审阅 M6-B.1 的功能、实现数据流、文件映射、测试证据、安全
+  边界、局限和后续范围，并明确确认无问题。阶段状态从 `ready_for_review`
+  更新为 `accepted`。
+- 当前停止位置：下一项允许执行 M6-B.2 Managed reconciler 离线实现。
+  该授权只包括 fake Server/runtime/filesystem 与 locked/offline 质量门；仍不允许连接
+  真实 Docker socket、写入真实 Server、停止 Python Worker、切换 maintenance、创建
+  GPU workload 或执行真实推理。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
