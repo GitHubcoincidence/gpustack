@@ -222,6 +222,46 @@ M6-A.2.3 的接口、源码、离线质量门禁和 D033 详细报告已经用�
 停止 Python Worker 和启动 `--managed-file-only` 必须在预检结果共同审阅后另行明确授权；
 M6-A.3.1 也不授权 Docker workload、GPU workload 或推理。
 
+## M6-B Managed 单 GPU runtime 门禁
+
+M6-B 把 M6-A 已证明的 `STARTING` 终点闭合到真实 `RUNNING`、Server 路由推理、日志和
+权威删除后的精确 runtime 清理。只支持固定本地 Qwen2.5-0.5B、固定 digest Runner、单
+Worker/单 GPU/TP=1、host network 和 `40000-40063`。跨 Worker、多 GPU、LoRA、draft
+model、Kubernetes、完整 crash recovery、restart-on-error 和日志轮转均不是本阶段结论。
+
+M6-B 分成六个独立门禁：
+
+1. **M6-B.0 设计冻结**：冻结 `--managed-runtime`、状态所有权、写前刷新、共享 runtime
+   核心、精确容器标签、健康门、Worker 推理代理、日志/CLI、删除和恢复边界。该门禁只改
+   治理文档，不执行真实 Server、Docker 或 GPU 操作。
+2. **M6-B.1 共享 runtime 与 planner 离线实现**：从 Lab 提取 Docker lifecycle、ownership、
+   vLLM health、诊断和日志读取原语；实现 Managed `STARTING` planner、resolved path/GPU
+   UUID/固定镜像/端口和参数 allowlist。fake runtime 覆盖创建、单容器接管、重复事件、
+   多容器/标签/spec 冲突、越界路径、未知参数和 assignment 漂移。不得连接真实 Docker。
+3. **M6-B.2 Managed reconciler 离线实现**：把 runtime 协调接到 `--managed-runtime`，实现
+   最新权威对象写回、`/v1/models` readiness 后 `RUNNING`、有界 `ERROR`、mode 0600 当前
+   session 日志、辅助 manifest 和权威删除后的精确 cleanup。测试只用 fake Server/runtime/
+   filesystem；前三种受限模式的行为必须保持不变。
+4. **M6-B.3 推理代理与 CLI 离线实现**：在 Worker API 增加严格实例 header parser、健康
+   route table、受限 OpenAI 路径、系统认证 header/hop-by-hop 清理、buffered 与 SSE 转发；
+   实现动态 readiness、`model logs` 和 `inference models/chat/completion`。`model deploy`
+   启用 Server model route。全部使用 mock transport，不连接真实 endpoint。
+5. **M6-B.4 90 只读预检与故障注入**：从冻结干净提交构建；核对 Server/Python Worker、
+   Docker daemon/固定镜像、Qwen manifest、GPU0、端口、模型/容器冲突、回滚材料和凭据
+   准备边界。用 fake 或窗口前硬失败证明未进入时不会改变服务、Server、Docker 或 GPU。
+   该阶段不得停止 Python Worker或创建真实 workload。
+6. **M6-B.5 单 GPU 正式 smoke**：在单独明确授权的维护窗口中停止并最终恢复精确 Python
+   Worker，以 `--managed-runtime` 启动 Rust Worker、显式解除 maintenance，并通过 CLI
+   部署唯一模型。必须证明完整状态链、健康先于 `RUNNING`、Server `/v1/models`、chat、
+   completion、Server model logs、重复事件幂等以及模型删除后 owned container、route、
+   port、cache、manifest、ModelFile/Instance 元数据和 GPU0 workload 零残留。GPU1、未知
+   容器和其他 Server 资源不得改变；阶段凭据验收后退役。
+
+M6-B.1～B.3 每个实现阶段都执行完整 Rust workspace fmt、Clippy、test 和 build 门禁，并在
+聊天中交付 D033 详细实现报告。M6-B.4 的只读通过不自动授权 B.5；停止 Python Worker、
+切换 maintenance、创建 Server 模型、创建 Docker/GPU workload 和真实推理必须由 B.5 的
+精确维护窗口授权覆盖。
+
 ## 验证策略
 
 ### 本地自动化检查

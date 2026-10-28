@@ -3156,6 +3156,29 @@
   验证需要 operator 权限，必须在其设计冻结后重新创建新的阶段专用最小权限凭据；不得恢复或
   复用已撤销的 Key 19。
 
+### 2026-10-28：M6-B.0 Managed 单 GPU runtime 设计已冻结
+
+- 目的与结论：在 M6-A.3.1 已接受且阶段凭据已退役的基线上，共同冻结 M6-B 的真实
+  Docker/vLLM、推理代理、日志、CLI、清理和验证边界。状态为 `accepted_design`，尚未产生
+  M6-B 产品代码或真实 runtime 证据。
+- 接口与状态：新增显式 `worker run --managed-runtime` 设计；保持 Server/Scheduler、Server
+  Controller 和 Rust Worker既有状态所有权。Rust 只在最新权威 `STARTING` 上创建或接管
+  workload，vLLM `/v1/models` 返回期望 served model 后才写 `RUNNING`，失败写有界脱敏
+  `ERROR`。所有副作用前都刷新并复核 assignment/spec。
+- runtime 与隔离：Lab 和 Managed 复用聚焦的 Docker/ownership/health/logging 原语，但保留
+  独立状态机。M6-B 只支持固定 digest Runner、本地路径、单 Worker/单 GPU/TP=1、host
+  network 和受管端口；Managed 完整标签 tuple 增加 `component=vllm`，多匹配、缺标签或
+  spec 冲突均 fail closed。
+- 请求链路：固定正式路径为 CLI/user -> Server `/v1/...` -> Worker `20150` -> 内部健康
+  route table -> 本机 vLLM。Worker严格解析实例 header，只代理支持的 OpenAI 路径，删除
+  Worker认证和 hop-by-hop headers，支持 buffered/SSE。`model logs` 仍走 Server 日志 API。
+- 路线与权限：D152–D159 把后续拆成 M6-B.1～B.5。当前只允许 B.1 共享 runtime/planner
+  的离线实现与 fake 测试；不授权真实 Docker socket、Server 写入、maintenance 变化、停止
+  Python Worker、GPU workload 或真实推理。B.5 需要新的阶段专用最小权限凭据和独立维护
+  窗口授权。
+- 当前停止位置：M6-B.0 已完成，下一项允许执行 M6-B.1。离线实现完成后必须运行完整 Rust
+  workspace 质量门，并按 D033 在聊天中交付详细实现报告再共同验收。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

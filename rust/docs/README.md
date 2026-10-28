@@ -28,9 +28,9 @@
 
 ## 当前状态
 
-- 设计状态：M6-A.2.3 只读预检 CLI、M6-A.3.0/.3.1 方法，以及 D107–D151 operator
-  Context、Worker identity、READY、资源保留字段和单 Worker分布式占位门禁均已 `frozen`；完整 R1 架构继续按
-  门禁推进。
+- 设计状态：M6-A 全部方法和 D107–D151 已冻结并完成验收；D152–D159 已冻结 M6-B 的
+  `--managed-runtime`、状态所有权、共享 runtime、单 GPU workload、Worker 推理代理、日志/CLI、
+  readiness/清理边界和六段门禁。完整 R1 架构继续按门禁推进。
 - 已接受实现：M1～M5 全部阶段、M6-A.0、M6-A.1、M6-A.2、M6-A.2.1、M6-A.2.2 和
   M6-A.2.3。当前 Rust CLI 已具备 Context、Model、Worker 查询/maintenance 和安全 ModelFile
   元数据清理能力，`worker run --managed-file-only` 已接入离线验证的 Managed 文件准备
@@ -108,8 +108,9 @@
   `768cd133fbf7d026c7d684f36c5dfd3ae165e4c826f05ca96ab9472eebebaa0b` 和
   `2dffa63f45943d0b630d5f4e1d41a5fcc8988d5a9b7ddcccdaf7c39aae930613`。测试资源、Docker ID、
   maintenance、Python Worker、端口和 GPU 全部恢复基线，M6-A.3.1 更新为 `accepted`。
-- 当前停止位置：M6-B 尚未开始。下一项允许执行的工作是共同讨论并冻结 Docker/vLLM runtime
-  启动、GPU 隔离、推理验收与回滚方案；本次授权不能复用于创建 workload 或执行推理。
+- 当前停止位置：M6-B.0 设计冻结已完成，下一项允许执行 M6-B.1 共享 runtime/planner 的
+  离线实现与 fake 测试。本次授权不能复用于连接真实 Docker、创建 workload、停止 Python
+  Worker、切换 maintenance、占用 GPU 或执行真实推理。
   M6-A.3.1 专用 API Key、`lab90` Context 和 token 文件已按 D108 删除，退役证据清单文件
   SHA-256 为 `a30b8840776ea7b7bbd16c4e894208de81f900a4f096813341dce377ade8f605`；
   M6-B 若需要管理权限必须建立新的阶段专用凭据。

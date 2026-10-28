@@ -82,13 +82,14 @@ RUNNING -> STOPPED
 
 `gpustack-rs worker run --resource-api-only` 是 M4 的显式受限启动配置。它复用已持久化的 Server Worker 身份和 per-Worker token，继续注册或恢复为 maintenance；启用 NVML/系统资源盘点、完整 M4 Worker HTTP API 和独立 metrics listener，但不构造 Docker client、ModelFile manager、ModelInstance reconciler 或 vLLM runtime，也不发送任何模型状态更新。
 
-四个运行配置的能力边界如下：
+五个运行配置的能力边界如下：
 
 | 启动配置 | 资源上报 | Worker API | metrics | Docker/vLLM | 调度状态 |
 |---|---|---|---|---|---|
 | `--control-plane-only` | 空 GPU | 仅 `/healthz` | 无 | 禁用 | maintenance |
 | `--resource-api-only` | 真实系统/NVML | M4 完整只读 API | `20151` | 禁用 | maintenance |
 | `--managed-file-only` | 真实系统/NVML | M4 完整只读 API | `20151` | 禁用 | 运维显式控制 |
+| `--managed-runtime` | 真实系统/NVML | 完整 R1 API 与推理代理 | `20151` | 单 GPU vLLM | 运维显式控制 |
 | 未来普通 `worker run` | 真实系统/NVML | 完整 R1 API | 启用 | 启用 | 首次收敛后按 Managed 状态 |
 
 resource-api-only 使用 Worker API `10.213.80.90:20150`、metrics `10.213.80.90:20151` 和模型根目录 `/home/wujiaxing2/flowscale-system-validation/models`。`/healthz` 只证明 listener 存活；该模式缺少 Docker 和协调器，因此 `/readyz` 固定返回 503。完整 Managed 的 readiness 仍遵循下述生命周期。M4 不能修改 control-plane-only 的空 GPU、无 metrics 和最小 API 语义。
@@ -103,6 +104,17 @@ maintenance 只能由运维 Context 的显式 CLI 决定，Worker 不得自行�
 该模式不构造 Docker client、WorkloadSpec 或 vLLM runtime。观察到 Server 权威
 `STARTING` 后只记录状态，不创建或接管容器，也不把实例推进为 `RUNNING`。它是 M6-A
 真实协议验证的有界安全模式，不是最终生产运行模式。
+
+### M6-B managed-runtime 验证模式
+
+`gpustack-rs worker run --managed-runtime` 是 M6-B 唯一启用 Managed Docker/vLLM 的显式
+模式。它继承 `managed-file-only` 的资源、Worker API、metrics、持久身份、文件准备和
+maintenance 启动门，再增加 runtime reconciler、动态 readiness、当前 session 日志和
+Worker 推理代理。它与前三种受限模式互斥，不改变它们已经接受的行为。
+
+`managed-runtime` 的 `/readyz` 只有在资源采集、Docker 先决条件和首次权威 runtime 收敛
+完成后返回 200；单个模型未部署或进入 ERROR 不等同于 Worker 未就绪。运维人员仍须通过
+CLI 显式解除 maintenance，Worker不能为了获取任务自行切换该字段。
 
 ## 状态所有权
 
@@ -157,6 +169,7 @@ io.gpustack.mode=managed
 io.gpustack.worker-uuid=<uuid>
 io.gpustack.model-instance-id=<id>
 io.gpustack.spec-hash=<hash>
+io.gpustack.component=vllm
 ```
 
 Lab 容器携带 `io.gpustack.mode=lab` 与一个 Lab 标识。每次变更容器前都要验证完整所有权 tuple。
@@ -189,6 +202,33 @@ UNREACHABLE 由 Server 在 Worker 失联时解释。
 - 文件准备、启动、健康或运行时故障进入 `ERROR`；具体写入者由发生故障的层和固定 Server 协议决定，状态消息必须简洁、可执行且脱敏。
 
 启用 `restart_on_error` 后，重试延迟依次为 0、10、20、40、80 秒等，最大 300 秒。保留重启次数以及当前和上一次日志。Worker 退出时不移除健康的 Managed 容器。
+
+M6-B 只实现同一 Worker 进程内的重复事件幂等和精确单容器接管。零个完整匹配容器时创建，
+恰好一个完整 tuple/spec 匹配时接管；多个匹配、标签缺失或 spec 冲突都 fail closed。Worker
+crash/restart 后的完整恢复、restart-on-error、current/previous 日志轮转属于 M7，不能由
+M6-B 的接管原语推断已经支持。
+
+## Managed 推理与日志链路
+
+固定 v2.2.3 的推理链路为：
+
+```text
+CLI/user -> Server /v1/chat/completions 或 /v1/completions
+         -> Server 鉴权和 Model route
+         -> Worker 20150 + X-GPUStack-Model-Instance + Worker token
+         -> Rust Worker 健康 route table
+         -> 本机 vLLM 40000-40063
+```
+
+Worker只代理明确支持的 OpenAI 路径。它用严格 parser 从
+`X-GPUStack-Model-Instance` 解析 ModelInstance ID，并从内部健康 route table 查找端口；
+请求不能指定任意 upstream。转发前删除 Worker `Authorization` 和 hop-by-hop headers，
+buffered 与 SSE streaming 都不得把系统凭据传给 vLLM。实例退出健康集合或开始清理时，
+先从 route table 删除再停止 runtime。
+
+runtime stdout/stderr 保存为 `<log_dir>/serve/<instance-id>.<restart-count>.log`，文件权限
+0600；M6-B 的 restart count 固定为 0。Server 的 model-instance log API继续代理既有 Worker
+`/serveLogOptions/{id}` 与 `/serveLogs/{id}`，因此用户日志 CLI 不直接读取 Docker socket。
 
 ## 故障行为
 

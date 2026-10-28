@@ -68,7 +68,7 @@ M6-A 先实现 `context add/use/list/remove`、`model deploy/list/get/status/del
 或原始请求的真实文件准备验证。`model logs` 与 `inference models/chat/completion` 在
 M6-B runtime 和推理端点可用后实现；阶段前移不改变最终 R1 命令树。
 
-`model deploy` 使用运维人员身份认证，并通过 Server API 创建模型。它不直接访问 Docker 或 Worker。R1 强制显式指定目标 Worker，避免测试任务被调度到 Python Worker。
+`model deploy` 使用运维人员身份认证，并通过 Server API 创建模型。它不直接访问 Docker 或 Worker。R1 强制显式指定目标 Worker，避免测试任务被调度到 Python Worker。M6-B 将创建请求的 `enable_model_route` 设为 true；Server 只有在实例 `RUNNING` 后才建立 ready target，因此不能用关闭路由代替 Worker 健康门。
 
 R1 部署输入包括：
 
@@ -104,11 +104,29 @@ Worker 的 ModelFile，并按 ID 稳定排序。JSON 返回与 `model file get` 
 table 固定展示 ID、Worker ID、source、state、local path、size、progress 和更新时间。
 空列表是成功，不提供无 scope 的全局列表模式。
 
-`model logs` 调用 Server 日志 API；Server 在向 Worker 请求日志之前继续执行现有用户授权与 tenant 可见性检查。
+M6-B 的精确日志命令为：
+
+```text
+gpustack-rs model logs <model> [--tail <lines>] [--follow] [--previous]
+```
+
+命令只调用 Server model-instance 日志 API；Server 在向 Worker请求日志之前继续执行现有
+用户授权与 tenant 可见性检查。M6-B 只保证 restart count 0 的当前 session；`--previous`
+接口先保留稳定，但在没有上一 session 时明确返回无可用日志，不伪造或回退到当前日志。
 
 ## 推理命令
 
-Managed `inference` 命令调用 Server 或 gateway 的 OpenAI-compatible endpoint。Lab 推理调用隔离的本地 vLLM endpoint，并在输出中明确标记为 Lab。两种形式绝不静默切换 endpoint。
+Managed 推理命令的 M6-B 形式为：
+
+```text
+gpustack-rs inference models
+gpustack-rs inference chat --model <name> --prompt <text> [--max-tokens <n>] [--stream]
+gpustack-rs inference completion --model <name> --prompt <text> [--max-tokens <n>] [--stream]
+```
+
+命令只调用 active Context 的 Server `/v1/models`、`/v1/chat/completions` 或
+`/v1/completions`。Lab 推理继续调用隔离的本地 vLLM endpoint，并在输出中明确标记为 Lab。
+两种形式绝不静默切换 endpoint，也不允许 Managed CLI 直接访问 Worker 或实例端口。
 
 流式命令保留增量输出，并在处理中断时确保认证 header 不会泄露。
 

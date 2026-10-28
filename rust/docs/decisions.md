@@ -759,3 +759,20 @@ M6-A.3.1 接受后已执行 D108 的凭据生命周期清理：唯一阶段 API 
 token 随后返回 401，`lab90` Context 和 token 文件均已删除。退役证据清单文件 SHA-256 为
 `a30b8840776ea7b7bbd16c4e894208de81f900a4f096813341dce377ade8f605`，秘密扫描为 0。M6-B
 若需要 operator 权限，必须创建新的阶段专用最小权限凭据，不能恢复或复用该 Key。
+
+## 2026-10-28 M6-B Managed 单 GPU runtime 设计冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D152 | 显式 runtime 模式与阶段边界 | M6-B 新增 `gpustack-rs worker run --managed-runtime`，与 `--control-plane-only`、`--resource-api-only`、`--managed-file-only` 互斥。它复用 M6-A 控制面和文件准备能力，并且只在该模式初始化 Docker、vLLM、推理代理和动态 readiness。启动时继续要求 Worker 处于 maintenance，解除 maintenance 只能由 operator CLI 显式完成 | 把真实 workload 风险限制在一个可辨识、可回滚的阶段模式中，同时保持前三种已验证安全模式的语义不变。M6-B 不提前决定 R1 之后普通 `worker run` 的默认行为。 |
+| D153 | 状态所有权与写前权威刷新 | Server/Scheduler 继续负责 `PENDING -> ANALYZING -> SCHEDULED`，Rust Worker 负责 `SCHEDULED -> INITIALIZING`，Server Controller 负责 `INITIALIZING -> DOWNLOADING -> STARTING`，Rust Worker只在权威 `STARTING` 后启动或接管 runtime，并在健康门通过后写 `RUNNING`，失败写 `ERROR`。创建、启动、写状态和清理前都重新 GET 实例并复核 Worker、GPU、port、state 与 spec；写回使用最新对象构造完整 update | Docker running 不是模型就绪，缓存事件也不能授权副作用。写前刷新避免 assignment 或删除漂移后仍启动容器或覆盖 Server 新字段。 |
+| D154 | 共享 runtime 核心与 Managed 所有权 | 从 Lab 中提取聚焦的 Docker 生命周期、所有权校验、vLLM 健康、失败诊断和日志读取原语；Lab 与 Managed 保持独立状态机和协调器。Managed 容器的精确标签 tuple 为 `implementation=rust`、`mode=managed`、Worker UUID、ModelInstance ID、spec hash、`component=vllm`。零个精确匹配时创建；恰好一个完全匹配时幂等接管；多个、缺标签或 spec 冲突时 fail closed，绝不修改 Python、Lab 或未知容器 | 复用已经真实验证的 runtime 原语而不把 Lab 的本地状态误当 Server 权威状态。完整 tuple 使接管和删除都能证明资源归属。 |
+| D155 | R1 workload 与参数边界 | 只支持 `local_path`、固定 digest Runner、vLLM、单 Worker、单 NVIDIA GPU、TP=1、host network 和 `40000-40063` 端口。使用 Server 在 `STARTING` 前写入的 `resolved_path`，canonicalize 后必须仍位于允许模型根目录；GPU index 必须解析为当前稳定 UUID。参数只接受已结构化支持的 max model length、GPU memory utilization、dtype、trust remote code 和 eager；未知或能覆盖 Worker安全参数的 flag 拒绝。M6-B 不自动 pull image | 先闭合最小可证明的单 GPU 托管链，避免自由参数、路径、镜像或 GPU 映射绕过安全计划。多 GPU、跨 Worker、LoRA、draft model 和 Kubernetes 继续排除。 |
+| D156 | Worker 推理代理与模型路由 | M6-B 把 Managed Model 的 `enable_model_route` 设为 true。Server 的 `/v1/chat/completions` 和 `/v1/completions` 仍负责用户认证与模型路由，再携带 Worker 系统凭据和 `X-GPUStack-Model-Instance` 请求 Rust Worker `20150`。Worker只接受明确支持的 OpenAI 路径，用严格 parser 取出实例 ID，并仅从内部健康 route table 选择目标端口；客户端不能提供任意 upstream。转发前删除 Worker Authorization 与 hop-by-hop headers，同时支持 buffered 和 SSE streaming | 固定 Python v2.2.3 的真实链路不是 Server 直连实例端口。内部 route table、受限路径和 header 清理既保持兼容，也防止 Worker API 变成开放代理或把系统凭据转发给 vLLM。 |
+| D157 | 日志与 CLI 契约 | runtime stdout/stderr 写入 `<log_dir>/serve/<instance-id>.<restart-count>.log`，M6-B 的 restart count 固定为 0、文件 mode 0600；既有 Worker `/serveLogOptions/{id}` 和 `/serveLogs/{id}` 继续提供日志，`model logs <model> [--tail N] [--follow] [--previous]` 只调用 Server 日志 API。新增 `inference models`、`inference chat` 和 `inference completion`，只调用 active Context 的 Server `/v1/...`，流式响应增量输出，绝不直连或回退到 vLLM | 日志和推理都沿用 Server 的认证、租户可见性和路由边界；CLI 能完整演示正式托管能力而不产生第二条旁路。M6-B 只保证当前 session 日志，完整轮转和 previous 语义留给 M7。 |
+| D158 | readiness、删除和恢复边界 | `managed-runtime` 只有在资源采集、Docker 先决条件和首次权威 runtime 收敛成功后 `/readyz` 才返回 200；单个模型是否 RUNNING 不决定 Worker readiness。Worker退出不删除健康 Managed 容器。模型被权威删除后，协调器再次确认删除事实并只移除完整 owned tuple 的容器、route、cache 与辅助 manifest；未知或冲突资源只报告。M6-B 只验收同进程重复事件的幂等接管，不宣称 Worker crash/restart 恢复 | Worker服务就绪与单个 workload 就绪必须分离。删除前权威确认和精确所有权避免 watch/cache 短暂空缺导致误删；完整崩溃恢复、restart-on-error 和日志轮转需要 M7 的独立故障证据。 |
+| D159 | 分段门禁、正式输入与凭据 | M6-B 依次执行 B.0 文档冻结、B.1 共享 runtime/planner 离线实现、B.2 reconciler/健康/日志/清理离线实现、B.3 推理代理/readiness/CLI 离线实现、B.4 90 只读预检与故障注入、B.5 独立授权的 GPU0 正式 smoke。正式输入沿用 Qwen2.5-0.5B 固定 revision/local path、固定 Runner digest、GPU0 UUID、TP=1、max length 2048、GPU memory 0.5、dtype auto、eager 和无 trust-remote-code。B.5 必须证明完整状态链、Server 推理与日志、精确删除零残留、Python Worker恢复和 GPU1/未知容器不变。真实阶段使用全新最小权限短期 API Key，验收后退役 | 离线、只读与风险窗口分开授权，避免设计接受被解释为允许停止服务或占用 GPU。复用已验证模型和 Runner 降低变量，新的阶段凭据避免恢复 M6-A 已撤销权限。 |
+
+M6-B.0 的通过只冻结上述设计和后续门禁。当前允许直接进入 M6-B.1 离线实现；它不授权
+连接真实 Docker socket、写真实 Server、停止 Python Worker、解除 maintenance、占用 GPU
+或执行真实推理。每个实现门禁仍须完成自动化验证和 D033 详细实现报告后由用户共同审阅。
