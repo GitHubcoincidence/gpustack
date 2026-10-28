@@ -28,6 +28,7 @@ M6-B.5 在 90 服务器上以宿主机 Rust Worker 和 Docker vLLM 闭合第一�
 | attempt 1 产品代码 | `c78cfc5652808ee5c16b40b11df411dadc7d6b6d` |
 | retry 2 产品代码 | `e66634c523ca37c2e08d50a7656710cb6b16480b` |
 | retry 3 产品代码 | `799351f1068adabfded57ab2a6cd2a56749352e6` |
+| retry 4 产品代码 | `e3028fae364b299091b5e93be9b30d15815689ca` |
 | Rust | `1.99.1` |
 | Server | `v2.2.3`，commit `1cfcbbf` |
 | Worker | ID `5`，name `rust-m3d-r760xa`；进入窗口前必须处于 maintenance |
@@ -129,6 +130,32 @@ preflight attempt 7 已通过：准备门清单文件 SHA-256 为
 复核通过；无写注入清单文件 SHA-256 为
 `b7522c7465e5add88f2b069d17e2bb3919158fac441018c1bdac8db6d3f9b8ce`，9 个条目全部复核
 通过。状态为 `ready_for_maintenance_authorization`，不自动授权 formal attempt 3。
+
+formal attempt 3 完成七状态链，并以预写回 Unix 纳秒证据证明 vLLM 健康先于 Server
+`RUNNING`；`inference models` 也通过。第一条 buffered chat 随后由 Rust Worker 返回 401。
+固定 Server 源码和真实认证探针共同确认：ai-proxy 对自托管模型使用 Cluster registration
+token，Python Worker 同时接受该 token 与 per-Worker token，而当时的 Rust Worker 只接受
+per-Worker token。attempt 3 因而固定为 `failed_during_window`，不能以恢复成功改判。正式与
+watchdog 清单文件 SHA-256 分别为
+`26e74a828d1f5e2a6d66f278817979b60e1f5375d4835408b9c76a4ca417067d` 和
+`5f0d6794016a545d7ed8d69b5233a4b62b28ff2d6a6833f27a82a907d9dce84d`；有效事后审计使用
+`m6b5-managed-runtime-post-audit-attempt-3-retry-1`，清单文件 SHA-256 为
+`5105207d88c14a21efd237518f0dc18dc4d9ab78ab8cae4e8ae8773ae8cac708`。
+
+retry 4 采用最小兼容修订：只有 Managed chat/completion 路由接受 per-Worker 或 Cluster
+registration token，其他 Worker 路由不放宽；产品检查点为
+`e3028fae364b299091b5e93be9b30d15815689ca`。所有正式推理和日志命令还必须把具体失败门写入
+结果，不能再被 shell 的通用退出原因覆盖。下一轮只使用全新路径：
+
+- 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-8`；
+- 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-8-pre-window-injection`；
+- 正式执行：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-4`；
+- watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-4`；
+- 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-4`。
+
+当前只完成 retry 4 的离线实现与验证。必须先在包含本记录的干净治理 HEAD 上完成 preflight
+attempt 8 和无写注入；即使它们通过，状态也只能提升为
+`ready_for_maintenance_authorization`，formal attempt 4 仍须用户重新明确授权。
 
 ## M6-B.5.1 准备门
 

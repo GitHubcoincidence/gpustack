@@ -73,6 +73,15 @@ M4 有意不实现 `PUT /v2/config`、`/files/parse-gguf`、benchmark 日志、c
 
 探针和 metrics 无需认证，且不返回敏感信息。M4 其他 Worker HTTP endpoint 只接受注册后持久化的 per-Worker token，不接受 Cluster registration token。凭据比较必须 constant-time，失败统一返回通用 401，日志、CLI 和测试证据中只保留脱敏标识。
 
+M6-B 的 `--managed-runtime` 对上述规则增加一个严格限定的数据面兼容例外：只有
+`POST /v1/chat/completions` 和 `POST /v1/completions` 同时接受 per-Worker token 或
+Cluster registration token。固定 v2.2.3 Server 的 ai-proxy 使用 Cluster registration token
+访问自托管模型，而 Server 直接调用其他 Worker API 时仍使用 per-Worker token；因此
+`/token-auth`、文件、日志、config 和所有其他受保护路由继续保持 per-Worker-only。Managed
+runtime 启动时必须从受保护的 `token_file` 安全加载 registration token，缺失、权限过宽、
+symlink 或无效内容都必须在监听端口和运行 workload 前失败。两种凭据均 constant-time 比较；
+Bearer 继续具有优先级，不能用另一个认证 header 绕过无效 Bearer。
+
 Managed CLI 使用运维人员凭据请求 Server。Server 在代理模型日志请求前继续执行现有 tenant 与授权检查。Worker 系统凭据绝不用来创建用户资源。
 
 ## 资源上报契约

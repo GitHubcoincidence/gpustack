@@ -3566,6 +3566,26 @@
   同时保持 M4 resource API、日志、文件、config 与 `/token-auth` 的 per-Worker-only 边界。
   修订接受前不得实现该认证变化或再次进入维护窗口。
 
+### 2026-10-28：M6-B.5 retry 4 托管推理鉴权兼容已离线实现
+
+- 接受边界：用户接受 D178 的最小修订。只有 Managed chat/completion 路由同时接受
+  per-Worker token 与 Cluster registration token；`/token-auth`、文件、日志、config 和其他
+  Worker API 不放宽。Bearer 仍优先，两种允许凭据均使用 constant-time 比较。
+- 实现：`WorkerApiState` 分离普通 Worker 认证和 Managed inference 认证；
+  `--managed-runtime` 在启动早期通过 `CredentialStore` 从受保护 `token_file` 读取 Cluster
+  registration token，缺失或不安全文件 fail closed。正式执行器为 models、buffered/streaming
+  chat、completion、tail logs、幂等 status 和幂等后 chat 分别记录精确失败原因。
+- 安全测试：新增回归断言证明 per-Worker 与 Cluster token 都能通过 Managed inference，
+  Cluster token 不能通过普通 Worker 认证，无效 Bearer 不能靠有效 `X-API-Key` 绕过。没有
+  把任何 token 值写入代码、Git、日志或文档。
+- 验证：产品提交 `e3028fae364b299091b5e93be9b30d15815689ca` 在 90 上通过新增测试
+  1/1、Worker lib 131/131、workspace 190/190、all-targets/all-features Clippy `-D warnings`、
+  doc-tests、格式、`git diff --check`、executor shell 语法和 locked/offline build。验证没有停止
+  Python Worker、改变 maintenance、写 Server 资源、创建容器或占用 GPU。
+- 当前停止位置：`retry_4_fix_offline_verified`。下一项只允许在包含 D177-D179 的干净治理
+  HEAD 上执行全新的 preflight attempt 8 和无写注入；通过后 formal attempt 4 仍须新的明确
+  维护窗口授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

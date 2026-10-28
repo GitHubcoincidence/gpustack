@@ -815,3 +815,16 @@ maintenance 授权边界、正式状态链、推理方法、watchdog、清理与
 D167-D176 不改变唯一模型、Runner、GPU0、TP、Server-only 推理、日志、三轮幂等、零残留、
 Python Worker恢复和凭据退役等原验收标准。它们只修复观测完整性、权威删除收敛、退出安全
 和重试产品身份治理。
+
+## 2026-10-28 M6-B.5.2 attempt 3 判定与 retry 4 修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D177 | attempt 3 正式判定 | attempt 3 固定判为 `failed_during_window`：七状态链、健康先于 `RUNNING` 和 `inference models` 已通过，但第一条 buffered chat 在 Rust Worker认证层返回 401。正式与 watchdog 均为 FAIL；`cleanup_ok=1` 和有效事后审计 PASS 只证明环境恢复，不能改判业务结果。首次 post-audit 因传输末尾回车污染清单后日志而不可采纳，只有 `m6b5-managed-runtime-post-audit-attempt-3-retry-1` 是恢复证据 | 真实数据面没有完成 chat、completion、日志和幂等门，失败结果必须保留；把业务通过与恢复成功分开，防止以清理证据代替推理验收。 |
+| D178 | Managed 推理凭据最小兼容 | 只有 `--managed-runtime` 的 `POST /v1/chat/completions` 与 `POST /v1/completions` 接受 per-Worker token 或 Cluster registration token；`/token-auth`、文件、日志、config 和其他受保护路由继续只接受 per-Worker token。Managed runtime 必须从受保护 `token_file` 加载 registration token，两种凭据均 constant-time 比较，Bearer 继续优先。产品检查点滚动为 `e3028fae364b299091b5e93be9b30d15815689ca` | 固定 v2.2.3 ai-proxy 对自托管模型使用 Cluster registration token，Python Worker也接受该凭据；Rust 若只认 per-Worker token 会确定性拒绝 Server 路由。限定到两个数据面路径可恢复兼容，同时不扩大控制面和文件/日志接口权限。 |
+| D179 | retry 4 证据与授权边界 | 下一次只读准备使用 `m6b5-preflight-attempt-8` 和 `m6b5-managed-runtime-smoke-attempt-8-pre-window-injection`；正式 retry 使用 formal/watchdog/post-audit attempt 4。执行器为每个推理和日志 CLI 命令显式记录失败原因。preflight 通过后状态仍只能是 `ready_for_maintenance_authorization`，formal attempt 4 必须重新取得用户明确授权 | 新路径防止覆盖 attempt 3；精确失败原因避免 shell `errexit` 把真实门压缩成通用错误。产品修复与再次停止 Python Worker、切换 maintenance 和使用 GPU0 的权限继续分离。 |
+
+D177-D179 不改变模型、Runner、GPU、状态机、Server-only 推理方法、幂等、清理或恢复成功
+标准。`e3028fae` 已在 90 通过聚焦鉴权测试、131 个 Worker 单元测试、workspace 190 个测试、
+all-features/all-targets Clippy `-D warnings`、doc-tests、格式、shell 语法与 locked/offline build；
+验证期间没有停止服务、写 Server、创建容器或使用 GPU。
