@@ -549,8 +549,8 @@ mod tests {
         use crate::lab::{FsLabStore, LabError, LabStore};
 
         let directory = tempfile::tempdir().expect("temporary directory");
-        let _managed = FsManagedRuntimeStore::open(directory.path(), directory.path())
-            .expect("Managed store");
+        let _managed =
+            FsManagedRuntimeStore::open(directory.path(), directory.path()).expect("Managed store");
         let lab = FsLabStore::new(directory.path().join("lab"));
 
         assert!(matches!(lab.lock(), Err(LabError::Busy)));
