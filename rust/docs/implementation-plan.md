@@ -721,3 +721,9 @@ M6-B.5.0 方案和 D160–D165 已获用户接受。正式阶段拆为 B.5.1 短
 状态链、Server-only buffered/streaming 推理、日志、至少三轮同进程幂等、权威删除后零残留、
 Python Worker恢复和凭据退役。当前只允许准备新 API Key并执行 B.5.1，不授权停止服务、
 改变 maintenance、创建模型/容器、申请 GPU 或推理。
+
+D166 已修订 operator 凭据：首次 Web Key ID 20 的单一 `management` scope 和 7 天有效期不
+满足正式推理与生命周期门，已在用户明确授权下替换为 ID 21、名称
+`rust-worker-m6b5-operator-20261028-v2`、scope `management,inference`、有效期 86400 秒；
+新 Key 的双 scope GET 均为 200，旧 Key 已删除且返回 401。当前状态为
+`operator_credential_ready`，下一项只允许在新治理 HEAD 上执行 B.5.1 Context 和只读准备门。

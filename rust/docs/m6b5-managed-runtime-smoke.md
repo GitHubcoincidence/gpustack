@@ -47,9 +47,10 @@ mount，并只允许停止和恢复该对象。若身份相对 M6-B.4 漂移，�
 
 ## 阶段专用凭据
 
-- API Key name：`rust-worker-m6b5-operator-20261028`；
-- scope：完成 Worker maintenance、Model、ModelInstance 和 ModelFile 运维所需的平台管理权限；
-- expiry：从创建起不超过 24 小时；
+- API Key name：`rust-worker-m6b5-operator-20261028-v2`；
+- scope：同时包含 `management` 和 `inference`；前者用于 Worker maintenance、Model、
+  ModelInstance 和 ModelFile 运维，后者用于全部 Server-only 推理验收；
+- expiry：从创建起精确 86400 秒；
 - Context name：`m6b5-operator`；
 - token file：`/home/wujiaxing2/.config/gpustack-rust/m6b5-operator-token`；
 - token 文件和 Context 存储均须为 0600，父目录为 0700；

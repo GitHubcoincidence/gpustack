@@ -3355,6 +3355,23 @@
   token 安全落盘后执行 B.5.1 的认证 GET、只读漂移门、locked/offline build、执行器/watchdog
   静态审计和无写故障注入。B.5.2 仍须新的明确维护窗口授权。
 
+### 2026-10-28：M6-B.5.1 operator 凭据完成窄幅修订
+
+- 观察：用户按初版方案创建的 API Key ID 20、名称
+  `rust-worker-m6b5-operator-20261028`，公开元数据显示 scope 仅为 `management`，有效期为
+  7 天。v2.2.3 源码确认 management 与 inference 是两个独立门，因此该 Key 不能支持冻结的
+  Server-only 推理，也不满足 24 小时生命周期。
+- 决策与授权：用户明确接受 D166。使用 ID 20 创建替代 Key ID 21、名称
+  `rust-worker-m6b5-operator-20261028-v2`、scope `management,inference`、有效期精确
+  86400 秒；不改变其余正式 workload 或授权边界。
+- 结果：ID 21 分别对 `/v2/workers` 和 `/v1/models` 返回 200 后原子替换
+  `/home/wujiaxing2/.config/gpustack-rust/m6b5-operator-token`；文件 mode 0600、owner
+  `wujiaxing2:wujiaxing2`、link count 1。旧 Key ID 20 删除成功，旧 token 随后返回 401。
+  完整 token 未进入聊天、命令参数、日志、Git 或证据。
+- 当前停止位置：`operator_credential_ready`。下一项允许在包含 D166 的干净治理 HEAD 上创建
+  `m6b5-operator` Context 并执行 B.5.1 只读预检/执行器准备；仍不授权停止 Python Worker、
+  改变 maintenance、创建模型/容器、申请 GPU 或推理。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

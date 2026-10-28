@@ -791,3 +791,8 @@ M6-B.0 的通过只冻结上述设计和后续门禁。当前允许直接进入 
 D160-D165 只授权记录方案。下一项允许在用户直接创建阶段 API Key 后执行 B.5.1 凭据验证、
 只读预检和执行器准备；它们不授权 B.5.2 的服务停止、maintenance 变化、Server 业务写入、
 Docker/GPU workload 或推理。
+
+| D166 | operator Key scope 与生命周期修订 | 用户首次创建的 Key ID 20 只有 `management` scope 且有效期 7 天，不能通过独立的 inference scope 门，也不满足 24 小时上限。经用户明确接受后，用它创建 Key ID 21、名称 `rust-worker-m6b5-operator-20261028-v2`、scope `management,inference`、有效期精确 86400 秒；新 Key 在 90 上分别通过 management 和 inference GET 后原子替换同一路径 token，旧 Key ID 20 随后删除并验证返回 401 | 正式 M6-B.5 同一 Context 既要完成控制面运维，也要只经 Server 完成推理；v2.2.3 对两种 scope 独立校验。显式修订并退役错误 Key 比放宽验收或保留多余长期凭据更安全。 |
+
+D166 只修订 D161 的 Key 名称、scope 和精确生命周期；Context、文件路径、workload、
+maintenance 授权边界、正式状态链、推理方法、watchdog、清理与验收标准均不变。
