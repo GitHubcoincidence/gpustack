@@ -666,6 +666,23 @@ mod tests {
                 .to_string()
                 .contains(LABEL_SPEC_HASH)
         );
+
+        let mut conflicting = owned_runtime(&spec);
+        conflicting
+            .inspected
+            .get_mut("container-1")
+            .expect("details")
+            .labels
+            .insert(LABEL_SPEC_HASH.to_string(), "b".repeat(64));
+        assert!(
+            fixture
+                .planner
+                .discover(&conflicting, &spec)
+                .await
+                .expect_err("conflicting spec hash")
+                .to_string()
+                .contains("expected")
+        );
     }
 
     #[tokio::test]
