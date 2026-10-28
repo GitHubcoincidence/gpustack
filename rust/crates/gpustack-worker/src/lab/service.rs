@@ -534,7 +534,11 @@ impl<'a> LabService<'a> {
                             .unwrap_or_else(|| "vLLM container exited".to_string()),
                     });
                 }
-                VllmHealthState::Starting => last_health_error = observation.message,
+                VllmHealthState::Starting => {
+                    if observation.message.is_some() {
+                        last_health_error = observation.message;
+                    }
+                }
             }
             if self.clock.now_unix() >= deadline {
                 return Err(LabError::DeploymentFailed {
@@ -563,7 +567,7 @@ impl<'a> LabService<'a> {
             session.save_deployment(deployment)?;
             return Ok(status_from(deployment, None));
         };
-        let Some(details) = self.inspect_optional(container_id).await? else {
+        let Some(_details) = self.inspect_optional(container_id).await? else {
             deployment.state = LabState::Failed;
             deployment.last_error = Some("owned container is missing".to_string());
             deployment.updated_at_unix = self.clock.now_unix();
@@ -903,8 +907,8 @@ mod tests {
     use futures_util::stream;
     use gpustack_runtime::docker::{
         ContainerCreateResult, ContainerListEntry, ContainerLogOptions, ContainerSpec,
-        DockerDaemonInfo, ImageIdentity, RuntimeFuture, RuntimeLogLine, RuntimeLogStream,
-        RuntimeLogStreamKind,
+        DockerDaemonInfo, ImageIdentity, RuntimeError, RuntimeFuture, RuntimeLogLine,
+        RuntimeLogStream, RuntimeLogStreamKind,
     };
     use serde_json::json;
 
@@ -1069,7 +1073,10 @@ mod tests {
         fn inspect_image<'a>(&'a self, image: &'a str) -> RuntimeFuture<'a, ImageIdentity> {
             Box::pin(async move {
                 Ok(ImageIdentity {
-                    id: format!("sha256:{}", digest(image).expect("digest")),
+                    id: format!(
+                        "sha256:{}",
+                        image.rsplit_once("@sha256:").expect("digest").1
+                    ),
                     repo_digests: vec![image.to_string()],
                     architecture: Some("amd64".to_string()),
                     os: Some("linux".to_string()),
