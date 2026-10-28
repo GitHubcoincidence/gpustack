@@ -3251,6 +3251,38 @@
   transport、fake runtime 和 locked/offline 质量门；仍不允许连接真实 Docker/Server endpoint、
   停止 Python Worker、切换 maintenance、创建 GPU workload 或执行真实推理。
 
+### 2026-10-28：M6-B.3 推理代理、动态 readiness 与 CLI 离线实现完成
+
+- 代码身份：产品代码检查点为
+  `c78cfc5652808ee5c16b40b11df411dadc7d6b6d`；固定 Rust 1.99.1，`Cargo.lock`
+  SHA-256 为 `90f1aeaa22b4f06dc77e48497f2fe3394ab07ab55441c8ddb3124a67dca07010`。
+- 路由与 readiness：新增同进程 Managed route registry。vLLM 健康后先发布实例 ID 到固定
+  loopback 端口的路由，再向 Server 写 `RUNNING`；写回失败、实例错误和权威删除都撤销
+  路由。只有 `--managed-runtime` 在 Docker 先决条件和首次权威收敛成功后返回 ready，退出
+  或基础设施/API 收敛失败时恢复 unready；单个模型进入 `ERROR` 不把整个 Worker 判为
+  unready。
+- 推理代理：Worker只注册 `/v1/chat/completions` 与 `/v1/completions` 两个受认证 POST
+  路径，严格要求唯一正十进制 `X-GPUStack-Model-Instance`，并且只能从内部健康路由表选择
+  `127.0.0.1:40000-40063`。转发双向删除认证、实例、hop-by-hop、Host 和 Content-Length
+  headers，请求体有 16 MiB 上限；buffered 错误和 SSE 分块均保持上游状态与字节流。
+- Client/CLI：`model deploy` 设为 `enable_model_route=true`；新增
+  `model logs <model> [--tail] [--follow] [--previous]`、`inference models`、
+  `inference chat` 和 `inference completion`。日志先解析唯一 R1 ModelInstance，再只调用
+  Server 日志 API；Managed 推理只调用 active Context 的 Server `/v1/...`，流式字节增量
+  输出。没有上一 restart 时 `--previous` 明确返回 404，不回退当前日志。
+- 验证：90 服务器在干净、已提交且已推送的精确代码 HEAD 上通过 workspace rustfmt、
+  all-targets/all-features Clippy `-D warnings`、181 项 locked/offline 测试、全部 doc-tests、
+  all-targets/all-features locked/offline build 和工作树清洁门。新增 fake/mock 覆盖动态
+  readiness、健康路由发布/撤销、严格 header parser、loopback 目标、敏感/hop-by-hop header
+  清理、buffered/SSE 代理、日志唯一实例解析、Server-only OpenAI 路径和流式分块保持。
+- 依赖与安全边界：没有引入新的第三方包；CLI 只显式复用 workspace 已有
+  `futures-util`，因此 lockfile 仅更新该 workspace package 的直接依赖记录。本阶段没有连接
+  真实 Server/Docker endpoint、切换 maintenance、停止 Python Worker、创建容器、占用 GPU
+  或执行真实推理。
+- 状态与下一步：M6-B.3 为 `ready_for_review`，不是 `accepted`。当前只允许交付并共同审阅
+  D033 详细实现报告；接受后才能记录验收检查点并进入 M6-B.4 只读预检与离线故障注入。
+  M6-B.4 的通过也不自动授权 M6-B.5 维护窗口或真实 GPU smoke。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
