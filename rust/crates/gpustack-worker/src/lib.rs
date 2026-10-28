@@ -10,6 +10,7 @@ pub mod managed;
 pub mod metrics;
 pub mod resource_run;
 pub mod resources;
+pub mod runtime_core;
 pub mod run;
 pub mod signal;
 pub mod worker_api;

@@ -3,6 +3,7 @@
 mod coordinator;
 mod model_file;
 mod port;
+mod runtime;
 
 pub use coordinator::{
     ManagedApi, ManagedCoordinator, ManagedOutcome, ManagedResult, ManagedTarget,
@@ -12,3 +13,4 @@ pub use port::{
     MANAGED_PORT_END, MANAGED_PORT_START, ManagedPortAllocator, PortAllocationError,
     PortAssignment, PortProbe, TcpBindProbe,
 };
+pub use runtime::{ManagedGpu, ManagedRuntimePlanError, ManagedWorkloadPlanner};

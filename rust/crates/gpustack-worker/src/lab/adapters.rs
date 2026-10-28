@@ -8,6 +8,8 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::runtime_core::{VllmHealthFuture, VllmHealthProbe};
+
 use super::{
     ClockFuture, LabClock, LabError, LabFuture, LabGpu, LabGpuProbe, LabHttpClient, LabIdSource,
     LabInferRequest, LabInferenceKind, ModelPathResolver, PortProbe,
@@ -175,29 +177,31 @@ struct ModelEntry {
     id: String,
 }
 
-impl LabHttpClient for ReqwestLabHttpClient {
-    fn models<'a>(&'a self, endpoint: &'a str) -> LabFuture<'a, Vec<String>> {
+impl VllmHealthProbe for ReqwestLabHttpClient {
+    fn models<'a>(&'a self, endpoint: &'a str) -> VllmHealthFuture<'a> {
         Box::pin(async move {
             let response = self
                 .client
                 .get(format!("{endpoint}/v1/models"))
                 .send()
                 .await
-                .map_err(|error| LabError::Http(error.to_string()))?;
+                .map_err(|error| error.to_string())?;
             if response.status() != StatusCode::OK {
-                return Err(LabError::Http(format!(
+                return Err(format!(
                     "vLLM models endpoint returned HTTP {}",
                     response.status().as_u16()
-                )));
+                ));
             }
             let response = response
                 .json::<ModelsResponse>()
                 .await
-                .map_err(|error| LabError::Http(error.to_string()))?;
+                .map_err(|error| error.to_string())?;
             Ok(response.data.into_iter().map(|model| model.id).collect())
         })
     }
+}
 
+impl LabHttpClient for ReqwestLabHttpClient {
     fn infer<'a>(
         &'a self,
         endpoint: &'a str,

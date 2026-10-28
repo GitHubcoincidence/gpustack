@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use futures_util::StreamExt;
 use gpustack_runtime::docker::{
-    ContainerDetails, ContainerRuntime, ContainerState, DockerRuntime, ImageIdentity, RuntimeError,
+    ContainerDetails, ContainerRuntime, ContainerState, DockerRuntime,
 };
 
 use super::{
@@ -15,6 +15,10 @@ use super::{
     NvmlLabGpuProbe, PortProbe, ReqwestLabHttpClient, SystemLabClock, TcpPortProbe, log_options,
 };
 use crate::WorkerConfig;
+use crate::runtime_core::{
+    VllmHealthState, inspect_optional, observe_vllm_health, redact_diagnostic,
+    resolve_immutable_image, workload_endpoint,
+};
 use crate::workload::{
     LABEL_IMPLEMENTATION, LABEL_MODE, LABEL_OWNER_ID, WorkloadBuildRequest, WorkloadGpu,
     WorkloadMode, WorkloadSpecV2,
@@ -507,45 +511,35 @@ impl<'a> LabService<'a> {
             .clock
             .now_unix()
             .saturating_add(deployment.spec.health.deadline_secs);
-        let endpoint = endpoint(&deployment.spec);
         let mut last_health_error = None;
         loop {
             let container_id = deployment
                 .container_id
                 .as_deref()
                 .expect("activated deployment has a container ID");
-            let details = self.runtime.inspect_container(container_id).await?;
-            deployment
-                .spec
-                .verify_ownership(&details.labels)
-                .map_err(|error| LabError::Unsafe(error.to_string()))?;
-            if matches!(details.state, ContainerState::Exited | ContainerState::Dead) {
-                return Err(LabError::DeploymentFailed {
-                    lab_id: deployment.lab_id.clone(),
-                    message: self.container_failure_diagnostic(&details).await,
-                });
-            }
-            if details.state == ContainerState::Running {
-                match self.http.models(&endpoint).await {
-                    Ok(models)
-                        if models
-                            .iter()
-                            .any(|model| model == &deployment.spec.served_model_name) =>
-                    {
-                        deployment.state = LabState::Running;
-                        deployment.last_error = None;
-                        deployment.updated_at_unix = self.clock.now_unix();
-                        session.save_deployment(deployment)?;
-                        return Ok(status_from(deployment, Some(details.state)));
-                    }
-                    Ok(_) => {
-                        last_health_error = Some(format!(
-                            "expected model '{}' is absent from /v1/models",
-                            deployment.spec.served_model_name
-                        ));
-                    }
-                    Err(error) => last_health_error = Some(redact_diagnostic(&error.to_string())),
+            let observation =
+                observe_vllm_health(self.runtime, self.http, &deployment.spec, container_id)
+                    .await?;
+            match observation.state {
+                VllmHealthState::Ready => {
+                    deployment.state = LabState::Running;
+                    deployment.last_error = None;
+                    deployment.updated_at_unix = self.clock.now_unix();
+                    session.save_deployment(deployment)?;
+                    return Ok(status_from(
+                        deployment,
+                        Some(observation.container.state),
+                    ));
                 }
+                VllmHealthState::Failed => {
+                    return Err(LabError::DeploymentFailed {
+                        lab_id: deployment.lab_id.clone(),
+                        message: observation
+                            .message
+                            .unwrap_or_else(|| "vLLM container exited".to_string()),
+                    });
+                }
+                VllmHealthState::Starting => last_health_error = observation.message,
             }
             if self.clock.now_unix() >= deadline {
                 return Err(LabError::DeploymentFailed {
@@ -581,76 +575,45 @@ impl<'a> LabService<'a> {
             session.save_deployment(deployment)?;
             return Ok(status_from(deployment, None));
         };
-        deployment
-            .spec
-            .verify_ownership(&details.labels)
-            .map_err(|error| LabError::Unsafe(error.to_string()))?;
-        match details.state {
-            ContainerState::Running => match self.http.models(&endpoint(&deployment.spec)).await {
-                Ok(models)
-                    if models
-                        .iter()
-                        .any(|model| model == &deployment.spec.served_model_name) =>
-                {
-                    deployment.state = LabState::Running;
-                    deployment.last_error = None;
-                }
-                Ok(_) => {
-                    deployment.state = LabState::Starting;
-                    deployment.last_error = Some(format!(
-                        "expected model '{}' is absent from /v1/models",
-                        deployment.spec.served_model_name
-                    ));
-                }
-                Err(error) => {
-                    deployment.state = LabState::Starting;
-                    deployment.last_error = Some(redact_diagnostic(&error.to_string()));
-                }
-            },
-            ContainerState::Exited | ContainerState::Dead => {
+        let observation =
+            observe_vllm_health(self.runtime, self.http, &deployment.spec, container_id).await?;
+        match observation.state {
+            VllmHealthState::Ready => {
+                deployment.state = LabState::Running;
+                deployment.last_error = None;
+            }
+            VllmHealthState::Failed => {
                 if deployment.state != LabState::Stopped {
                     deployment.state = LabState::Failed;
-                    deployment.last_error = Some(self.container_failure_diagnostic(&details).await);
+                    deployment.last_error = observation.message;
                 }
             }
-            _ => {
+            VllmHealthState::Starting => {
                 deployment.state = LabState::Starting;
+                deployment.last_error = observation.message;
             }
         }
         deployment.updated_at_unix = self.clock.now_unix();
         session.save_deployment(deployment)?;
-        Ok(status_from(deployment, Some(details.state)))
+        Ok(status_from(
+            deployment,
+            Some(observation.container.state),
+        ))
     }
 
     async fn inspect_optional(
         &self,
         container_id: &str,
     ) -> Result<Option<ContainerDetails>, LabError> {
-        match self.runtime.inspect_container(container_id).await {
-            Ok(details) => Ok(Some(details)),
-            Err(RuntimeError::NotFound { .. }) => Ok(None),
-            Err(error) => Err(error.into()),
-        }
+        inspect_optional(self.runtime, container_id)
+            .await
+            .map_err(Into::into)
     }
 
     async fn resolve_image(&self, requested: &str) -> Result<String, LabError> {
-        let requested_digest = digest(requested).ok_or_else(|| {
-            LabError::Invalid("Lab image must use an immutable SHA-256 digest".to_string())
-        })?;
-        let identity = self.runtime.inspect_image(requested).await?;
-        if !image_matches(&identity, requested, requested_digest) {
-            return Err(LabError::Unsafe(
-                "local image identity does not match the requested immutable digest".to_string(),
-            ));
-        }
-        if identity.os.as_deref() != Some("linux")
-            || !matches!(identity.architecture.as_deref(), Some("amd64" | "x86_64"))
-        {
-            return Err(LabError::Unsafe(
-                "Lab runner image must target Linux amd64".to_string(),
-            ));
-        }
-        Ok(requested.to_string())
+        resolve_immutable_image(self.runtime, requested)
+            .await
+            .map_err(Into::into)
     }
 
     fn allocate_port(&self, deployments: &[LabDeployment]) -> Result<u16, LabError> {
@@ -678,32 +641,6 @@ impl<'a> LabService<'a> {
         }
     }
 
-    async fn container_failure_diagnostic(&self, details: &ContainerDetails) -> String {
-        let mut diagnostic = container_failure(details);
-        let mut logs = self
-            .runtime
-            .logs(&details.id, log_options(false, 0, "20".to_string()));
-        let mut tail = String::new();
-        while tail.len() < 4096 {
-            match logs.next().await {
-                Some(Ok(line)) => {
-                    let remaining = 4096usize.saturating_sub(tail.len());
-                    tail.extend(
-                        String::from_utf8_lossy(&line.message)
-                            .chars()
-                            .take(remaining),
-                    );
-                }
-                Some(Err(_)) | None => break,
-            }
-        }
-        let tail = redact_diagnostic(tail.trim());
-        if !tail.is_empty() {
-            diagnostic.push_str("; log tail: ");
-            diagnostic.push_str(&tail);
-        }
-        redact_diagnostic(&diagnostic)
-    }
 }
 
 pub struct LabEnvironment {
@@ -917,23 +854,8 @@ fn ensure_port_not_recorded(
     Ok(())
 }
 
-fn digest(value: &str) -> Option<&str> {
-    value
-        .rsplit_once("@sha256:")
-        .map(|(_, digest)| digest)
-        .or_else(|| value.strip_prefix("sha256:"))
-        .filter(|digest| digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit()))
-}
-
-fn image_matches(identity: &ImageIdentity, requested: &str, requested_digest: &str) -> bool {
-    identity.id.strip_prefix("sha256:") == Some(requested_digest)
-        || identity.repo_digests.iter().any(|digest_value| {
-            digest_value == requested || digest(digest_value) == Some(requested_digest)
-        })
-}
-
 fn endpoint(spec: &WorkloadSpecV2) -> String {
-    format!("http://{}:{}", spec.service_host, spec.service_port)
+    workload_endpoint(spec)
 }
 
 fn status_from(deployment: &LabDeployment, container_state: Option<ContainerState>) -> LabStatus {
@@ -979,35 +901,6 @@ fn state_name(state: LabState) -> &'static str {
     }
 }
 
-fn container_failure(details: &ContainerDetails) -> String {
-    let reason = if details.oom_killed {
-        "container was OOM-killed".to_string()
-    } else if let Some(error) = &details.error {
-        redact_diagnostic(error)
-    } else {
-        "container exited before vLLM became ready".to_string()
-    };
-    match details.exit_code {
-        Some(code) => format!("{reason} (exit code {code})"),
-        None => reason,
-    }
-}
-
-fn redact_diagnostic(message: &str) -> String {
-    let lowered = message.to_ascii_lowercase();
-    if ["token", "password", "api-key", "api_key", "authorization"]
-        .iter()
-        .any(|needle| lowered.contains(needle))
-    {
-        return "diagnostic omitted because it may contain a secret".to_string();
-    }
-    message
-        .chars()
-        .filter(|character| !character.is_control() || *character == ' ')
-        .take(512)
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -1026,6 +919,7 @@ mod tests {
 
     use super::*;
     use crate::lab::{ClockFuture, LabFuture, LabInferenceKind};
+    use crate::runtime_core::{VllmHealthFuture, VllmHealthProbe};
     use crate::workload::VllmOptions;
 
     const IMAGE: &str =
@@ -1361,11 +1255,13 @@ mod tests {
         models: Vec<String>,
     }
 
-    impl LabHttpClient for FakeHttp {
-        fn models<'a>(&'a self, _endpoint: &'a str) -> LabFuture<'a, Vec<String>> {
+    impl VllmHealthProbe for FakeHttp {
+        fn models<'a>(&'a self, _endpoint: &'a str) -> VllmHealthFuture<'a> {
             Box::pin(async move { Ok(self.models.clone()) })
         }
+    }
 
+    impl LabHttpClient for FakeHttp {
         fn infer<'a>(
             &'a self,
             _endpoint: &'a str,

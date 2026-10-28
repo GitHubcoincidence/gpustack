@@ -299,6 +299,8 @@ pub struct ModelPublic {
     pub name: String,
     pub source: ModelSource,
     pub backend: Option<String>,
+    pub backend_parameters: Option<Vec<String>>,
+    pub env: Option<BTreeMap<String, String>>,
     pub local_path: Option<String>,
     pub image_name: Option<String>,
     #[serde(flatten)]

@@ -495,7 +495,7 @@ fn validate_request(request: &WorkloadBuildRequest) -> Result<(), WorkloadError>
     }
     validate_digest(&request.resolved_image_digest)?;
     if request.gpus.len() != 1 || request.tensor_parallel_size != 1 {
-        return invalid("M5 requires exactly one GPU and tensor parallel size 1");
+        return invalid("R1 requires exactly one GPU and tensor parallel size 1");
     }
     if !request.gpus[0].uuid.starts_with("GPU-") {
         return invalid("GPU identity must use a stable NVIDIA UUID");

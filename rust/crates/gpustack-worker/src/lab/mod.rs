@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
+use crate::runtime_core::{RuntimeCoreError, VllmHealthProbe};
 use crate::workload::{VllmOptions, WorkloadError, WorkloadSpecV2};
 
 pub use adapters::{
@@ -201,8 +202,7 @@ pub trait PortProbe: Send + Sync {
     fn is_available(&self, host: &str, port: u16) -> Result<bool, LabError>;
 }
 
-pub trait LabHttpClient: Send + Sync {
-    fn models<'a>(&'a self, endpoint: &'a str) -> LabFuture<'a, Vec<String>>;
+pub trait LabHttpClient: Send + Sync + VllmHealthProbe {
     fn infer<'a>(
         &'a self,
         endpoint: &'a str,
@@ -246,6 +246,8 @@ pub enum LabError {
     DeploymentFailed { lab_id: String, message: String },
     #[error(transparent)]
     Runtime(#[from] RuntimeError),
+    #[error(transparent)]
+    RuntimeCore(#[from] RuntimeCoreError),
     #[error(transparent)]
     Workload(#[from] WorkloadError),
     #[error("failed to serialize Lab state: {0}")]
