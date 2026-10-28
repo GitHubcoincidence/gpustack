@@ -3620,6 +3620,11 @@
   `recovery_ok=1`；两处清单文件 SHA-256 分别为
   `d5f2e72f785c14bd8f68300421d71a8b8834194f6751cec6f476942fd586feb8` 和
   `d936540b4de28307887c2b896f90fdc9cbabc487d5840cc14ccb5bb282b9bd08`。
+- 独立事后审计：`m6b5-managed-runtime-post-audit-attempt-4` 对 formal/watchdog 清单、三项
+  服务、全局资源 ID、Worker maintenance、Docker/Python Worker身份、Rust 进程和端口、
+  两张 GPU、固定模型 manifest 与源码身份全部复核为 PASS；21 个清单条目全部通过，秘密
+  文件数为 0，清单文件 SHA-256 为
+  `93db665b14f6a0eac63f95abb3d521b47610d46b12e278a7e91983fb6e2de3ca`。
 - 根因与修复：D178 使 Managed runtime 必须读取 Cluster registration token，但 executor 的
   固定 Worker 参数遗漏 `--token-file`。修订后显式传入既有受保护文件，并在 config 中核对
   精确路径；preflight 增加文件安全、只读认证 200 和静态参数审计。90 上 shell 语法与真实

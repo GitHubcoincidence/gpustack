@@ -839,4 +839,6 @@ all-features/all-targets Clippy `-D warnings`、doc-tests、格式、shell 语�
 
 D181-D182 不改变 D178 的产品代码或鉴权范围；产品检查点仍为 `e3028fae`。脚本修复只增加
 既有受保护文件的路径引用，不读取、记录或传递 token 值。正式 retry 前必须先完成独立事后
-审计、新证据路径和全量 preflight。
+审计、新证据路径和全量 preflight。attempt 4 独立事后审计已 PASS，21 个清单条目全部
+复核通过，清单文件 SHA-256 为
+`93db665b14f6a0eac63f95abb3d521b47610d46b12e278a7e91983fb6e2de3ca`。

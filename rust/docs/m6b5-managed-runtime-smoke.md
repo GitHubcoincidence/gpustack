@@ -169,6 +169,10 @@ ModelInstance、ModelFile 或 vLLM 容器；formal 和 watchdog 均为 FAIL，�
 `cleanup_ok=1`、`recovery_ok=1`。正式和 watchdog 清单文件 SHA-256 分别为
 `d5f2e72f785c14bd8f68300421d71a8b8834194f6751cec6f476942fd586feb8` 和
 `d936540b4de28307887c2b896f90fdc9cbabc487d5840cc14ccb5bb282b9bd08`。
+独立事后审计 `m6b5-managed-runtime-post-audit-attempt-4` 为 PASS，21 个清单条目全部通过，
+清单文件 SHA-256 为
+`93db665b14f6a0eac63f95abb3d521b47610d46b12e278a7e91983fb6e2de3ca`；它证明恢复完成，
+不改变 attempt 4 的失败判定。
 
 根因是 retry 4 产品实现新增了 Managed runtime 必需的 Cluster token 输入，而 executor 的
 固定参数仍沿用修订前集合。retry 5 保持产品检查点 `e3028fae`，只修正执行器和准备门：
