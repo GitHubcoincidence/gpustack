@@ -165,7 +165,7 @@ jq -e --arg context "$CONTEXT" --arg token "$TOKEN_FILE" '
   [.[] | select(.name == $context and .server_url == "http://127.0.0.1/" and
     .token_file == $token and .active == true)] | length == 1
 ' "$EVIDENCE/contexts.json" >/dev/null
-[[ "$(auth_get "http://127.0.0.1/v1/api-keys?page=-1&search=$KEY_NAME" \
+[[ "$(auth_get "http://127.0.0.1/v2/api-keys?page=-1&search=$KEY_NAME" \
   "$EVIDENCE/api-keys.json")" == '200' ]]
 jq -e --argjson id "$KEY_ID" --arg name "$KEY_NAME" '
   [.items[] | select(.id == $id and .name == $name and
