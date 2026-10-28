@@ -3446,6 +3446,20 @@
   `m6b5-managed-runtime-smoke-attempt-5-pre-window-injection` 完整重跑只读准备门；正式
   B.5.2 attempt 2 仍须新的明确维护窗口授权。
 
+### 2026-10-28：M6-B.5.1 preflight attempt 5 因远端跟踪缓存安全停止
+
+- 结果：attempt 5 仍在第一组 `source_and_scripts` 返回 `STOP`。逐项复核证明产品提交
+  ancestry/diff、Rust 1.99.1、`Cargo.lock` 和干净工作树均正确；唯一失败项是 90 本地
+  `origin/codex/rust-worker` 仍为 `2817aef01e93a61f0889399d4511fb41054ac7ef`，而 90 HEAD
+  和 GitHub 分支已为 `5912b4eedc1cf983acb0775d1f1004441a84d27c`。
+- 处理与影响：在本机 `git ls-remote` 独立确认 GitHub 身份后，90 执行有 60 秒硬超时的
+  `git fetch origin codex/rust-worker`，6 秒内把远端跟踪引用同步到 `5912b4ee`。未手工改写
+  引用。attempt 5 只产生 `console.log` 和 `preflight-result.txt`，没有进入凭据、服务、Docker、
+  GPU、端口或进程检查，无写注入目录未创建。
+- 当前停止位置：`remote_tracking_synced_pending_preflight`。下一项只允许使用全新的
+  `m6b5-preflight-attempt-6` 和 `m6b5-managed-runtime-smoke-attempt-6-pre-window-injection`
+  完整重跑只读准备门；正式 B.5.2 attempt 2 仍须新的明确维护窗口授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

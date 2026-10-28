@@ -751,3 +751,9 @@ crate 变化；它未执行凭据、服务、Docker 或 GPU 检查。D171 将 re
 `e66634c523ca37c2e08d50a7656710cb6b16480b`，并要求使用全新的 attempt 5 准备和无写注入
 目录。当前状态为 `retry_checkpoint_rollover_pending_preflight`；即使 attempt 5 通过，正式
 attempt 2 仍须新的明确维护窗口授权。
+
+preflight attempt 5 又在同一第一组门安全停止；产品 ancestry/diff、工具链和锁文件均已通过，
+唯一不一致是由本机完成 GitHub 推送后，90 的本地 `origin/codex/rust-worker` 缓存仍停在旧
+提交。90 已通过精确 fetch 把该引用同步到治理 HEAD，attempt 5 未进入任何运行态检查。
+D172 要求全新的 attempt 6 准备和无写注入目录；通过后仍只能进入
+`ready_for_maintenance_authorization`。

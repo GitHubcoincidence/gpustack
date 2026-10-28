@@ -134,7 +134,9 @@
   不改变失败判定。D167-D170 的离线修复已通过 188 项测试、格式、Clippy、build 和 doc-tests。
   preflight attempt 4 随后因仍固定旧产品提交而在第一组源码门安全停止，未检查凭据、服务、
   Docker 或 GPU。D171 已把 retry 产品检查点滚动到 `e66634c523ca37c2e08d50a7656710cb6b16480b`；
-  下一项只允许使用全新目录执行 preflight attempt 5，正式 retry 2 仍需独立维护授权。
+  preflight attempt 5 又因 90 的本地 GitHub 远端跟踪引用未同步而在同一门安全停止，精确
+  fetch 已完成同步。下一项只允许使用全新目录执行 preflight attempt 6，正式 retry 2 仍需
+  独立维护授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

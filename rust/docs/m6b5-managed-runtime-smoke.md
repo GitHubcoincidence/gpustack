@@ -81,10 +81,17 @@ attempt 1 已固定判为 `failed_during_window`，上述目录不得复用或�
 - 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-4`；
 - 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-4-pre-window-injection`；
 
-滚动产品检查点后的 retry 2 使用：
+滚动产品检查点后的第一次准备使用：
 
 - 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-5`；
 - 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-5-pre-window-injection`；
+
+attempt 5 又因 90 的本地 `origin/codex/rust-worker` 远端跟踪引用尚未同步而在第一组门安全
+停止；GitHub 分支和 90 工作树提交一致，精确 fetch 已更新该缓存引用。两个 attempt 5 路径
+均不得复用。retry 2 继续使用：
+
+- 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-6`；
+- 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-6-pre-window-injection`；
 - 正式执行：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-2`；
 - watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-2`；
 - 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-2`。
