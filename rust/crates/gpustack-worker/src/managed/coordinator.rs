@@ -231,7 +231,18 @@ impl<A: ManagedApi, P: PortProbe> ManagedCoordinator<A, P> {
             }
             let snapshot = desired.borrow().clone();
             if last_revision != Some(snapshot.revision) {
-                for result in self.reconcile_snapshot(&snapshot).await {
+                let reconciliation = self.reconcile_snapshot(&snapshot);
+                tokio::pin!(reconciliation);
+                let results = tokio::select! {
+                    results = &mut reconciliation => results,
+                    changed = shutdown.changed() => {
+                        if changed.is_err() || *shutdown.borrow() {
+                            return;
+                        }
+                        continue;
+                    }
+                };
+                for result in results {
                     observe(result);
                 }
                 last_revision = Some(snapshot.revision);

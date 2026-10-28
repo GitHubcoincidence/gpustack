@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::future::IntoFuture;
+use std::future::{Future, IntoFuture};
 use std::io;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
@@ -48,6 +48,7 @@ const MANAGED_RUNTIME_MAINTENANCE_MESSAGE: &str =
     "Rust M6-B managed runtime; scheduling controlled by operator";
 const UNASSIGNED_WORKER_UUID: &str = "00000000-0000-4000-8000-000000000000";
 const RESOURCE_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
+const SURFACE_SHUTDOWN_GRACE: Duration = Duration::from_secs(15);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WorkerSurfaceMode {
@@ -531,6 +532,8 @@ pub enum ResourceApiRunError {
     SafetyInvariant(&'static str),
     #[error("failed to wait for shutdown signal: {0}")]
     ShutdownSignal(#[source] io::Error),
+    #[error("Worker tasks did not stop within {0:?} after shutdown")]
+    ShutdownTimeout(Duration),
     #[error(transparent)]
     Resource(#[from] ResourceError),
     #[error(transparent)]
@@ -1085,13 +1088,16 @@ where
         signal: shutdown_signal_name(signal),
     });
     shutdown_tx.send_replace(true);
-    let (api_result, metrics_result, (), (), runtime_result) = tokio::join!(
+    let (api_result, metrics_result, (), (), runtime_result) = join_surface_tasks(
+        SURFACE_SHUTDOWN_GRACE,
         &mut api_future,
         &mut metrics_future,
         &mut control_future,
         &mut managed_future,
-        &mut runtime_future
-    );
+        &mut runtime_future,
+    )
+    .await
+    .map_err(|_| ResourceApiRunError::ShutdownTimeout(SURFACE_SHUTDOWN_GRACE))?;
     api_result.map_err(|error| ResourceApiRunError::EndpointServe("Worker API", error))?;
     metrics_result.map_err(|error| ResourceApiRunError::EndpointServe("metrics", error))?;
     runtime_result?;
@@ -1127,6 +1133,27 @@ async fn shutdown_requested(mut shutdown: watch::Receiver<bool>) {
             return;
         }
     }
+}
+
+async fn join_surface_tasks<A, B, C, D, E>(
+    grace: Duration,
+    api: A,
+    metrics: B,
+    control: C,
+    managed: D,
+    runtime: E,
+) -> Result<(A::Output, B::Output, C::Output, D::Output, E::Output), tokio::time::error::Elapsed>
+where
+    A: Future,
+    B: Future,
+    C: Future,
+    D: Future,
+    E: Future,
+{
+    tokio::time::timeout(grace, async {
+        tokio::join!(api, metrics, control, managed, runtime)
+    })
+    .await
 }
 
 fn verify_m4_gpu_inventory(resources: &CollectedResources) -> Result<(), ResourceApiRunError> {
@@ -1402,5 +1429,23 @@ mod tests {
         assert!(verify_model_root_mounts(&config, &resources).is_err());
         resources.status.filesystem.as_mut().expect("filesystems")[0].mount_point = "/".to_owned();
         verify_model_root_mounts(&config, &resources).expect("root mount covers model path");
+    }
+
+    #[tokio::test]
+    async fn surface_shutdown_join_has_a_hard_deadline() {
+        let completed = async { 1_u8 };
+        let blocked = std::future::pending::<u8>();
+
+        let result = join_surface_tasks(
+            Duration::from_millis(10),
+            completed,
+            async { 2_u8 },
+            async { 3_u8 },
+            async { 4_u8 },
+            blocked,
+        )
+        .await;
+
+        assert!(result.is_err());
     }
 }

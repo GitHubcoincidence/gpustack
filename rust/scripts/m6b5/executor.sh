@@ -13,6 +13,7 @@ readonly EXPECTED_HEAD="${M6B5_EXPECTED_HEAD:?M6B5_EXPECTED_HEAD is required}"
 readonly PRODUCT_COMMIT="${M6B5_PRODUCT_COMMIT:?M6B5_PRODUCT_COMMIT is required}"
 readonly EXPECTED_PREFLIGHT_MANIFEST_SHA="${M6B5_PREFLIGHT_MANIFEST_SHA:?M6B5_PREFLIGHT_MANIFEST_SHA is required}"
 readonly EXPECTED_LOCK_SHA="${M6B5_LOCK_SHA:?M6B5_LOCK_SHA is required}"
+readonly FORMAL_ATTEMPT="${M6B5_ATTEMPT:?M6B5_ATTEMPT is required}"
 readonly BINARY="$REPO/rust/target/debug/gpustack-rs"
 readonly DATA_DIR='/home/wujiaxing2/.local/state/gpustack-rust-worker/1'
 readonly LOG_DIR='/home/wujiaxing2/.local/state/gpustack-rust-worker/m3d-logs'
@@ -32,6 +33,11 @@ readonly GPU0_UUID='GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3'
 readonly OPERATOR_CONTEXT='m6b5-operator'
 readonly OPERATOR_TOKEN='/home/wujiaxing2/.config/gpustack-rust/m6b5-operator-token'
 readonly EXPECTED_PYTHON_WORKER_ID='68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165'
+
+if [[ ! "$FORMAL_ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'STOP: M6B5_ATTEMPT must be a positive integer\n' >&2
+  exit 89
+fi
 
 if [[ -e "$EVIDENCE" || -L "$EVIDENCE" ]]; then
   printf 'STOP: evidence path already exists: %s\n' "$EVIDENCE" >&2
@@ -245,7 +251,7 @@ enable_maintenance() {
     [[ "$(jq -r '.maintenance.enabled' "$worker_file")" != 'true' ]]; then
     timeout 40 "$BINARY" --context "$OPERATOR_CONTEXT" --output json \
       worker maintenance enable "$WORKER_ID" \
-      --message 'M6-B.5 attempt 1 cleanup' \
+      --message "M6-B.5 attempt $FORMAL_ATTEMPT cleanup" \
       >"$EVIDENCE/cleanup-maintenance-enable.json" \
       2>"$EVIDENCE/cleanup-maintenance-enable.stderr" || cleanup_ok=0
   fi
@@ -437,7 +443,7 @@ seal_evidence() {
   fi
   {
     printf 'recorded_at=%s\n' "$(date --iso-8601=seconds)"
-    printf 'status=%s\nstage=M6-B.5.2\nattempt=1\n' "$status"
+    printf 'status=%s\nstage=M6-B.5.2\nattempt=%s\n' "$status" "$FORMAL_ATTEMPT"
     printf 'reason=%s\ncompleted_phase=%s\n' "$reason" "$phase"
     printf 'baseline_ready=%s\nwindow_entered=%s\nsmoke_passed=%s\ncleanup_ok=%s\n' \
       "$baseline_ready" "$window_entered" "$smoke_passed" "$cleanup_ok"
@@ -699,6 +705,35 @@ phase='model_deploy_and_state_chain'
 jq -e '.worker_id == 5 and .after.enabled == false' \
   "$EVIDENCE/maintenance-disable.json" >/dev/null || fail 'maintenance_disable_not_confirmed'
 
+schedulable_ok=0
+ready_samples=0
+for _ in $(seq 1 180); do
+  if "$BINARY" --context "$OPERATOR_CONTEXT" --output json \
+    worker get "$WORKER_ID" >"$EVIDENCE/worker-after-maintenance.json" \
+    2>"$EVIDENCE/worker-after-maintenance.stderr"; then
+    jq -c '{observed_at:now|todateiso8601,id,state,unreachable,
+      maintenance:.maintenance.enabled,gpu_count}' \
+      "$EVIDENCE/worker-after-maintenance.json" \
+      >>"$EVIDENCE/worker-ready-after-maintenance.ndjson"
+    if jq -e '.id == 5 and .maintenance.enabled == false and .state == "ready" and
+      .unreachable == false and .gpu_count == 2' \
+      "$EVIDENCE/worker-after-maintenance.json" >/dev/null; then
+      ready_samples=$((ready_samples + 1))
+      if [[ "$ready_samples" -ge 2 ]]; then
+        schedulable_ok=1
+        break
+      fi
+    else
+      ready_samples=0
+    fi
+  else
+    ready_samples=0
+  fi
+  sleep 1
+done
+require_equal "$schedulable_ok" '1' 'worker_did_not_become_stably_ready'
+event 'gate_passed' 'worker_stably_ready_after_maintenance_disable'
+
 "$BINARY" --timeout 600 --context "$OPERATOR_CONTEXT" --output json \
   model deploy "$TARGET_MODEL" \
   --worker "$WORKER_NAME" \
@@ -723,12 +758,19 @@ assigned_port="$(jq -r '.instances[0].port' "$EVIDENCE/model-deploy.json")"
 [[ "$instance_id" =~ ^[1-9][0-9]*$ ]] || fail 'instance_id_invalid'
 [[ "$assigned_port" -ge 40000 && "$assigned_port" -le 40063 ]] ||
   fail 'assigned_port_outside_managed_pool'
-jq -e '
-  [.transitions[].state] == ["pending","analyzing","scheduled","initializing",
-    "downloading","starting","running"] and
-  (.instances | length) == 1 and .instances[0].state == "running" and
-  .instances[0].worker_id == 5
-' "$EVIDENCE/model-deploy.json" >/dev/null || fail 'complete_state_chain_missing'
+mapfile -t observed_states < <(jq -r '.transitions[].state' "$EVIDENCE/model-deploy.json")
+required_states=(pending analyzing scheduled initializing downloading starting running)
+required_index=0
+for observed_state in "${observed_states[@]}"; do
+  if [[ "$required_index" -lt "${#required_states[@]}" ]] &&
+    [[ "$observed_state" == "${required_states[$required_index]}" ]]; then
+    required_index=$((required_index + 1))
+  fi
+done
+require_equal "$required_index" "${#required_states[@]}" 'complete_state_chain_missing'
+jq -e '(.instances | length) == 1 and .instances[0].state == "running" and
+  .instances[0].worker_id == 5' \
+  "$EVIDENCE/model-deploy.json" >/dev/null || fail 'running_instance_contract_mismatch'
 state_chain_complete=1
 
 "$BINARY" --context "$OPERATOR_CONTEXT" --output json model file list \

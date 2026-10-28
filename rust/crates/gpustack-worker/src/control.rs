@@ -16,6 +16,8 @@ use thiserror::Error;
 use tokio::sync::watch;
 use tokio::time::{Instant, MissedTickBehavior};
 
+const AUTHORITATIVE_FULL_SYNC_INTERVAL: Duration = Duration::from_secs(30);
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct DesiredState {
     pub models: BTreeMap<i64, ModelPublic>,
@@ -47,7 +49,9 @@ impl Default for ControlLoopConfig {
         Self {
             heartbeat_interval: Duration::from_secs(30),
             status_interval: Duration::from_secs(30),
-            full_sync_interval: Duration::from_secs(5 * 60),
+            // Watch events accelerate convergence, but a filtered or lost delete
+            // must still be discovered within an operational cleanup window.
+            full_sync_interval: AUTHORITATIVE_FULL_SYNC_INTERVAL,
             reconnect_initial: Duration::from_secs(1),
             reconnect_max: Duration::from_secs(30),
         }
@@ -700,6 +704,14 @@ mod tests {
     use gpustack_client::types::Paginated;
 
     use super::*;
+
+    #[test]
+    fn default_full_sync_bounds_authoritative_delete_convergence() {
+        assert_eq!(
+            ControlLoopConfig::default().full_sync_interval,
+            Duration::from_secs(30)
+        );
+    }
 
     struct ScriptedWatch<T> {
         delay: Option<Duration>,

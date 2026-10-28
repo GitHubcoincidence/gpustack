@@ -354,7 +354,19 @@ where
                 self.registry.set_ready(false);
                 return;
             }
-            let results = self.reconcile_snapshot(&desired.borrow().clone()).await;
+            let snapshot = desired.borrow().clone();
+            let reconciliation = self.reconcile_snapshot(&snapshot);
+            tokio::pin!(reconciliation);
+            let results = tokio::select! {
+                results = &mut reconciliation => results,
+                changed = shutdown.changed() => {
+                    if changed.is_err() || *shutdown.borrow() {
+                        self.registry.set_ready(false);
+                        return;
+                    }
+                    continue;
+                }
+            };
             self.registry.set_ready(
                 !results
                     .iter()
@@ -906,6 +918,7 @@ mod tests {
         instance_reads: VecDeque<ModelInstancePublic>,
         updates: Vec<ModelInstanceUpdate>,
         get_instance_count: usize,
+        block_instance_reads: bool,
     }
 
     impl ManagedRuntimeApi for FakeApi {
@@ -922,6 +935,14 @@ mod tests {
             _worker_token: &SecretToken,
             _instance_id: i64,
         ) -> Result<ModelInstancePublic, ClientError> {
+            if self
+                .state
+                .lock()
+                .expect("API lock")
+                .block_instance_reads
+            {
+                std::future::pending::<()>().await;
+            }
             let mut state = self.state.lock().expect("API lock");
             state.get_instance_count += 1;
             if let Some(instance) = state.instance_reads.pop_front() {
@@ -1220,6 +1241,7 @@ mod tests {
                     instance_reads: VecDeque::new(),
                     updates: Vec::new(),
                     get_instance_count: 0,
+                    block_instance_reads: false,
                 })),
             };
             let runtime = Arc::new(FakeRuntime::default());
@@ -1369,6 +1391,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn shutdown_interrupts_an_in_flight_runtime_reconciliation() {
+        let fixture = Fixture::new(false);
+        fixture
+            .api
+            .state
+            .lock()
+            .expect("API lock")
+            .block_instance_reads = true;
+        let (_desired_tx, desired_rx) = watch::channel(fixture.desired.clone());
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let run = fixture.coordinator.run(desired_rx, shutdown_rx, |_| {});
+        tokio::pin!(run);
+        tokio::task::yield_now().await;
+
+        shutdown_tx.send_replace(true);
+
+        tokio::time::timeout(Duration::from_secs(1), &mut run)
+            .await
+            .expect("runtime coordinator shutdown timeout");
+        assert!(!fixture.registry.is_ready());
+    }
+
+    #[tokio::test]
     async fn exited_container_reports_bounded_redacted_error_without_removal() {
         let fixture = Fixture::new(false);
         fixture.create().await;
@@ -1467,6 +1512,42 @@ mod tests {
                 .expect("Managed route")
                 .is_none()
         );
+    }
+
+    #[tokio::test]
+    async fn run_loop_reconciles_an_authoritative_desired_state_deletion() {
+        let fixture = Fixture::new(false);
+        fixture.create().await;
+        fixture.api.state.lock().expect("API lock").instance = None;
+        let (_desired_tx, desired_rx) = watch::channel(DesiredState::default());
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let run = fixture.coordinator.run(desired_rx, shutdown_rx, |_| {});
+        tokio::pin!(run);
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if fixture
+                    .runtime
+                    .state
+                    .lock()
+                    .expect("runtime lock")
+                    .containers
+                    .is_empty()
+                {
+                    return;
+                }
+                tokio::select! {
+                    () = &mut run => panic!("coordinator stopped before deletion"),
+                    () = tokio::task::yield_now() => {}
+                }
+            }
+        })
+        .await
+        .expect("authoritative deletion convergence");
+        shutdown_tx.send_replace(true);
+        run.await;
+        assert!(!fixture.data_dir.join("managed/manifests/301.json").exists());
+        assert!(!fixture.log_dir.join("serve/301.0.log").exists());
     }
 
     #[tokio::test]

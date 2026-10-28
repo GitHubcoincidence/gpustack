@@ -16,6 +16,7 @@ use gpustack_client::{
     ClientError, Context, ContextStore, ContextStoreError, InferenceResponse, SecretToken,
     ServerClient,
 };
+use gpustack_client::watch::{WatchConnection, WatchEvent};
 use serde::Serialize;
 use serde_json::{Value, json};
 use thiserror::Error;
@@ -380,10 +381,25 @@ pub async fn run_model_command_with_stream<T: Transport>(
                     .cluster_id
                     .ok_or_else(|| ManagedError::WorkerClusterUnavailable(worker.name.clone()))?,
             );
+            // Establish the watch before creation so short-lived states such as
+            // PENDING cannot disappear between the POST response and polling.
+            let instance_watch = if wait {
+                Some(client.watch_model_instances(token).await?)
+            } else {
+                None
+            };
             let model = client.create_model(token, &request).await?;
             if wait {
                 let (instances, transitions) =
-                    wait_for_model(client, token, model.id, timeout, transition_sink).await?;
+                    wait_for_model(
+                        client,
+                        token,
+                        model.id,
+                        timeout,
+                        instance_watch.expect("wait mode opens an instance watch"),
+                        transition_sink,
+                    )
+                    .await?;
                 render_model_deploy(output_format, &model, &instances, &transitions)
             } else {
                 render_model_deploy(output_format, &model, &[], &[])
@@ -808,45 +824,99 @@ async fn wait_for_model<T: Transport>(
     token: &SecretToken,
     model_id: i64,
     timeout: Duration,
+    mut instance_watch: WatchConnection<ModelInstancePublic>,
     mut transition_sink: Option<&mut dyn FnMut(&ModelTransition)>,
 ) -> Result<(Vec<ModelInstancePublic>, Vec<ModelTransition>), ManagedError> {
     let deadline = Instant::now() + timeout.max(Duration::from_secs(1));
     let mut last_states = BTreeMap::<i64, String>::new();
     let mut transitions = Vec::new();
+    let mut latest_instances = Vec::new();
+    let mut poll = tokio::time::interval(Duration::from_millis(500));
+    poll.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let deadline_sleep = tokio::time::sleep_until(deadline);
+    tokio::pin!(deadline_sleep);
+
     loop {
-        let instances = client
-            .list_model_instances_for_model(token, model_id)
-            .await?
-            .items;
-        for instance in &instances {
-            if last_states.get(&instance.id) != Some(&instance.state.0) {
-                last_states.insert(instance.id, instance.state.0.clone());
-                let transition = ModelTransition::from(instance);
-                if let Some(sink) = transition_sink.as_mut() {
-                    sink(&transition);
+        tokio::select! {
+            _ = &mut deadline_sleep => {
+                return Err(ManagedError::WaitTimeout {
+                    states: summarize_states(&latest_instances),
+                });
+            }
+            _ = poll.tick() => {
+                latest_instances = client
+                    .list_model_instances_for_model(token, model_id)
+                    .await?
+                    .items;
+                if latest_instances
+                    .iter()
+                    .any(|instance| instance.state.0 == "error")
+                {
+                    return Err(ManagedError::ModelFailed {
+                        states: summarize_states(&latest_instances),
+                    });
                 }
-                transitions.push(transition);
+                if observed_running(&latest_instances, &last_states) {
+                    return Ok((latest_instances, transitions));
+                }
+            }
+            event = instance_watch.next_event() => {
+                match event? {
+                    Some(WatchEvent::Created(instance) | WatchEvent::Updated(instance))
+                        if instance.model_id == model_id =>
+                    {
+                        if last_states.get(&instance.id) != Some(&instance.state.0) {
+                            last_states.insert(instance.id, instance.state.0.clone());
+                            let transition = ModelTransition::from(&instance);
+                            if let Some(sink) = transition_sink.as_mut() {
+                                sink(&transition);
+                            }
+                            transitions.push(transition);
+                        }
+                        if observed_running(&latest_instances, &last_states) {
+                            return Ok((latest_instances, transitions));
+                        }
+                    }
+                    Some(WatchEvent::Deleted { id }) if last_states.contains_key(&id) => {
+                        return Err(ManagedError::ModelFailed {
+                            states: format!("instance {id} was deleted while waiting"),
+                        });
+                    }
+                    Some(WatchEvent::Unknown { id }) => {
+                        return Err(ClientError::Watch(format!(
+                            "model instance watch returned unknown event for {id}"
+                        )).into());
+                    }
+                    Some(WatchEvent::Created(_) | WatchEvent::Updated(_))
+                    | Some(WatchEvent::Deleted { .. })
+                    | Some(WatchEvent::Heartbeat) => {}
+                    None => {
+                        latest_instances = client
+                            .list_model_instances_for_model(token, model_id)
+                            .await?
+                            .items;
+                        if observed_running(&latest_instances, &last_states) {
+                            return Ok((latest_instances, transitions));
+                        }
+                        return Err(ClientError::Watch(
+                            "model instance watch ended while waiting".to_owned(),
+                        ).into());
+                    }
+                }
             }
         }
-        if instances.iter().any(|instance| instance.state.0 == "error") {
-            return Err(ManagedError::ModelFailed {
-                states: summarize_states(&instances),
-            });
-        }
-        if !instances.is_empty()
-            && instances
-                .iter()
-                .all(|instance| instance.state.0 == "running")
-        {
-            return Ok((instances, transitions));
-        }
-        if Instant::now() >= deadline {
-            return Err(ManagedError::WaitTimeout {
-                states: summarize_states(&instances),
-            });
-        }
-        tokio::time::sleep(Duration::from_millis(500)).await;
     }
+}
+
+fn observed_running(
+    instances: &[ModelInstancePublic],
+    last_states: &BTreeMap<i64, String>,
+) -> bool {
+    !instances.is_empty()
+        && instances.iter().all(|instance| {
+            instance.state.0 == "running"
+                && last_states.get(&instance.id).is_some_and(|state| state == "running")
+        })
 }
 
 fn summarize_states(instances: &[ModelInstancePublic]) -> String {
@@ -1549,6 +1619,20 @@ mod tests {
                 .into_iter()
                 .map(|chunk| Ok(chunk.to_vec()))
                 .collect::<Vec<_>>();
+            self.state
+                .lock()
+                .expect("mock lock")
+                .streams
+                .push_back(Ok(StreamResponse {
+                    status: 200,
+                    content_type: Some(content_type.to_owned()),
+                    chunks: Box::pin(stream::iter(chunks)),
+                    error_body: None,
+                }));
+        }
+
+        fn push_owned_stream(&self, content_type: &str, chunks: Vec<Vec<u8>>) {
+            let chunks = chunks.into_iter().map(Ok).collect::<Vec<_>>();
             self.state
                 .lock()
                 .expect("mock lock")
@@ -2435,6 +2519,35 @@ mod tests {
     async fn deploy_wait_reports_each_observed_state_transition() {
         let transport = MockTransport::default();
         transport.push_json(200, worker_page_with_cluster("rust-worker", Some(7)));
+        let instance: Value = serde_json::from_str(INSTANCE_PAGE)
+            .expect("instance page JSON")["items"][0]
+            .clone();
+        let watch_chunks = [
+            "pending",
+            "analyzing",
+            "pending",
+            "scheduled",
+            "initializing",
+            "downloading",
+            "starting",
+            "running",
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, state)| {
+            let mut data = instance.clone();
+            data["state"] = json!(state);
+            let mut line = serde_json::to_vec(&json!({
+                "type": if index == 0 { 1 } else { 2 },
+                "data": data,
+                "id": 301,
+            }))
+            .expect("watch event JSON");
+            line.extend_from_slice(b"\n\n");
+            line
+        })
+        .collect();
+        transport.push_owned_stream("text/event-stream", watch_chunks);
         transport.push_json(200, item_from_page(MODEL_PAGE));
         transport.push_json(200, INSTANCE_PAGE);
         let mut running: Value = serde_json::from_str(INSTANCE_PAGE).expect("instance page JSON");
@@ -2480,9 +2593,42 @@ mod tests {
             .expect("wait for model")
         };
         let output: Value = serde_json::from_str(&execution.output).expect("deploy output JSON");
-        assert_eq!(output["transitions"][0]["state"], "scheduled");
-        assert_eq!(output["transitions"][1]["state"], "running");
-        assert_eq!(observed, ["scheduled", "running"]);
+        assert_eq!(
+            output["transitions"]
+                .as_array()
+                .expect("transition array")
+                .iter()
+                .map(|transition| transition["state"].as_str().expect("state"))
+                .collect::<Vec<_>>(),
+            [
+                "pending",
+                "analyzing",
+                "pending",
+                "scheduled",
+                "initializing",
+                "downloading",
+                "starting",
+                "running",
+            ]
+        );
+        assert_eq!(
+            observed,
+            [
+                "pending",
+                "analyzing",
+                "pending",
+                "scheduled",
+                "initializing",
+                "downloading",
+                "starting",
+                "running",
+            ]
+        );
+        let requests = transport.requests();
+        assert_eq!(requests[1].method, Method::Get);
+        assert_eq!(requests[1].url.path(), "/v2/model-instances");
+        assert_eq!(requests[2].method, Method::Post);
+        assert_eq!(requests[2].url.path(), "/v2/models");
     }
 
     #[tokio::test]

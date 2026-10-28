@@ -7,10 +7,17 @@ readonly EXECUTOR="${M6B5_EXECUTOR:?M6B5_EXECUTOR is required}"
 readonly EXPECTED_EXECUTOR_SHA="${M6B5_EXECUTOR_SHA:?M6B5_EXECUTOR_SHA is required}"
 readonly FORMAL_EVIDENCE="${M6B5_EVIDENCE:?M6B5_EVIDENCE is required}"
 readonly WATCHDOG_EVIDENCE="${M6B5_WATCHDOG_EVIDENCE:?M6B5_WATCHDOG_EVIDENCE is required}"
+readonly FORMAL_ATTEMPT="${M6B5_ATTEMPT:?M6B5_ATTEMPT is required}"
 readonly BINARY='/home/wujiaxing2/workspaces/gpustack/rust/target/debug/gpustack-rs'
 readonly CONTEXT='m6b5-operator'
 readonly WORKER_ID='5'
+readonly WORKER_UUID='7c4e07a3-6b97-4577-9ff0-1fc6c2319596'
 readonly PYTHON_WORKER_ID='68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165'
+
+if [[ ! "$FORMAL_ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'STOP: M6B5_ATTEMPT must be a positive integer\n' >&2
+  exit 89
+fi
 
 if [[ -e "$WATCHDOG_EVIDENCE" || -L "$WATCHDOG_EVIDENCE" ]]; then
   printf 'STOP: watchdog evidence path already exists: %s\n' "$WATCHDOG_EVIDENCE" >&2
@@ -58,8 +65,32 @@ terminate_recorded_rust_process() {
   [[ "$(process_starttime "$pid")" == "$starttime" ]] || return 1
   [[ "$(readlink -f "/proc/$pid/exe")" == "$exe" ]] || return 1
   [[ "$(sha256sum "$exe" | awk '{print $1}')" == "$sha" ]] || return 1
+  kill -INT "$pid" 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    [[ ! -r "/proc/$pid/stat" ]] && return 0
+    sleep 1
+  done
+  [[ "$(process_starttime "$pid")" == "$starttime" ]] || return 1
+  [[ "$(readlink -f "/proc/$pid/exe")" == "$exe" ]] || return 1
+  [[ "$(sha256sum "$exe" | awk '{print $1}')" == "$sha" ]] || return 1
   kill -TERM "$pid" 2>/dev/null || true
-  for _ in $(seq 1 30); do
+  for _ in $(seq 1 20); do
+    [[ ! -r "/proc/$pid/stat" ]] && return 0
+    sleep 1
+  done
+  [[ "$(process_starttime "$pid")" == "$starttime" ]] || return 1
+  [[ "$(readlink -f "/proc/$pid/exe")" == "$exe" ]] || return 1
+  [[ "$(sha256sum "$exe" | awk '{print $1}')" == "$sha" ]] || return 1
+  if [[ "$(docker ps -aq \
+    --filter 'label=io.gpustack.implementation=rust' \
+    --filter 'label=io.gpustack.mode=managed' \
+    --filter "label=io.gpustack.worker-uuid=$WORKER_UUID" | wc -l)" != '0' ]]; then
+    return 1
+  fi
+  kill -KILL "$pid" 2>/dev/null || true
+  printf 'forced_sigkill=true\npid=%s\n' "$pid" \
+    >"$WATCHDOG_EVIDENCE/rust-process-forced-stop.txt"
+  for _ in $(seq 1 10); do
     [[ ! -r "/proc/$pid/stat" ]] && return 0
     sleep 1
   done
@@ -81,7 +112,7 @@ restore_safety_baseline() {
       >"$WATCHDOG_EVIDENCE/worker-before-recovery.json" 2>&1 &&
     [[ "$(jq -r '.maintenance.enabled' "$WATCHDOG_EVIDENCE/worker-before-recovery.json")" != 'true' ]]; then
     "$BINARY" --context "$CONTEXT" --output json worker maintenance enable "$WORKER_ID" \
-      --message 'M6-B.5 watchdog recovery' \
+      --message "M6-B.5 attempt $FORMAL_ATTEMPT watchdog recovery" \
       >"$WATCHDOG_EVIDENCE/maintenance-recovery.json" 2>&1 || recovery_ok=0
   fi
 
@@ -111,7 +142,8 @@ seal_watchdog() {
   [[ "$runner_exit" -eq 0 ]] && status='PASS'
   {
     printf 'recorded_at=%s\n' "$(date --iso-8601=seconds)"
-    printf 'status=%s\nstage=M6-B.5.2-watchdog\nattempt=1\n' "$status"
+    printf 'status=%s\nstage=M6-B.5.2-watchdog\nattempt=%s\n' \
+      "$status" "$FORMAL_ATTEMPT"
     printf 'executor_exit=%s\ntimeout_seconds=1200\nkill_after_seconds=180\n' "$runner_exit"
   } >"$WATCHDOG_EVIDENCE/result.txt"
   find "$WATCHDOG_EVIDENCE" -maxdepth 1 -type f -exec chmod 0600 {} +
