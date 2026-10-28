@@ -678,3 +678,12 @@ inference listener、Docker/GPU workload、推理、`RUNNING` 或 `ERROR`。统�
 接受后已按 D108 删除 M6-A.3.1 专用 Server API Key、`lab90` Context 和本地 token 文件，
 并封存独立 PASS 证据。M6-B 不能依赖或复用该凭据；若正式验证需要管理权限，必须把新的最小
 权限凭据及其销毁时点纳入 M6-B 设计和授权门禁。
+
+M6-B.0 设计已接受，M6-B.1 已在产品代码检查点
+`db6550311075c9eac5f0472fccc8029f4348bf09` 完成共享 runtime 原语和 Managed
+workload planner 的离线实现。它已通过固定 Rust 1.99.1 下的 workspace
+格式、all-features/all-targets Clippy、162 项测试、locked/offline build 和
+`git diff --check`；本阶段未增加 Cargo 依赖，也未修改 `Cargo.lock`。当前状态为
+`ready_for_review`：未连接真实 Docker socket，未写入 Server，未变更 maintenance，
+未停止 Python Worker，未创建 GPU workload 或执行真实推理。在用户审阅详细
+实现报告前不得进入 M6-B.2。

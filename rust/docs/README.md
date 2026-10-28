@@ -108,9 +108,11 @@
   `768cd133fbf7d026c7d684f36c5dfd3ae165e4c826f05ca96ab9472eebebaa0b` 和
   `2dffa63f45943d0b630d5f4e1d41a5fcc8988d5a9b7ddcccdaf7c39aae930613`。测试资源、Docker ID、
   maintenance、Python Worker、端口和 GPU 全部恢复基线，M6-A.3.1 更新为 `accepted`。
-- 当前停止位置：M6-B.0 设计冻结已完成，下一项允许执行 M6-B.1 共享 runtime/planner 的
-  离线实现与 fake 测试。本次授权不能复用于连接真实 Docker、创建 workload、停止 Python
-  Worker、切换 maintenance、占用 GPU 或执行真实推理。
+- 当前停止位置：M6-B.1 共享 runtime/planner 的离线实现和 fake 测试已在代码
+  检查点 `db6550311075c9eac5f0472fccc8029f4348bf09` 完成，162 项 workspace 测试、
+  格式、Clippy、locked/offline build 和差异门全部通过，状态为 `ready_for_review`。
+  用户接受详细报告前不得进入 M6-B.2；本阶段未连接真实 Docker、创建
+  workload、停止 Python Worker、切换 maintenance、占用 GPU 或执行真实推理。
   M6-A.3.1 专用 API Key、`lab90` Context 和 token 文件已按 D108 删除，退役证据清单文件
   SHA-256 为 `a30b8840776ea7b7bbd16c4e894208de81f900a4f096813341dce377ade8f605`；
   M6-B 若需要管理权限必须建立新的阶段专用凭据。

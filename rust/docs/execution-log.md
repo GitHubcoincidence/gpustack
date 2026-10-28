@@ -3179,6 +3179,31 @@
 - 当前停止位置：M6-B.0 已完成，下一项允许执行 M6-B.1。离线实现完成后必须运行完整 Rust
   workspace 质量门，并按 D033 在聊天中交付详细实现报告再共同验收。
 
+### 2026-10-28：M6-B.1 共享 runtime 与 Managed planner 离线实现完成
+
+- 代码身份：产品代码检查点为
+  `db6550311075c9eac5f0472fccc8029f4348bf09`，固定 Rust 1.99.1，`Cargo.lock`
+  SHA-256 为 `4094d427f9ec18e671e9d639bd9a576c0d620af9da1ca87970da05319dd4857b`。
+- 共享 runtime：新增不依赖 Lab 或 Managed 状态机的 Docker image/container ownership、
+  vLLM `/v1/models` 健康观测和有界脱敏诊断原语。Lab 改为复用这些原语，
+  同时保留原有独立状态、存储和编排语义。
+- Managed planner：对最新 Model/ModelInstance/Worker/GPU 输入执行 fail-closed 校验，
+  只允许单 Worker、单空闲 GPU、TP=1、本地受信模型根、固定 digest image、
+  `40000-40063` 分配端口和白名单 backend 参数。输出稳定 `WorkloadSpecV2`、
+  spec hash 和完整 Managed ownership labels。
+- 恢复语义：容器发现只用 ModelInstance ID 做宽查询，随后对完整 owner、
+  deployment、spec hash 和 component tuple 做严格检查。零匹配规划为缺失，唯一
+  精确匹配可接管，多匹配、缺标签或值不一致全部失败关闭。
+- 验证：90 服务器对精确检查点通过 `cargo fmt --all -- --check`、
+  all-features/all-targets Clippy `-D warnings`、`cargo test --workspace --all-targets
+  --locked --offline`（162 项通过、0 失败）、locked/offline workspace build 和
+  `git diff --check`。原有 Lab 测试保持通过；本阶段没有新增 Cargo 依赖或修改
+  `Cargo.lock`。
+- 安全边界与停止位置：本次全部为 locked/offline 实现和 fake/mock 测试，未连接
+  真实 Docker socket、未写入 Server、未变更 maintenance、未停止 Python Worker、
+  未占用 GPU 或执行推理。状态为 `ready_for_review`；用户接受详细报告前不得
+  进入 M6-B.2。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
