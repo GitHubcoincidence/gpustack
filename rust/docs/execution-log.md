@@ -26,7 +26,7 @@
 
 ## 当前状态
 
-- 状态：`retry_7_preflight_pending`
+- 状态：`ready_for_maintenance_authorization`
 - 当前阶段：M1～M5、M6-A 和 M6-B.1～M6-B.4 已完成既定验收。M6-B.5.2 attempt 6 是
   有效 `failed_during_window`：复合路由头解析、稳定 READY、完整七状态链、健康时序和
   `inference models` 均通过，但 Rust Worker向错误的 loopback 地址连接 vLLM，buffered chat
@@ -43,8 +43,10 @@
   `fcb934464a1126dba66e8f963f234d461a63ba95ac2a478ecc80b0eff05c157a`。独立审计
   22 个条目全部通过，证明 Python Worker、maintenance、Server 资源、Docker、GPU、端口、
   模型文件和仓库状态恢复；它不改变 attempt 6 的失败判定。
-- 下一项只允许把 preflight/injection attempt 11 绑定到新产品检查点并执行离线/只读门；
-  formal attempt 7 仍须新的明确授权。当前不得停止 Python Worker、切换 maintenance、创建
+- preflight attempt 11 和无写注入均已通过；清单文件 SHA-256 分别为
+  `1c76b57e12b6540fc835ca81eec340de22e003a3b3805497d5cafc43b1ea10c9` 和
+  `1a9fe515f3f6c3ff39961802b6c70020b2c709d68e0b3b283a6e75b13df5e6eb`。下一项只能请求
+  formal attempt 7 的新维护窗口授权；当前不得停止 Python Worker、切换 maintenance、创建
   Server 测试资源、创建容器或使用 GPU。
 
 ## 里程碑
@@ -3717,6 +3719,22 @@
   workspace 190 个测试、fmt、Clippy `-D warnings`、doc-tests 和 locked/offline build 全部通过。
 - 当前停止位置：`retry_7_preflight_pending`。下一项只允许使用全新 preflight/injection
   attempt 11 验证新检查点；formal/watchdog/post-audit attempt 7 必须重新取得明确授权。
+
+### 2026-10-29：M6-B.5.1 preflight attempt 11 通过
+
+- 结果：治理 HEAD `76c0f5d855de3878fefb0a826da64053d070bd76` 上九组准备门全部
+  通过；产品 ancestry 固定到 `d4920e71`，真实 Worker地址代理回归、locked/offline workspace
+  build、凭据元数据与双 scope、Cluster token只读认证、Runner/模型/GPU0/端口/Python Worker
+  身份和脚本静态门全部通过。
+- 证据：`m6b5-preflight-attempt-11` 为 0700、57 个 manifest 条目全部通过，清单文件
+  SHA-256 为 `1c76b57e12b6540fc835ca81eec340de22e003a3b3805497d5cafc43b1ea10c9`；
+  对应无写注入目录为 0700、9 个条目全部通过，清单文件 SHA-256 为
+  `1a9fe515f3f6c3ff39961802b6c70020b2c709d68e0b3b283a6e75b13df5e6eb`。注入按预期为
+  `STOP/source_head_mismatch`、`window_entered=0`、`cleanup_ok=1`。
+- 独立复核：Server、Python Worker health/metrics 均为 200；精确 Python Worker运行；无 Rust
+  进程或 Managed 容器；两张 GPU 均为 0 MiB/0%；HEAD、origin 和工作树一致且干净。
+- 当前停止位置：`ready_for_maintenance_authorization`。下一项只能由用户明确授权 formal
+  attempt 7，attempt 6 的授权不延伸。
 
 ## 未解决风险与待确认事项
 

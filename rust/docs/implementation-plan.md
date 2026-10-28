@@ -814,3 +814,10 @@ formal attempt 6 随后通过复合 destination 解析、完整七状态链、�
 `worker_ip + assigned_port`，缺少 Worker IP 时 fail closed，并通过 workspace 190 个测试和
 全部离线质量门。当前状态为 `retry_7_preflight_pending`：下一步只能运行全新的
 preflight/injection attempt 11；formal attempt 7 仍须新的明确维护授权。
+
+preflight attempt 11 随后在治理 HEAD `76c0f5d855de3878fefb0a826da64053d070bd76` 通过。
+预检和无写注入清单文件 SHA-256 分别为
+`1c76b57e12b6540fc835ca81eec340de22e003a3b3805497d5cafc43b1ea10c9` 和
+`1a9fe515f3f6c3ff39961802b6c70020b2c709d68e0b3b283a6e75b13df5e6eb`；独立复核证明
+57/9 个条目、凭据与秘密扫描、服务、Server 资源、Docker、GPU、端口、进程和源码前后不变。
+当前状态为 `ready_for_maintenance_authorization`，下一步只能请求 formal attempt 7 的新授权。

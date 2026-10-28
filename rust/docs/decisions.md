@@ -873,3 +873,7 @@ D188-D190 不改变唯一模型、Runner、GPU0、状态链、Server-only CLI、
 恢复标准。`d4920e71` 已在 90 通过真实节点地址回归、17 个 Worker API 测试、131 个 Worker
 测试、workspace 190 个测试、格式、all-features/all-targets Clippy `-D warnings`、doc-tests
 和 locked/offline build；验证期间没有写 Server、停止服务、创建容器或使用 GPU。
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D191 | retry 7 准备门通过与停止边界 | preflight attempt 11 和对应无写注入在治理 HEAD `76c0f5d855de3878fefb0a826da64053d070bd76` 通过；新产品提交、Worker地址代理回归、清单、权限、秘密扫描和外部不变式均通过。当前状态为 `ready_for_maintenance_authorization`；formal attempt 7 只有在用户针对唯一 attempt-7 路径重新明确授权后才能执行 | 准备结果证明已知 502 根因修复进入正式输入，但不证明真实 chat 已通过，也不构成再次停止 Python Worker、切换 maintenance、创建资源或使用 GPU0 的权限。 |

@@ -250,6 +250,14 @@ streaming、completion、logs 和三轮幂等未执行，attempt 6 固定为正�
 当前为 `retry_7_preflight_pending`。只有全新只读门通过后才能请求 formal attempt 7 授权；
 attempt 6 的授权不延伸。
 
+preflight attempt 11 已在治理 HEAD `76c0f5d855de3878fefb0a826da64053d070bd76` 通过。
+准备门目录为 0700、57 个 manifest 条目全部通过，清单文件 SHA-256 为
+`1c76b57e12b6540fc835ca81eec340de22e003a3b3805497d5cafc43b1ea10c9`；对应无写注入目录
+9 个条目全部通过，清单文件 SHA-256 为
+`1a9fe515f3f6c3ff39961802b6c70020b2c709d68e0b3b283a6e75b13df5e6eb`。独立复核确认三项
+服务 200、Python Worker运行、无 Rust 进程或 Managed 容器、两张 GPU 均为 0 MiB/0%，源码
+一致且干净。当前为 `ready_for_maintenance_authorization`；formal attempt 7 仍须新的明确授权。
+
 ## M6-B.5.1 准备门
 
 准备门必须证明：
