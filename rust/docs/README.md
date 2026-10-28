@@ -131,8 +131,10 @@
   竞态、删除收敛滞后和退出阻塞判为 `failed_during_window`。独立事后审计清单文件 SHA-256
   `4d7c71a269cc6d965ff6d649afaf9d38de646ff4da3fbc095ec8b20d435e28a8` 证明 Python
   Worker、maintenance、Server 资源、Docker、GPU、端口、本地状态和模型文件全部恢复，但
-  不改变失败判定。D167-D170 的离线修复已通过 188 项测试、格式、Clippy、build 和 doc-tests；
-  下一项只允许新的 preflight attempt 4，正式 retry 2 仍需独立维护授权。
+  不改变失败判定。D167-D170 的离线修复已通过 188 项测试、格式、Clippy、build 和 doc-tests。
+  preflight attempt 4 随后因仍固定旧产品提交而在第一组源码门安全停止，未检查凭据、服务、
+  Docker 或 GPU。D171 已把 retry 产品检查点滚动到 `e66634c523ca37c2e08d50a7656710cb6b16480b`；
+  下一项只允许使用全新目录执行 preflight attempt 5，正式 retry 2 仍需独立维护授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

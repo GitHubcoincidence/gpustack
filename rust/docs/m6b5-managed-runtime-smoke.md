@@ -25,7 +25,8 @@ M6-B.5 在 90 服务器上以宿主机 Rust Worker 和 Docker vLLM 闭合第一�
 | 项目 | 固定值 |
 |---|---|
 | 分支 | `codex/rust-worker` |
-| 产品代码 | `c78cfc5652808ee5c16b40b11df411dadc7d6b6d` |
+| attempt 1 产品代码 | `c78cfc5652808ee5c16b40b11df411dadc7d6b6d` |
+| retry 2 产品代码 | `e66634c523ca37c2e08d50a7656710cb6b16480b` |
 | Rust | `1.99.1` |
 | Server | `v2.2.3`，commit `1cfcbbf` |
 | Worker | ID `5`，name `rust-m3d-r760xa`；进入窗口前必须处于 maintenance |
@@ -73,10 +74,17 @@ B.5.2 第一次正式执行仍使用独立的 attempt 1 路径：
 - watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-1`；
 - 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-1`。
 
-attempt 1 已固定判为 `failed_during_window`，上述目录不得复用或覆盖。retry 2 使用：
+attempt 1 已固定判为 `failed_during_window`，上述目录不得复用或覆盖。retry 2 的第一次准备
+使用以下路径，但 preflight attempt 4 已在 `source_and_scripts` 门因仍固定旧产品提交而安全
+停止；它没有进入凭据、服务、Docker 或 GPU 检查，两个 attempt 4 目录均不得复用：
 
 - 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-4`；
 - 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-4-pre-window-injection`；
+
+滚动产品检查点后的 retry 2 使用：
+
+- 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-5`；
+- 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-5-pre-window-injection`；
 - 正式执行：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-2`；
 - watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-2`；
 - 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-2`。

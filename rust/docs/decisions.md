@@ -805,6 +805,8 @@ maintenance 授权边界、正式状态链、推理方法、watchdog、清理与
 | D168 | READY 与状态链观测修订 | 解除 maintenance 后必须连续两次确认 Worker `ready`、reachable、maintenance=false 且两张 GPU 上报正常，之后才创建模型。`model deploy --wait` 必须在创建模型前建立 ModelInstance watch，并原样保存重复状态；正式门要求七个必需状态按顺序构成子序列，不再把合法的重复 `PENDING` 当成失败，也不允许缺少任何必需状态 | attempt 1 在 Worker 尚未 READY 时创建模型，Scheduler 先进入 `ANALYZING` 后回退 `PENDING`；创建后的 500ms 轮询还漏掉了最初的 `PENDING`。预先 watch 和稳定 READY 门既保存真实时间线，也不放宽完整状态链要求。 |
 | D169 | 删除收敛与退出上界 | 默认权威 full sync 从 5 分钟缩短为 30 秒；watch 仍只负责加速。Managed file/runtime 协调中的异步操作必须同时监听 shutdown，顶层 surface join 设 15 秒硬上界。watchdog 对精确 PID 依次使用 SIGINT、SIGTERM；只有进程身份仍完全匹配且该 Worker 的 Rust-managed 容器为零时才允许 SIGKILL | 固定 Server 的删除 watch 可能过滤或漏送删除事件，5 分钟超过 180 秒 cleanup 门；协调 future 若阻塞会令进程无限等待。30 秒权威刷新和有界退出恢复了既有 D158/D165 的收敛、精确所有权和 fail-closed 语义。 |
 | D170 | retry 2 唯一路径与授权 | 下一次准备门使用全新的 `m6b5-preflight-attempt-4` 和对应 `m6b5-managed-runtime-smoke-attempt-4-pre-window-injection`；正式 retry 使用 `m6b5-managed-runtime-smoke-attempt-2`、`m6b5-managed-runtime-watchdog-attempt-2` 和 `m6b5-managed-runtime-post-audit-attempt-2`。脚本 attempt 号改为强制输入。只读准备通过后仍须用户重新明确授权 B.5.2；attempt 1 的授权不得自动延伸 | 每次证据路径唯一并显式携带 attempt，可防止覆盖、错误标号或把两次运行拼成一次通过；代码修复与维护窗口授权继续分离。 |
+| D171 | 产品检查点滚动与第五次预检 | preflight attempt 4 保持 `STOP/source_and_scripts`：它在任何凭据、服务、Docker 或 GPU 检查前，正确发现脚本仍将旧产品提交 `c78cfc5652808ee5c16b40b11df411dadc7d6b6d` 作为固定检查点，而 D167-D169 的已验证修复使 `rust/crates` 相对该提交发生预期变化。retry 2 的产品代码检查点显式滚动为 `e66634c523ca37c2e08d50a7656710cb6b16480b`；下一次准备使用全新 `m6b5-preflight-attempt-5` 和 `m6b5-managed-runtime-smoke-attempt-5-pre-window-injection`，正式 attempt 2 三个路径不变 | 旧门禁的安全停止不能被覆盖或改判；把修复提交作为新的显式输入并递增证据目录，既承认预期产品变化，又不放宽源码漂移检查、业务验收或维护授权边界。 |
 
-D167-D170 不改变唯一模型、Runner、GPU0、TP、Server-only 推理、日志、三轮幂等、零残留、
-Python Worker恢复和凭据退役等原验收标准。它们只修复观测完整性、权威删除收敛和退出安全。
+D167-D171 不改变唯一模型、Runner、GPU0、TP、Server-only 推理、日志、三轮幂等、零残留、
+Python Worker恢复和凭据退役等原验收标准。它们只修复观测完整性、权威删除收敛、退出安全
+和重试产品身份治理。

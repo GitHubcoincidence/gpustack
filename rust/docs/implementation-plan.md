@@ -745,6 +745,9 @@ Python Worker、maintenance、容器、端口、GPU0、本地状态和模型文�
 D167-D170 已把 attempt 1 保持为正式 FAIL，并实现创建前 watch、稳定 READY 门、30 秒权威
 full sync、可中断协调、15 秒顶层退出上界、精确 watchdog 信号升级和强制 attempt 参数。
 代码 HEAD `e66634c523ca37c2e08d50a7656710cb6b16480b` 已通过 188 项 locked/offline
-workspace 测试、格式、all-features/all-targets Clippy、build 和 doc-tests。当前状态为
-`retry_fix_offline_verified`；下一步只允许补齐治理提交、同步三端并执行 attempt 4 的无中断
-只读准备门。即使通过，正式 attempt 2 仍须新的明确维护窗口授权。
+workspace 测试、格式、all-features/all-targets Clippy、build 和 doc-tests。preflight attempt 4
+随后在第一组 `source_and_scripts` 门安全停止：脚本仍固定旧产品提交，尚未承认上述已验证的
+crate 变化；它未执行凭据、服务、Docker 或 GPU 检查。D171 将 retry 产品检查点显式滚动到
+`e66634c523ca37c2e08d50a7656710cb6b16480b`，并要求使用全新的 attempt 5 准备和无写注入
+目录。当前状态为 `retry_checkpoint_rollover_pending_preflight`；即使 attempt 5 通过，正式
+attempt 2 仍须新的明确维护窗口授权。

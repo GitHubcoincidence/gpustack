@@ -3426,6 +3426,26 @@
   同步后运行全新的 preflight attempt 4 和无写注入。通过后状态最多为
   `ready_for_maintenance_authorization`；正式 attempt 2 必须重新取得明确维护窗口授权。
 
+### 2026-10-28：M6-B.5.1 preflight attempt 4 因旧产品检查点安全停止
+
+- 目的：在不进入维护窗口的前提下，用包含 D167-D170 离线修复和治理记录的干净 HEAD
+  执行 retry 2 的首次只读准备门。
+- 结果：attempt 4 在第一组 `source_and_scripts` 返回 `STOP`、`failed_step=source_and_scripts`。
+  预检脚本仍把 attempt 1 的产品提交
+  `c78cfc5652808ee5c16b40b11df411dadc7d6b6d` 作为固定检查点，因此正确拒绝了 D167-D169
+  已验证修复对 `rust/crates` 造成的预期差异。
+- 证据与影响：证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-4`
+  只包含 `console.log` 和 `preflight-result.txt`；无写注入目录未创建。此次停止发生在凭据、
+  Server/Worker health、Docker、GPU、端口和进程检查之前，没有改变外部运行状态。
+- 判定：attempt 4 保持不可改写的安全 STOP，不作为维护窗口授权证据。D171 将 retry 2 产品
+  检查点显式滚动到已完成全部离线门的
+  `e66634c523ca37c2e08d50a7656710cb6b16480b`，不改变 workload、验收标准或授权边界。
+- 当前停止位置：`retry_checkpoint_rollover_pending_preflight`。下一项只允许在新的干净治理
+  HEAD 上使用 `m6b5-preflight-attempt-5` 和
+  `m6b5-managed-runtime-smoke-attempt-5-pre-window-injection` 完整重跑只读准备门；正式
+  B.5.2 attempt 2 仍须新的明确维护窗口授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
