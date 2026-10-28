@@ -3242,6 +3242,15 @@
   恢复、动态 readiness、推理代理和面向用户的 logs/inference CLI 尚未实现。状态为
   `ready_for_review`；用户接受详细实现报告前不得进入 M6-B.3。
 
+### 2026-10-28：M6-B.2 详细实现报告已接受
+
+- 验收：用户已审阅 M6-B.2 的显式模式、权威刷新、容器创建/接管、健康门、状态写回、
+  日志/manifest、精确清理、测试证据、安全边界和未实现范围，并明确确认无问题。阶段状态
+  从 `ready_for_review` 更新为 `accepted`。
+- 当前停止位置：下一项允许执行 M6-B.3 推理代理与 CLI 离线实现。该授权只覆盖 mock
+  transport、fake runtime 和 locked/offline 质量门；仍不允许连接真实 Docker/Server endpoint、
+  停止 Python Worker、切换 maintenance、创建 GPU workload 或执行真实推理。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

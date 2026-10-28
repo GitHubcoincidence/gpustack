@@ -694,5 +694,6 @@ M6-B.2 已在源码检查点 `6550ac6a419b0253f2219b0b3f0456a3c5e42bf0` 完成
 404 后精确 cleanup 的离线实现。90 服务器在该干净提交上通过格式、all-targets/
 all-features Clippy、176 项 locked/offline workspace 测试、build 和差异门；未新增依赖，
 也未连接真实 Docker、写 Server、切 maintenance、停止 Python Worker、占用 GPU 或推理。
-当前状态为 `ready_for_review`；用户接受 D033 详细实现报告后才能进入 M6-B.3 推理代理与
-CLI 离线实现。
+用户已接受 D033 详细实现报告，M6-B.2 状态更新为 `accepted`。下一项允许执行 M6-B.3
+推理代理与 CLI 离线实现；只允许 mock transport、fake runtime 和 locked/offline 质量门，
+不授权任何真实 Docker、Server、maintenance、Python Worker、GPU workload 或推理操作。

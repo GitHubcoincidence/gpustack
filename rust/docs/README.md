@@ -112,8 +112,9 @@
   `6550ac6a419b0253f2219b0b3f0456a3c5e42bf0` 完成，176 项 workspace 测试、格式、
   Clippy、locked/offline build 和差异门全部通过。`--managed-runtime` 已接入权威
   `STARTING -> RUNNING/ERROR`、幂等创建/接管、0600 日志/manifest 和权威删除后的精确
-  cleanup；状态为 `ready_for_review`，用户接受详细报告后才允许进入 M6-B.3。本阶段未连接
-  真实 Docker、创建 workload、停止 Python Worker、切换 maintenance、占用 GPU 或执行推理。
+  cleanup；用户已接受详细报告，状态更新为 `accepted`，下一项允许执行 M6-B.3 推理代理
+  与 CLI 离线实现。本阶段未连接真实 Docker、创建 workload、停止 Python Worker、切换
+  maintenance、占用 GPU 或执行真实推理。
   M6-A.3.1 专用 API Key、`lab90` Context 和 token 文件已按 D108 删除，退役证据清单文件
   SHA-256 为 `a30b8840776ea7b7bbd16c4e894208de81f900a4f096813341dce377ade8f605`；
   M6-B 若需要管理权限必须建立新的阶段专用凭据。
