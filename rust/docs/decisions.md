@@ -810,7 +810,8 @@ maintenance 授权边界、正式状态链、推理方法、watchdog、清理与
 | D173 | retry 2 准备门通过与停止边界 | preflight attempt 6 和对应无写注入均通过独立清单、权限和秘密扫描复核，外部运行状态前后不变。当前状态为 `ready_for_maintenance_authorization`；只有用户针对正式 B.5.2 attempt 2 再次明确授权后，才允许停止/恢复精确 Python Worker、切换 maintenance、创建和删除唯一测试资源、创建和删除唯一 Rust vLLM 容器以及使用 GPU0。此前任何授权均不延伸 | 准备门只证明输入、执行器、恢复材料和当前环境满足进入条件，不等于授权或业务验收。把状态停在授权门可避免只读检查自动触发高风险窗口。 |
 | D174 | attempt 2 正式判定与恢复证据 | attempt 2 固定判为 `failed_during_window`：七状态链完整，但在 Server-only 推理前因 `server_running_preceded_runtime_health` 失败。正式目录和 watchdog 均为 FAIL，不能因 `cleanup_ok=1`、`recovery_ok=1` 或独立事后审计 PASS 而改判。第一次事后审计因零秘密匹配触发 `pipefail`、未生成清单，保持不可采纳；全新 `m6b5-managed-runtime-post-audit-attempt-2-retry-1` 才是恢复证据 | 业务验收失败与环境恢复成功是两个不同结论；保留正式失败、封存失败和有效恢复三类 artifact，避免把恢复证明冒充 smoke 通过。 |
 | D175 | 健康先于 RUNNING 的可审计时间 | 健康门本身不变。Rust 在 vLLM Ready 后、Server `RUNNING` update 前捕获 Unix 纳秒时间，并把 `health_ready_at_unix_nanos` 带入随后输出的 `outcome=running` 事件；executor 将该值与 Server watch 的 RUNNING 观察时间统一转换为 Unix 纳秒再比较。产品检查点滚动为 `799351f1068adabfded57ab2a6cd2a56749352e6`；下一次使用 preflight/injection attempt 7 和 formal/watchdog/post-audit attempt 3，准备通过后仍须新的维护授权 | attempt 2 的产品顺序正确，但 `outcome=running` 日志在 Server update 返回后才输出，导致日志时间晚约 20 ms，无法证明先后关系。捕获写回前时间恢复证据能力，不增加容差、不改变状态机，也不把“近似同时”当成通过。 |
+| D176 | retry 3 准备门通过与授权边界 | preflight attempt 7 和无写注入通过，外部服务、资源、Docker、GPU、端口和进程前后不变。当前状态为 `ready_for_maintenance_authorization`；formal attempt 3 只能在用户针对 D175 修复和唯一 attempt-3 路径重新明确授权后执行，attempt 2 授权不延伸 | 产品修复和只读准备已验证，但它们不构成再次停止 Python Worker、切换 maintenance 或使用 GPU0 的权限。独立授权维持每次真实窗口的可控范围。 |
 
-D167-D175 不改变唯一模型、Runner、GPU0、TP、Server-only 推理、日志、三轮幂等、零残留、
+D167-D176 不改变唯一模型、Runner、GPU0、TP、Server-only 推理、日志、三轮幂等、零残留、
 Python Worker恢复和凭据退役等原验收标准。它们只修复观测完整性、权威删除收敛、退出安全
 和重试产品身份治理。

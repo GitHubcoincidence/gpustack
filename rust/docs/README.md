@@ -142,7 +142,9 @@
   Server RUNNING watch 晚约 20 ms，无法证明健康先于写回，因此在推理前 fail-closed。
   cleanup/watchdog/独立事后审计证明全部运行状态恢复，attempt 2 仍为正式 FAIL。D174-D175
   已在产品提交 `799351f1068adabfded57ab2a6cd2a56749352e6` 增加写回前健康纳秒证据；189 项
-  离线测试及全部质量门通过。下一项只允许 preflight attempt 7，正式 attempt 3 仍需新授权。
+  离线测试及全部质量门通过。preflight attempt 7 及无写注入随后通过全部清单、权限、秘密
+  扫描和外部不变式复核，当前为 `ready_for_maintenance_authorization`；正式 attempt 3 仍需
+  新的独立授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

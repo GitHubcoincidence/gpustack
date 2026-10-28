@@ -778,3 +778,10 @@ D175 在产品提交 `799351f1068adabfded57ab2a6cd2a56749352e6` 增加写回前�
 executor 比较统一时间轴；两个针对性测试、真实 shell 时间 fixture、189 项 locked/offline
 workspace 测试、格式、Clippy、build 和 doc-tests 全部通过。下一步只允许在新的治理 HEAD
 上运行 preflight attempt 7 和无写注入；正式 attempt 3 仍须新的明确维护窗口授权。
+
+preflight attempt 7 随后在治理 HEAD `aa691887fb9caedff0fb7e7dec9bcdd53a5fe735` 通过。
+预检和无写注入清单文件 SHA-256 分别为
+`8f3eb6a3e5443013daeb11f49f0a03f0b51c42e2fef08bcf98b796665b0b4a58` 和
+`b7522c7465e5add88f2b069d17e2bb3919158fac441018c1bdac8db6d3f9b8ce`；独立复核证明
+55/9 个条目、0700/0600 权限、秘密扫描和外部不变式全部通过。当前状态为
+`ready_for_maintenance_authorization`，下一步只能请求 formal attempt 3 的新维护窗口授权。

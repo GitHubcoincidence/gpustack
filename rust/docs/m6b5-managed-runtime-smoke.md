@@ -124,6 +124,12 @@ retry 3 使用全新路径：
 - watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-3`；
 - 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-3`。
 
+preflight attempt 7 已通过：准备门清单文件 SHA-256 为
+`8f3eb6a3e5443013daeb11f49f0a03f0b51c42e2fef08bcf98b796665b0b4a58`，55 个条目全部
+复核通过；无写注入清单文件 SHA-256 为
+`b7522c7465e5add88f2b069d17e2bb3919158fac441018c1bdac8db6d3f9b8ce`，9 个条目全部复核
+通过。状态为 `ready_for_maintenance_authorization`，不自动授权 formal attempt 3。
+
 ## M6-B.5.1 准备门
 
 准备门必须证明：

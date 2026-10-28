@@ -3506,6 +3506,25 @@
 - 当前停止位置：`retry_3_fix_offline_verified`。下一项只允许补齐治理提交并执行全新的
   preflight attempt 7 和无写注入；通过后正式 attempt 3 仍须新的明确维护窗口授权。
 
+### 2026-10-28：M6-B.5.1 preflight attempt 7 通过
+
+- 三端与传输：90 到 GitHub 的精确 fetch 连续两次在 60 秒硬超时内无进展；本机
+  `git ls-remote` 已确认 GitHub 为 `aa691887fb9caedff0fb7e7dec9bcdd53a5fe735`，随后通过既有
+  增量 bundle 补充路径同步 90 的远端跟踪缓存。bundle 两端 SHA-256 均为
+  `9154c497a91d8922ed379e3b0ec2c2eda04b615ee3992bcf79b1c1206a77c370`，工作树未改变。
+- 结果：治理 HEAD `aa691887fb9caedff0fb7e7dec9bcdd53a5fe735` 上的九组准备门通过。
+  `m6b5-preflight-attempt-7` 为 0700、55 个 manifest 条目全通过、文件均为 0600、秘密扫描
+  PASS，清单文件 SHA-256 为
+  `8f3eb6a3e5443013daeb11f49f0a03f0b51c42e2fef08bcf98b796665b0b4a58`。
+- 无写注入：对应目录为 0700、9 个 manifest 条目全通过、文件均为 0600、秘密文件数为 0，
+  清单文件 SHA-256 为 `b7522c7465e5add88f2b069d17e2bb3919158fac441018c1bdac8db6d3f9b8ce`；
+  以 `source_head_mismatch`、`window_entered=0`、`cleanup_ok=1` 正确停止。
+- 外部不变式：Server、Python Worker health/metrics 均为 200，无 Rust 进程和 Managed 容器，
+  GPU0/GPU1 均为 0 MiB、0%；没有停止服务、写 Server、创建容器或使用 GPU。
+- 当前停止位置：`ready_for_maintenance_authorization`。下一项只能由用户明确授权正式
+  B.5.2 attempt 3，授权范围仍限于精确 Python Worker、maintenance、唯一测试资源、唯一
+  owned vLLM 容器、GPU0、Server-only 推理/日志及冻结回滚。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
