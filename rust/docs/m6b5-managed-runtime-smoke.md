@@ -163,6 +163,27 @@ preflight attempt 8 已在治理 HEAD `9024116de93a1d2ce4a4dcb5b99cf9bc344f96d6`
 身份一致且干净。当前状态为 `ready_for_maintenance_authorization`；formal attempt 4 仍须用户
 重新明确授权。
 
+formal attempt 4 获得独立授权并进入窗口，但在停止精确 Python Worker 后，Rust Worker以
+`resource Worker mode requires configuration field token_file` 立即退出。该次未创建 Model、
+ModelInstance、ModelFile 或 vLLM 容器；formal 和 watchdog 均为 FAIL，统一恢复结果为
+`cleanup_ok=1`、`recovery_ok=1`。正式和 watchdog 清单文件 SHA-256 分别为
+`d5f2e72f785c14bd8f68300421d71a8b8834194f6751cec6f476942fd586feb8` 和
+`d936540b4de28307887c2b896f90fdc9cbabc487d5840cc14ccb5bb282b9bd08`。
+
+根因是 retry 4 产品实现新增了 Managed runtime 必需的 Cluster token 输入，而 executor 的
+固定参数仍沿用修订前集合。retry 5 保持产品检查点 `e3028fae`，只修正执行器和准备门：
+executor 显式传入 `/home/wujiaxing2/.config/gpustack-rust/m3d-registration-token`；preflight 在
+维护窗口前验证其文件安全、只读认证和最终 config 路径。下一轮唯一证据路径为：
+
+- 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-9`；
+- 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-9-pre-window-injection`；
+- 正式执行：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-5`；
+- watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-5`；
+- 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-5`。
+
+attempt 4 的授权不延伸到 formal attempt 5。必须先完成 attempt 4 独立事后审计和 preflight
+attempt 9；即使准备门通过，仍须用户重新明确授权。
+
 ## M6-B.5.1 准备门
 
 准备门必须证明：

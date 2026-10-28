@@ -32,6 +32,7 @@ readonly WORKER_UUID='7c4e07a3-6b97-4577-9ff0-1fc6c2319596'
 readonly GPU0_UUID='GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3'
 readonly OPERATOR_CONTEXT='m6b5-operator'
 readonly OPERATOR_TOKEN='/home/wujiaxing2/.config/gpustack-rust/m6b5-operator-token'
+readonly CLUSTER_TOKEN_FILE='/home/wujiaxing2/.config/gpustack-rust/m3d-registration-token'
 readonly EXPECTED_PYTHON_WORKER_ID='68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165'
 
 if [[ ! "$FORMAL_ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
@@ -202,6 +203,7 @@ fixed_worker_args() {
     --worker-ifname eno8403 \
     --worker-port 20150 \
     --metrics-port 20151 \
+    --token-file "$CLUSTER_TOKEN_FILE" \
     --data-dir "$DATA_DIR" \
     --log-dir "$LOG_DIR" \
     --model-root "$MODEL_ROOT" \
@@ -573,6 +575,7 @@ jq -e --arg context "$OPERATOR_CONTEXT" --arg token "$OPERATOR_TOKEN" '
 jq -e '
   .valid == true and .config.worker_name == "rust-m3d-r760xa" and
   .config.worker_port == 20150 and .config.metrics_port == 20151 and
+  .config.token_file == "/home/wujiaxing2/.config/gpustack-rust/m3d-registration-token" and
   .config.data_dir == "/home/wujiaxing2/.local/state/gpustack-rust-worker/1" and
   .config.model_roots == ["/home/wujiaxing2/flowscale-system-validation/models"]
 ' "$EVIDENCE/validate-config.json" >/dev/null || fail 'fixed_config_mismatch'

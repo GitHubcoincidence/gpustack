@@ -14,6 +14,7 @@ readonly EXECUTOR="$REPO/rust/scripts/m6b5/executor.sh"
 readonly WATCHDOG="$REPO/rust/scripts/m6b5/watchdog.sh"
 readonly BINARY="$REPO/rust/target/debug/gpustack-rs"
 readonly TOKEN_FILE='/home/wujiaxing2/.config/gpustack-rust/m6b5-operator-token'
+readonly CLUSTER_TOKEN_FILE='/home/wujiaxing2/.config/gpustack-rust/m3d-registration-token'
 readonly CONTEXT_FILE='/home/wujiaxing2/.config/gpustack-rs/contexts.json'
 readonly CONTEXT='m6b5-operator'
 readonly KEY_ID='21'
@@ -67,6 +68,17 @@ auth_get() {
   {
     printf 'header = "Authorization: Bearer '
     tr -d '\r\n' <"$TOKEN_FILE"
+    printf '"\nurl = "%s"\n' "$url"
+  } | curl --config - --silent --show-error --max-time 20 \
+    --output "$output" --write-out '%{http_code}'
+}
+
+cluster_auth_get() {
+  local url="$1"
+  local output="$2"
+  {
+    printf 'header = "Authorization: Bearer '
+    tr -d '\r\n' <"$CLUSTER_TOKEN_FILE"
     printf '"\nurl = "%s"\n' "$url"
   } | curl --config - --silent --show-error --max-time 20 \
     --output "$output" --write-out '%{http_code}'
@@ -161,6 +173,10 @@ announce 2 '阶段凭据、Context 与双 scope 认证'
 [[ "$(stat -c '%a' "$(dirname "$CONTEXT_FILE")")" == '700' ]]
 [[ "$(stat -c '%U:%G' "$TOKEN_FILE")" == 'wujiaxing2:wujiaxing2' ]]
 [[ "$(stat -c '%h' "$TOKEN_FILE")" == '1' ]]
+[[ -f "$CLUSTER_TOKEN_FILE" && ! -L "$CLUSTER_TOKEN_FILE" ]]
+[[ "$(stat -c '%a' "$CLUSTER_TOKEN_FILE")" == '600' ]]
+[[ "$(stat -c '%U:%G' "$CLUSTER_TOKEN_FILE")" == 'wujiaxing2:wujiaxing2' ]]
+[[ "$(stat -c '%h' "$CLUSTER_TOKEN_FILE")" == '1' ]]
 "$BINARY" --output json context list >"$EVIDENCE/contexts.json"
 jq -e --arg context "$CONTEXT" --arg token "$TOKEN_FILE" '
   [.[] | select(.name == $context and .server_url == "http://127.0.0.1/" and
@@ -180,10 +196,13 @@ expires_at="$(jq -r --argjson id "$KEY_ID" '.items[] | select(.id == $id) | .exp
 [[ "$(date -d "$expires_at" +%s)" -gt "$(date +%s)" ]]
 [[ "$(auth_get 'http://127.0.0.1/v2/workers/5' "$EVIDENCE/management-auth.json")" == '200' ]]
 [[ "$(auth_get 'http://127.0.0.1/v1/models' "$EVIDENCE/inference-auth.json")" == '200' ]]
+[[ "$(cluster_auth_get 'http://127.0.0.1/v2/workers?me=true' \
+  "$EVIDENCE/cluster-token-auth.json")" == '200' ]]
 {
   printf 'api_key_id=%s\napi_key_name=%s\nscope=management,inference\n' "$KEY_ID" "$KEY_NAME"
   printf 'created_at=%s\nexpires_at=%s\nlifetime_seconds=86400\n' "$created_at" "$expires_at"
   stat -c 'token_file=%n mode=%a owner=%U:%G links=%h' "$TOKEN_FILE"
+  stat -c 'cluster_token_file=%n mode=%a owner=%U:%G links=%h' "$CLUSTER_TOKEN_FILE"
 } >"$EVIDENCE/credential-metadata.txt"
 
 current_step='before_snapshot'
@@ -271,6 +290,8 @@ for required in \
   'inference chat' \
   'inference completion' \
   'model logs' \
+  '--token-file' \
+  'CLUSTER_TOKEN_FILE' \
   'owned_container_count' \
   'restore_python_worker'; do
   grep -Fq -- "$required" "$EXECUTOR"

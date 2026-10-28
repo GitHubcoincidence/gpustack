@@ -3606,6 +3606,27 @@
   测试 Model/Instance/File、唯一 Rust-owned vLLM 容器、GPU0、Server-only 推理/日志和冻结
   回滚。attempt 3 的授权不延伸。
 
+### 2026-10-28：M6-B.5.2 attempt 4 在 Rust Worker启动前失败并恢复
+
+- 授权与窗口：用户明确授权 formal attempt 4。治理 HEAD
+  `fda60c7a2619471ebebd6749bb7191ae76b5ff97`、产品代码 `e3028fae`、preflight attempt 8
+  和最终漂移门通过后，独立 watchdog 启动并停止精确 Python Worker。
+- 正式失败：Rust Worker在启动阶段立即返回
+  `resource Worker mode requires configuration field token_file`；formal reason 为
+  `rust_worker_exited_during_startup`。此时 `model_id=none`、`owned_container_id=none`，未创建
+  Model/Instance/File、未启动 vLLM、未使用 GPU，也未进入状态链、推理或幂等门。
+- 恢复与证据：统一 cleanup 和 watchdog 恢复精确 Python Worker；health/metrics 均为 200，
+  无 Rust 进程或 Managed 容器。formal 为 FAIL、`cleanup_ok=1`，watchdog 为 FAIL、
+  `recovery_ok=1`；两处清单文件 SHA-256 分别为
+  `d5f2e72f785c14bd8f68300421d71a8b8834194f6751cec6f476942fd586feb8` 和
+  `d936540b4de28307887c2b896f90fdc9cbabc487d5840cc14ccb5bb282b9bd08`。
+- 根因与修复：D178 使 Managed runtime 必须读取 Cluster registration token，但 executor 的
+  固定 Worker 参数遗漏 `--token-file`。修订后显式传入既有受保护文件，并在 config 中核对
+  精确路径；preflight 增加文件安全、只读认证 200 和静态参数审计。90 上 shell 语法与真实
+  `validate-config` 路径检查通过，token 值未进入日志、Git 或证据。
+- 当前停止位置：`attempt_4_recovered_retry_5_fix_pending_checkpoint`。下一项只允许提交修复、
+  完成独立事后审计并执行全新的 preflight attempt 9；formal attempt 5 必须重新获得明确授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

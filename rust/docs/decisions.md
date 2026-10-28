@@ -829,3 +829,14 @@ D177-D180 不改变模型、Runner、GPU、状态机、Server-only 推理方法�
 标准。`e3028fae` 已在 90 通过聚焦鉴权测试、131 个 Worker 单元测试、workspace 190 个测试、
 all-features/all-targets Clippy `-D warnings`、doc-tests、格式、shell 语法与 locked/offline build；
 验证期间没有停止服务、写 Server、创建容器或使用 GPU。
+
+## 2026-10-28 M6-B.5.2 attempt 4 判定与执行器修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D181 | attempt 4 正式判定 | attempt 4 固定判为 `failed_during_window`：最终漂移门和 Python Worker stop 已完成，但 Rust Worker因执行器未传 `token_file` 在启动阶段立即退出；没有创建 Model、ModelInstance、ModelFile 或 vLLM 容器。正式与 watchdog 均为 FAIL，`cleanup_ok=1`、`recovery_ok=1` 只证明精确 Python Worker和外部基线恢复 | 该运行已进入维护窗口且业务 smoke 未开始，不能重用证据目录或把启动失败改判为无效尝试。保留精确失败阶段可区分产品缺陷和执行器输入缺陷。 |
+| D182 | Cluster token 输入和 retry 5 门禁 | executor 的固定 Worker 参数必须传 `--token-file /home/wujiaxing2/.config/gpustack-rust/m3d-registration-token`，并在 `validate-config` 结果中核对精确路径。preflight 必须在进入窗口前验证该文件非 symlink、0600、owner、单链接和只读认证 200，静态审计还必须确认 executor 包含 `--token-file` 与 `CLUSTER_TOKEN_FILE`。下一轮使用 preflight/injection attempt 9 和 formal/watchdog/post-audit attempt 5；正式 attempt 5 仍须新的明确授权 | D178 的产品实现正确地 fail closed，但 attempt 4 的执行器沿用了修订前参数集。把运行时必需输入提升到准备门可在停止服务前发现缺失，并避免把 operator API Key误作 Cluster registration token。 |
+
+D181-D182 不改变 D178 的产品代码或鉴权范围；产品检查点仍为 `e3028fae`。脚本修复只增加
+既有受保护文件的路径引用，不读取、记录或传递 token 值。正式 retry 前必须先完成独立事后
+审计、新证据路径和全量 preflight。
