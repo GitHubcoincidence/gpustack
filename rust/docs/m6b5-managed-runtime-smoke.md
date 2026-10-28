@@ -197,6 +197,30 @@ preflight attempt 9 已在治理 HEAD `dd8406df05bbdb915252894ca5bce12b407d02ba`
 无 Rust 进程或 Managed 容器、两张 GPU 均为 0 MiB/0%。当前状态为
 `ready_for_maintenance_authorization`，不自动授权 formal attempt 5。
 
+formal attempt 5 获得独立授权并真实完成 Rust Worker启动、稳定 READY、完整七状态链、健康
+先于 `RUNNING` 和 `inference models`。Model 18、Instance 33、ModelFile 12、端口 40000 和
+唯一 owned vLLM 容器均符合冻结身份；第一条 buffered chat 随后返回 HTTP 400，formal reason
+为 `buffered_chat_request_failed`，因此该次保持 FAIL。cleanup/watchdog 完整删除测试资源和
+runtime、释放 GPU0 并恢复 Python Worker，正式与 watchdog 清单文件 SHA-256 分别为
+`4cda778e8b3cb1d12a3ee714e00a0b32827384c2ce0b655294fc1b21257c5d32` 和
+`3c1f88229e18fb2c1cca62b020f59739df041273556d550062ee497948e7c53e`。独立事后审计
+`m6b5-managed-runtime-post-audit-attempt-5` 的 22 个条目全部通过，清单文件 SHA-256 为
+`65f2d38720a25714234c363ddf8386e5f72d3dfb93a841aca188ea4d5cf5af6f`；恢复成功不改变正式失败。
+
+根因是 Server按原协议发送 `X-GPUStack-Model-Instance: model-<model_id>-<instance_id>.static`，
+Rust Worker却只接受纯数字。产品检查点 `c725436bb2e117228866441f59715c332bfa042a` 已按 Python
+Worker相同的复合 destination 语义解析 Instance ID，并继续执行单头、正整数、认证与敏感头
+剥离检查。retry 6 只能使用以下新路径：
+
+- 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-10`；
+- 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-10-pre-window-injection`；
+- 正式执行：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-6`；
+- watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-6`；
+- 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-6`。
+
+当前为 `retry_6_preflight_pending`。attempt 5 的授权不延伸；即使 attempt 10 准备通过，formal
+attempt 6 仍须新的明确授权。
+
 ## M6-B.5.1 准备门
 
 准备门必须证明：

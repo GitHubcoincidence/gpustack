@@ -145,6 +145,16 @@
   离线测试及全部质量门通过。preflight attempt 7 及无写注入随后通过全部清单、权限、秘密
   扫描和外部不变式复核，当前为 `ready_for_maintenance_authorization`；正式 attempt 3 仍需
   新的独立授权。
+- M6-B.5.2 attempt 3 的七状态链和 `inference models` 通过，但 buffered chat 因 Cluster
+  registration token 被 Rust Worker拒绝而返回 401；限定到 Managed chat/completion 的双 token
+  修复已通过全量质量门。attempt 4 随后暴露 executor 未传必需 `--token-file`，未创建模型或
+  workload 即完成恢复。修正准备门后，attempt 5 成功完成 Rust Worker、真实 vLLM、完整状态链、
+  健康时序和模型路由，但 Server发送的 `model-18-33.static` 复合路由头被纯数字解析器以 400
+  拒绝。该次 cleanup/watchdog/post-audit 均证明完整恢复，仍保持正式 FAIL。
+- 产品提交 `c725436bb2e117228866441f59715c332bfa042a` 已按原 GPUStack/Python Worker格式解析
+  `X-GPUStack-Model-Instance`，并通过 Worker 131 项、workspace 190 项测试及全部离线质量门。
+  当前为 `retry_6_preflight_pending`；只允许执行全新 preflight/injection attempt 10，正式
+  attempt 6 仍须新的独立维护窗口授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

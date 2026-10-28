@@ -215,14 +215,16 @@ M6-B 的接管原语推断已经支持。
 ```text
 CLI/user -> Server /v1/chat/completions 或 /v1/completions
          -> Server 鉴权和 Model route
-         -> Worker 20150 + X-GPUStack-Model-Instance + Worker token
+         -> Worker 20150 + X-GPUStack-Model-Instance + Cluster registration token
          -> Rust Worker 健康 route table
          -> 本机 vLLM 40000-40063
 ```
 
-Worker只代理明确支持的 OpenAI 路径。它用严格 parser 从
-`X-GPUStack-Model-Instance` 解析 ModelInstance ID，并从内部健康 route table 查找端口；
-请求不能指定任意 upstream。转发前删除 Worker `Authorization` 和 hop-by-hop headers，
+Worker只代理明确支持的 OpenAI 路径。它用严格 parser 从网关 destination
+`model-<model_id>-<instance_id>[-<alias>].<registry_type>` 解析 ModelInstance ID，并从内部健康
+route table 查找端口；Managed chat/completion 只接受 per-Worker 或 Cluster registration token，
+其他 Worker 路由不放宽。请求不能指定任意 upstream。转发前删除 Worker
+`X-GPUStack-Model-Instance`、`Authorization`、`X-API-Key` 和 hop-by-hop headers，
 buffered 与 SSE streaming 都不得把系统凭据传给 vLLM。实例退出健康集合或开始清理时，
 先从 route table 删除再停止 runtime。
 

@@ -785,3 +785,16 @@ preflight attempt 7 随后在治理 HEAD `aa691887fb9caedff0fb7e7dec9bcdd53a5fe7
 `b7522c7465e5add88f2b069d17e2bb3919158fac441018c1bdac8db6d3f9b8ce`；独立复核证明
 55/9 个条目、0700/0600 权限、秘密扫描和外部不变式全部通过。当前状态为
 `ready_for_maintenance_authorization`，下一步只能请求 formal attempt 3 的新维护窗口授权。
+
+formal attempt 3 完成七状态链和 `inference models`，但 Server ai-proxy 使用 Cluster
+registration token，Rust 推理路由只接受 per-Worker token，buffered chat 返回 401。D178 将
+双 token 兼容严格限定到 Managed chat/completion；attempt 4 随后因 executor 未传新的必需
+`--token-file` 在 Rust Worker启动前失败。执行器和 preflight 修正后，attempt 5 完成 Rust
+Worker、七状态链、健康时序、真实 vLLM 和模型路由，但 buffered chat 返回 400。
+
+attempt 5 根因是 Server传入 `model-<model_id>-<instance_id>.static` 复合 destination，而 Rust
+只接受纯数字 Instance ID。产品提交 `c725436bb2e117228866441f59715c332bfa042a` 已按原
+GPUStack/Python Worker协议解析该头，并通过 workspace 190 个测试和全部离线质量门。attempt 5
+统一 cleanup、watchdog 和独立事后审计均证明完整恢复，但该次仍为正式 FAIL。当前状态为
+`retry_6_preflight_pending`：下一步只能把 preflight/injection attempt 10 绑定到新提交并运行
+离线/只读门；formal attempt 6 仍须新的明确维护授权。

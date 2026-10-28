@@ -8,7 +8,7 @@ readonly EVIDENCE="${M6B5_PREFLIGHT_EVIDENCE:?M6B5_PREFLIGHT_EVIDENCE is require
 readonly INJECTION_EVIDENCE="${M6B5_INJECTION_EVIDENCE:?M6B5_INJECTION_EVIDENCE is required}"
 readonly EXPECTED_HEAD="${M6B5_EXPECTED_HEAD:?M6B5_EXPECTED_HEAD is required}"
 readonly PREFLIGHT_ATTEMPT="${M6B5_PREFLIGHT_ATTEMPT:?M6B5_PREFLIGHT_ATTEMPT is required}"
-readonly PRODUCT_COMMIT='e3028fae364b299091b5e93be9b30d15815689ca'
+readonly PRODUCT_COMMIT='c725436bb2e117228866441f59715c332bfa042a'
 readonly EXPECTED_LOCK_SHA='90f1aeaa22b4f06dc77e48497f2fe3394ab07ab55441c8ddb3124a67dca07010'
 readonly EXECUTOR="$REPO/rust/scripts/m6b5/executor.sh"
 readonly WATCHDOG="$REPO/rust/scripts/m6b5/watchdog.sh"
@@ -270,6 +270,7 @@ tests=(
   'managed::reconciler::tests::state_drift_before_running_writeback_preserves_server_authority'
   'managed::reconciler::tests::readiness_timeout_reports_error_and_preserves_container'
   'managed::reconciler::tests::cache_gap_does_not_cleanup_an_authoritative_instance'
+  'worker_api::tests::model_instance_header_accepts_gateway_destination_format'
   'worker_api::tests::inference_proxy_uses_loopback_route_and_strips_sensitive_headers'
 )
 : >"$EVIDENCE/failure-injection-summary.txt"

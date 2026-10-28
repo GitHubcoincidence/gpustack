@@ -26,30 +26,27 @@
 
 ## 当前状态
 
-- 状态：`attempt_9_post_checkpoint_binding_pending`
-- 当前阶段：M1～M5、M6-A.0～M6-A.2.3 已接受。M6-A.3.0 只读预检已通过；
-  M6-A.3.1 attempt 8 是有效 `failed_during_window`，尚未通过完整 Managed 文件准备状态链，
-  M6-B Docker/vLLM runtime 尚未开始。
-- 最新代码检查点：`8b06832440f222600721171f8d1ede7e9bab4004`。D145 将 Worker
-  注册和周期状态的 `system_reserved` 从 `null` 修复为强类型 `{ram: 0, vram: 0}`；本地、
-  origin 和 90 主机已同步。
+- 状态：`retry_6_preflight_pending`
+- 当前阶段：M1～M5、M6-A 和 M6-B.1～M6-B.4 已完成既定验收。M6-B.5.2 attempt 5 是
+  有效 `failed_during_window`：Rust Worker完成稳定 READY、完整七状态链和
+  `inference models`，但 buffered chat 因网关复合路由头解析不兼容返回 HTTP 400。
+- 最新产品检查点：`c725436bb2e117228866441f59715c332bfa042a`。Rust Worker现按原
+  GPUStack 格式 `model-<model_id>-<instance_id>[-<alias>].<registry_type>` 解析
+  `X-GPUStack-Model-Instance`，同时保持单头、正整数、认证和敏感头剥离边界。本地、GitHub
+  与 90 已同步到相同提交。
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
   `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
-- attempt 8 结果：冻结 HEAD `57a47a92cb425152ec455e768fc69c71f723ea86` 创建 Model 11/
-  Instance 26 后，目标 Worker 已通过 READY 门，但 Server 调度器因
-  `system_reserved=null` 报告 `NoneType.vram`，实例保持 `pending`、`worker_id=null`。
-  没有 ModelFile、分配端口、Docker/GPU workload 或推理。统一 cleanup 为 `cleanup_ok=1`，
-  原 Python Worker、maintenance、服务、资源 ID、Docker、GPU、端口、模型文件和仓库状态
-  均恢复。
-- attempt 8 证据：正式目录
-  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6a3-managed-file-smoke-attempt-8`
-  为 0700、文件全 0600。发现两份 Docker 快照携带 `GPUSTACK_TOKEN` 环境项后，已在受保护
-  目录内只替换该字段并记录原/新哈希；脱敏后 72 条 manifest 全部通过，清单文件 SHA-256 为
-  `efdf1c89566cf9936bdb8bf066b66c262367e04065e2246b9eb487ea4a7bb735`。
-- 下一项允许执行的工作：提交本准备检查点，把最终 attempt 9 executor/supervisor 绑定到该
-  治理 HEAD，然后执行最后一次外部只读漂移门。通过后才可请求维护窗口授权；停止 Python
-  Worker、切换 maintenance、创建 Server 测试资源或启动 Rust Worker仍需新的明确授权。
+- attempt 5 正式、watchdog 和独立事后审计清单文件 SHA-256 分别为
+  `4cda778e8b3cb1d12a3ee714e00a0b32827384c2ce0b655294fc1b21257c5d32`、
+  `3c1f88229e18fb2c1cca62b020f59739df041273556d550062ee497948e7c53e` 和
+  `65f2d38720a25714234c363ddf8386e5f72d3dfb93a841aca188ea4d5cf5af6f`。独立审计
+  22 个条目全部通过，证明 Python Worker、maintenance、Server 资源、Docker、GPU、端口、
+  模型文件和仓库状态恢复；它不改变 attempt 5 的失败判定。
+- 下一项允许执行的工作：把 executor/preflight 固定到 `c725436b`，创建全新 preflight
+  attempt 10 和无写注入路径并执行离线/只读门。只有全部通过后才能请求 formal attempt 6
+  的新维护窗口授权；当前不得停止 Python Worker、切换 maintenance、创建 Server 测试资源、
+  创建容器或使用 GPU。
 
 ## 里程碑
 
@@ -3649,6 +3646,35 @@
   maintenance、写 Server、创建容器或使用 GPU。
 - 当前停止位置：`ready_for_maintenance_authorization`。下一项只能由用户重新明确授权 formal
   attempt 5，attempt 4 的授权不延伸。
+
+### 2026-10-28：M6-B.5.2 attempt 5 在 buffered chat 失败并恢复
+
+- 授权与运行：用户在 preflight attempt 9 通过后明确授权 formal attempt 5。最终漂移门通过，
+  独立 watchdog 停止精确 Python Worker；Rust Worker带 Cluster registration token 启动，解除
+  maintenance 后稳定 READY，并在 GPU0 创建唯一 Qwen2.5-0.5B-Instruct vLLM 容器。
+- 成功前缀：Model 18、Instance 33、ModelFile 12 和端口 40000 完成
+  `pending -> analyzing -> scheduled -> initializing -> downloading -> starting -> running`；健康时间
+  早于 Server `RUNNING` 观测，`inference models` 也经 Server 路径返回目标模型。
+- 正式失败：第一条 buffered chat 返回 `HTTP 400 BadRequest: Invalid request`。formal reason 为
+  `buffered_chat_request_failed`，因此 streaming chat、completion、logs 和三轮幂等未执行，
+  attempt 5 保持 FAIL。
+- 回滚与证据：统一 cleanup 删除本 attempt 的 Model/Instance/ModelFile、唯一 owned 容器、
+  listener 和本地辅助状态，释放 GPU0，恢复精确 Python Worker；`cleanup_ok=1`、
+  `recovery_ok=1`。formal 与 watchdog 清单文件 SHA-256 分别为
+  `4cda778e8b3cb1d12a3ee714e00a0b32827384c2ce0b655294fc1b21257c5d32` 和
+  `3c1f88229e18fb2c1cca62b020f59739df041273556d550062ee497948e7c53e`。
+- 独立事后审计：`m6b5-managed-runtime-post-audit-attempt-5` 对上游清单、三项服务、Server
+  全局资源 ID、Worker maintenance、Docker/Python Worker身份、Rust 进程和端口、两张 GPU、
+  固定模型 manifest 与源码身份复核为 PASS；22 个清单条目全部通过，秘密文件数为 0，清单
+  文件 SHA-256 为
+  `65f2d38720a25714234c363ddf8386e5f72d3dfb93a841aca188ea4d5cf5af6f`。
+- 根因与修复：固定 Server发送 `X-GPUStack-Model-Instance: model-18-33.static`，原 Python
+  Worker从复合 destination 中解析 Instance ID；Rust Worker却只接受纯数字。产品提交
+  `c725436bb2e117228866441f59715c332bfa042a` 改为解析原格式及可选 alias，同时继续拒绝重复、
+  缺失和畸形头并在转发前剥离内部头。90 上 17 个聚焦 API 测试、131 个 Worker 测试、
+  workspace 190 个测试、fmt、Clippy `-D warnings`、doc-tests 和 locked/offline build 全部通过。
+- 当前停止位置：`retry_6_preflight_pending`。下一项只允许绑定新产品提交、建立 preflight/
+  injection attempt 10 并运行离线/只读门；formal attempt 6 必须重新取得明确授权。
 
 ## 未解决风险与待确认事项
 

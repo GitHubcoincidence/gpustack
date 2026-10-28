@@ -846,3 +846,16 @@ D181-D182 不改变 D178 的产品代码或鉴权范围；产品检查点仍为 
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D183 | retry 5 准备门通过与停止边界 | preflight attempt 9 和对应无写注入在治理 HEAD `dd8406df05bbdb915252894ca5bce12b407d02ba` 通过；新增 Cluster token 文件安全、只读认证和 executor 参数门均通过，外部状态前后不变。当前状态为 `ready_for_maintenance_authorization`；formal attempt 5 只有在用户针对唯一 attempt-5 路径重新明确授权后才能执行 | attempt 4 的授权只覆盖已经结束并恢复的窗口。新的只读证据证明修复已进入正式输入，但不能替代再次停止 Python Worker、切换 maintenance 和使用 GPU0 的授权。 |
+
+## 2026-10-28 M6-B.5.2 attempt 5 判定与 retry 6 修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D184 | attempt 5 正式判定 | attempt 5 固定判为 `failed_during_window`：Rust Worker、稳定 READY、完整七状态链、健康先于 `RUNNING` 和 `inference models` 均通过；第一条 buffered chat 在 Rust Worker路由头解析层返回 HTTP 400。正式与 watchdog 均为 FAIL；`cleanup_ok=1`、`recovery_ok=1` 和独立事后审计 PASS 只证明 Model 18、Instance 33、ModelFile 12、唯一 owned 容器、端口和 GPU0 workload 已清理且 Python Worker与外部基线恢复 | chat、stream、completion、logs 和三轮幂等尚未执行，业务验收不能通过。保留完整成功前缀和精确失败层，避免把恢复证据或部分状态链成功误作 M6-B.5 通过。 |
+| D185 | Gateway destination 头兼容 | Managed 推理路由头只接受原 GPUStack 网关格式 `model-<model_id>-<instance_id>[-<alias>].<registry_type>`，从中提取正整数 Instance ID；仍要求恰好一个头，拒绝纯数字、零值、空 alias、缺少 registry type 和非数字 ID。转发 vLLM 前继续删除该内部路由头和全部凭据头。产品检查点滚动为 `c725436bb2e117228866441f59715c332bfa042a` | 固定 v2.2.3 Server 在 `X-GPUStack-Model-Instance` 中发送 `model-18-33.static`，Python Worker也按该复合格式解析。Rust 仅接受纯数字会在认证成功后确定性返回 400；按 Server 契约解析可恢复兼容，同时不放宽目标选择、认证或敏感头边界。 |
+| D186 | retry 6 路径与授权边界 | 下一轮只读准备使用全新的 `m6b5-preflight-attempt-10` 和 `m6b5-managed-runtime-smoke-attempt-10-pre-window-injection`；正式 retry 使用 formal/watchdog/post-audit attempt 6。preflight 必须冻结新产品提交并静态/测试验证复合路由头解析。只读准备通过后状态最多为 `ready_for_maintenance_authorization`，formal attempt 6 仍须新的明确授权 | attempt 5 的路径和授权已消耗。产品修复、离线质量门与恢复审计不构成再次停止 Python Worker、切换 maintenance、创建资源和使用 GPU0 的权限。 |
+
+D184-D186 不改变唯一模型、Runner、GPU0、状态链、Server-only CLI、日志、三轮幂等、清理或
+恢复标准。`c725436b` 已在 90 通过 17 个 Worker API 聚焦测试、131 个 Worker 测试、workspace
+190 个测试、格式、all-features/all-targets Clippy `-D warnings`、doc-tests 和 locked/offline
+build；验证期间没有写 Server、停止服务、创建容器或使用 GPU。
