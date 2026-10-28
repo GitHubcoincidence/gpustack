@@ -23,8 +23,9 @@ pub use identity::{
     WorkerIdentity, WorkerIdentityRecord, worker_credential_path, worker_identity_path,
 };
 pub use resource_run::{
-    MANAGED_FILE_ONLY_MODE, ManagedFileEvent, ManagedFileSummary, RESOURCE_API_ONLY_MODE,
-    ResourceApiEvent, ResourceApiRunError, ResourceApiSummary, run_managed_file_only,
+    MANAGED_FILE_ONLY_MODE, MANAGED_RUNTIME_MODE, ManagedFileEvent, ManagedFileSummary,
+    ManagedRuntimeEvent, ManagedRuntimeSummary, RESOURCE_API_ONLY_MODE, ResourceApiEvent,
+    ResourceApiRunError, ResourceApiSummary, run_managed_file_only, run_managed_runtime,
     run_resource_api_only,
 };
 pub use run::{

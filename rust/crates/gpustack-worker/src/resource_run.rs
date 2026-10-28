@@ -1,4 +1,4 @@
-//! Resource-only Worker lifecycle with no workload or container execution.
+//! Staged Worker resource surfaces and Managed reconciliation lifecycles.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -27,7 +27,8 @@ use crate::identity::{
 };
 use crate::managed::{
     LocalModelResolver, ManagedCoordinator, ManagedOutcome, ManagedPortAllocator, ManagedResult,
-    ManagedTarget, ResolveError,
+    ManagedRuntimeError, ManagedRuntimeOutcome, ManagedRuntimeResult, ManagedTarget, ResolveError,
+    run_production_managed_runtime,
 };
 use crate::metrics::{MetricIdentity, MetricsState, router as metrics_router};
 use crate::resources::{
@@ -38,9 +39,12 @@ use crate::worker_api::{WorkerApiBuildError, WorkerApiState, router as worker_ap
 
 pub const RESOURCE_API_ONLY_MODE: &str = "resource-api-only";
 pub const MANAGED_FILE_ONLY_MODE: &str = "managed-file-only";
+pub const MANAGED_RUNTIME_MODE: &str = "managed-runtime";
 const MAINTENANCE_MESSAGE: &str = "Rust M4 resource and API validation; scheduling disabled";
 const MANAGED_MAINTENANCE_MESSAGE: &str =
     "Rust M6-A managed file preparation; runtime execution disabled";
+const MANAGED_RUNTIME_MAINTENANCE_MESSAGE: &str =
+    "Rust M6-B managed runtime; scheduling controlled by operator";
 const UNASSIGNED_WORKER_UUID: &str = "00000000-0000-4000-8000-000000000000";
 const RESOURCE_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 
@@ -48,6 +52,7 @@ const RESOURCE_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 enum WorkerSurfaceMode {
     ResourceApiOnly,
     ManagedFileOnly,
+    ManagedRuntime,
 }
 
 impl WorkerSurfaceMode {
@@ -55,6 +60,7 @@ impl WorkerSurfaceMode {
         match self {
             Self::ResourceApiOnly => RESOURCE_API_ONLY_MODE,
             Self::ManagedFileOnly => MANAGED_FILE_ONLY_MODE,
+            Self::ManagedRuntime => MANAGED_RUNTIME_MODE,
         }
     }
 
@@ -62,6 +68,7 @@ impl WorkerSurfaceMode {
         match self {
             Self::ResourceApiOnly => "m4",
             Self::ManagedFileOnly => "m6-a",
+            Self::ManagedRuntime => "m6-b",
         }
     }
 
@@ -69,6 +76,7 @@ impl WorkerSurfaceMode {
         match self {
             Self::ResourceApiOnly => "resource_api_only",
             Self::ManagedFileOnly => "managed_file_only",
+            Self::ManagedRuntime => "managed_runtime",
         }
     }
 
@@ -76,6 +84,7 @@ impl WorkerSurfaceMode {
         match self {
             Self::ResourceApiOnly => MAINTENANCE_MESSAGE,
             Self::ManagedFileOnly => MANAGED_MAINTENANCE_MESSAGE,
+            Self::ManagedRuntime => MANAGED_RUNTIME_MAINTENANCE_MESSAGE,
         }
     }
 
@@ -84,12 +93,16 @@ impl WorkerSurfaceMode {
             Self::ResourceApiOnly => Some(MAINTENANCE_MESSAGE),
             // Server treats a non-empty message as an explicit NOT_READY reason after
             // operator-controlled maintenance is disabled.
-            Self::ManagedFileOnly => None,
+            Self::ManagedFileOnly | Self::ManagedRuntime => None,
         }
     }
 
     const fn reconciles_managed_files(self) -> bool {
-        matches!(self, Self::ManagedFileOnly)
+        matches!(self, Self::ManagedFileOnly | Self::ManagedRuntime)
+    }
+
+    const fn executes_managed_runtime(self) -> bool {
+        matches!(self, Self::ManagedRuntime)
     }
 }
 
@@ -306,7 +319,9 @@ impl fmt::Display for ManagedFileEvent {
                 formatter,
                 "mode={MANAGED_FILE_ONLY_MODE} state=running scheduling=maintenance-required runtime=disabled gpu_devices={gpu_count}"
             ),
-            Self::Reconciled(result) => render_managed_result(formatter, result),
+            Self::Reconciled(result) => {
+                render_managed_result(formatter, MANAGED_FILE_ONLY_MODE, result)
+            }
             Self::Stopping { signal } => {
                 write!(
                     formatter,
@@ -319,6 +334,7 @@ impl fmt::Display for ManagedFileEvent {
 
 fn render_managed_result(
     formatter: &mut fmt::Formatter<'_>,
+    mode: &str,
     result: &ManagedResult,
 ) -> fmt::Result {
     let (resource, id) = match result.target {
@@ -327,7 +343,7 @@ fn render_managed_result(
     };
     write!(
         formatter,
-        "mode={MANAGED_FILE_ONLY_MODE} resource={resource} id={id} observed_state={:?}",
+        "mode={mode} resource={resource} id={id} observed_state={:?}",
         result.observed_state.as_deref().unwrap_or("unknown")
     )?;
     match &result.outcome {
@@ -386,6 +402,109 @@ pub struct ManagedFileSummary {
     pub reconnect_attempts: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ManagedRuntimeEvent {
+    Listening {
+        worker_address: SocketAddr,
+        metrics_address: SocketAddr,
+    },
+    IdentityEstablished {
+        worker_id: i64,
+        worker_name: String,
+    },
+    Running {
+        gpu_count: usize,
+    },
+    FileReconciled(ManagedResult),
+    RuntimeReconciled(ManagedRuntimeResult),
+    Stopping {
+        signal: &'static str,
+    },
+}
+
+impl fmt::Display for ManagedRuntimeEvent {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Listening {
+                worker_address,
+                metrics_address,
+            } => write!(
+                formatter,
+                "mode={MANAGED_RUNTIME_MODE} worker_api={worker_address} metrics={metrics_address}"
+            ),
+            Self::IdentityEstablished {
+                worker_id,
+                worker_name,
+            } => write!(
+                formatter,
+                "mode={MANAGED_RUNTIME_MODE} worker_id={worker_id} worker_name={worker_name:?} identity_source=persisted"
+            ),
+            Self::Running { gpu_count } => write!(
+                formatter,
+                "mode={MANAGED_RUNTIME_MODE} state=running scheduling=operator-controlled runtime=enabled gpu_devices={gpu_count}"
+            ),
+            Self::FileReconciled(result) => {
+                render_managed_result(formatter, MANAGED_RUNTIME_MODE, result)
+            }
+            Self::RuntimeReconciled(result) => render_managed_runtime_result(formatter, result),
+            Self::Stopping { signal } => write!(
+                formatter,
+                "mode={MANAGED_RUNTIME_MODE} state=stopping signal={signal}"
+            ),
+        }
+    }
+}
+
+fn render_managed_runtime_result(
+    formatter: &mut fmt::Formatter<'_>,
+    result: &ManagedRuntimeResult,
+) -> fmt::Result {
+    write!(
+        formatter,
+        "mode={MANAGED_RUNTIME_MODE} resource=model_instance id={} ",
+        result.instance_id
+    )?;
+    match &result.outcome {
+        ManagedRuntimeOutcome::Starting {
+            container_id,
+            created,
+            adopted,
+        } => write!(
+            formatter,
+            "outcome=starting container_id={container_id:?} created={created} adopted={adopted}"
+        ),
+        ManagedRuntimeOutcome::Running { container_id } => {
+            write!(formatter, "outcome=running container_id={container_id:?}")
+        }
+        ManagedRuntimeOutcome::Errored { message } => {
+            write!(formatter, "outcome=error message={message:?}")
+        }
+        ManagedRuntimeOutcome::Deleted { container_removed } => write!(
+            formatter,
+            "outcome=deleted container_removed={container_removed}"
+        ),
+        ManagedRuntimeOutcome::Noop { reason } => {
+            write!(formatter, "outcome=noop reason={reason:?}")
+        }
+        ManagedRuntimeOutcome::Failed { message } => {
+            write!(formatter, "outcome=failed message={message:?}")
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ManagedRuntimeSummary {
+    #[serde(flatten)]
+    pub file: ManagedFileSummary,
+    pub runtime_reconciliations: u64,
+    pub runtime_starting: u64,
+    pub runtime_running: u64,
+    pub runtime_errored: u64,
+    pub runtime_deleted: u64,
+    pub runtime_noops: u64,
+    pub runtime_failures: u64,
+}
+
 #[derive(Debug, Error)]
 pub enum ResourceApiRunError {
     #[error("resource Worker mode requires configuration field {0}")]
@@ -405,6 +524,8 @@ pub enum ResourceApiRunError {
     ControlPlaneStopped,
     #[error("Managed coordinator stopped unexpectedly")]
     ManagedCoordinatorStopped,
+    #[error("Managed runtime coordinator stopped unexpectedly")]
+    ManagedRuntimeCoordinatorStopped,
     #[error("resource Worker safety invariant failed: {0}")]
     SafetyInvariant(&'static str),
     #[error("failed to wait for shutdown signal: {0}")]
@@ -423,6 +544,8 @@ pub enum ResourceApiRunError {
     ControlConfiguration(#[from] ControlLoopConfigError),
     #[error(transparent)]
     Resolve(#[from] ResolveError),
+    #[error(transparent)]
+    ManagedRuntime(#[from] ManagedRuntimeError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -439,6 +562,7 @@ enum SurfaceEvent {
         gpu_count: usize,
     },
     Reconciled(ManagedResult),
+    RuntimeReconciled(ManagedRuntimeResult),
     Stopping {
         signal: &'static str,
     },
@@ -453,6 +577,43 @@ struct ManagedStats {
     errored_model_files: u64,
     noops: u64,
     failures: u64,
+}
+
+#[derive(Debug, Default)]
+struct ManagedRuntimeStats {
+    reconciliations: u64,
+    starting: u64,
+    running: u64,
+    errored: u64,
+    deleted: u64,
+    noops: u64,
+    failures: u64,
+}
+
+impl ManagedRuntimeStats {
+    fn record(&mut self, outcome: &ManagedRuntimeOutcome) {
+        self.reconciliations = self.reconciliations.saturating_add(1);
+        match outcome {
+            ManagedRuntimeOutcome::Starting { .. } => {
+                self.starting = self.starting.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::Running { .. } => {
+                self.running = self.running.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::Errored { .. } => {
+                self.errored = self.errored.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::Deleted { .. } => {
+                self.deleted = self.deleted.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::Noop { .. } => {
+                self.noops = self.noops.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::Failed { .. } => {
+                self.failures = self.failures.saturating_add(1);
+            }
+        }
+    }
 }
 
 impl ManagedStats {
@@ -485,6 +646,7 @@ struct SurfaceSummary {
     resource: ResourceApiSummary,
     desired: DesiredState,
     managed: ManagedStats,
+    runtime: ManagedRuntimeStats,
 }
 
 /// Runs the M4 Worker surface while keeping every scheduling/runtime path disabled.
@@ -515,7 +677,7 @@ where
                 gpu_count: *gpu_count,
             },
             SurfaceEvent::Stopping { signal } => ResourceApiEvent::Stopping { signal },
-            SurfaceEvent::Reconciled(_) => return,
+            SurfaceEvent::Reconciled(_) | SurfaceEvent::RuntimeReconciled(_) => return,
         };
         observe(&event);
     })
@@ -551,6 +713,7 @@ where
                 gpu_count: *gpu_count,
             },
             SurfaceEvent::Reconciled(result) => ManagedFileEvent::Reconciled(result.clone()),
+            SurfaceEvent::RuntimeReconciled(_) => return,
             SurfaceEvent::Stopping { signal } => ManagedFileEvent::Stopping { signal },
         };
         observe(&event);
@@ -584,6 +747,83 @@ where
         full_sync_ok: resource.full_sync_ok,
         watch_connected: resource.watch_connected,
         reconnect_attempts: resource.reconnect_attempts,
+    })
+}
+
+/// Runs the complete Managed file and runtime coordinators behind an explicit mode gate.
+pub async fn run_managed_runtime<F>(
+    config: &WorkerConfig,
+    mut observe: F,
+) -> Result<ManagedRuntimeSummary, ResourceApiRunError>
+where
+    F: FnMut(&ManagedRuntimeEvent),
+{
+    let summary = run_worker_surface(config, WorkerSurfaceMode::ManagedRuntime, |event| {
+        let event = match event {
+            SurfaceEvent::Listening {
+                worker_address,
+                metrics_address,
+            } => ManagedRuntimeEvent::Listening {
+                worker_address: *worker_address,
+                metrics_address: *metrics_address,
+            },
+            SurfaceEvent::IdentityEstablished {
+                worker_id,
+                worker_name,
+            } => ManagedRuntimeEvent::IdentityEstablished {
+                worker_id: *worker_id,
+                worker_name: worker_name.clone(),
+            },
+            SurfaceEvent::Running { gpu_count } => ManagedRuntimeEvent::Running {
+                gpu_count: *gpu_count,
+            },
+            SurfaceEvent::Reconciled(result) => ManagedRuntimeEvent::FileReconciled(result.clone()),
+            SurfaceEvent::RuntimeReconciled(result) => {
+                ManagedRuntimeEvent::RuntimeReconciled(result.clone())
+            }
+            SurfaceEvent::Stopping { signal } => ManagedRuntimeEvent::Stopping { signal },
+        };
+        observe(&event);
+    })
+    .await?;
+    let resource = summary.resource;
+    let file = ManagedFileSummary {
+        mode: resource.mode,
+        server_version: resource.server_version,
+        server_git_commit: resource.server_git_commit,
+        worker_id: resource.worker_id,
+        worker_name: resource.worker_name,
+        worker_uuid: resource.worker_uuid,
+        worker_address: resource.worker_address,
+        metrics_address: resource.metrics_address,
+        gpu_count: resource.gpu_count,
+        shutdown_signal: resource.shutdown_signal,
+        desired_models: summary.desired.models.len(),
+        desired_model_instances: summary.desired.model_instances.len(),
+        desired_model_files: summary.desired.model_files.len(),
+        desired_revision: summary.desired.revision,
+        reconciliations: summary.managed.reconciliations,
+        initialized_instances: summary.managed.initialized_instances,
+        errored_instances: summary.managed.errored_instances,
+        ready_model_files: summary.managed.ready_model_files,
+        errored_model_files: summary.managed.errored_model_files,
+        noops: summary.managed.noops,
+        failures: summary.managed.failures,
+        heartbeat_ok: resource.heartbeat_ok,
+        status_ok: resource.status_ok,
+        full_sync_ok: resource.full_sync_ok,
+        watch_connected: resource.watch_connected,
+        reconnect_attempts: resource.reconnect_attempts,
+    };
+    Ok(ManagedRuntimeSummary {
+        file,
+        runtime_reconciliations: summary.runtime.reconciliations,
+        runtime_starting: summary.runtime.starting,
+        runtime_running: summary.runtime.running,
+        runtime_errored: summary.runtime.errored,
+        runtime_deleted: summary.runtime.deleted,
+        runtime_noops: summary.runtime.noops,
+        runtime_failures: summary.runtime.failures,
     })
 }
 
@@ -644,6 +884,10 @@ where
     let client = ServerClient::new(profile.server_url.clone(), transport.clone())?;
     let managed_client = mode
         .reconciles_managed_files()
+        .then(|| ServerClient::new(profile.server_url.clone(), transport.clone()))
+        .transpose()?;
+    let runtime_client = mode
+        .executes_managed_runtime()
         .then(|| ServerClient::new(profile.server_url.clone(), transport))
         .transpose()?;
     let bootstrap = IdentityBootstrap::new(
@@ -679,6 +923,7 @@ where
     )?;
     let desired_summary = control_handle.desired_state();
     let desired_managed = control_handle.desired_state();
+    let desired_runtime = control_handle.desired_state();
     let control_health = control_handle.health();
     let control_future = control.run(status_rx, shutdown_rx.clone());
     let api_future = axum::serve(worker_listener, worker_api_router(api_state))
@@ -722,10 +967,39 @@ where
             shutdown_requested(managed_shutdown).await;
         }
     };
+    let (runtime_tx, mut runtime_rx) = mpsc::unbounded_channel();
+    let runtime_shutdown = shutdown_tx.subscribe();
+    let runtime_config = config.clone();
+    let runtime_token = identity.token.clone();
+    let runtime_worker_uuid = identity.worker_uuid.clone();
+    let runtime_worker_ip = profile.worker_ip;
+    let runtime_worker_id = identity.id;
+    let runtime_future = async move {
+        if let Some(client) = runtime_client {
+            run_production_managed_runtime(
+                client,
+                runtime_token,
+                runtime_worker_id,
+                runtime_worker_uuid,
+                runtime_worker_ip,
+                runtime_config,
+                desired_runtime,
+                runtime_shutdown,
+                |result| {
+                    let _ = runtime_tx.send(result);
+                },
+            )
+            .await
+        } else {
+            shutdown_requested(runtime_shutdown).await;
+            Ok(())
+        }
+    };
     tokio::pin!(control_future);
     tokio::pin!(api_future);
     tokio::pin!(metrics_future);
     tokio::pin!(managed_future);
+    tokio::pin!(runtime_future);
     let shutdown_signal = wait_for_shutdown();
     tokio::pin!(shutdown_signal);
     let mut refresh = tokio::time::interval(RESOURCE_REFRESH_INTERVAL);
@@ -738,6 +1012,7 @@ where
         .map_or(0, Vec::len);
     observe(&SurfaceEvent::Running { gpu_count });
     let mut managed_stats = ManagedStats::default();
+    let mut runtime_stats = ManagedRuntimeStats::default();
 
     let signal = loop {
         tokio::select! {
@@ -766,9 +1041,20 @@ where
                 shutdown_tx.send_replace(true);
                 return Err(ResourceApiRunError::ManagedCoordinatorStopped);
             }
+            result = &mut runtime_future => {
+                shutdown_tx.send_replace(true);
+                return match result {
+                    Ok(()) => Err(ResourceApiRunError::ManagedRuntimeCoordinatorStopped),
+                    Err(error) => Err(error.into()),
+                };
+            }
             Some(result) = managed_rx.recv() => {
                 managed_stats.record(&result.outcome);
                 observe(&SurfaceEvent::Reconciled(result));
+            }
+            Some(result) = runtime_rx.recv() => {
+                runtime_stats.record(&result.outcome);
+                observe(&SurfaceEvent::RuntimeReconciled(result));
             }
             _ = refresh.tick() => {
                 let resources = collector.collect()?;
@@ -787,14 +1073,16 @@ where
         signal: shutdown_signal_name(signal),
     });
     shutdown_tx.send_replace(true);
-    let (api_result, metrics_result, (), ()) = tokio::join!(
+    let (api_result, metrics_result, (), (), runtime_result) = tokio::join!(
         &mut api_future,
         &mut metrics_future,
         &mut control_future,
-        &mut managed_future
+        &mut managed_future,
+        &mut runtime_future
     );
     api_result.map_err(|error| ResourceApiRunError::EndpointServe("Worker API", error))?;
     metrics_result.map_err(|error| ResourceApiRunError::EndpointServe("metrics", error))?;
+    runtime_result?;
     let health = control_health.borrow().clone();
     let desired = desired_summary.borrow().clone();
     Ok(SurfaceSummary {
@@ -817,6 +1105,7 @@ where
         },
         desired,
         managed: managed_stats,
+        runtime: runtime_stats,
     })
 }
 
@@ -1016,6 +1305,22 @@ mod tests {
         assert!(line.contains("observed_state=\"starting\""));
         assert!(line.contains("outcome=noop"));
         assert!(!line.contains("token"));
+    }
+
+    #[test]
+    fn managed_runtime_file_events_keep_the_runtime_mode_identity() {
+        let event = ManagedRuntimeEvent::FileReconciled(ManagedResult {
+            target: ManagedTarget::ModelInstance(301),
+            observed_state: Some("starting".to_owned()),
+            outcome: ManagedOutcome::Noop {
+                reason: "ModelInstance state is not scheduled",
+            },
+        });
+
+        let line = event.to_string();
+
+        assert!(line.contains("mode=managed-runtime"));
+        assert!(!line.contains("mode=managed-file-only"));
     }
 
     #[test]

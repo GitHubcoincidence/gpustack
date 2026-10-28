@@ -18,8 +18,9 @@ use gpustack_worker::worker_api::public_config_view;
 use gpustack_worker::workload::{VllmDtype, VllmExtraArg, VllmOptions};
 use gpustack_worker::{
     ConfigError, ConfigOverrides, ControlPlaneOnlySummary, DoctorReport, ManagedFileSummary,
-    ResourceApiRunError, ResourceApiSummary, WorkerConfig, WorkerRunError, load_config,
-    run_control_plane_only, run_doctor, run_managed_file_only, run_resource_api_only,
+    ManagedRuntimeSummary, ResourceApiRunError, ResourceApiSummary, WorkerConfig, WorkerRunError,
+    load_config, run_control_plane_only, run_doctor, run_managed_file_only, run_managed_runtime,
+    run_resource_api_only,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -325,21 +326,27 @@ pub struct WorkerRunArgs {
     /// Run only identity, heartbeat, status, and desired-state control loops.
     #[arg(
         long,
-        conflicts_with_all = ["resource_api_only", "managed_file_only"]
+        conflicts_with_all = ["resource_api_only", "managed_file_only", "managed_runtime"]
     )]
     pub control_plane_only: bool,
     /// Add host resources, the read-only Worker API, and metrics without reconciliation.
     #[arg(
         long,
-        conflicts_with_all = ["control_plane_only", "managed_file_only"]
+        conflicts_with_all = ["control_plane_only", "managed_file_only", "managed_runtime"]
     )]
     pub resource_api_only: bool,
     /// Prepare assigned local model files and stop before container or inference startup.
     #[arg(
         long,
-        conflicts_with_all = ["control_plane_only", "resource_api_only"]
+        conflicts_with_all = ["control_plane_only", "resource_api_only", "managed_runtime"]
     )]
     pub managed_file_only: bool,
+    /// Enable Server-authoritative single-GPU Managed Docker and vLLM reconciliation.
+    #[arg(
+        long,
+        conflicts_with_all = ["control_plane_only", "resource_api_only", "managed_file_only"]
+    )]
+    pub managed_runtime: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -359,7 +366,7 @@ pub enum CliError {
     #[error("{0}")]
     Config(#[from] ConfigError),
     #[error(
-        "worker run requires exactly one of --control-plane-only, --resource-api-only, or --managed-file-only"
+        "worker run requires exactly one of --control-plane-only, --resource-api-only, --managed-file-only, or --managed-runtime"
     )]
     WorkerModeRequired,
     #[error(transparent)]
@@ -534,10 +541,19 @@ async fn execute_inner(
                             if !arguments.control_plane_only
                                 && !arguments.resource_api_only
                                 && !arguments.managed_file_only
+                                && !arguments.managed_runtime
                             {
                                 return Err(CliError::WorkerModeRequired);
                             }
-                            if arguments.managed_file_only {
+                            if arguments.managed_runtime {
+                                let summary = run_managed_runtime(&loaded.config, |event| {
+                                    if !quiet {
+                                        eprintln!("{event}");
+                                    }
+                                })
+                                .await?;
+                                render_managed_runtime_summary(output_format, &summary)?
+                            } else if arguments.managed_file_only {
                                 let summary = run_managed_file_only(&loaded.config, |event| {
                                     if !quiet {
                                         eprintln!("{event}");
@@ -1345,6 +1361,43 @@ fn render_managed_file_summary(
     })
 }
 
+fn render_managed_runtime_summary(
+    output_format: OutputFormat,
+    summary: &ManagedRuntimeSummary,
+) -> Result<Execution, CliError> {
+    let output = match output_format {
+        OutputFormat::Json => to_json(summary)?,
+        OutputFormat::Table => {
+            let mut output = render_managed_file_summary(output_format, &summary.file)?.output;
+            write!(
+                output,
+                concat!(
+                    "runtime_reconciliations: {}\n",
+                    "runtime_starting: {}\n",
+                    "runtime_running: {}\n",
+                    "runtime_errored: {}\n",
+                    "runtime_deleted: {}\n",
+                    "runtime_noops: {}\n",
+                    "runtime_failures: {}\n"
+                ),
+                summary.runtime_reconciliations,
+                summary.runtime_starting,
+                summary.runtime_running,
+                summary.runtime_errored,
+                summary.runtime_deleted,
+                summary.runtime_noops,
+                summary.runtime_failures,
+            )
+            .expect("writing to String cannot fail");
+            output
+        }
+    };
+    Ok(Execution {
+        output,
+        exit_code: EXIT_SUCCESS,
+    })
+}
+
 fn to_json(value: &impl Serialize) -> Result<String, serde_json::Error> {
     serde_json::to_string_pretty(value).map(|output| format!("{output}\n"))
 }
@@ -1592,8 +1645,13 @@ mod tests {
         assert!(arguments.managed_file_only);
         assert!(!arguments.control_plane_only);
         assert!(!arguments.resource_api_only);
+        assert!(!arguments.managed_runtime);
 
-        for conflicting in ["--control-plane-only", "--resource-api-only"] {
+        for conflicting in [
+            "--control-plane-only",
+            "--resource-api-only",
+            "--managed-runtime",
+        ] {
             assert!(
                 Cli::try_parse_from([
                     "gpustack-rs",
@@ -1604,6 +1662,40 @@ mod tests {
                 ])
                 .is_err(),
                 "{conflicting} must conflict with --managed-file-only"
+            );
+        }
+    }
+
+    #[test]
+    fn managed_runtime_is_explicit_and_mutually_exclusive() {
+        let cli = Cli::try_parse_from(["gpustack-rs", "worker", "run", "--managed-runtime"])
+            .expect("parse managed-runtime");
+        let Command::Worker(worker) = cli.command else {
+            panic!("worker command")
+        };
+        let WorkerCommand::Run(arguments) = worker.command else {
+            panic!("run command")
+        };
+        assert!(arguments.managed_runtime);
+        assert!(!arguments.control_plane_only);
+        assert!(!arguments.resource_api_only);
+        assert!(!arguments.managed_file_only);
+
+        for conflicting in [
+            "--control-plane-only",
+            "--resource-api-only",
+            "--managed-file-only",
+        ] {
+            assert!(
+                Cli::try_parse_from([
+                    "gpustack-rs",
+                    "worker",
+                    "run",
+                    "--managed-runtime",
+                    conflicting,
+                ])
+                .is_err(),
+                "{conflicting} must conflict with --managed-runtime"
             );
         }
     }

@@ -64,6 +64,24 @@ impl ManagedWorkloadPlanner {
         model: &ModelPublic,
         instance: &ModelInstancePublic,
     ) -> Result<WorkloadSpecV2, ManagedRuntimePlanError> {
+        self.plan_with_gpu_availability(model, instance, true)
+    }
+
+    /// Reconstructs an owned workload after start without treating its own GPU process as drift.
+    pub fn plan_existing(
+        &self,
+        model: &ModelPublic,
+        instance: &ModelInstancePublic,
+    ) -> Result<WorkloadSpecV2, ManagedRuntimePlanError> {
+        self.plan_with_gpu_availability(model, instance, false)
+    }
+
+    fn plan_with_gpu_availability(
+        &self,
+        model: &ModelPublic,
+        instance: &ModelInstancePublic,
+        require_idle_gpu: bool,
+    ) -> Result<WorkloadSpecV2, ManagedRuntimePlanError> {
         self.validate_model_and_instance(model, instance)?;
         let resolved_path = instance
             .resolved_path
@@ -88,7 +106,7 @@ impl ManagedWorkloadPlanner {
             .iter()
             .find(|gpu| gpu.host_index == gpu_index)
             .ok_or_else(|| contract(format!("GPU index {gpu_index} is absent from inventory")))?;
-        if gpu.running_compute_processes != 0 {
+        if require_idle_gpu && gpu.running_compute_processes != 0 {
             return Err(contract(format!(
                 "GPU index {gpu_index} has active compute processes"
             )));
@@ -598,6 +616,10 @@ mod tests {
                 .to_string()
                 .contains("active compute")
         );
+        fixture
+            .planner
+            .plan_existing(&fixture.model, &fixture.instance)
+            .expect("an exactly owned running workload may account for the GPU process");
     }
 
     #[tokio::test]
