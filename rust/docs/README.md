@@ -155,6 +155,12 @@
   `X-GPUStack-Model-Instance`，并通过 Worker 131 项、workspace 190 项测试及全部离线质量门。
   preflight/injection attempt 10 随后通过 57/9 个清单条目、秘密扫描和全部外部不变式复核。
   当前为 `ready_for_maintenance_authorization`；正式 attempt 6 仍须新的独立维护窗口授权。
+- formal attempt 6 已证明复合路由头和完整状态链，但 buffered chat 暴露代理固定访问 loopback、
+  vLLM 实际监听 Worker IP 的地址不一致；cleanup/watchdog/post-audit 完整恢复，正式结果仍为
+  FAIL。产品提交 `d4920e71b89d6507f8e82fb2aff7dfbb24490103` 现使用
+  `worker_ip + assigned_port`，并通过 Worker 131 项、workspace 190 项测试及全部离线质量门。
+  当前为 `retry_7_preflight_pending`；先执行全新 attempt 11 只读准备，formal attempt 7 仍需
+  独立维护窗口授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

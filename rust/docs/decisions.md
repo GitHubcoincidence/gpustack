@@ -860,3 +860,16 @@ D184-D186 不改变唯一模型、Runner、GPU0、状态链、Server-only CLI、
 恢复标准。`c725436b` 已在 90 通过 17 个 Worker API 聚焦测试、131 个 Worker 测试、workspace
 190 个测试、格式、all-features/all-targets Clippy `-D warnings`、doc-tests 和 locked/offline
 build；验证期间没有写 Server、停止服务、创建容器或使用 GPU。
+
+## 2026-10-29 M6-B.5.2 attempt 6 判定与 retry 7 修订
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D188 | attempt 6 正式判定 | attempt 6 固定判为 `failed_during_window`：复合 destination 解析、Rust Worker、稳定 READY、完整七状态链、健康先于 `RUNNING` 和 `inference models` 均通过；第一条 buffered chat 在 Rust Worker访问 vLLM 时返回 502，Server外层为 503。正式与 watchdog 均为 FAIL；`cleanup_ok=1`、`recovery_ok=1` 和独立事后审计 PASS 只证明 Model 19、Instance 34、ModelFile 13、owned 容器、端口和 GPU0 workload 已清理且 Python Worker与外部基线恢复 | 数据面尚未完成 buffered/streaming chat、completion、logs 和三轮幂等，不能用完整状态链或恢复成功替代正式验收。 |
+| D189 | Managed upstream 使用 Worker地址 | Managed API state 必须保存已验证的 `worker_ip`，推理目标用 `SocketAddr(worker_ip, route.port)` 构造；缺少 `worker_ip` 时构建失败。vLLM 继续只监听冻结 workload 的 Worker IP，不改为 loopback 或扩大到 `0.0.0.0`。产品检查点滚动为 `d4920e71b89d6507f8e82fb2aff7dfbb24490103` | host-network vLLM 的命令和健康探针都使用 `10.213.80.90:40000`，原 Python Worker也通过配置的 Worker IP代理；固定 `127.0.0.1` 与实际监听地址不一致。复用同一地址契约比扩大监听面更安全，也使健康与数据面检查同源。 |
+| D190 | retry 7 路径与授权边界 | 下一轮只读准备使用全新的 `m6b5-preflight-attempt-11` 和 `m6b5-managed-runtime-smoke-attempt-11-pre-window-injection`；正式 retry 使用 formal/watchdog/post-audit attempt 7。preflight 必须固定 D189 产品提交并运行真实 Worker地址代理回归测试。只读准备通过后最多进入 `ready_for_maintenance_authorization`，formal attempt 7 仍须新的明确授权 | attempt 6 的路径和授权已经消耗。产品修复、离线门和恢复审计不构成再次停止 Python Worker、切换 maintenance、创建资源和使用 GPU0 的权限。 |
+
+D188-D190 不改变唯一模型、Runner、GPU0、状态链、Server-only CLI、日志、三轮幂等、清理或
+恢复标准。`d4920e71` 已在 90 通过真实节点地址回归、17 个 Worker API 测试、131 个 Worker
+测试、workspace 190 个测试、格式、all-features/all-targets Clippy `-D warnings`、doc-tests
+和 locked/offline build；验证期间没有写 Server、停止服务、创建容器或使用 GPU。

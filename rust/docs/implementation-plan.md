@@ -805,3 +805,12 @@ preflight attempt 10 随后在治理 HEAD `255f87c916462b485e4ddb69bd4bf9d65de26
 `6c9f520e16bad891aaffa24a83e61f3d037d604592fb318bcc8b9c29e0bfae2f`；独立复核证明
 57/9 个条目、凭据和秘密扫描、服务、Server 资源、Docker、GPU、端口、进程与源码前后不变。
 当前状态为 `ready_for_maintenance_authorization`，下一步只能请求 formal attempt 6 的新授权。
+
+formal attempt 6 随后通过复合 destination 解析、完整七状态链、健康时序和 Server模型列表，
+但 buffered chat 在 Rust Worker到 vLLM 的连接层失败：vLLM 按 workload 监听
+`10.213.80.90:40000`，代理却固定请求 `127.0.0.1:40000`。该次统一 cleanup、watchdog 和
+22 项独立事后审计均证明完整恢复，但正式结果仍为 FAIL。产品提交
+`d4920e71b89d6507f8e82fb2aff7dfbb24490103` 已把 upstream 改为已验证的
+`worker_ip + assigned_port`，缺少 Worker IP 时 fail closed，并通过 workspace 190 个测试和
+全部离线质量门。当前状态为 `retry_7_preflight_pending`：下一步只能运行全新的
+preflight/injection attempt 11；formal attempt 7 仍须新的明确维护授权。

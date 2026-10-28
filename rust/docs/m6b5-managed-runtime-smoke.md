@@ -227,6 +227,29 @@ preflight attempt 10 已在治理 HEAD `255f87c916462b485e4ddb69bd4bf9d65de262a9
 一致且干净。当前为 `ready_for_maintenance_authorization`；attempt 5 的授权不延伸，formal
 attempt 6 仍须新的明确授权。
 
+formal attempt 6 获得独立授权后，Model 19、Instance 34、ModelFile 13、端口 40000 和唯一
+GPU0 vLLM 容器完成完整七状态链，健康先于 `RUNNING`，`inference models` 也通过。第一条
+buffered chat 已进入 Rust Worker，但 Worker访问 vLLM 返回 502，Server外层返回 503；因此
+streaming、completion、logs 和三轮幂等未执行，attempt 6 固定为正式 FAIL。formal 与 watchdog
+清单文件 SHA-256 分别为
+`bc51a04aab4e8ea21d68b5d9b80ab7715bbf57e70aca55ddedc822a49cff48ad`、
+`f837e04a3b7b54172ce6e24c39bf8276ae26581d10f17bd98bac86cf10943ff7`。cleanup 和 watchdog
+完整恢复，独立 post-audit attempt 6 的 22 个条目全部通过，清单文件 SHA-256 为
+`fcb934464a1126dba66e8f963f234d461a63ba95ac2a478ecc80b0eff05c157a`。
+
+根因是 vLLM 和健康探针使用冻结 Worker IP `10.213.80.90`，Rust 推理代理却固定使用
+`127.0.0.1`。产品检查点 `d4920e71b89d6507f8e82fb2aff7dfbb24490103` 已按 Python Worker
+语义改为访问 `worker_ip + assigned_port`，不扩大 vLLM 监听面。retry 7 只能使用以下新路径：
+
+- 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-11`；
+- 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-11-pre-window-injection`；
+- 正式执行：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-7`；
+- watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-7`；
+- 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-7`。
+
+当前为 `retry_7_preflight_pending`。只有全新只读门通过后才能请求 formal attempt 7 授权；
+attempt 6 的授权不延伸。
+
 ## M6-B.5.1 准备门
 
 准备门必须证明：

@@ -26,28 +26,26 @@
 
 ## 当前状态
 
-- 状态：`ready_for_maintenance_authorization`
-- 当前阶段：M1～M5、M6-A 和 M6-B.1～M6-B.4 已完成既定验收。M6-B.5.2 attempt 5 是
-  有效 `failed_during_window`：Rust Worker完成稳定 READY、完整七状态链和
-  `inference models`，但 buffered chat 因网关复合路由头解析不兼容返回 HTTP 400。
-- 最新产品检查点：`c725436bb2e117228866441f59715c332bfa042a`。Rust Worker现按原
-  GPUStack 格式 `model-<model_id>-<instance_id>[-<alias>].<registry_type>` 解析
-  `X-GPUStack-Model-Instance`，同时保持单头、正整数、认证和敏感头剥离边界。本地、GitHub
-  与 90 已同步到相同提交。
+- 状态：`retry_7_preflight_pending`
+- 当前阶段：M1～M5、M6-A 和 M6-B.1～M6-B.4 已完成既定验收。M6-B.5.2 attempt 6 是
+  有效 `failed_during_window`：复合路由头解析、稳定 READY、完整七状态链、健康时序和
+  `inference models` 均通过，但 Rust Worker向错误的 loopback 地址连接 vLLM，buffered chat
+  由 Worker返回 502、Server外层返回 503。
+- 最新产品检查点：`d4920e71b89d6507f8e82fb2aff7dfbb24490103`。Managed 推理代理现使用
+  已验证的 `worker_ip + assigned_port`，与 runtime 健康检查及 Python Worker代理语义一致；
+  复合 destination、认证、内部路由表和敏感头剥离边界不变。本地、GitHub 与 90 已同步。
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
   `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
-- attempt 5 正式、watchdog 和独立事后审计清单文件 SHA-256 分别为
-  `4cda778e8b3cb1d12a3ee714e00a0b32827384c2ce0b655294fc1b21257c5d32`、
-  `3c1f88229e18fb2c1cca62b020f59739df041273556d550062ee497948e7c53e` 和
-  `65f2d38720a25714234c363ddf8386e5f72d3dfb93a841aca188ea4d5cf5af6f`。独立审计
+- attempt 6 正式、watchdog 和独立事后审计清单文件 SHA-256 分别为
+  `bc51a04aab4e8ea21d68b5d9b80ab7715bbf57e70aca55ddedc822a49cff48ad`、
+  `f837e04a3b7b54172ce6e24c39bf8276ae26581d10f17bd98bac86cf10943ff7` 和
+  `fcb934464a1126dba66e8f963f234d461a63ba95ac2a478ecc80b0eff05c157a`。独立审计
   22 个条目全部通过，证明 Python Worker、maintenance、Server 资源、Docker、GPU、端口、
-  模型文件和仓库状态恢复；它不改变 attempt 5 的失败判定。
-- preflight attempt 10 和无写注入均已通过；清单文件 SHA-256 分别为
-  `1c08a998d040a2a264d29194c1ecb3aeccb0c798299a62e39eeeccd88f9b06d2` 和
-  `6c9f520e16bad891aaffa24a83e61f3d037d604592fb318bcc8b9c29e0bfae2f`。下一项只能
-  请求 formal attempt 6 的新维护窗口授权；当前不得停止 Python Worker、切换 maintenance、
-  创建 Server 测试资源、创建容器或使用 GPU。
+  模型文件和仓库状态恢复；它不改变 attempt 6 的失败判定。
+- 下一项只允许把 preflight/injection attempt 11 绑定到新产品检查点并执行离线/只读门；
+  formal attempt 7 仍须新的明确授权。当前不得停止 Python Worker、切换 maintenance、创建
+  Server 测试资源、创建容器或使用 GPU。
 
 ## 里程碑
 
@@ -3693,6 +3691,32 @@
   进程或 Managed 容器；GPU0/GPU1 均为 0 MiB/0%；HEAD、origin 和工作树一致且干净。
 - 当前停止位置：`ready_for_maintenance_authorization`。下一项只能由用户明确授权 formal
   attempt 6，attempt 5 的授权不延伸。
+
+### 2026-10-29：M6-B.5.2 attempt 6 在 vLLM 上游连接失败并恢复
+
+- 授权与成功前缀：用户明确授权 formal attempt 6。最终漂移门通过后 watchdog 停止精确
+  Python Worker，Rust Worker稳定 READY；Model 19、Instance 34、ModelFile 13、端口 40000
+  和唯一 GPU0 vLLM 容器完成完整七状态链，健康先于 `RUNNING`，`inference models` 通过。
+- 正式失败：第一条 buffered chat 已通过网关 destination 解析并进入 Rust Worker，但 Worker
+  返回 `502 Managed inference upstream failed`，Server外层返回 503。formal reason 仍为
+  `buffered_chat_request_failed`；streaming、completion、logs 和三轮幂等未执行，attempt 6
+  固定为 `failed_during_window`。
+- 根因：vLLM 按冻结 workload 在 host network 上监听 `10.213.80.90:40000`，健康检查也访问
+  该地址；Rust 代理却固定请求 `127.0.0.1:40000`。这与原 Python Worker通过配置的
+  `worker_ip` 代理到实例端口的语义不一致，连接因此在发送 HTTP 请求前失败。
+- 回滚与审计：cleanup/watchdog 删除本次 Model/Instance/ModelFile、owned 容器、listener 和
+  本地状态，释放 GPU0 并恢复精确 Python Worker；`cleanup_ok=1`、`recovery_ok=1`。formal、
+  watchdog 清单文件 SHA-256 分别为
+  `bc51a04aab4e8ea21d68b5d9b80ab7715bbf57e70aca55ddedc822a49cff48ad`、
+  `f837e04a3b7b54172ce6e24c39bf8276ae26581d10f17bd98bac86cf10943ff7`。独立 post-audit
+  attempt 6 的 22 个条目全部通过，清单文件 SHA-256 为
+  `fcb934464a1126dba66e8f963f234d461a63ba95ac2a478ecc80b0eff05c157a`。
+- 离线修复：产品提交 `d4920e71b89d6507f8e82fb2aff7dfbb24490103` 从受管理状态保存
+  `worker_ip`，用 `SocketAddr(worker_ip, assigned_port)` 构造 upstream，并在缺少 Worker IP
+  时 fail closed。真实节点地址转发回归、17 个 Worker API 测试、131 个 Worker 测试、
+  workspace 190 个测试、fmt、Clippy `-D warnings`、doc-tests 和 locked/offline build 全部通过。
+- 当前停止位置：`retry_7_preflight_pending`。下一项只允许使用全新 preflight/injection
+  attempt 11 验证新检查点；formal/watchdog/post-audit attempt 7 必须重新取得明确授权。
 
 ## 未解决风险与待确认事项
 
