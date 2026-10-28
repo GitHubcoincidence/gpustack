@@ -846,6 +846,15 @@ where
     F: FnMut(&SurfaceEvent),
 {
     let profile = ResourceApiProfile::from_config(config, mode)?;
+    let managed_inference_token = if mode.executes_managed_runtime() {
+        let token_file = config
+            .token_file
+            .as_ref()
+            .ok_or(ResourceApiRunError::MissingConfiguration("token_file"))?;
+        Some(CredentialStore::new(token_file).load()?)
+    } else {
+        None
+    };
     // Canonicalizing roots before network setup keeps unsafe model paths fail-closed.
     let resolver = mode
         .reconciles_managed_files()
@@ -925,6 +934,9 @@ where
         WorkerApiState::new_managed(
             config,
             identity.token.clone(),
+            managed_inference_token.ok_or(ResourceApiRunError::SafetyInvariant(
+                "Managed inference credential was not loaded",
+            ))?,
             Arc::clone(&runtime_registry),
         )?
     } else {

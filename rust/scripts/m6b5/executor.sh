@@ -828,26 +828,26 @@ event 'state_chain_complete' "model_id=$model_id instance_id=$instance_id port=$
 
 phase='server_only_inference_and_logs'
 "$BINARY" --context "$OPERATOR_CONTEXT" --output json inference models \
-  >"$EVIDENCE/inference-models.json"
+  >"$EVIDENCE/inference-models.json" || fail 'inference_models_request_failed'
 jq -e --arg name "$TARGET_MODEL" \
   '[.data[] | select(.id == $name)] | length == 1' \
   "$EVIDENCE/inference-models.json" >/dev/null || fail 'inference_model_route_missing'
 
 "$BINARY" --timeout 120 --context "$OPERATOR_CONTEXT" --output json \
   inference chat --model "$TARGET_MODEL" --prompt 'Reply with exactly: rust worker ready' \
-  --max-tokens 16 >"$EVIDENCE/chat-buffered.json"
+  --max-tokens 16 >"$EVIDENCE/chat-buffered.json" || fail 'buffered_chat_request_failed'
 jq -e '.choices[0].message.content | type == "string" and length > 0' \
   "$EVIDENCE/chat-buffered.json" >/dev/null || fail 'buffered_chat_empty'
 
 "$BINARY" --timeout 120 --context "$OPERATOR_CONTEXT" --output json \
   inference chat --model "$TARGET_MODEL" --prompt 'Count from one to three.' \
-  --max-tokens 24 --stream >"$EVIDENCE/chat-stream.sse"
+  --max-tokens 24 --stream >"$EVIDENCE/chat-stream.sse" || fail 'stream_chat_request_failed'
 grep -Eq '^data: \{.*"choices"' "$EVIDENCE/chat-stream.sse" || fail 'stream_chat_data_missing'
 grep -Eq '^data: \[DONE\]' "$EVIDENCE/chat-stream.sse" || fail 'stream_chat_done_missing'
 
 "$BINARY" --timeout 120 --context "$OPERATOR_CONTEXT" --output json \
   inference completion --model "$TARGET_MODEL" --prompt 'Rust is' --max-tokens 16 \
-  >"$EVIDENCE/completion.json"
+  >"$EVIDENCE/completion.json" || fail 'completion_request_failed'
 jq -e '.choices[0].text | type == "string" and length > 0' \
   "$EVIDENCE/completion.json" >/dev/null || fail 'completion_empty'
 
@@ -861,7 +861,7 @@ set -o errexit
 printf 'exit_code=%s\n' "$invalid_model_exit" >"$EVIDENCE/invalid-model-result.txt"
 
 "$BINARY" --timeout 60 --context "$OPERATOR_CONTEXT" model logs "$model_id" --tail 40 \
-  >"$EVIDENCE/model-logs-tail.txt"
+  >"$EVIDENCE/model-logs-tail.txt" || fail 'model_logs_tail_request_failed'
 [[ -s "$EVIDENCE/model-logs-tail.txt" ]] || fail 'model_logs_tail_empty'
 set +o errexit
 timeout --signal=TERM --kill-after=10 8 \
@@ -880,7 +880,8 @@ for sample in 1 2 3; do
   sleep 2
   kill -0 "$rust_pid" 2>/dev/null || fail 'rust_worker_exited_during_idempotency'
   "$BINARY" --context "$OPERATOR_CONTEXT" --output json model status "$model_id" \
-    >"$EVIDENCE/idempotency-status-${sample}.json"
+    >"$EVIDENCE/idempotency-status-${sample}.json" ||
+    fail "idempotency_status_request_${sample}_failed"
   jq -e --argjson instance "$instance_id" --argjson port "$assigned_port" '
     (.instances | length) == 1 and .instances[0].id == $instance and
     .instances[0].state == "running" and .instances[0].port == $port
@@ -898,7 +899,7 @@ require_equal "$(find "$LOG_DIR/serve" -maxdepth 1 -type f \
   -name "${instance_id}.*.log" 2>/dev/null | wc -l)" '1' 'duplicate_log_session'
 "$BINARY" --timeout 120 --context "$OPERATOR_CONTEXT" --output json \
   inference chat --model "$TARGET_MODEL" --prompt 'Reply: stable' --max-tokens 8 \
-  >"$EVIDENCE/chat-after-idempotency.json"
+  >"$EVIDENCE/chat-after-idempotency.json" || fail 'post_idempotency_chat_request_failed'
 jq -e '.choices[0].message.content | type == "string" and length > 0' \
   "$EVIDENCE/chat-after-idempotency.json" >/dev/null || fail 'route_failed_after_idempotency'
 idempotency_passed=1

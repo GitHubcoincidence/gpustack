@@ -74,6 +74,7 @@ struct AllowedRoot {
 #[derive(Clone)]
 pub struct WorkerApiState {
     token: SecretToken,
+    managed_inference_token: Option<SecretToken>,
     roots: Arc<Vec<AllowedRoot>>,
     log_dir: PathBuf,
     managed: Option<ManagedApiState>,
@@ -100,6 +101,7 @@ impl WorkerApiState {
         }
         Ok(Self {
             token,
+            managed_inference_token: None,
             roots: Arc::new(roots),
             log_dir: config.log_dir.clone(),
             managed: None,
@@ -109,6 +111,7 @@ impl WorkerApiState {
     pub fn new_managed(
         config: &WorkerConfig,
         token: SecretToken,
+        managed_inference_token: SecretToken,
         registry: Arc<ManagedRuntimeRegistry>,
     ) -> Result<Self, WorkerApiBuildError> {
         let mut state = Self::new(config, token)?;
@@ -120,6 +123,7 @@ impl WorkerApiState {
             registry,
             proxy: Arc::new(ReqwestManagedInferenceProxy { client }),
         });
+        state.managed_inference_token = Some(managed_inference_token);
         Ok(state)
     }
 }
@@ -127,30 +131,34 @@ impl WorkerApiState {
 pub fn router(state: WorkerApiState) -> Router {
     let supports_managed_inference = state.managed.is_some();
     let state = Arc::new(state);
-    let mut protected = Router::new()
+    let protected = Router::new()
         .route("/token-auth", get(token_auth))
         .route("/files/file-exists", get(file_exists))
         .route("/files/model-config", get(model_config))
         .route("/files/model-weight-size", get(model_weight_size))
         .route("/serveLogOptions/{id}", get(serve_log_options))
         .route("/serveLogs/{id}", get(serve_logs))
-        .route("/v2/config", get(get_config).put(put_config));
-    if supports_managed_inference {
-        protected = protected
-            .route(CHAT_COMPLETIONS_PATH, post(proxy_chat_completions))
-            .route(COMPLETIONS_PATH, post(proxy_completions));
-    }
-    protected = protected.route_layer(middleware::from_fn_with_state(
-        state.clone(),
-        require_worker_token,
-    ));
-    Router::new()
+        .route("/v2/config", get(get_config).put(put_config))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_worker_token,
+        ));
+    let mut application = Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
         .route("/version", get(version))
-        .merge(protected)
-        .fallback(not_found)
-        .with_state(state)
+        .merge(protected);
+    if supports_managed_inference {
+        let inference = Router::new()
+            .route(CHAT_COMPLETIONS_PATH, post(proxy_chat_completions))
+            .route(COMPLETIONS_PATH, post(proxy_completions))
+            .route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                require_managed_inference_token,
+            ));
+        application = application.merge(inference);
+    }
+    application.fallback(not_found).with_state(state)
 }
 
 async fn healthz() -> Json<&'static str> {
@@ -367,20 +375,51 @@ async fn require_worker_token(
     }
 }
 
+async fn require_managed_inference_token(
+    State(state): State<Arc<WorkerApiState>>,
+    request: Request<Body>,
+    next: Next,
+) -> Response {
+    let authenticated = state.managed_inference_token.as_ref().is_some_and(|token| {
+        authenticate_managed_inference(request.headers(), &state.token, token)
+    });
+    if authenticated {
+        next.run(request).await
+    } else {
+        ApiError::unauthorized().into_response()
+    }
+}
+
 fn authenticate(headers: &HeaderMap, token: &SecretToken) -> bool {
+    presented_credential(headers).is_some_and(|candidate| token.constant_time_matches(candidate))
+}
+
+fn authenticate_managed_inference(
+    headers: &HeaderMap,
+    worker_token: &SecretToken,
+    cluster_registration_token: &SecretToken,
+) -> bool {
+    let Some(candidate) = presented_credential(headers) else {
+        return false;
+    };
+    // v2.2.3 ai-proxy uses the cluster registration token for self-hosted
+    // inference, while direct Server-to-Worker calls use the per-Worker token.
+    worker_token.constant_time_matches(candidate)
+        | cluster_registration_token.constant_time_matches(candidate)
+}
+
+fn presented_credential(headers: &HeaderMap) -> Option<&str> {
     // Bearer is authoritative when both accepted headers are present, so an
     // invalid Bearer credential cannot be bypassed with a valid X-API-Key.
     if let Some(value) = headers.get(AUTHORIZATION) {
         return value
             .to_str()
             .ok()
-            .and_then(|value| value.strip_prefix("Bearer "))
-            .is_some_and(|candidate| token.constant_time_matches(candidate));
+            .and_then(|value| value.strip_prefix("Bearer "));
     }
     headers
         .get("x-api-key")
         .and_then(|value| value.to_str().ok())
-        .is_some_and(|candidate| token.constant_time_matches(candidate))
 }
 
 async fn token_auth() -> Json<&'static str> {
@@ -1045,6 +1084,9 @@ mod tests {
         registry.set_ready(true);
         WorkerApiState {
             token: SecretToken::new("worker-token").expect("test token"),
+            managed_inference_token: Some(
+                SecretToken::new("cluster-registration-token").expect("test token"),
+            ),
             roots: Arc::new(Vec::new()),
             log_dir: PathBuf::new(),
             managed: Some(ManagedApiState { registry, proxy }),
@@ -1089,6 +1131,53 @@ mod tests {
             "Bearer contract-worker-token".parse().expect("header"),
         );
         assert!(authenticate(&headers, &token));
+    }
+
+    #[test]
+    fn managed_inference_accepts_only_worker_or_cluster_credentials() {
+        let worker_token = SecretToken::new("worker-token").expect("test token");
+        let cluster_token = SecretToken::new("cluster-registration-token").expect("test token");
+        let mut headers = HeaderMap::new();
+
+        headers.insert(
+            AUTHORIZATION,
+            "Bearer worker-token".parse().expect("header"),
+        );
+        assert!(authenticate_managed_inference(
+            &headers,
+            &worker_token,
+            &cluster_token
+        ));
+
+        headers.insert(
+            AUTHORIZATION,
+            "Bearer cluster-registration-token".parse().expect("header"),
+        );
+        assert!(authenticate_managed_inference(
+            &headers,
+            &worker_token,
+            &cluster_token
+        ));
+        assert!(!authenticate(&headers, &worker_token));
+
+        headers.remove(AUTHORIZATION);
+        headers.insert(
+            "x-api-key",
+            "cluster-registration-token".parse().expect("header"),
+        );
+        assert!(authenticate_managed_inference(
+            &headers,
+            &worker_token,
+            &cluster_token
+        ));
+        assert!(!authenticate(&headers, &worker_token));
+
+        headers.insert(AUTHORIZATION, "Bearer wrong-token".parse().expect("header"));
+        assert!(!authenticate_managed_inference(
+            &headers,
+            &worker_token,
+            &cluster_token
+        ));
     }
 
     #[test]
