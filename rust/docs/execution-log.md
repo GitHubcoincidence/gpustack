@@ -3331,6 +3331,16 @@
   Key、正式资源名、watchdog、回滚和维护窗口；本次通过不授权停止 Python Worker、改变
   maintenance、创建模型/容器、申请 GPU、启动 vLLM 或推理。
 
+### 2026-10-28：M6-B.4 详细验证报告已接受
+
+- 验收：用户已审阅 M6-B.4 的阶段目的、只读环境门、六项 fake/mock 故障注入、attempt 1
+  无效判定、attempt 2 证据链、前后不变性、凭据缺口和结论边界，并明确确认无问题。
+  阶段状态从 `ready_for_review` 更新为 `accepted`。
+- 当前停止位置：下一项只允许讨论并冻结 M6-B.5 的阶段专用最小权限 API Key/Context、唯一
+  测试资源 identity、独立 watchdog、维护窗口进入门、完整状态链、推理/日志验收、删除后
+  零残留和 Python Worker 恢复方案。尚未授权创建凭据、停止 Python Worker、改变
+  maintenance、创建模型/容器、申请 GPU、启动 vLLM 或推理。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

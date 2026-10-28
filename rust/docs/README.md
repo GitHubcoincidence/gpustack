@@ -120,8 +120,9 @@
 - M6-B.4 attempt 1 因证据清单生成后仍追加 `console.log` 被独立复核判为 `invalidated`；
   attempt 2 已在治理 HEAD `a4e2aa2620efab7bb09667fa3640c8b358a374ad` 通过全部只读门、
   locked/offline build、六项 fake/mock 故障注入、前后不变性、秘密扫描和独立证据清单复核。
-  当前为 `ready_for_review`，并明确保留 M6-B.5 前必须新建短期最小权限 operator Context 的
-  缺口；尚未授权任何维护窗口或真实 workload。
+  用户已接受详细验证报告，当前为 `accepted`。下一项只允许讨论和冻结 M6-B.5 的短期最小
+  权限 operator Context、资源 identity、watchdog、维护窗口及回滚；尚未授权任何凭据创建、
+  服务变更或真实 workload。
   M6-A.3.1 专用 API Key、`lab90` Context 和 token 文件已按 D108 删除，退役证据清单文件
   SHA-256 为 `a30b8840776ea7b7bbd16c4e894208de81f900a4f096813341dce377ade8f605`；
   M6-B 若需要管理权限必须建立新的阶段专用凭据。

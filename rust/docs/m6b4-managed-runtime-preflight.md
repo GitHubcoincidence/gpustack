@@ -101,3 +101,5 @@ M6-B.4 在 90 服务器上证明 M6-B.5 的固定输入仍然可用，并用离�
   当前结果为 `PASS/ready_for_review`，不是 `accepted`。
 - 当前没有活动 operator Context。M6-B.5 前仍须创建新的阶段专用、最小权限、短期 API Key；
   不得复用 Cluster token 作为 operator 凭据，也不得恢复 M6-A 已退役的 Key。
+- 用户已审阅上述验证报告并明确接受，M6-B.4 状态更新为 `accepted`。该验收只解锁
+  M6-B.5 方案讨论与冻结，不授权任何维护窗口或真实外部写入。

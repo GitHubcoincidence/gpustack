@@ -711,5 +711,6 @@ M6-B.4 已在治理 HEAD `a4e2aa2620efab7bb09667fa3640c8b358a374ad` 完成。att
 因证据清单生成后继续追加 console 输出而被独立复核判为 `invalidated`；修正封存顺序后的
 attempt 2 通过固定环境只读门、locked/offline build、六项 fake/mock 故障注入、全部正式
 before/after 不变性、秘密扫描和独立证据清单复核。Server、Python Worker、Docker、GPU、
-端口和 Server 资源没有改变；当前状态为 `ready_for_review`。M6-B.5 的新短期最小权限
-operator Context、正式资源 identity、watchdog、回滚方案和维护窗口仍未冻结或授权。
+端口和 Server 资源没有改变；用户已接受详细验证报告，当前状态为 `accepted`。M6-B.5 的
+新短期最小权限 operator Context、正式资源 identity、watchdog、回滚方案和维护窗口仍未
+冻结或授权；下一项只允许讨论并冻结这些边界。
