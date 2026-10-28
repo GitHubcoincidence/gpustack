@@ -286,14 +286,36 @@ fn parse_model_instance_header(headers: &HeaderMap) -> Result<i64, ApiError> {
         return Err(ApiError::bad_request());
     }
     let value = value.to_str().map_err(|_| ApiError::bad_request())?;
-    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+    // The gateway identifies a destination as model-<model>-<instance>[-<alias>].<type>.
+    let (destination, registry_type) = value.split_once('.').ok_or_else(ApiError::bad_request)?;
+    if registry_type.is_empty() {
         return Err(ApiError::bad_request());
     }
-    value
+
+    let mut segments = destination.splitn(4, '-');
+    let prefix = segments.next();
+    let model_id = segments.next().unwrap_or_default();
+    let instance_id = segments.next().unwrap_or_default();
+    let alias = segments.next();
+    if prefix != Some("model")
+        || !positive_decimal(model_id)
+        || !positive_decimal(instance_id)
+        || alias.is_some_and(str::is_empty)
+    {
+        return Err(ApiError::bad_request());
+    }
+
+    instance_id
         .parse::<i64>()
         .ok()
         .filter(|id| *id > 0)
         .ok_or_else(ApiError::bad_request)
+}
+
+fn positive_decimal(value: &str) -> bool {
+    !value.is_empty()
+        && value.bytes().all(|byte| byte.is_ascii_digit())
+        && value.bytes().any(|byte| byte != b'0')
 }
 
 fn forwarded_headers(headers: &HeaderMap) -> HeaderMap {
@@ -1181,8 +1203,18 @@ mod tests {
     }
 
     #[test]
-    fn model_instance_header_is_exactly_one_strict_positive_decimal() {
-        for invalid in ["", "0", "-1", "+1", " 1", "1 ", "1,2", "abc"] {
+    fn model_instance_header_accepts_gateway_destination_format() {
+        for invalid in [
+            "",
+            "301",
+            "model-18-33",
+            "model-18-33.",
+            "model-18-33-.static",
+            "model-0-33.static",
+            "model-18-0.static",
+            "model-x-33.static",
+            "model-18-x.static",
+        ] {
             let mut headers = HeaderMap::new();
             headers.insert(
                 MODEL_INSTANCE_HEADER,
@@ -1194,15 +1226,33 @@ mod tests {
             );
         }
         let mut headers = HeaderMap::new();
-        headers.append(MODEL_INSTANCE_HEADER, "301".parse().expect("header"));
-        headers.append(MODEL_INSTANCE_HEADER, "302".parse().expect("header"));
+        headers.append(
+            MODEL_INSTANCE_HEADER,
+            "model-18-301.static".parse().expect("header"),
+        );
+        headers.append(
+            MODEL_INSTANCE_HEADER,
+            "model-18-302.static".parse().expect("header"),
+        );
         assert!(parse_model_instance_header(&headers).is_err());
 
         let mut headers = HeaderMap::new();
-        headers.insert(MODEL_INSTANCE_HEADER, "301".parse().expect("header"));
+        headers.insert(
+            MODEL_INSTANCE_HEADER,
+            "model-18-301.static".parse().expect("header"),
+        );
         assert_eq!(
             parse_model_instance_header(&headers).expect("valid ID"),
             301
+        );
+
+        headers.insert(
+            MODEL_INSTANCE_HEADER,
+            "model-18-302-labcd1234.static".parse().expect("header"),
+        );
+        assert_eq!(
+            parse_model_instance_header(&headers).expect("valid aliased ID"),
+            302
         );
     }
 
@@ -1248,7 +1298,7 @@ mod tests {
             .uri(CHAT_COMPLETIONS_PATH)
             .header(AUTHORIZATION, "Bearer worker-token")
             .header("x-api-key", "worker-token")
-            .header(MODEL_INSTANCE_HEADER, "301")
+            .header(MODEL_INSTANCE_HEADER, "model-18-301.static")
             .header(CONNECTION, "x-remove")
             .header("x-remove", "secret-hop")
             .header("x-safe", "preserved")
@@ -1303,7 +1353,7 @@ mod tests {
         });
         let state = managed_state(proxy);
         let request = Request::builder()
-            .header(MODEL_INSTANCE_HEADER, "301")
+            .header(MODEL_INSTANCE_HEADER, "model-18-301.static")
             .body(Body::from("{}"))
             .expect("request");
 
