@@ -153,9 +153,15 @@ registration token，其他 Worker 路由不放宽；产品检查点为
 - watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-4`；
 - 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-4`。
 
-当前只完成 retry 4 的离线实现与验证。必须先在包含本记录的干净治理 HEAD 上完成 preflight
-attempt 8 和无写注入；即使它们通过，状态也只能提升为
-`ready_for_maintenance_authorization`，formal attempt 4 仍须用户重新明确授权。
+preflight attempt 8 已在治理 HEAD `9024116de93a1d2ce4a4dcb5b99cf9bc344f96d6` 通过。
+准备门目录为 0700、55 个 manifest 条目全部复核通过、文件均为 0600，清单文件 SHA-256 为
+`9259b2d17c1d9efb8d9e0184ee42fbe8da160ae1a7dc2334a2a4d7422a7add43`；对应无写注入目录
+同为 0700、9 个条目全部复核通过、文件均为 0600，清单文件 SHA-256 为
+`a1b214fd5fc384392c3547e1a6a94ace427323589267e79d1e8155d0a92d709d`。注入以
+`source_head_mismatch`、`window_entered=0`、`cleanup_ok=1` 正确停止。独立复核确认三项服务
+返回 200、Python Worker运行、无 Rust 进程或 Managed 容器、两张 GPU 均为 0 MiB/0%，仓库
+身份一致且干净。当前状态为 `ready_for_maintenance_authorization`；formal attempt 4 仍须用户
+重新明确授权。
 
 ## M6-B.5.1 准备门
 

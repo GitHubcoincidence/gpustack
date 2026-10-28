@@ -3586,6 +3586,26 @@
   HEAD 上执行全新的 preflight attempt 8 和无写注入；通过后 formal attempt 4 仍须新的明确
   维护窗口授权。
 
+### 2026-10-28：M6-B.5.1 preflight attempt 8 通过
+
+- 结果：治理 HEAD `9024116de93a1d2ce4a4dcb5b99cf9bc344f96d6` 上九组准备门全部
+  通过，包括 retry 4 产品检查点、双 scope Context、完整外部基线、Runner/模型/GPU0/端口/
+  Python Worker身份、locked/offline build、Managed failure injection、脚本静态审计、错误
+  HEAD 无写执行器注入、前后不变式与秘密扫描。
+- 证据：`m6b5-preflight-attempt-8` 为 0700，55 个 manifest 条目全部通过、文件均为 0600，
+  清单文件 SHA-256 为
+  `9259b2d17c1d9efb8d9e0184ee42fbe8da160ae1a7dc2334a2a4d7422a7add43`。无写注入目录
+  同为 0700，9 个条目全部通过、文件均为 0600，清单文件 SHA-256 为
+  `a1b214fd5fc384392c3547e1a6a94ace427323589267e79d1e8155d0a92d709d`；结果为
+  `STOP/source_head_mismatch`、`window_entered=0`、`cleanup_ok=1`。
+- 独立复核：Server、Python Worker health/metrics 均为 200；精确 Python Worker运行；Rust
+  进程和 Managed 容器为 0；GPU0/GPU1 均为 0 MiB、0%；90 HEAD、远端跟踪引用和工作树
+  一致且干净。没有停止服务、改变 maintenance、写 Server、创建容器或使用 GPU。
+- 当前停止位置：`ready_for_maintenance_authorization`。下一项只能由用户明确授权 formal
+  attempt 4；授权范围仍限于精确 Python Worker stop/restore、Worker 5 maintenance、唯一
+  测试 Model/Instance/File、唯一 Rust-owned vLLM 容器、GPU0、Server-only 推理/日志和冻结
+  回滚。attempt 3 的授权不延伸。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
