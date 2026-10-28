@@ -706,3 +706,10 @@ Python Worker、GPU 和推理均未触碰。用户已接受 D033 详细实现报
 `accepted`；下一项允许执行 M6-B.4 只读预检与离线故障注入。该授权不包括停止 Python
 Worker、写入 Server、改变真实 Docker 资源、申请 GPU、启动 vLLM 或执行推理，也不得据此
 自动进入 M6-B.5。
+
+M6-B.4 已在治理 HEAD `a4e2aa2620efab7bb09667fa3640c8b358a374ad` 完成。attempt 1
+因证据清单生成后继续追加 console 输出而被独立复核判为 `invalidated`；修正封存顺序后的
+attempt 2 通过固定环境只读门、locked/offline build、六项 fake/mock 故障注入、全部正式
+before/after 不变性、秘密扫描和独立证据清单复核。Server、Python Worker、Docker、GPU、
+端口和 Server 资源没有改变；当前状态为 `ready_for_review`。M6-B.5 的新短期最小权限
+operator Context、正式资源 identity、watchdog、回滚方案和维护窗口仍未冻结或授权。

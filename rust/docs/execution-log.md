@@ -3306,6 +3306,31 @@
 - 当前停止位置：提交并同步本协议后，允许把正式执行器绑定到新的干净治理 HEAD并运行一次
   M6-B.4。结果在详细报告和用户审阅前最多为 `ready_for_review`；不得自动进入 M6-B.5。
 
+### 2026-10-28：M6-B.4 attempt 2 只读预检与故障注入通过
+
+- 固定身份：治理 HEAD `a4e2aa2620efab7bb09667fa3640c8b358a374ad`，产品代码祖先
+  `c78cfc5652808ee5c16b40b11df411dadc7d6b6d`，Rust 1.99.1，`Cargo.lock`
+  SHA-256 `90f1aeaa22b4f06dc77e48497f2fe3394ab07ab55441c8ddb3124a67dca07010`。
+- attempt 判定：attempt 1 的外部前后快照一致，但清单封存后仍追加 `console.log`，独立哈希
+  复核失败，已保留并标记 `invalidated`。attempt 2 修正封存顺序后通过；执行器 SHA-256 为
+  `3ec89d149c347fab539358b693767fd2a84e28c865ac5d3221ad609fc9dd1e2f`。
+- 只读环境门：Server v2.2.3/`1cfcbbf`、Server/Python Worker/metrics HTTP 200；Worker ID 5
+  唯一、maintenance、无 ModelInstance 或 `m6b` 模型；精确 Python Worker 容器持续运行；
+  固定 Runner digest 存在，零 Rust-owned 容器。Qwen2.5 模型 canonical path、10 个文件、
+  999,604,126 bytes、权限、架构、chat template 和完整 manifest 全部通过。
+- 隔离与故障门：GPU0 固定 UUID、0 MiB、0% 且无 compute process；`gpustack-rs` 为 0，
+  `20150/20151` 和 `40000-40063` 空闲。locked/offline workspace build 和六项精确 fake/mock
+  故障注入通过，覆盖配置前置失败、创建前输入漂移、RUNNING 写回前状态漂移、readiness
+  超时、缓存缺口不得清理以及受限 loopback 推理代理。全部正式 before/after 快照一致。
+- 证据：attempt 2 目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6b4-readonly-preflight-a4e2aa26-attempt-2`
+  为 0700，44 个文件全部 0600，秘密扫描与独立清单复核通过；清单 identity 为
+  `412f05b238fbdd4fbdb1553cf19cdf9806765e97d614d2f25ac7251a26361346`。
+- 状态与停止位置：M6-B.4 为 `ready_for_review`，不是 `accepted`。当前没有活动 operator
+  Context；这是 M6-B.5 前置准备项。用户接受详细报告后，也只能讨论并冻结新的短期最小权限
+  Key、正式资源名、watchdog、回滚和维护窗口；本次通过不授权停止 Python Worker、改变
+  maintenance、创建模型/容器、申请 GPU、启动 vLLM 或推理。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

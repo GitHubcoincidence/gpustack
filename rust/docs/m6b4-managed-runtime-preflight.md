@@ -83,3 +83,21 @@ M6-B.4 在 90 服务器上证明 M6-B.5 的固定输入仍然可用，并用离�
   外部状态，也不得进入维护窗口。
 - 用户审阅 M6-B.4 报告前不得把结果标记为 `accepted`。
 - M6-B.4 即使接受，也只允许下一步讨论、冻结并请求 M6-B.5 的精确维护窗口授权。
+
+## 2026-10-28 正式结果
+
+- attempt 1 使用执行器 SHA-256
+  `15f96a523a47afa3e6d6b878ded5528ae6bd564d817729cfaef3985b3c9cbe3f`。全部外部前后
+  快照一致，但执行器在生成清单后继续向 `console.log` 写入三行，独立
+  `sha256sum --check` 因此失败。该 attempt 已用 `ADJUDICATION.txt` 标记为
+  `invalidated`，证据保留但不计分。
+- attempt 2 使用修正执行器 SHA-256
+  `3ec89d149c347fab539358b693767fd2a84e28c865ac5d3221ad609fc9dd1e2f`，正式证据目录为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m6b4-readonly-preflight-a4e2aa26-attempt-2`。
+  目录 mode 0700，44 个文件全部 mode 0600，秘密扫描通过；证据清单 identity 为
+  `412f05b238fbdd4fbdb1553cf19cdf9806765e97d614d2f25ac7251a26361346`，独立完整性复核通过。
+- 只读门、locked/offline build、六项精确 fake/mock 故障注入及全部外部前后比较通过；
+  Server、Python Worker、Docker 容器集合、GPU、端口、进程和 Server 资源均未改变。
+  当前结果为 `PASS/ready_for_review`，不是 `accepted`。
+- 当前没有活动 operator Context。M6-B.5 前仍须创建新的阶段专用、最小权限、短期 API Key；
+  不得复用 Cluster token 作为 operator 凭据，也不得恢复 M6-A 已退役的 Key。
