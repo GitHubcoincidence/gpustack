@@ -3525,6 +3525,47 @@
   B.5.2 attempt 3，授权范围仍限于精确 Python Worker、maintenance、唯一测试资源、唯一
   owned vLLM 容器、GPU0、Server-only 推理/日志及冻结回滚。
 
+### 2026-10-28：M6-B.5.2 attempt 3 完整状态链后在 Worker 推理认证失败并恢复
+
+- 授权与执行：用户重新明确授权 formal attempt 3。治理 HEAD
+  `12a175bae7c19c1f60820a9f848deccb0c5fc7b3`、产品代码
+  `799351f1068adabfded57ab2a6cd2a56749352e6` 和 preflight attempt 7 identity
+  通过最终漂移门后，独立 watchdog 启动并进入维护窗口。Rust Worker稳定 READY 后创建
+  Model 17、Instance 32、ModelFile 11 和唯一容器
+  `0178168ca0c6401b22eca4141c59fd0491b5a1bd425ef03e21dbd25ef68f5ba3`；完整观察
+  `pending -> analyzing -> scheduled -> initializing -> downloading -> starting -> running`。
+- 健康顺序：vLLM Ready 的预写回时间为 Unix 纳秒
+  `1793191487433701106`，Server watch 在
+  `2026-10-28T20:44:47.468634423+08:00` 观察 RUNNING，修订后的健康先于写回门通过。
+  `inference models` 随后经 Server 返回唯一目标模型，证明 operator Key 的 inference scope、
+  Server 模型路由和列表接口可用。
+- 正式失败：第一条 buffered chat 经 Server 路由后返回
+  `401 Unauthorized: Invalid authentication credentials`，因此
+  `state_chain_complete=1`、`inference_passed=0`、`idempotency_passed=0`。API Key ID 21
+  在失败后仍可分别通过 management API 与不存在模型的 inference 认证门，且有效期未到；
+  它不是根因。源码交叉审计确认固定 Server 的 ai-proxy 对自托管模型使用 Cluster
+  registration token，而 Python Worker 的 `worker_auth` 同时接受 per-Worker token 与
+  registration token；当前 Rust Worker受保护路由只接受 per-Worker token，因而真实推理
+  请求在 Rust Worker认证层被确定性拒绝。这是 M6-B.3 对固定 Server 数据面凭据的协议误判。
+- 清理与恢复：统一 finalizer 重新启用 maintenance，删除精确 Model/Instance/File 和完整
+  owned runtime，Rust Worker优雅退出并恢复精确 Python Worker。正式目录和 watchdog
+  均为 FAIL，但 `cleanup_ok=1`；两处清单文件 SHA-256 分别为
+  `26e74a828d1f5e2a6d66f278817979b60e1f5375d4835408b9c76a4ca417067d` 和
+  `5f0d6794016a545d7ed8d69b5233a4b62b28ff2d6a6833f27a82a907d9dce84d`，秘密扫描为 0。
+  executor 的 `set -e` 直接退出没有把 401 写入 `failure_reason`，所以封存结果只留下通用
+  `maintenance_window_or_cleanup_failed`；原始 `live.log` 保留真实错误，后续执行器必须为每个
+  推理/日志命令显式记录失败门。
+- 独立审计：首次 post-audit 的业务检查全部通过，但 PowerShell 到 SSH 的最后一个回车符在
+  manifest 生成后追加到 `live.log`，清单复核失败，目录保持不可采纳。全新
+  `m6b5-managed-runtime-post-audit-attempt-3-retry-1` 对源码、正式/watchdog 清单、三项服务、
+  Server 资源 ID、maintenance、Docker/Python Worker身份、Rust 进程和端口、两张 GPU、
+  Qwen manifest 全部复核为 PASS；22 个文件均为 0600，秘密文件数为 0，清单文件 SHA-256
+  为 `5105207d88c14a21efd237518f0dc18dc4d9ab78ab8cae4e8ae8773ae8cac708`。
+- 判定与停止位置：attempt 3 固定为 `failed_during_window`；恢复成功不能改判业务结果。
+  下一项必须先讨论并冻结 Managed 推理路由对 Cluster registration token 的最小兼容修订，
+  同时保持 M4 resource API、日志、文件、config 与 `/token-auth` 的 per-Worker-only 边界。
+  修订接受前不得实现该认证变化或再次进入维护窗口。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
