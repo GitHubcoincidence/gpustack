@@ -3214,6 +3214,34 @@
   真实 Docker socket、写入真实 Server、停止 Python Worker、切换 maintenance、创建
   GPU workload 或执行真实推理。
 
+### 2026-10-28：M6-B.2 Managed reconciler 离线实现完成
+
+- 代码身份：最终源码检查点为
+  `6550ac6a419b0253f2219b0b3f0456a3c5e42bf0`；功能提交为 `edbff3e1`，后续
+  `6550ac6a` 只补齐同一 Rust 1.99.1 formatter 结果。`Cargo.lock` 未改变，SHA-256
+  仍为 `4094d427f9ec18e671e9d639bd9a576c0d620af9da1ca87970da05319dd4857b`。
+- 显式模式：CLI 新增与前三种受限模式互斥的 `worker run --managed-runtime`。只有该模式
+  构造 Docker runtime 协调器；`control-plane-only`、`resource-api-only` 和
+  `managed-file-only` 的既有启动边界不变。
+- 权威协调：协调器只处理最新 Server 上仍分配给本 Worker 的 `STARTING` 实例。创建、
+  启动、`RUNNING`/`ERROR` 写回和删除清理前均重新 GET 并校验 assignment/spec；重复事件
+  接管唯一完整 ownership tuple，不重复创建。只有 `/v1/models` 返回期望 served model
+  后才写 `RUNNING`，退出或超时写有界脱敏 `ERROR` 并保留失败容器供诊断。
+- 本地状态与清理：新增 0700 Managed 目录、0600 原子 manifest 和当前 session 日志，
+  restart count 固定为 0。Managed 在完整生命周期同时持有 Lab/Managed 排他锁。缓存缺口
+  不能授权删除；只有精确实例经 Server 反复确认 404 后，才会对完整 owned tuple 执行
+  stop/remove，并删除该实例的 cache、日志和 manifest。未知或冲突资源保持 fail closed。
+- 验证：90 服务器在干净、已提交且已推送的精确源码 HEAD 上通过
+  `cargo fmt --all -- --check`、workspace all-targets/all-features Clippy `-D warnings`、
+  `cargo test --workspace --all-targets --locked --offline`（176 项通过、0 失败）、
+  locked/offline workspace build 和 `git diff --check`。新增 fake 覆盖健康后晋级、重复事件
+  幂等、退出/超时错误、写前状态漂移、缓存缺口、权威删除、输入漂移、私有权限、symlink
+  拒绝和 Lab/Managed 排他锁；秘密文件扫描为 0，未新增依赖。
+- 安全边界与停止位置：本次没有连接真实 Docker socket、写入真实 Server、切换
+  maintenance、停止 Python Worker、创建 GPU workload 或执行推理。完整 crash/restart
+  恢复、动态 readiness、推理代理和面向用户的 logs/inference CLI 尚未实现。状态为
+  `ready_for_review`；用户接受详细实现报告前不得进入 M6-B.3。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
