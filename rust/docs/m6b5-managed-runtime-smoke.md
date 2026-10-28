@@ -27,6 +27,7 @@ M6-B.5 在 90 服务器上以宿主机 Rust Worker 和 Docker vLLM 闭合第一�
 | 分支 | `codex/rust-worker` |
 | attempt 1 产品代码 | `c78cfc5652808ee5c16b40b11df411dadc7d6b6d` |
 | retry 2 产品代码 | `e66634c523ca37c2e08d50a7656710cb6b16480b` |
+| retry 3 产品代码 | `799351f1068adabfded57ab2a6cd2a56749352e6` |
 | Rust | `1.99.1` |
 | Server | `v2.2.3`，commit `1cfcbbf` |
 | Worker | ID `5`，name `rust-m3d-r760xa`；进入窗口前必须处于 maintenance |
@@ -106,6 +107,22 @@ preflight attempt 6 已通过：准备门清单文件 SHA-256 为
 通过。两个目录均为 0700、文件均为 0600、秘密扫描通过；注入结果为
 `source_head_mismatch`、`baseline_ready=0`、`window_entered=0`、`cleanup_ok=1`。状态只提升为
 `ready_for_maintenance_authorization`。
+
+正式 attempt 2 随后完成完整状态链，但因运行健康日志事件晚于 Server RUNNING watch 约
+20 ms 而在推理前失败，保持 `failed_during_window`。正式和 watchdog 清单文件 SHA-256
+分别为 `f32b8f86380c438236af1f97fa884b601bef1f7c0aaddbd7aa9b1a5537e01de6` 和
+`fa137abae7d87ef75a3633cbc5aa3f9eab7981ae622c733a4c89df9664a72843`。第一次独立事后
+审计因封存函数的零匹配 `pipefail` 未生成清单，不可采纳；新目录
+`m6b5-managed-runtime-post-audit-attempt-2-retry-1` 通过，清单文件 SHA-256 为
+`313313059d5174d675461212b86435a8373ba2dbd41c890fc2bba3adaaab8c24`。
+
+retry 3 使用全新路径：
+
+- 准备门：`~/.local/state/gpustack-rust-worker/evidence/m6b5-preflight-attempt-7`；
+- 无写注入：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-7-pre-window-injection`；
+- 正式执行：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-smoke-attempt-3`；
+- watchdog：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-watchdog-attempt-3`；
+- 独立事后审计：`~/.local/state/gpustack-rust-worker/evidence/m6b5-managed-runtime-post-audit-attempt-3`。
 
 ## M6-B.5.1 准备门
 

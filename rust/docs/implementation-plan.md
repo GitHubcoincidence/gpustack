@@ -764,3 +764,17 @@ preflight attempt 6 已在治理 HEAD `cdb2a5eeaf7f8f7ffe11fb4eff34ec6259867562`
 `6a071b9d646687d7a6a0c8c1da9af4982126223193bd12eee579b1b23f78e0cc`；独立复核证明
 权限、清单、秘密扫描、服务、资源、Docker、GPU、端口、进程和源码前后不变。当前状态为
 `ready_for_maintenance_authorization`，下一步只能请求正式 B.5.2 attempt 2 的新维护窗口授权。
+
+用户随后明确授权 attempt 2。该次运行真实完成稳定 READY 和完整七状态链，但在推理前因
+`server_running_preceded_runtime_health` 失败：健康探针通过后 Rust 先写 Server RUNNING，
+再输出 `outcome=running`，Server watch 因而比日志时间早约 20 ms。统一 cleanup 自动删除
+Model 16、Instance 31、ModelFile 10 和唯一 owned 容器，Rust 优雅退出并恢复精确 Python
+Worker。正式、watchdog 和有效独立事后审计清单 SHA-256 分别为
+`f32b8f86380c438236af1f97fa884b601bef1f7c0aaddbd7aa9b1a5537e01de6`、
+`fa137abae7d87ef75a3633cbc5aa3f9eab7981ae622c733a4c89df9664a72843` 和
+`313313059d5174d675461212b86435a8373ba2dbd41c890fc2bba3adaaab8c24`。attempt 2 保持 FAIL。
+
+D175 在产品提交 `799351f1068adabfded57ab2a6cd2a56749352e6` 增加写回前健康纳秒时间并让
+executor 比较统一时间轴；两个针对性测试、真实 shell 时间 fixture、189 项 locked/offline
+workspace 测试、格式、Clippy、build 和 doc-tests 全部通过。下一步只允许在新的治理 HEAD
+上运行 preflight attempt 7 和无写注入；正式 attempt 3 仍须新的明确维护窗口授权。

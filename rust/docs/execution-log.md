@@ -3479,6 +3479,33 @@
   B.5.2 attempt 2；该授权应限定精确 Python Worker stop/restore、Worker maintenance、唯一
   测试 Model/Instance/File、唯一 Rust vLLM 容器、GPU0、Server-only 推理/日志及精确回滚。
 
+### 2026-10-28：M6-B.5.2 attempt 2 完整状态链后失败并恢复
+
+- 授权与执行：用户对精确维护范围回复“没问题”。最终漂移门通过后，独立 watchdog 启动，
+  精确 Python Worker停止，Rust Worker启动并通过 maintenance/双 GPU/稳定 READY 门。Model
+  16、Instance 31、ModelFile 10 和唯一容器
+  `da22527ac44242607fac1af3d9e0585eb98fa889f45eef431ca65faf361f8a9e` 被创建；完整观察
+  `pending -> analyzing -> scheduled -> initializing -> downloading -> starting -> running`。
+- 正式失败：Server watch 在 `20:20:27.668637972+08:00` 观察 RUNNING，Rust 的
+  `outcome=running` 日志在 `20:20:27.689129112+08:00` 输出。执行器无法用后置日志证明健康
+  先于写回，因此在 Server-only 推理前以 `server_running_preceded_runtime_health` fail closed；
+  `state_chain_complete=1`，`inference_passed=0`，`idempotency_passed=0`。
+- 清理与证据：统一 cleanup 自动恢复 maintenance、删除精确 Model/Instance/File 和 owned
+  runtime，Rust 优雅退出，精确 Python Worker恢复。正式结果 `cleanup_ok=1`，watchdog
+  `recovery_ok=1`；两处清单 SHA-256 分别为
+  `f32b8f86380c438236af1f97fa884b601bef1f7c0aaddbd7aa9b1a5537e01de6` 和
+  `fa137abae7d87ef75a3633cbc5aa3f9eab7981ae622c733a4c89df9664a72843`，秘密扫描均为 0。
+- 独立审计：首次目录完成业务检查但因零秘密匹配被 `pipefail` 中断，未生成 manifest，保持
+  不可采纳。新目录 `m6b5-managed-runtime-post-audit-attempt-2-retry-1` 重新执行相同只读检查并
+  PASS，清单 SHA-256 为 `313313059d5174d675461212b86435a8373ba2dbd41c890fc2bba3adaaab8c24`；
+  全局资源、Python Worker、maintenance、Docker、GPU、端口、本地状态和模型文件恢复基线。
+- 修复与验证：产品提交 `799351f1068adabfded57ab2a6cd2a56749352e6` 在 health Ready 后、
+  Server RUNNING update 前捕获 `health_ready_at_unix_nanos`，executor 与 Server watch 时间统一
+  转成 Unix 纳秒比较。新增两个回归测试，完整离线门通过 189 项测试、格式、Clippy、build、
+  doc-tests 和真实 shell 时间 fixture。
+- 当前停止位置：`retry_3_fix_offline_verified`。下一项只允许补齐治理提交并执行全新的
+  preflight attempt 7 和无写注入；通过后正式 attempt 3 仍须新的明确维护窗口授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
