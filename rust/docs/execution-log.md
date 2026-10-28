@@ -3632,6 +3632,24 @@
 - 当前停止位置：`attempt_4_recovered_retry_5_fix_pending_checkpoint`。下一项只允许提交修复、
   完成独立事后审计并执行全新的 preflight attempt 9；formal attempt 5 必须重新获得明确授权。
 
+### 2026-10-28：M6-B.5.1 preflight attempt 9 通过
+
+- 结果：治理 HEAD `dd8406df05bbdb915252894ca5bce12b407d02ba` 上九组准备门全部
+  通过。除既有门外，新增检查确认 Cluster registration token 文件非 symlink、mode 0600、
+  owner 正确、link count 1、只读认证返回 200；executor 静态审计确认 `--token-file` 与
+  `CLUSTER_TOKEN_FILE` 均存在。
+- 证据：`m6b5-preflight-attempt-9` 为 0700，56 个 manifest 条目全部通过、文件均为 0600，
+  清单文件 SHA-256 为
+  `c580bbcf22991e1ef17f2f79ef37ae44a348ea2ef9ca69e6f7b1b57ceab7d87e`。无写注入目录
+  同为 0700，9 个条目全部通过、文件均为 0600，清单文件 SHA-256 为
+  `b6f60ed99d90bdbe554c00e1bfd84eb45dad49425df238a5f48abefd14168843`；结果保持
+  `STOP/source_head_mismatch`、`window_entered=0`、`cleanup_ok=1`。
+- 独立复核：Server、Python Worker health/metrics 均为 200；Python Worker运行；无 Rust
+  进程或 Managed 容器；GPU0/GPU1 均为 0 MiB、0%；仓库干净。准备过程没有停止服务、切换
+  maintenance、写 Server、创建容器或使用 GPU。
+- 当前停止位置：`ready_for_maintenance_authorization`。下一项只能由用户重新明确授权 formal
+  attempt 5，attempt 4 的授权不延伸。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

@@ -842,3 +842,7 @@ D181-D182 不改变 D178 的产品代码或鉴权范围；产品检查点仍为 
 审计、新证据路径和全量 preflight。attempt 4 独立事后审计已 PASS，21 个清单条目全部
 复核通过，清单文件 SHA-256 为
 `93db665b14f6a0eac63f95abb3d521b47610d46b12e278a7e91983fb6e2de3ca`。
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D183 | retry 5 准备门通过与停止边界 | preflight attempt 9 和对应无写注入在治理 HEAD `dd8406df05bbdb915252894ca5bce12b407d02ba` 通过；新增 Cluster token 文件安全、只读认证和 executor 参数门均通过，外部状态前后不变。当前状态为 `ready_for_maintenance_authorization`；formal attempt 5 只有在用户针对唯一 attempt-5 路径重新明确授权后才能执行 | attempt 4 的授权只覆盖已经结束并恢复的窗口。新的只读证据证明修复已进入正式输入，但不能替代再次停止 Python Worker、切换 maintenance 和使用 GPU0 的授权。 |

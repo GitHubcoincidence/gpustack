@@ -188,6 +188,15 @@ executor 显式传入 `/home/wujiaxing2/.config/gpustack-rust/m3d-registration-t
 attempt 4 的授权不延伸到 formal attempt 5。必须先完成 attempt 4 独立事后审计和 preflight
 attempt 9；即使准备门通过，仍须用户重新明确授权。
 
+preflight attempt 9 已在治理 HEAD `dd8406df05bbdb915252894ca5bce12b407d02ba` 通过。
+准备门目录为 0700、56 个 manifest 条目全部复核通过、文件均为 0600，清单文件 SHA-256 为
+`c580bbcf22991e1ef17f2f79ef37ae44a348ea2ef9ca69e6f7b1b57ceab7d87e`；对应无写注入目录
+同为 0700、9 个条目全部复核通过、文件均为 0600，清单文件 SHA-256 为
+`b6f60ed99d90bdbe554c00e1bfd84eb45dad49425df238a5f48abefd14168843`。新增 Cluster token
+文件安全、只读认证与 executor 参数门通过；独立复核确认三项服务 200、Python Worker运行、
+无 Rust 进程或 Managed 容器、两张 GPU 均为 0 MiB/0%。当前状态为
+`ready_for_maintenance_authorization`，不自动授权 formal attempt 5。
+
 ## M6-B.5.1 准备门
 
 准备门必须证明：
