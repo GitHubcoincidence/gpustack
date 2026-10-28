@@ -2550,7 +2550,6 @@ mod tests {
         .collect();
         transport.push_owned_stream("text/event-stream", watch_chunks);
         transport.push_json(200, item_from_page(MODEL_PAGE));
-        transport.push_json(200, INSTANCE_PAGE);
         let mut running: Value = serde_json::from_str(INSTANCE_PAGE).expect("instance page JSON");
         running["items"][0]["state"] = json!("running");
         transport.push_json(
