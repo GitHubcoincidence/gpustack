@@ -18,6 +18,7 @@
 - [execution-log.md](execution-log.md)：关键检查点、当前停止位置与下一项允许执行的工作。
 - [m3d-integration-runbook.md](m3d-integration-runbook.md)：M3-D.2 真实控制面测试的分组命令、判定标准与安全边界。
 - [m6a3-managed-file-runbook.md](m6a3-managed-file-runbook.md)：M6-A.3 只读预检、真实无 Docker 文件准备 smoke、证据与回滚边界。
+- [m6b4-managed-runtime-preflight.md](m6b4-managed-runtime-preflight.md)：M6-B.4 只读预检、离线故障注入、证据与停止边界。
 
 ## 文档语言
 

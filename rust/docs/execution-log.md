@@ -3294,6 +3294,18 @@
   Python Worker、切换 maintenance、写入真实 Server、创建或改变真实容器、申请 GPU、
   启动 vLLM 或执行真实推理。M6-B.4 通过后仍需另行讨论和明确授权 M6-B.5 维护窗口。
 
+### 2026-10-28：M6-B.4 只读预检与故障注入协议冻结
+
+- 协议：新增 `m6b4-managed-runtime-preflight.md`，冻结产品代码、Server/Worker、Python
+  Worker、Runner、Qwen2.5 revision/manifest、GPU0、端口、只读查询、离线故障注入和证据
+  权限要求。前两次交互式查询只用于修正 Docker 29 模板和 Server `/v2` 路径，不是正式
+  计分证据。
+- 授权边界：正式执行只允许 GET/本机只读检查、locked/offline fake/mock 测试和受保护证据
+  写入。不得停止 Python Worker、改变 maintenance、写 Server、改变容器、启动 Rust/vLLM、
+  申请 GPU 或推理。当前无活动 operator Context 是 M6-B.5 前置缺口，不是 B.4 失败。
+- 当前停止位置：提交并同步本协议后，允许把正式执行器绑定到新的干净治理 HEAD并运行一次
+  M6-B.4。结果在详细报告和用户审阅前最多为 `ready_for_review`；不得自动进入 M6-B.5。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
