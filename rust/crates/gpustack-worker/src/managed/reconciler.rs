@@ -935,12 +935,7 @@ mod tests {
             _worker_token: &SecretToken,
             _instance_id: i64,
         ) -> Result<ModelInstancePublic, ClientError> {
-            if self
-                .state
-                .lock()
-                .expect("API lock")
-                .block_instance_reads
-            {
+            if self.state.lock().expect("API lock").block_instance_reads {
                 std::future::pending::<()>().await;
             }
             let mut state = self.state.lock().expect("API lock");

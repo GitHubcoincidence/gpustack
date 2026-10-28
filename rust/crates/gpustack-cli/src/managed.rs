@@ -12,11 +12,11 @@ use gpustack_client::types::{
     GpuSelector, ModelCreate, ModelFilePublic, ModelInstancePublic, ModelPublic, ModelSource,
     WorkerMaintenance, WorkerPublic, WorkerUpdate,
 };
+use gpustack_client::watch::{WatchConnection, WatchEvent};
 use gpustack_client::{
     ClientError, Context, ContextStore, ContextStoreError, InferenceResponse, SecretToken,
     ServerClient,
 };
-use gpustack_client::watch::{WatchConnection, WatchEvent};
 use serde::Serialize;
 use serde_json::{Value, json};
 use thiserror::Error;
@@ -390,16 +390,15 @@ pub async fn run_model_command_with_stream<T: Transport>(
             };
             let model = client.create_model(token, &request).await?;
             if wait {
-                let (instances, transitions) =
-                    wait_for_model(
-                        client,
-                        token,
-                        model.id,
-                        timeout,
-                        instance_watch.expect("wait mode opens an instance watch"),
-                        transition_sink,
-                    )
-                    .await?;
+                let (instances, transitions) = wait_for_model(
+                    client,
+                    token,
+                    model.id,
+                    timeout,
+                    instance_watch.expect("wait mode opens an instance watch"),
+                    transition_sink,
+                )
+                .await?;
                 render_model_deploy(output_format, &model, &instances, &transitions)
             } else {
                 render_model_deploy(output_format, &model, &[], &[])
@@ -915,7 +914,9 @@ fn observed_running(
     !instances.is_empty()
         && instances.iter().all(|instance| {
             instance.state.0 == "running"
-                && last_states.get(&instance.id).is_some_and(|state| state == "running")
+                && last_states
+                    .get(&instance.id)
+                    .is_some_and(|state| state == "running")
         })
 }
 
@@ -2519,7 +2520,7 @@ mod tests {
     async fn deploy_wait_reports_each_observed_state_transition() {
         let transport = MockTransport::default();
         transport.push_json(200, worker_page_with_cluster("rust-worker", Some(7)));
-        let instance: Value = serde_json::from_str(INSTANCE_PAGE)
+        let instance: Value = serde_json::from_str::<Value>(INSTANCE_PAGE)
             .expect("instance page JSON")["items"][0]
             .clone();
         let watch_chunks = [
