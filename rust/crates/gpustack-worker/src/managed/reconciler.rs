@@ -196,6 +196,10 @@ impl ManagedGpuProbe for NvmlManagedGpuProbe {
 
 pub trait ManagedClock: Send + Sync + 'static {
     fn now_unix(&self) -> u64;
+
+    fn now_unix_nanos(&self) -> u128 {
+        u128::from(self.now_unix()) * 1_000_000_000
+    }
 }
 
 #[derive(Debug, Default)]
@@ -208,6 +212,13 @@ impl ManagedClock for SystemManagedClock {
             .unwrap_or_default()
             .as_secs()
     }
+
+    fn now_unix_nanos(&self) -> u128 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,6 +230,7 @@ pub enum ManagedRuntimeOutcome {
     },
     Running {
         container_id: String,
+        health_ready_at_unix_nanos: u128,
     },
     Errored {
         message: String,
@@ -590,6 +602,8 @@ where
         let mut update = ModelInstanceUpdate::from(&refreshed.instance);
         update.state = ModelInstanceState("running".to_string());
         update.state_message = None;
+        // Capture the passed health gate before the Server RUNNING writeback for auditable ordering.
+        let health_ready_at_unix_nanos = self.clock.now_unix_nanos();
         if let Err(error) = self
             .api
             .update_model_instance(
@@ -605,6 +619,7 @@ where
         }
         Ok(ManagedRuntimeOutcome::Running {
             container_id: container_id.to_string(),
+            health_ready_at_unix_nanos,
         })
     }
 
@@ -1312,7 +1327,13 @@ mod tests {
             ManagedRuntimeOutcome::Starting { created: true, .. }
         ));
         let running = fixture.create().await;
-        assert!(matches!(running, ManagedRuntimeOutcome::Running { .. }));
+        assert!(matches!(
+            running,
+            ManagedRuntimeOutcome::Running {
+                health_ready_at_unix_nanos: 10_000_000_000,
+                ..
+            }
+        ));
         assert_eq!(
             fixture.registry.route(301).expect("Managed route"),
             Some(super::super::ManagedRoute {

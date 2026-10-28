@@ -475,8 +475,14 @@ fn render_managed_runtime_result(
             formatter,
             "outcome=starting container_id={container_id:?} created={created} adopted={adopted}"
         ),
-        ManagedRuntimeOutcome::Running { container_id } => {
-            write!(formatter, "outcome=running container_id={container_id:?}")
+        ManagedRuntimeOutcome::Running {
+            container_id,
+            health_ready_at_unix_nanos,
+        } => {
+            write!(
+                formatter,
+                "outcome=running container_id={container_id:?} health_ready_at_unix_nanos={health_ready_at_unix_nanos}"
+            )
         }
         ManagedRuntimeOutcome::Errored { message } => {
             write!(formatter, "outcome=error message={message:?}")
@@ -1360,6 +1366,23 @@ mod tests {
 
         assert!(line.contains("mode=managed-runtime"));
         assert!(!line.contains("mode=managed-file-only"));
+    }
+
+    #[test]
+    fn managed_runtime_running_event_carries_the_pre_writeback_health_time() {
+        let event = ManagedRuntimeEvent::RuntimeReconciled(ManagedRuntimeResult {
+            instance_id: 301,
+            outcome: ManagedRuntimeOutcome::Running {
+                container_id: "container-1".to_owned(),
+                health_ready_at_unix_nanos: 1_793_190_027_650_000_000,
+            },
+        });
+
+        let line = event.to_string();
+
+        assert!(line.contains("outcome=running"));
+        assert!(line.contains("container_id=\"container-1\""));
+        assert!(line.contains("health_ready_at_unix_nanos=1793190027650000000"));
     }
 
     #[test]

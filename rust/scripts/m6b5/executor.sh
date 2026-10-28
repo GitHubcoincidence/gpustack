@@ -809,17 +809,20 @@ require_equal "$(docker inspect --format '{{.State.Running}}' "$owned_container_
   'true' 'owned_container_not_running'
 require_equal "$(listener_count "$assigned_port")" '1' 'managed_listener_missing'
 
-runtime_running_ts="$(grep 'outcome=running' "$EVIDENCE/rust-events.log" |
-  head -n 1 | cut -f1)"
+runtime_running_line="$(grep 'outcome=running' "$EVIDENCE/rust-events.log" | head -n 1)"
+health_ready_unix_nanos="$(sed -n \
+  's/.*health_ready_at_unix_nanos=\([0-9][0-9]*\).*/\1/p' <<<"$runtime_running_line")"
 server_running_ts="$(grep 'state=running' "$EVIDENCE/model-deploy-transitions.log" |
   head -n 1 | cut -f1)"
-[[ -n "$runtime_running_ts" && -n "$server_running_ts" ]] ||
+[[ -n "$health_ready_unix_nanos" && -n "$server_running_ts" ]] ||
   fail 'running_timestamps_missing'
-[[ "$runtime_running_ts" < "$server_running_ts" || "$runtime_running_ts" == "$server_running_ts" ]] ||
+server_running_unix_nanos="$(date -d "$server_running_ts" +%s%N)"
+[[ "$health_ready_unix_nanos" -le "$server_running_unix_nanos" ]] ||
   fail 'server_running_preceded_runtime_health'
 {
-  printf 'runtime_ready_and_writeback_event=%s\nserver_running_observed=%s\n' \
-    "$runtime_running_ts" "$server_running_ts"
+  printf 'runtime_health_ready_unix_nanos=%s\nserver_running_observed=%s\n' \
+    "$health_ready_unix_nanos" "$server_running_ts"
+  printf 'server_running_observed_unix_nanos=%s\n' "$server_running_unix_nanos"
 } >"$EVIDENCE/health-before-running.txt"
 event 'state_chain_complete' "model_id=$model_id instance_id=$instance_id port=$assigned_port"
 
