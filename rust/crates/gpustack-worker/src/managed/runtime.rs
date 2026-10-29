@@ -64,7 +64,7 @@ impl ManagedWorkloadPlanner {
         model: &ModelPublic,
         instance: &ModelInstancePublic,
     ) -> Result<WorkloadSpecV2, ManagedRuntimePlanError> {
-        self.plan_with_gpu_availability(model, instance, true)
+        self.plan_for_state(model, instance, true, "starting")
     }
 
     /// Reconstructs an owned workload after start without treating its own GPU process as drift.
@@ -73,16 +73,26 @@ impl ManagedWorkloadPlanner {
         model: &ModelPublic,
         instance: &ModelInstancePublic,
     ) -> Result<WorkloadSpecV2, ManagedRuntimePlanError> {
-        self.plan_with_gpu_availability(model, instance, false)
+        self.plan_for_state(model, instance, false, "starting")
     }
 
-    fn plan_with_gpu_availability(
+    /// Reconstructs a Server-RUNNING workload for startup adoption only.
+    pub fn plan_running(
+        &self,
+        model: &ModelPublic,
+        instance: &ModelInstancePublic,
+    ) -> Result<WorkloadSpecV2, ManagedRuntimePlanError> {
+        self.plan_for_state(model, instance, false, "running")
+    }
+
+    fn plan_for_state(
         &self,
         model: &ModelPublic,
         instance: &ModelInstancePublic,
         require_idle_gpu: bool,
+        required_state: &'static str,
     ) -> Result<WorkloadSpecV2, ManagedRuntimePlanError> {
-        self.validate_model_and_instance(model, instance)?;
+        self.validate_model_and_instance(model, instance, required_state)?;
         let resolved_path = instance
             .resolved_path
             .as_deref()
@@ -190,14 +200,16 @@ impl ManagedWorkloadPlanner {
         &self,
         model: &ModelPublic,
         instance: &ModelInstancePublic,
+        required_state: &'static str,
     ) -> Result<(), ManagedRuntimePlanError> {
         ModelInstanceUpdate::from(instance)
             .validate_for_worker(self.worker_id)
             .map_err(|error| contract(error.to_string()))?;
-        if instance.state.0 != "starting" {
-            return Err(contract(
-                "Managed runtime planning requires authoritative STARTING state",
-            ));
+        if instance.state.0 != required_state {
+            return Err(contract(format!(
+                "Managed runtime planning requires authoritative {} state",
+                required_state.to_ascii_uppercase()
+            )));
         }
         if instance.model_id != model.id
             || instance.model_name != model.name
@@ -620,6 +632,34 @@ mod tests {
             .planner
             .plan_existing(&fixture.model, &fixture.instance)
             .expect("an exactly owned running workload may account for the GPU process");
+    }
+
+    #[test]
+    fn running_recovery_has_a_distinct_authoritative_state_contract() {
+        let mut fixture = Fixture::new();
+        fixture.instance.state = ModelInstanceState("running".to_string());
+        fixture.planner.gpus[0].running_compute_processes = 1;
+
+        fixture
+            .planner
+            .plan_running(&fixture.model, &fixture.instance)
+            .expect("RUNNING adoption plan");
+        assert!(
+            fixture
+                .planner
+                .plan(&fixture.model, &fixture.instance)
+                .expect_err("RUNNING must not authorize create planning")
+                .to_string()
+                .contains("STARTING")
+        );
+        assert!(
+            fixture
+                .planner
+                .plan_existing(&fixture.model, &fixture.instance)
+                .expect_err("STARTING adoption must remain state-specific")
+                .to_string()
+                .contains("STARTING")
+        );
     }
 
     #[tokio::test]

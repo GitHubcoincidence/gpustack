@@ -318,12 +318,19 @@ where
 
     pub async fn reconcile_snapshot(&self, desired: &DesiredState) -> Vec<ManagedRuntimeResult> {
         let mut results = Vec::new();
-        for instance in desired.model_instances.values().filter(|instance| {
-            instance.worker_id == Some(self.worker_id) && instance.state.0 == "starting"
-        }) {
+        for instance in desired
+            .model_instances
+            .values()
+            .filter(|instance| instance.worker_id == Some(self.worker_id))
+        {
+            let outcome = match instance.state.0.as_str() {
+                "starting" => self.reconcile_starting(instance.id).await,
+                "running" => self.reconcile_running(instance.id).await,
+                _ => continue,
+            };
             results.push(ManagedRuntimeResult {
                 instance_id: instance.id,
-                outcome: self.reconcile_starting(instance.id).await,
+                outcome,
             });
         }
 
@@ -367,6 +374,24 @@ where
                 return;
             }
             let snapshot = desired.borrow().clone();
+            // Revision zero is the local empty seed, not proof that Server desires no workloads.
+            if snapshot.revision == 0 {
+                self.registry.set_ready(false);
+                tokio::select! {
+                    _ = interval.tick() => {}
+                    changed = desired.changed() => {
+                        if changed.is_err() {
+                            return;
+                        }
+                    }
+                    changed = shutdown.changed() => {
+                        if changed.is_err() || *shutdown.borrow() {
+                            return;
+                        }
+                    }
+                }
+                continue;
+            }
             let reconciliation = self.reconcile_snapshot(&snapshot);
             tokio::pin!(reconciliation);
             let results = tokio::select! {
@@ -435,6 +460,123 @@ where
                 self.adopt_or_observe(initial, container.id, false).await
             }
         }
+    }
+
+    async fn reconcile_running(&self, instance_id: i64) -> ManagedRuntimeOutcome {
+        match self.registry.route(instance_id) {
+            Ok(Some(_)) => {
+                return ManagedRuntimeOutcome::Noop {
+                    reason: "RUNNING Managed workload is already adopted",
+                };
+            }
+            Ok(None) => {}
+            Err(error) => return failed(error),
+        }
+        match self.reconcile_running_inner(instance_id).await {
+            Ok(outcome) => outcome,
+            Err(error) => failed(error),
+        }
+    }
+
+    async fn reconcile_running_inner(
+        &self,
+        instance_id: i64,
+    ) -> Result<ManagedRuntimeOutcome, ManagedRuntimeError> {
+        let plan = self.refresh_running_plan(instance_id).await?;
+        plan.planner
+            .verify_local_image(self.runtime.as_ref(), &plan.spec)
+            .await?;
+        match plan
+            .planner
+            .discover(self.runtime.as_ref(), &plan.spec)
+            .await?
+        {
+            OwnedContainer::Missing => Err(ManagedRuntimeError::Unsafe(
+                "RUNNING Managed workload has no owned container; restart recovery is not active"
+                    .to_string(),
+            )),
+            OwnedContainer::Present(container) => self.adopt_running(plan, container.id).await,
+        }
+    }
+
+    async fn adopt_running(
+        &self,
+        plan: RefreshedPlan,
+        container_id: String,
+    ) -> Result<ManagedRuntimeOutcome, ManagedRuntimeError> {
+        let observation = observe_vllm_health(
+            self.runtime.as_ref(),
+            self.health.as_ref(),
+            &plan.spec,
+            &container_id,
+        )
+        .await?;
+        if observation.container.state != ContainerState::Running
+            || observation.state != VllmHealthState::Ready
+        {
+            return Err(ManagedRuntimeError::Unsafe(
+                "Server-RUNNING Managed workload is not healthy enough for startup adoption"
+                    .to_string(),
+            ));
+        }
+
+        // Re-read both authorities after the health probe so a stale snapshot cannot publish a route.
+        let refreshed = self.refresh_same_running_plan(&plan).await?;
+        let current = refreshed
+            .planner
+            .discover(self.runtime.as_ref(), &refreshed.spec)
+            .await?;
+        let OwnedContainer::Present(current) = current else {
+            return Err(ManagedRuntimeError::Unsafe(
+                "Managed container disappeared before startup adoption".to_string(),
+            ));
+        };
+        if current.id != container_id || current.state != ContainerState::Running {
+            return Err(ManagedRuntimeError::Unsafe(
+                "Managed container changed before startup adoption".to_string(),
+            ));
+        }
+
+        let restart_count = refreshed.instance.restart_count.unwrap_or(0);
+        if restart_count != 0 {
+            return Err(ManagedRuntimeError::Unsafe(
+                "nonzero Managed restart count requires the M7-B log lifecycle".to_string(),
+            ));
+        }
+        let mut manifest = match self.store.load_manifest(refreshed.instance.id)? {
+            Some(manifest) => {
+                if manifest.container_id != container_id || manifest.spec != refreshed.spec {
+                    return Err(ManagedRuntimeError::Unsafe(
+                        "Managed manifest conflicts with the authoritative running workload"
+                            .to_string(),
+                    ));
+                }
+                manifest
+            }
+            None => ManagedRuntimeManifest {
+                schema_version: MANAGED_MANIFEST_SCHEMA_VERSION,
+                instance_id: refreshed.instance.id,
+                worker_uuid: self.worker_uuid.clone(),
+                spec: refreshed.spec.clone(),
+                container_id: container_id.clone(),
+                restart_count,
+                started_at_unix: self.clock.now_unix(),
+                last_observed_state: "adopted".to_string(),
+            },
+        };
+        self.store.prepare_cache(refreshed.instance.id)?;
+        manifest.last_observed_state = "ready".to_string();
+        self.store.save_manifest(&manifest)?;
+        self.ensure_log_capture(refreshed.instance.id, &container_id)?;
+        self.registry.publish(
+            refreshed.instance.id,
+            refreshed.spec.service_port,
+            refreshed.spec.served_model_name.clone(),
+        )?;
+        Ok(ManagedRuntimeOutcome::Running {
+            container_id,
+            health_ready_at_unix_nanos: self.clock.now_unix_nanos(),
+        })
     }
 
     async fn create_and_start(
@@ -688,6 +830,35 @@ where
         })
     }
 
+    async fn refresh_running_plan(
+        &self,
+        instance_id: i64,
+    ) -> Result<RefreshedPlan, ManagedRuntimeError> {
+        let instance = self
+            .api
+            .get_model_instance(&self.worker_token, instance_id)
+            .await?;
+        let model = self
+            .api
+            .get_model(&self.worker_token, instance.model_id)
+            .await?;
+        let planner = ManagedWorkloadPlanner::new(
+            self.worker_id,
+            self.worker_uuid.clone(),
+            self.worker_ip,
+            self.resolver.clone(),
+            self.store.cache_root(),
+            self.container_user.clone(),
+            self.gpus.snapshot()?,
+        );
+        let spec = planner.plan_running(&model, &instance)?;
+        Ok(RefreshedPlan {
+            instance,
+            spec,
+            planner,
+        })
+    }
+
     async fn refresh_same_plan(
         &self,
         previous: &RefreshedPlan,
@@ -699,6 +870,19 @@ where
         if refreshed.spec != previous.spec {
             return Err(ManagedRuntimeError::Unsafe(
                 "Managed workload inputs changed during authoritative refresh".to_string(),
+            ));
+        }
+        Ok(refreshed)
+    }
+
+    async fn refresh_same_running_plan(
+        &self,
+        previous: &RefreshedPlan,
+    ) -> Result<RefreshedPlan, ManagedRuntimeError> {
+        let refreshed = self.refresh_running_plan(previous.instance.id).await?;
+        if refreshed.spec != previous.spec {
+            return Err(ManagedRuntimeError::Unsafe(
+                "Managed running workload inputs changed during authoritative refresh".to_string(),
             ));
         }
         Ok(refreshed)
@@ -1192,6 +1376,7 @@ mod tests {
         log_dir: std::path::PathBuf,
         api: FakeApi,
         runtime: Arc<FakeRuntime>,
+        health: Arc<FakeHealth>,
         clock: FakeClock,
         registry: Arc<ManagedRuntimeRegistry>,
         desired: DesiredState,
@@ -1301,6 +1486,7 @@ mod tests {
                 log_dir,
                 api,
                 runtime,
+                health,
                 clock,
                 registry,
                 desired,
@@ -1314,6 +1500,17 @@ mod tests {
                 .await
                 .remove(0)
                 .outcome
+        }
+
+        fn set_running(&mut self) {
+            let running = {
+                let mut api = self.api.state.lock().expect("API lock");
+                let instance = api.instance.as_mut().expect("instance");
+                instance.state = ModelInstanceState("running".to_string());
+                instance.state_message = None;
+                instance.clone()
+            };
+            self.desired.model_instances.insert(running.id, running);
         }
     }
 
@@ -1381,6 +1578,250 @@ mod tests {
         let runtime = fixture.runtime.state.lock().expect("runtime lock");
         assert_eq!(runtime.created_specs.len(), 1);
         assert_eq!(runtime.starts, 1);
+    }
+
+    #[tokio::test]
+    async fn running_snapshot_adopts_the_same_healthy_container_without_mutation() {
+        let mut fixture = Fixture::new(true);
+        assert!(matches!(
+            fixture.create().await,
+            ManagedRuntimeOutcome::Starting { created: true, .. }
+        ));
+        fixture.set_running();
+
+        let outcome = fixture.create().await;
+
+        assert!(matches!(
+            outcome,
+            ManagedRuntimeOutcome::Running {
+                ref container_id,
+                ..
+            } if container_id == "container-1"
+        ));
+        {
+            let runtime = fixture.runtime.state.lock().expect("runtime lock");
+            assert_eq!(runtime.created_specs.len(), 1);
+            assert_eq!(runtime.starts, 1);
+            assert_eq!(runtime.stops, 0);
+            assert_eq!(runtime.removes, 0);
+        }
+        assert!(
+            fixture
+                .api
+                .state
+                .lock()
+                .expect("API lock")
+                .updates
+                .is_empty()
+        );
+        assert_eq!(
+            fixture.registry.route(301).expect("Managed route"),
+            Some(super::super::ManagedRoute {
+                instance_id: 301,
+                port: 40_000,
+                served_model_name: "qwen".to_string(),
+            })
+        );
+
+        assert!(matches!(
+            fixture.create().await,
+            ManagedRuntimeOutcome::Noop {
+                reason: "RUNNING Managed workload is already adopted"
+            }
+        ));
+        let runtime = fixture.runtime.state.lock().expect("runtime lock");
+        assert_eq!(runtime.created_specs.len(), 1);
+        assert_eq!(runtime.starts, 1);
+        assert_eq!(runtime.stops, 0);
+        assert_eq!(runtime.removes, 0);
+    }
+
+    #[tokio::test]
+    async fn running_snapshot_rebuilds_a_missing_recovery_manifest() {
+        let mut fixture = Fixture::new(true);
+        fixture.create().await;
+        let manifest_path = fixture.data_dir.join("managed/manifests/301.json");
+        fs::remove_file(&manifest_path).expect("remove recovery manifest");
+        fixture.set_running();
+
+        let outcome = fixture.create().await;
+
+        assert!(matches!(outcome, ManagedRuntimeOutcome::Running { .. }));
+        let manifest: ManagedRuntimeManifest =
+            serde_json::from_slice(&fs::read(manifest_path).expect("recreated manifest"))
+                .expect("manifest JSON");
+        assert_eq!(manifest.container_id, "container-1");
+        assert_eq!(manifest.last_observed_state, "ready");
+        assert_eq!(manifest.restart_count, 0);
+    }
+
+    #[tokio::test]
+    async fn new_coordinator_rebuilds_route_and_log_capture_without_restarting_container() {
+        let mut fixture = Fixture::new(true);
+        fixture.create().await;
+        fixture.set_running();
+        let data_dir = fixture.data_dir.clone();
+        let log_dir = fixture.log_dir.clone();
+        let model_root = data_dir.parent().expect("fixture root").join("models");
+        let api = fixture.api.clone();
+        let runtime = Arc::clone(&fixture.runtime);
+        let health = Arc::clone(&fixture.health);
+        let clock = fixture.clock.clone();
+        let desired = fixture.desired.clone();
+        drop(fixture.coordinator);
+
+        let log_path = log_dir.join("serve/301.0.log");
+        fs::write(&log_path, b"stale duplicate\n").expect("seed previous process log");
+        let registry = Arc::new(ManagedRuntimeRegistry::default());
+        let coordinator = ManagedRuntimeCoordinator::new(
+            api,
+            SecretToken::new("worker-token").expect("token"),
+            101,
+            "worker-uuid".to_string(),
+            "127.0.0.1".parse().expect("worker IP"),
+            LocalModelResolver::new([model_root]).expect("resolver"),
+            "1000:1000".to_string(),
+            runtime.clone(),
+            health,
+            FakeGpuProbe,
+            FsManagedRuntimeStore::open(&data_dir, &log_dir).expect("reopen Managed store"),
+            clock,
+            Arc::clone(&registry),
+        );
+
+        let outcome = coordinator
+            .reconcile_snapshot(&desired)
+            .await
+            .remove(0)
+            .outcome;
+
+        assert!(matches!(outcome, ManagedRuntimeOutcome::Running { .. }));
+        assert!(registry.route(301).expect("rebuilt route").is_some());
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                let captured = fs::read_to_string(&log_path).expect("captured log");
+                if captured.contains("stdout ready") {
+                    assert!(!captured.contains("stale duplicate"));
+                    return;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("reattached log capture");
+        let runtime = runtime.state.lock().expect("runtime lock");
+        assert_eq!(runtime.created_specs.len(), 1);
+        assert_eq!(runtime.starts, 1);
+        assert_eq!(runtime.stops, 0);
+        assert_eq!(runtime.removes, 0);
+    }
+
+    #[tokio::test]
+    async fn running_snapshot_without_a_container_fails_closed_without_restart() {
+        let mut fixture = Fixture::new(true);
+        fixture.set_running();
+
+        let outcome = fixture.create().await;
+
+        let ManagedRuntimeOutcome::Failed { message } = outcome else {
+            panic!("missing RUNNING container must fail locally")
+        };
+        assert!(message.contains("restart recovery is not active"));
+        let runtime = fixture.runtime.state.lock().expect("runtime lock");
+        assert!(runtime.created_specs.is_empty());
+        assert_eq!(runtime.starts, 0);
+        assert_eq!(runtime.stops, 0);
+        assert_eq!(runtime.removes, 0);
+        assert!(
+            fixture
+                .api
+                .state
+                .lock()
+                .expect("API lock")
+                .updates
+                .is_empty()
+        );
+        assert!(
+            fixture
+                .registry
+                .route(301)
+                .expect("Managed route")
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn running_snapshot_does_not_adopt_an_unhealthy_container() {
+        let mut fixture = Fixture::new(false);
+        fixture.create().await;
+        fixture.set_running();
+
+        let outcome = fixture.create().await;
+
+        let ManagedRuntimeOutcome::Failed { message } = outcome else {
+            panic!("unhealthy RUNNING container must fail locally")
+        };
+        assert!(message.contains("not healthy enough"));
+        let runtime = fixture.runtime.state.lock().expect("runtime lock");
+        assert_eq!(runtime.created_specs.len(), 1);
+        assert_eq!(runtime.starts, 1);
+        assert_eq!(runtime.stops, 0);
+        assert_eq!(runtime.removes, 0);
+        assert!(
+            fixture
+                .registry
+                .route(301)
+                .expect("Managed route")
+                .is_none()
+        );
+        assert!(
+            fixture
+                .api
+                .state
+                .lock()
+                .expect("API lock")
+                .updates
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn running_snapshot_refuses_a_conflicting_recovery_manifest() {
+        let mut fixture = Fixture::new(true);
+        fixture.create().await;
+        let manifest_path = fixture.data_dir.join("managed/manifests/301.json");
+        let mut manifest: ManagedRuntimeManifest =
+            serde_json::from_slice(&fs::read(&manifest_path).expect("manifest"))
+                .expect("manifest JSON");
+        manifest.container_id = "different-container".to_string();
+        let cache_path = fixture.data_dir.join("managed/cache/301");
+        fs::remove_dir_all(&cache_path).expect("remove recovery cache");
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec(&manifest).expect("serialize manifest"),
+        )
+        .expect("write conflicting manifest");
+        fixture.set_running();
+
+        let outcome = fixture.create().await;
+
+        let ManagedRuntimeOutcome::Failed { message } = outcome else {
+            panic!("conflicting recovery manifest must fail locally")
+        };
+        assert!(message.contains("manifest conflicts"));
+        let runtime = fixture.runtime.state.lock().expect("runtime lock");
+        assert_eq!(runtime.created_specs.len(), 1);
+        assert_eq!(runtime.starts, 1);
+        assert_eq!(runtime.stops, 0);
+        assert_eq!(runtime.removes, 0);
+        assert!(!cache_path.exists());
+        assert!(
+            fixture
+                .registry
+                .route(301)
+                .expect("Managed route")
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -1535,10 +1976,27 @@ mod tests {
         let fixture = Fixture::new(false);
         fixture.create().await;
         fixture.api.state.lock().expect("API lock").instance = None;
-        let (_desired_tx, desired_rx) = watch::channel(DesiredState::default());
+        let (desired_tx, desired_rx) = watch::channel(DesiredState::default());
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let run = fixture.coordinator.run(desired_rx, shutdown_rx, |_| {});
         tokio::pin!(run);
+
+        tokio::task::yield_now().await;
+        assert_eq!(
+            fixture
+                .runtime
+                .state
+                .lock()
+                .expect("runtime lock")
+                .containers
+                .len(),
+            1
+        );
+        assert!(!fixture.registry.is_ready());
+        desired_tx.send_replace(DesiredState {
+            revision: 1,
+            ..DesiredState::default()
+        });
 
         tokio::time::timeout(Duration::from_secs(1), async {
             loop {
