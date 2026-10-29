@@ -1018,6 +1018,74 @@ mod tests {
         task.await.expect("control task");
     }
 
+    #[tokio::test]
+    async fn failed_periodic_full_sync_keeps_the_last_snapshot_until_recovery() {
+        let api = MockApi::default();
+        let first_instances = instance_fixture();
+        let mut second_instances = first_instances.clone();
+        second_instances[0].id = 302;
+        second_instances[0].name = "contract-qwen-002".to_owned();
+        {
+            let mut state = api.state.lock().expect("mock state lock");
+            state.models = VecDeque::from([
+                Ok(model_fixture()),
+                Err(ClientError::Watch("scripted full sync outage".to_owned())),
+                Ok(model_fixture()),
+            ]);
+            state.instances = VecDeque::from([Ok(first_instances), Ok(second_instances)]);
+            state.model_files =
+                VecDeque::from([Ok(model_file_fixture()), Ok(model_file_fixture())]);
+            state.model_watches = VecDeque::from([Ok(ScriptedWatch::pending())]);
+            state.instance_watches = VecDeque::from([Ok(ScriptedWatch::pending())]);
+            state.model_file_watches = VecDeque::from([Ok(ScriptedWatch::pending())]);
+        }
+        let mut config = fast_config();
+        config.full_sync_interval = Duration::from_millis(30);
+        let (control, handle) = WorkerControlPlane::new(
+            api,
+            SecretToken::new("worker-secret").expect("valid token"),
+            101,
+            config,
+        )
+        .expect("control plane");
+        let mut desired = handle.desired_state();
+        let mut health = handle.health();
+        let (_status_tx, status) = watch::channel(status_fixture());
+        let (shutdown_tx, shutdown) = watch::channel(false);
+        let task = tokio::spawn(control.run(status, shutdown));
+
+        desired.changed().await.expect("initial full sync");
+        assert!(desired.borrow().model_instances.contains_key(&301));
+        tokio::time::timeout(Duration::from_millis(200), async {
+            loop {
+                health.changed().await.expect("health update");
+                if !health.borrow().full_sync_ok && health.borrow().watch_connected {
+                    break;
+                }
+            }
+        })
+        .await
+        .expect("full sync failure timeout");
+        assert!(desired.borrow().model_instances.contains_key(&301));
+        assert!(!desired.borrow().model_instances.contains_key(&302));
+
+        tokio::time::timeout(Duration::from_millis(200), async {
+            loop {
+                desired.changed().await.expect("recovery full sync");
+                if desired.borrow().model_instances.contains_key(&302) {
+                    break;
+                }
+            }
+        })
+        .await
+        .expect("full sync recovery timeout");
+        assert!(!desired.borrow().model_instances.contains_key(&301));
+        assert!(health.borrow().full_sync_ok);
+
+        shutdown_tx.send(true).expect("request shutdown");
+        task.await.expect("control task");
+    }
+
     #[test]
     fn instance_events_remove_assignments_moved_to_another_worker() {
         let (desired_tx, desired) = watch::channel(DesiredState::default());

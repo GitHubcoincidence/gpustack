@@ -462,7 +462,7 @@ where
         }
         match self.reconcile_starting_inner(instance_id).await {
             Ok(outcome) => outcome,
-            Err(ManagedRuntimeError::Api(error)) => failed(error),
+            Err(error) if error.preserves_authoritative_state() => failed(error),
             Err(error) => self.report_error(instance_id, &error.to_string()).await,
         }
     }
@@ -1477,6 +1477,27 @@ pub enum ManagedRuntimeError {
     InstanceStillExists,
 }
 
+impl ManagedRuntimeError {
+    fn preserves_authoritative_state(&self) -> bool {
+        // Infrastructure uncertainty cannot prove that the workload itself failed.
+        match self {
+            Self::Runtime(error) | Self::RuntimeCore(RuntimeCoreError::Runtime(error)) => {
+                !matches!(error, RuntimeError::InvalidSpec(_))
+            }
+            Self::Api(_)
+            | Self::Store(_)
+            | Self::Registry(_)
+            | Self::Gpu(_)
+            | Self::Environment(_) => true,
+            Self::Plan(_)
+            | Self::Resolve(_)
+            | Self::RuntimeCore(RuntimeCoreError::Unsafe(_))
+            | Self::Unsafe(_)
+            | Self::InstanceStillExists => false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::{BTreeMap, VecDeque};
@@ -1491,6 +1512,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::workload::{LABEL_MODE, LABEL_SPEC_HASH};
 
     #[derive(Clone)]
     struct FakeApi {
@@ -1501,6 +1523,7 @@ mod tests {
         model: ModelPublic,
         instance: Option<ModelInstancePublic>,
         instance_reads: VecDeque<ModelInstancePublic>,
+        instance_errors: VecDeque<ClientError>,
         updates: Vec<ModelInstanceUpdate>,
         get_instance_count: usize,
         block_instance_reads: bool,
@@ -1525,6 +1548,9 @@ mod tests {
             }
             let mut state = self.state.lock().expect("API lock");
             state.get_instance_count += 1;
+            if let Some(error) = state.instance_errors.pop_front() {
+                return Err(error);
+            }
             if let Some(instance) = state.instance_reads.pop_front() {
                 return Ok(instance);
             }
@@ -1566,6 +1592,8 @@ mod tests {
         stops: usize,
         removes: usize,
         logs: Vec<RuntimeLogLine>,
+        list_failures: usize,
+        start_failures: usize,
     }
 
     #[derive(Default)]
@@ -1581,6 +1609,14 @@ mod tests {
             if state == ContainerState::Exited {
                 container.exit_code = Some(1);
             }
+        }
+
+        fn fail_next_list(&self) {
+            self.state.lock().expect("runtime lock").list_failures += 1;
+        }
+
+        fn fail_next_start(&self) {
+            self.state.lock().expect("runtime lock").start_failures += 1;
         }
     }
 
@@ -1615,10 +1651,14 @@ mod tests {
             labels: &'a BTreeMap<String, String>,
         ) -> RuntimeFuture<'a, Vec<ContainerListEntry>> {
             Box::pin(async move {
-                Ok(self
-                    .state
-                    .lock()
-                    .expect("runtime lock")
+                let mut state = self.state.lock().expect("runtime lock");
+                if state.list_failures > 0 {
+                    state.list_failures -= 1;
+                    return Err(RuntimeError::Client(
+                        "scripted Docker list outage".to_string(),
+                    ));
+                }
+                Ok(state
                     .containers
                     .values()
                     .filter(|container| {
@@ -1670,6 +1710,12 @@ mod tests {
         fn start_container<'a>(&'a self, id: &'a str) -> RuntimeFuture<'a, ()> {
             Box::pin(async move {
                 let mut state = self.state.lock().expect("runtime lock");
+                if state.start_failures > 0 {
+                    state.start_failures -= 1;
+                    return Err(RuntimeError::Client(
+                        "scripted Docker start outage".to_string(),
+                    ));
+                }
                 state.starts += 1;
                 state
                     .containers
@@ -1823,6 +1869,7 @@ mod tests {
                     model: model.clone(),
                     instance: Some(instance.clone()),
                     instance_reads: VecDeque::new(),
+                    instance_errors: VecDeque::new(),
                     updates: Vec::new(),
                     get_instance_count: 0,
                     block_instance_reads: false,
@@ -1891,6 +1938,18 @@ mod tests {
                 .outcome
         }
 
+        async fn start_and_promote(&mut self) {
+            assert!(matches!(
+                self.create().await,
+                ManagedRuntimeOutcome::Starting { .. }
+            ));
+            assert!(matches!(
+                self.create().await,
+                ManagedRuntimeOutcome::Running { .. }
+            ));
+            self.set_running();
+        }
+
         fn set_running(&mut self) {
             let running = {
                 let mut api = self.api.state.lock().expect("API lock");
@@ -1936,6 +1995,21 @@ mod tests {
 
         fn advance_clock(&self, seconds: u64) {
             self.clock.0.fetch_add(seconds, Ordering::SeqCst);
+        }
+
+        fn fail_next_instance_read(&self) {
+            self.api
+                .state
+                .lock()
+                .expect("API lock")
+                .instance_errors
+                .push_back(ClientError::Watch(
+                    "scripted Server read outage".to_string(),
+                ));
+        }
+
+        fn set_health_error(&self, message: &str) {
+            *self.health.models.lock().expect("health lock") = Err(message.to_string());
         }
     }
 
@@ -2375,6 +2449,381 @@ mod tests {
         assert_eq!(restart_delay_secs(5), 160);
         assert_eq!(restart_delay_secs(6), 300);
         assert_eq!(restart_delay_secs(32), 300);
+    }
+
+    #[test]
+    fn only_uncertain_infrastructure_errors_preserve_the_server_state() {
+        assert!(
+            ManagedRuntimeError::Runtime(RuntimeError::Client(
+                "scripted Docker outage".to_string()
+            ))
+            .preserves_authoritative_state()
+        );
+        assert!(
+            ManagedRuntimeError::Api(ClientError::Watch("scripted Server outage".to_string()))
+                .preserves_authoritative_state()
+        );
+        assert!(
+            !ManagedRuntimeError::Runtime(RuntimeError::InvalidSpec(
+                "invalid workload".to_string()
+            ))
+            .preserves_authoritative_state()
+        );
+        assert!(
+            !ManagedRuntimeError::Unsafe("confirmed workload failure".to_string())
+                .preserves_authoritative_state()
+        );
+    }
+
+    #[tokio::test]
+    async fn transient_server_read_failure_preserves_running_route_and_runtime() {
+        let mut fixture = Fixture::new(true);
+        fixture.start_and_promote().await;
+        let updates_before = fixture.api.state.lock().expect("API lock").updates.len();
+        fixture.fail_next_instance_read();
+
+        let outcome = fixture.create().await;
+
+        assert!(matches!(outcome, ManagedRuntimeOutcome::Failed { .. }));
+        assert!(
+            fixture
+                .registry
+                .route(301)
+                .expect("Managed route")
+                .is_some()
+        );
+        {
+            let runtime = fixture.runtime.state.lock().expect("runtime lock");
+            assert_eq!(runtime.containers.len(), 1);
+            assert_eq!(runtime.stops, 0);
+            assert_eq!(runtime.removes, 0);
+        }
+        assert_eq!(
+            fixture.api.state.lock().expect("API lock").updates.len(),
+            updates_before
+        );
+        assert!(matches!(
+            fixture.create().await,
+            ManagedRuntimeOutcome::Noop { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn transient_docker_read_failure_preserves_running_route_and_server_state() {
+        let mut fixture = Fixture::new(true);
+        fixture.start_and_promote().await;
+        let updates_before = fixture.api.state.lock().expect("API lock").updates.len();
+        fixture.runtime.fail_next_list();
+
+        let outcome = fixture.create().await;
+
+        let ManagedRuntimeOutcome::Failed { message } = outcome else {
+            panic!("Docker uncertainty must remain local")
+        };
+        assert!(message.contains("Docker"));
+        assert!(
+            fixture
+                .registry
+                .route(301)
+                .expect("Managed route")
+                .is_some()
+        );
+        {
+            let runtime = fixture.runtime.state.lock().expect("runtime lock");
+            assert_eq!(runtime.containers.len(), 1);
+            assert_eq!(runtime.stops, 0);
+            assert_eq!(runtime.removes, 0);
+        }
+        assert_eq!(
+            fixture.api.state.lock().expect("API lock").updates.len(),
+            updates_before
+        );
+        assert!(matches!(
+            fixture.create().await,
+            ManagedRuntimeOutcome::Noop { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn transient_health_probe_failure_preserves_running_route_and_state() {
+        let mut fixture = Fixture::new(true);
+        fixture.start_and_promote().await;
+        let updates_before = fixture.api.state.lock().expect("API lock").updates.len();
+        fixture.set_health_error("scripted connection reset");
+
+        let outcome = fixture.create().await;
+
+        assert_eq!(
+            outcome,
+            ManagedRuntimeOutcome::Noop {
+                reason: "RUNNING Managed workload has no confirmed terminal failure"
+            }
+        );
+        assert!(
+            fixture
+                .registry
+                .route(301)
+                .expect("Managed route")
+                .is_some()
+        );
+        let runtime = fixture.runtime.state.lock().expect("runtime lock");
+        assert_eq!(runtime.stops, 0);
+        assert_eq!(runtime.removes, 0);
+        drop(runtime);
+        assert_eq!(
+            fixture.api.state.lock().expect("API lock").updates.len(),
+            updates_before
+        );
+    }
+
+    #[tokio::test]
+    async fn transient_docker_start_failure_preserves_starting_state_and_recovers() {
+        let fixture = Fixture::new(true);
+        fixture.runtime.fail_next_start();
+
+        let outcome = fixture.create().await;
+
+        let ManagedRuntimeOutcome::Failed { message } = outcome else {
+            panic!("Docker start uncertainty must remain local")
+        };
+        assert!(message.contains("Docker"));
+        assert!(
+            fixture
+                .api
+                .state
+                .lock()
+                .expect("API lock")
+                .updates
+                .is_empty()
+        );
+        {
+            let runtime = fixture.runtime.state.lock().expect("runtime lock");
+            assert_eq!(runtime.containers.len(), 1);
+            assert_eq!(runtime.starts, 0);
+            assert_eq!(runtime.stops, 0);
+            assert_eq!(runtime.removes, 0);
+        }
+
+        assert!(matches!(
+            fixture.create().await,
+            ManagedRuntimeOutcome::Starting {
+                created: false,
+                adopted: true,
+                ..
+            }
+        ));
+        let runtime = fixture.runtime.state.lock().expect("runtime lock");
+        assert_eq!(runtime.containers.len(), 1);
+        assert_eq!(runtime.starts, 1);
+    }
+
+    #[tokio::test]
+    async fn authoritative_delete_during_backoff_waits_for_full_sync_cleanup() {
+        let mut fixture = Fixture::new(true);
+        assert!(matches!(
+            fixture.create().await,
+            ManagedRuntimeOutcome::Starting { .. }
+        ));
+        fixture.set_state("error");
+        fixture
+            .coordinator
+            .record_restart_attempt(301, fixture.clock.now_unix())
+            .expect("restart attempt");
+
+        assert!(matches!(
+            fixture.create().await,
+            ManagedRuntimeOutcome::RestartPending {
+                delay_secs: 10,
+                remaining_secs: 10
+            }
+        ));
+        fixture.api.state.lock().expect("API lock").instance = None;
+        assert!(matches!(
+            fixture.create().await,
+            ManagedRuntimeOutcome::Failed { .. }
+        ));
+        {
+            let runtime = fixture.runtime.state.lock().expect("runtime lock");
+            assert_eq!(runtime.stops, 0);
+            assert_eq!(runtime.removes, 0);
+        }
+
+        fixture.desired.model_instances.remove(&301);
+        let outcome = fixture
+            .coordinator
+            .reconcile_snapshot(&fixture.desired)
+            .await
+            .remove(0)
+            .outcome;
+
+        assert_eq!(
+            outcome,
+            ManagedRuntimeOutcome::Deleted {
+                container_removed: true
+            }
+        );
+        let runtime = fixture.runtime.state.lock().expect("runtime lock");
+        assert_eq!(runtime.stops, 1);
+        assert_eq!(runtime.removes, 1);
+        assert!(runtime.containers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn deletion_waits_for_server_and_docker_recovery_before_mutation() {
+        let mut fixture = Fixture::new(true);
+        fixture.create().await;
+        fixture.api.state.lock().expect("API lock").instance = None;
+        fixture.desired.model_instances.remove(&301);
+        fixture.fail_next_instance_read();
+
+        let server_outage = fixture
+            .coordinator
+            .reconcile_snapshot(&fixture.desired)
+            .await
+            .remove(0)
+            .outcome;
+
+        assert!(matches!(
+            server_outage,
+            ManagedRuntimeOutcome::Failed { .. }
+        ));
+        fixture.runtime.fail_next_list();
+        let docker_outage = fixture
+            .coordinator
+            .reconcile_snapshot(&fixture.desired)
+            .await
+            .remove(0)
+            .outcome;
+        assert!(matches!(
+            docker_outage,
+            ManagedRuntimeOutcome::Failed { .. }
+        ));
+        {
+            let runtime = fixture.runtime.state.lock().expect("runtime lock");
+            assert_eq!(runtime.containers.len(), 1);
+            assert_eq!(runtime.stops, 0);
+            assert_eq!(runtime.removes, 0);
+        }
+        assert!(
+            fixture
+                .data_dir
+                .join("managed/manifests/301.json")
+                .is_file()
+        );
+
+        let recovered = fixture
+            .coordinator
+            .reconcile_snapshot(&fixture.desired)
+            .await
+            .remove(0)
+            .outcome;
+
+        assert_eq!(
+            recovered,
+            ManagedRuntimeOutcome::Deleted {
+                container_removed: true
+            }
+        );
+        let runtime = fixture.runtime.state.lock().expect("runtime lock");
+        assert_eq!(runtime.stops, 1);
+        assert_eq!(runtime.removes, 1);
+        assert!(runtime.containers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn unknown_and_conflicting_containers_are_never_mutated() {
+        let mut fixture = Fixture::new(true);
+        fixture.create().await;
+        {
+            let mut runtime = fixture.runtime.state.lock().expect("runtime lock");
+            let mut unknown = runtime
+                .containers
+                .values()
+                .next()
+                .expect("owned container")
+                .clone();
+            unknown.id = "unknown-container".to_string();
+            unknown.name = Some("unrelated-runtime".to_string());
+            unknown.labels.remove(LABEL_MODEL_INSTANCE_ID);
+            runtime.containers.insert(unknown.id.clone(), unknown);
+        }
+        fixture.set_running();
+
+        assert!(matches!(
+            fixture.create().await,
+            ManagedRuntimeOutcome::Running { .. }
+        ));
+        {
+            let runtime = fixture.runtime.state.lock().expect("runtime lock");
+            assert!(runtime.containers.contains_key("unknown-container"));
+            assert_eq!(runtime.stops, 0);
+            assert_eq!(runtime.removes, 0);
+        }
+
+        let mut foreign = Fixture::new(true);
+        foreign.create().await;
+        foreign
+            .runtime
+            .state
+            .lock()
+            .expect("runtime lock")
+            .containers
+            .values_mut()
+            .next()
+            .expect("container")
+            .labels
+            .insert(LABEL_MODE.to_string(), "lab".to_string());
+        foreign.set_running();
+        assert!(matches!(
+            foreign.create().await,
+            ManagedRuntimeOutcome::Failed { .. }
+        ));
+        {
+            let runtime = foreign.runtime.state.lock().expect("runtime lock");
+            assert_eq!(runtime.stops, 0);
+            assert_eq!(runtime.removes, 0);
+        }
+        assert!(
+            foreign
+                .api
+                .state
+                .lock()
+                .expect("API lock")
+                .updates
+                .is_empty()
+        );
+
+        let mut conflicting = Fixture::new(true);
+        conflicting.create().await;
+        conflicting
+            .runtime
+            .state
+            .lock()
+            .expect("runtime lock")
+            .containers
+            .values_mut()
+            .next()
+            .expect("container")
+            .labels
+            .insert(LABEL_SPEC_HASH.to_string(), "b".repeat(64));
+        conflicting.set_running();
+        assert!(matches!(
+            conflicting.create().await,
+            ManagedRuntimeOutcome::Failed { .. }
+        ));
+        let runtime = conflicting.runtime.state.lock().expect("runtime lock");
+        assert_eq!(runtime.stops, 0);
+        assert_eq!(runtime.removes, 0);
+        drop(runtime);
+        assert!(
+            conflicting
+                .api
+                .state
+                .lock()
+                .expect("API lock")
+                .updates
+                .is_empty()
+        );
     }
 
     #[tokio::test]
