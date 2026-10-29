@@ -901,3 +901,13 @@ D188-D190 不改变唯一模型、Runner、GPU0、状态链、Server-only CLI、
 M7-0 当前为 `accepted`。下一项只允许执行 M7-A 启动接管的离线实现、测试和详细实现报告；
 不得连接真实 Docker socket、写真实 Server、停止 Python Worker、切换 maintenance、创建
 workload、使用 GPU 或创建阶段凭据。
+
+## 2026-10-29 M7-A 启动接管接受
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D202 | M7-A 接管与 M7-B 边界 | M7-A 接受产品提交 `852e16c87be2f6dfb6b0d0b9bc1c925399bb04a5`：首次权威 full sync 后，唯一完整 tuple/spec 匹配且健康的 Server-`RUNNING` 容器原位接管并重建 route、manifest、cache 和当前日志跟踪；重复调和保持 `Noop`。缺失、不健康、冲突或非零 restart generation 的 `RUNNING` runtime 在本阶段 fail closed。只有既有权威 `STARTING` 路径可创建容器；缺失 runtime 的自动重启、日志代际和连续健康监测由 M7-B/C 实现 | 用户已审阅逐项实现、失败边界、197 项测试和未执行风险操作并接受 M7-A。把创建授权继续约束到 `STARTING` 可避免在尚未实现 restart policy、退避和日志代际时把 `RUNNING` 缺失误当成普通首次启动。 |
+
+M7-A 状态为 `accepted`。下一项只允许进入 M7-B restart-on-error 与日志代际的离线源码复核、
+实现、fake/mock 测试和详细报告；不得连接真实 Docker socket、写真实 Server、停止 Python
+Worker、切换 maintenance、创建真实 workload、使用 GPU 或创建阶段凭据。

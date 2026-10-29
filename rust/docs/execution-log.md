@@ -3835,6 +3835,20 @@
 - 当前停止位置：M7-A 为 `ready_for_review`，不是 `accepted`。下一项只允许在聊天中交付并由
   用户审阅详细实现报告；接受后才能进入 M7-B 离线设计/实现，任何真实阶段仍需独立授权。
 
+### 2026-10-29：M7-A 用户验收
+
+- 用户决定：用户审阅 M7-A 逐项实现、关键数据流、fail-closed 边界、自动化结果和未执行的
+  风险操作后明确表示接受，M7-A 从 `ready_for_review` 更新为 `accepted`。
+- 接受证据：产品提交
+  `852e16c87be2f6dfb6b0d0b9bc1c925399bb04a5`、治理检查点
+  `22d207291f707487329c7735097d968b2356f857`，以及 90 上 fmt、Clippy `-D warnings`、197 项
+  all-target 测试、doc-tests 和 locked/offline build 结果保持有效。
+- 解释与边界：本次接受只覆盖启动 full sync 后对既有健康容器的离线安全接管、状态重建、
+  幂等和冲突保护；不外推为真实 crash recovery、自动重启、日志代际、连接故障或双 GPU 证据。
+- 当前停止位置：M7-A `accepted`。下一项只允许进入 M7-B restart-on-error 与日志代际的离线
+  源码复核、实现、fake/mock 验证和详细报告；任何真实 Server、Docker、服务或 GPU 操作仍未
+  获得授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

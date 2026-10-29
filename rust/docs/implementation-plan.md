@@ -905,11 +905,11 @@ Qwen2.5-0.5B 双 A100 TP=2 阶段验证，以及 M8 容器化重跑边界。M7-0
 Server、停止 Python Worker、切换 maintenance、创建 workload、使用 GPU 或创建阶段凭据。
 
 M7-A 离线实现现已固定在产品提交
-`852e16c87be2f6dfb6b0d0b9bc1c925399bb04a5`，状态为 `ready_for_review`。实现只在收到
+`852e16c87be2f6dfb6b0d0b9bc1c925399bb04a5`，并经用户审阅更新为 `accepted`。实现只在收到
 首次权威 full sync 后协调 `STARTING`/`RUNNING`；对唯一完整 tuple/spec 匹配且健康的
 `RUNNING` 容器重建 route、manifest、cache 和当前日志跟踪，重复调和保持 `Noop`。缺失、
 不健康、多匹配或冲突的 `RUNNING` runtime 均 fail closed，不创建、启动、停止、删除容器或
 写回 Server；缺失 runtime 的自动重启、非零 restart generation 和连续健康监测仍属于 M7-B/C。
 90 上 workspace fmt、Clippy `-D warnings`、197 项 all-target 测试、doc-tests 和
-locked/offline build 全部通过。下一项只允许用户审阅 M7-A 详细实现报告；未经接受不得进入
-M7-B、连接真实 Docker/Server、停止服务或使用 GPU。
+locked/offline build 全部通过。下一项只允许进入 M7-B restart-on-error 与日志代际的离线
+源码复核、实现、fake/mock 测试和详细报告；不得连接真实 Docker/Server、停止服务或使用 GPU。
