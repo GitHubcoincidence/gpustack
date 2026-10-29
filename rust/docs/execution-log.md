@@ -3986,6 +3986,29 @@
 - 当前停止位置：M7-D 为 `ready_for_maintenance_authorization`。下一项只能请求并冻结 M7-E.1
   独立维护窗口；M7-D 结果不授权 M7-E.1，也不能扩展为 M7-E.2、M7-E.3 或 M7-F 的授权。
 
+### 2026-10-29：M7-E.1 维护协议草案
+
+- 目标：把 M7-E.1 限定为“Rust Worker crash 后接管同一健康 vLLM”，与 M7-E.2 的 vLLM
+  restart-on-error 和 M7-E.3 的专用代理故障隔离开。
+- 固定草案：唯一模型名 `m7e1-qwen25-05b-gpu0`、固定 Qwen revision/local manifest、固定
+  Runner digest、GPU0、TP=1、Worker ID 5、既有 data/log 目录、动态 Managed 端口、阶段专用
+  operator Context/token 路径，以及 attempt 1 的 formal/watchdog/post-audit/preflight identity。
+- 故障边界：只对经 PID、starttime、canonical executable、binary SHA、参数 SHA、PGID 与两个
+  listener owner 重复验证的宿主机 Rust Worker PID 发送 `SIGKILL`；禁止 `pkill`、进程组广播、
+  容器信号或任何 Python/Server/Docker daemon故障。
+- 核心验收：Worker缺席期间直连 vLLM models/chat 成功；重启后 container ID、`StartedAt`、端口、
+  spec/ownership、Server resource ID、restart count、last restart time 和 generation 0 日志不变；
+  Docker event 无生命周期动作；Server-only CLI 与三轮幂等恢复。
+- 恢复设计：独立 1200 秒 watchdog 识别计划内 crash marker；失败时先精确终止 Rust、优先权威
+  删除唯一模型，必要时只按完整 ownership tuple 精确删除记录容器，确认 GPU/端口/容器清空后
+  才恢复固定 Python Worker。正常 cleanup 后再执行独立现场审计与证据封存。
+- 漂移审计：仍限定固定 v2.2.3 Server、单机 Docker、vLLM、固定 Qwen/Runner、单 Worker、
+  GPU0 和宿主机阶段；没有加入 Kubernetes、其他后端、跨 Worker推理、GPU1 workload 或 Worker
+  容器化，也没有把 M7-D 只读结果提升为恢复通过，结论为 `aligned`。
+- 状态：`proposed / ready_for_review`。本记录没有停止服务、写 Server、访问 Docker socket、
+  创建凭据/workload、使用 GPU 或注入故障。用户接受方案后仍须完成脚本静态门、只读
+  preflight、无写注入和新的精确维护窗口授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

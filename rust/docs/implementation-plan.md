@@ -948,3 +948,15 @@ digest、Qwen2.5-0.5B revision/manifest、两张 A100 identity、Managed 端口�
 `6a2fcd779b51f20c0e31fc62c8c00c22d227912cadcfd57e521c7a8e323957c2`。当前状态为
 `ready_for_maintenance_authorization`；下一步只能在新授权下准备 M7-E.1，不能自动执行或把
 该授权扩展到 M7-E.2、M7-E.3 或 M7-F。
+
+M7-E.1 维护协议现已形成待审阅草案。它把唯一目标限定为：在 GPU0 上运行固定 TP=1 workload，
+精确 `SIGKILL` 宿主机 Rust Worker，并证明缺席期间和重启接管后仍是同一健康 vLLM container
+ID、`StartedAt`、端口、spec hash、ownership、Model/Instance/File identity、restart count 和
+generation 0 日志。正式 PASS 还要求 Docker event 窗口没有 create/start/die/stop/kill/restart/
+destroy，缺席期间直连 vLLM 推理成功，恢复后 Server-only CLI 推理/日志和三轮幂等通过。
+
+草案同时冻结 1200 秒独立 watchdog、精确 PID guard、唯一资源 identity、失败回滚顺序、
+attempt 专用证据路径、秘密排除、正常 cleanup、独立 post-audit 和用户审阅后的凭据退役门。
+当前状态为 `proposed / ready_for_review`；文档提交不构成方案接受，也不授权准备凭据、停止
+Python Worker、切换 maintenance、创建 workload、使用 GPU 或注入故障。用户接受后仍须先
+编写/静态审计脚本、运行只读 preflight 与无写注入，再单独请求 M7-E.1 attempt 1 维护授权。

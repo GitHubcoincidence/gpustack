@@ -21,6 +21,7 @@
 - [m6b4-managed-runtime-preflight.md](m6b4-managed-runtime-preflight.md)：M6-B.4 只读预检、离线故障注入、证据与停止边界。
 - [m6b5-managed-runtime-smoke.md](m6b5-managed-runtime-smoke.md)：M6-B.5 凭据准备、正式单 GPU Managed smoke、watchdog、验收与回滚边界。
 - [m7d-readonly-preflight.md](m7d-readonly-preflight.md)：M7-D 真实输入、恢复材料、专用代理边界、只读证据与维护授权停止点。
+- [m7e1-worker-crash-runbook.md](m7e1-worker-crash-runbook.md)：M7-E.1 Rust Worker 精确 crash、同容器接管、watchdog、验收与回滚方案草案。
 
 ## 文档语言
 
@@ -179,6 +180,11 @@
   `6a2fcd779b51f20c0e31fc62c8c00c22d227912cadcfd57e521c7a8e323957c2`。当前为
   `ready_for_maintenance_authorization`；未授权停止 Python Worker、启动代理、创建 workload、
   使用 GPU 或执行 M7-E，M7-E 的三个窗口和 M7-F 仍须分别明确授权。
+- M7-E.1“Rust Worker crash 后接管同一健康 vLLM”维护协议草案已经形成，状态为
+  `proposed / ready_for_review`。草案固定精确 PID `SIGKILL`、同 container ID/`StartedAt`/
+  端口/spec/restart count/log generation 证明、Docker event 无生命周期变更、Server-only
+  恢复验收、1200 秒独立 watchdog、精确 cleanup 和凭据退役门。当前仍未授权创建凭据、停止
+  Python Worker、切换 maintenance、创建 workload、使用 GPU 或执行故障注入。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
