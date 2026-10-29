@@ -26,28 +26,26 @@
 
 ## 当前状态
 
-- 状态：`ready_for_maintenance_authorization`
-- 当前阶段：M1～M5、M6-A 和 M6-B.1～M6-B.4 已完成既定验收。M6-B.5.2 attempt 6 是
-  有效 `failed_during_window`：复合路由头解析、稳定 READY、完整七状态链、健康时序和
-  `inference models` 均通过，但 Rust Worker向错误的 loopback 地址连接 vLLM，buffered chat
-  由 Worker返回 502、Server外层返回 503。
+- 状态：`ready_for_review`
+- 当前阶段：M1～M5、M6-A 和 M6-B.1～M6-B.4 已完成既定验收。M6-B.5.2 formal
+  attempt 7 已通过冻结的完整状态链、Server-only 推理与日志、同进程三轮幂等、精确清理、
+  watchdog 和独立事后审计，当前等待用户审阅详细报告；尚未标记为 `accepted`，不得进入 M7。
 - 最新产品检查点：`d4920e71b89d6507f8e82fb2aff7dfbb24490103`。Managed 推理代理现使用
   已验证的 `worker_ip + assigned_port`，与 runtime 健康检查及 Python Worker代理语义一致；
   复合 destination、认证、内部路由表和敏感头剥离边界不变。本地、GitHub 与 90 已同步。
 - 检查点前已存在且与本项目无关的工作树状态：未跟踪目录 `output/`；本项目不修改它。
 - 90 主机身份：`wujiaxing2@r760xa`；仓库路径：
   `/home/wujiaxing2/workspaces/gpustack`；账号级 SSH 已认证 fork。
-- attempt 6 正式、watchdog 和独立事后审计清单文件 SHA-256 分别为
-  `bc51a04aab4e8ea21d68b5d9b80ab7715bbf57e70aca55ddedc822a49cff48ad`、
-  `f837e04a3b7b54172ce6e24c39bf8276ae26581d10f17bd98bac86cf10943ff7` 和
-  `fcb934464a1126dba66e8f963f234d461a63ba95ac2a478ecc80b0eff05c157a`。独立审计
-  22 个条目全部通过，证明 Python Worker、maintenance、Server 资源、Docker、GPU、端口、
-  模型文件和仓库状态恢复；它不改变 attempt 6 的失败判定。
-- preflight attempt 11 和无写注入均已通过；清单文件 SHA-256 分别为
-  `1c76b57e12b6540fc835ca81eec340de22e003a3b3805497d5cafc43b1ea10c9` 和
-  `1a9fe515f3f6c3ff39961802b6c70020b2c709d68e0b3b283a6e75b13df5e6eb`。下一项只能请求
-  formal attempt 7 的新维护窗口授权；当前不得停止 Python Worker、切换 maintenance、创建
-  Server 测试资源、创建容器或使用 GPU。
+- attempt 7 正式、watchdog 和独立事后审计清单文件 SHA-256 分别为
+  `c81af217bf80a4ca568de8c45e5a602c624fe87507967c6ce1f6f4dbe9fc9eb3`、
+  `cabb29165c85b5a8b68cbe1023b8863ab2d12bc1d4385eed1eb271899c947fa7` 和
+  `8d60613d2086ec708261368a126079f896bd49f96bba067ffac931ee3a6482da`。三套清单共
+  87/5/22 个条目全部通过，秘密扫描无发现；最终现场复核再次证明 Python Worker、maintenance、
+  Server 资源、Docker、GPU、端口、模型文件和仓库状态恢复基线。
+- formal attempt 7 使用 Model 20、Instance 35、ModelFile 14、端口 40000 和唯一 owned
+  container `c63e726ffb484825f6a25fa731f610f2b3d1b225fcd08904e68e4d9e0930c106`；全部已按
+  精确 identity 删除。阶段专用 API Key、Context 和 token 文件保留到用户审阅通过，之后按
+  D161 退役并验证旧 token 返回 401；退役前不得把 M6-B.5 标记为 `accepted`。
 
 ## 里程碑
 
@@ -3735,6 +3733,36 @@
   进程或 Managed 容器；两张 GPU 均为 0 MiB/0%；HEAD、origin 和工作树一致且干净。
 - 当前停止位置：`ready_for_maintenance_authorization`。下一项只能由用户明确授权 formal
   attempt 7，attempt 6 的授权不延伸。
+
+### 2026-10-29：M6-B.5.2 formal attempt 7 全链通过并恢复
+
+- 授权与执行：用户明确授权停止并恢复精确 Python Worker、切换 Worker 5 maintenance、创建
+  并删除唯一 `m6b5-qwen25-05b-gpu0` 资源和 Rust vLLM 容器、仅使用 GPU0，并要求 watchdog
+  完整回滚。最终漂移门通过后，独立 watchdog 以 1200 秒硬超时保护正式执行器。
+- 控制链：Rust Worker稳定 READY 后创建 Model 20、Instance 35、ModelFile 14，分配端口
+  40000 和唯一 owned container
+  `c63e726ffb484825f6a25fa731f610f2b3d1b225fcd08904e68e4d9e0930c106`；真实观察到
+  `pending -> analyzing -> scheduled -> initializing -> downloading -> starting -> running`，
+  vLLM 健康时间早于 Server `RUNNING` 写回。
+- 数据面与日志：只经 active Context 的 Server 路径完成 `inference models`、buffered chat、
+  SSE streaming chat、completion、错误模型拒绝、`model logs --tail` 和有界 `--follow`；
+  D189 的 `worker_ip + assigned_port` upstream 在真实节点地址上通过。
+- 幂等：模型进入 `RUNNING` 后覆盖至少三轮同进程协调，Model/Instance/port、容器 ID、spec
+  hash 和 ownership labels 均未变化，Rust-owned 容器始终为 1；随后再次 chat 成功。
+- 清理与恢复：先恢复 maintenance，再删除精确 Model 并等待 Instance 404，协调器删除唯一
+  owned runtime 和本地状态，精确清理 ModelFile，优雅停止 Rust Worker，最后恢复原 Python
+  Worker container。`smoke_passed=1`、`cleanup_ok=1`、正式和 watchdog 均为 PASS。
+- 证据：正式目录含 87 个清单条目，清单文件 SHA-256 为
+  `c81af217bf80a4ca568de8c45e5a602c624fe87507967c6ce1f6f4dbe9fc9eb3`；watchdog 含 5 个
+  条目，清单文件 SHA-256 为
+  `cabb29165c85b5a8b68cbe1023b8863ab2d12bc1d4385eed1eb271899c947fa7`。独立 post-audit
+  的 22 个条目全部通过，清单文件 SHA-256 为
+  `8d60613d2086ec708261368a126079f896bd49f96bba067ffac931ee3a6482da`，外部变更为 `none`。
+- 最终现场：Server、Python Worker health/metrics 均为 200；精确 Python Worker运行；Rust
+  进程、Managed 容器、20150/40000 listener 和 GPU compute process 均为 0；两张 GPU 均为
+  0 MiB/0%，源码 HEAD、origin 和工作树一致。
+- 当前停止位置：`ready_for_review`。用户审阅详细报告前不得标记 `accepted` 或进入 M7；审阅
+  通过后只允许先退役阶段专用 API Key、Context 和 token 文件并证明旧 token 返回 401。
 
 ## 未解决风险与待确认事项
 

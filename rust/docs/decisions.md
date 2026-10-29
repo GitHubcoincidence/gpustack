@@ -877,3 +877,10 @@ D188-D190 不改变唯一模型、Runner、GPU0、状态链、Server-only CLI、
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D191 | retry 7 准备门通过与停止边界 | preflight attempt 11 和对应无写注入在治理 HEAD `76c0f5d855de3878fefb0a826da64053d070bd76` 通过；新产品提交、Worker地址代理回归、清单、权限、秘密扫描和外部不变式均通过。当前状态为 `ready_for_maintenance_authorization`；formal attempt 7 只有在用户针对唯一 attempt-7 路径重新明确授权后才能执行 | 准备结果证明已知 502 根因修复进入正式输入，但不证明真实 chat 已通过，也不构成再次停止 Python Worker、切换 maintenance、创建资源或使用 GPU0 的权限。 |
+
+## 2026-10-29 M6-B.5.2 attempt 7 正式判定
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D192 | attempt 7 正式判定 | formal attempt 7 固定判为 PASS：完整七状态链、健康先于 `RUNNING`、Server-only models/buffered/streaming chat/completion、错误模型拒绝、tail/follow logs、三轮同进程幂等和幂等后 chat 全部通过；正式与 watchdog 完成封存，`smoke_passed=1`、`cleanup_ok=1`。独立 post-audit 22 个条目和最终现场复核证明 Python Worker、maintenance、Server 资源、Docker、两张 GPU、端口、本地状态、固定模型与仓库恢复基线 | attempt 7 首次覆盖 M6-B.5 冻结的完整业务与恢复门，不再用部分成功或仅恢复成功替代业务验收。三条独立证据链及 manifest 校验使 PASS 可复核。 |
+| D193 | 通过后的审阅与凭据边界 | attempt 7 通过后状态只进入 `ready_for_review`。用户审阅详细报告前不得标记 `accepted` 或进入 M7；用户接受后先按 D161 删除阶段 API Key、Context 和 token 文件并验证旧 token 返回 401，凭据退役证据通过后才把 M6-B.5 标记为 `accepted` | 正式 smoke 通过不替代用户的阶段审阅，也不能让短期管理凭据无限保留。把业务 PASS、用户接受和凭据退役分开记录，既保护验收权，又闭合安全生命周期。 |

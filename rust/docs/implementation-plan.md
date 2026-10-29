@@ -821,3 +821,14 @@ preflight attempt 11 随后在治理 HEAD `76c0f5d855de3878fefb0a826da64053d070b
 `1a9fe515f3f6c3ff39961802b6c70020b2c709d68e0b3b283a6e75b13df5e6eb`；独立复核证明
 57/9 个条目、凭据与秘密扫描、服务、Server 资源、Docker、GPU、端口、进程和源码前后不变。
 当前状态为 `ready_for_maintenance_authorization`，下一步只能请求 formal attempt 7 的新授权。
+
+formal attempt 7 随后在独立授权和 watchdog 保护下通过。Model 20、Instance 35、ModelFile 14、
+端口 40000 和唯一 GPU0 vLLM 容器完成完整七状态链；Server-only models、buffered/streaming
+chat、completion、错误模型拒绝、tail/follow logs、三轮同进程幂等和幂等后 chat 全部通过。
+精确 cleanup、watchdog、22 项独立事后审计及最终现场复核证明 Python Worker、maintenance、
+Server 资源、Docker、端口、两张 GPU、固定模型和源码恢复基线。正式/watchdog/post-audit 清单
+文件 SHA-256 分别为 `c81af217bf80a4ca568de8c45e5a602c624fe87507967c6ce1f6f4dbe9fc9eb3`、
+`cabb29165c85b5a8b68cbe1023b8863ab2d12bc1d4385eed1eb271899c947fa7` 和
+`8d60613d2086ec708261368a126079f896bd49f96bba067ffac931ee3a6482da`。当前状态为
+`ready_for_review`；用户接受详细报告后只先执行阶段凭据退役，完成 401 失效证明后才能标记
+M6-B.5 `accepted`，不得自动进入 M7。

@@ -161,6 +161,13 @@
   `worker_ip + assigned_port`，并通过 Worker 131 项、workspace 190 项测试及全部离线质量门。
   preflight/injection attempt 11 随后通过 57/9 个清单条目、秘密扫描和全部外部不变式复核。
   当前为 `ready_for_maintenance_authorization`；formal attempt 7 仍需独立维护窗口授权。
+- formal attempt 7 已通过完整七状态链、Server-only buffered/streaming chat、completion、
+  logs、错误模型拒绝、三轮同进程幂等和精确 cleanup；watchdog 与 22 项独立事后审计确认原
+  Python Worker、maintenance、Server 资源、Docker、GPU、端口和源码全部恢复。三套清单文件
+  SHA-256 为 `c81af217bf80a4ca568de8c45e5a602c624fe87507967c6ce1f6f4dbe9fc9eb3`、
+  `cabb29165c85b5a8b68cbe1023b8863ab2d12bc1d4385eed1eb271899c947fa7` 和
+  `8d60613d2086ec708261368a126079f896bd49f96bba067ffac931ee3a6482da`。当前为
+  `ready_for_review`；用户接受报告后先退役阶段凭据，尚未进入 M7。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

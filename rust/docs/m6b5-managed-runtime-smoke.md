@@ -258,6 +258,22 @@ preflight attempt 11 已在治理 HEAD `76c0f5d855de3878fefb0a826da64053d070bd76
 服务 200、Python Worker运行、无 Rust 进程或 Managed 容器、两张 GPU 均为 0 MiB/0%，源码
 一致且干净。当前为 `ready_for_maintenance_authorization`；formal attempt 7 仍须新的明确授权。
 
+formal attempt 7 获得独立授权后，Model 20、Instance 35、ModelFile 14、端口 40000 和唯一
+GPU0 vLLM 容器完成完整七状态链，健康时间早于 Server `RUNNING` 写回。只经 Server 路径的
+models、buffered/streaming chat、completion、错误模型拒绝和 tail/follow logs 全部通过；至少
+三轮同进程重复协调保持相同 Model/Instance/port、container ID、spec hash、ownership labels
+和单一 route，幂等后 chat 仍成功。
+
+精确 cleanup 删除本 attempt 的 Model/Instance/ModelFile、owned container、listener 和本地
+状态，释放 GPU0 并恢复原 Python Worker；正式结果为 `PASS`、`smoke_passed=1`、
+`cleanup_ok=1`。正式目录 87 个条目和 watchdog 5 个条目全部通过，清单文件 SHA-256 分别为
+`c81af217bf80a4ca568de8c45e5a602c624fe87507967c6ce1f6f4dbe9fc9eb3` 和
+`cabb29165c85b5a8b68cbe1023b8863ab2d12bc1d4385eed1eb271899c947fa7`。独立 post-audit
+22 个条目全部通过，清单文件 SHA-256 为
+`8d60613d2086ec708261368a126079f896bd49f96bba067ffac931ee3a6482da`，外部变更为 `none`。
+当前为 `ready_for_review`；用户审阅通过后仍须按验收门退役 API Key、Context 和 token 文件，
+在旧 token 返回 401 前不得标记 `accepted` 或进入 M7。
+
 ## M6-B.5.1 准备门
 
 准备门必须证明：
