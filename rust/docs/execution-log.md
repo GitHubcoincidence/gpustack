@@ -3881,6 +3881,20 @@
 - 当前停止位置：M7-B 为 `ready_for_review`，不是 `accepted`。下一项只允许在聊天中交付并由
   用户审阅详细实现报告；用户接受后才能进入 M7-C 离线故障矩阵，任何真实阶段仍须独立授权。
 
+### 2026-10-29：M7-B 用户验收
+
+- 用户决定：用户审阅 M7-B 的状态链、自动重启、退避、日志代际、关键安全检查、203 项测试、
+  外部隔离边界和后续限制后明确表示接受，M7-B 从 `ready_for_review` 更新为 `accepted`。
+- 接受证据：产品提交
+  `421e5d3232a1890064729fedc8163b2dd9db3d0c`、治理检查点
+  `ee85317db40ede80f59a8c39c958f3ae4310151d`，以及 90 上 fmt、Clippy `-D warnings`、203 项
+  all-target 测试、doc-tests、locked/offline build 和本地目标文件 pre-commit 结果保持有效。
+- 漂移审计：目标仍服务于固定 v2.2.3 Server、本地 Docker、vLLM、local path、单 Worker 和
+  CLI-first 的 R1 范围；没有增加后端、运行时、分布式能力或把离线结果提升为真实恢复证据，
+  结论为 `aligned`。
+- 当前停止位置：M7-B `accepted`。下一项只允许进入 M7-C 离线故障矩阵的源码复核、实现、
+  fake/mock 验证和详细报告；任何真实 Server、Docker、服务、GPU 或凭据操作仍未获得授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

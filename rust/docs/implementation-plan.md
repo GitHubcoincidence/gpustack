@@ -915,7 +915,7 @@ locked/offline build 全部通过。下一项只允许进入 M7-B restart-on-err
 源码复核、实现、fake/mock 测试和详细报告；不得连接真实 Docker/Server、停止服务或使用 GPU。
 
 M7-B 离线实现现已固定在产品提交
-`421e5d3232a1890064729fedc8163b2dd9db3d0c`，状态为 `ready_for_review`，尚未由用户接受。
+`421e5d3232a1890064729fedc8163b2dd9db3d0c`，并经用户审阅更新为 `accepted`。
 实现对齐固定 Python Worker：受管理 runtime 从权威 `RUNNING` 进入终止或缺失事实时先写
 `ERROR`；启用 `restart_on_error` 后按进程内连续失败计数执行 0、10、20、40、80 秒并以
 300 秒封顶的退避，重新确认 Server、spec 和完整 ownership 后只清理精确失败容器，再把持久
@@ -923,5 +923,5 @@ M7-B 离线实现现已固定在产品提交
 退避，关闭策略则保持 `ERROR`。manifest、日志捕获和启动接管均支持非零 restart generation；
 只保留当前和上一代日志，权威永久删除清除全部代际。90 上 workspace fmt、Clippy
 `-D warnings`、203 项 all-target 测试、doc-tests 和 locked/offline build 全部通过，本地目标
-文件 pre-commit 与 `git diff --check` 通过。下一项只能交付 M7-B 详细实现报告并等待用户审阅；
-用户接受前不得进入 M7-C，任何真实 Docker、Server、服务或 GPU 操作仍未获得授权。
+文件 pre-commit 与 `git diff --check` 通过。下一项只允许进入 M7-C 离线故障矩阵的源码复核、
+实现、fake/mock 测试和详细报告；任何真实 Docker、Server、服务或 GPU 操作仍未获得授权。

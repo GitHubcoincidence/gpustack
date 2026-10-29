@@ -911,3 +911,13 @@ workload、使用 GPU 或创建阶段凭据。
 M7-A 状态为 `accepted`。下一项只允许进入 M7-B restart-on-error 与日志代际的离线源码复核、
 实现、fake/mock 测试和详细报告；不得连接真实 Docker socket、写真实 Server、停止 Python
 Worker、切换 maintenance、创建真实 workload、使用 GPU 或创建阶段凭据。
+
+## 2026-10-29 M7-B 自动重启与日志代际接受
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D203 | M7-B 重启恢复与 M7-C 边界 | M7-B 接受产品提交 `421e5d3232a1890064729fedc8163b2dd9db3d0c`：权威 `RUNNING` runtime 确认终止或缺失后先写 `ERROR`；启用策略时按进程内连续失败计数执行 0、10、20、40、80、160、300 秒封顶退避，在重新确认 Server、spec 和完整 ownership 后清理精确失败容器，把持久 `restart_count` 加一、写 `last_restart_time` 并返回 `SCHEDULED`；健康 `RUNNING` 清零暂态退避，关闭策略保持 `ERROR`。日志只保留当前和上一 restart generation，永久删除清除全部精确代际 | 用户已审阅状态链、重启授权、持久/暂态计数分离、日志代际、203 项测试、安全边界和未执行真实操作并接受 M7-B。M7-C 仍需独立覆盖 watch/Server/Docker 故障、启动与健康失败、端口冲突、退避期间删除和未知容器保护，不能从 M7-B 的聚焦测试外推。 |
+
+M7-B 状态为 `accepted`。下一项只允许进入 M7-C 离线故障矩阵的源码复核、实现、fake/mock
+测试和详细报告；不得连接真实 Docker socket、写真实 Server、停止 Python Worker、切换
+maintenance、创建真实 workload、使用 GPU 或创建阶段凭据。
