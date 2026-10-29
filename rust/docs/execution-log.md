@@ -3809,6 +3809,32 @@
 - 当前停止位置：下一项只允许进入 M7-A 启动接管的离线实现和自动化验证；完成后必须先在聊天
   中交付逐项实现报告并由用户审阅。M7-B 及任何真实阶段不能自动开始。
 
+### 2026-10-29：M7-A 启动接管离线实现待审阅
+
+- 目的与范围：只实现 Worker进程重启后的本地启动接管路径，继续使用 fake Server、fake
+  Docker、临时文件系统和模拟健康探针；没有连接真实 Docker socket、写真实 Server、停止
+  Python Worker、切换 maintenance、创建 workload、使用 GPU 或创建凭据。
+- 实现：revision 0 的空 watch seed 不再被当成 Server 权威空状态；首次 full sync 后分别按
+  `STARTING` 和 `RUNNING` 规划。`RUNNING` 只接管唯一完整 ownership tuple、spec hash、镜像、
+  运行状态和 `/v1/models` 健康均匹配的容器，并在健康探测后再次刷新 Server 和 Docker 两个
+  权威来源，随后重建 cache、manifest、当前日志跟踪和内存 route。已接管实例的后续协调直接
+  `Noop`，不重复探测或修改 runtime。
+- 失败边界：缺失或不健康的 `RUNNING` 容器、冲突 manifest、多匹配、部分标签、spec 漂移和
+  非零 `restart_count` 均 fail closed；不创建、启动、停止、删除容器，不发布 route，也不写回
+  Server。只有权威 `STARTING` 继续使用既有创建路径；`RUNNING` 缺失后的自动恢复、日志代际和
+  连续故障监测留给 M7-B/C。
+- 代码与证据：产品提交为
+  `852e16c87be2f6dfb6b0d0b9bc1c925399bb04a5`，只修改
+  `rust/crates/gpustack-worker/src/managed/runtime.rs` 和
+  `rust/crates/gpustack-worker/src/managed/reconciler.rs`。90 上 `cargo fmt --all --check`、
+  workspace/all-targets/all-features Clippy `-D warnings`、197 项 locked/offline all-target 测试、
+  doc-tests 和 locked/offline build 全部通过；目标文件的本地 pre-commit 和 `git diff --check`
+  通过。90 的仓库级 `make lint` 因环境没有 `uv` 未能启动，未产生文件或外部状态变化。
+- 解释：证据证明启动接管的离线判定、状态重建、幂等和 fail-closed 行为，不证明真实 Docker
+  crash recovery、vLLM 自动重启、日志代际、连接故障恢复或双 GPU；这些不能从本阶段外推。
+- 当前停止位置：M7-A 为 `ready_for_review`，不是 `accepted`。下一项只允许在聊天中交付并由
+  用户审阅详细实现报告；接受后才能进入 M7-B 离线设计/实现，任何真实阶段仍需独立授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
