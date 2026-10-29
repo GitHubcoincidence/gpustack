@@ -832,3 +832,10 @@ Server 资源、Docker、端口、两张 GPU、固定模型和源码恢复基线
 `8d60613d2086ec708261368a126079f896bd49f96bba067ffac931ee3a6482da`。当前状态为
 `ready_for_review`；用户接受详细报告后只先执行阶段凭据退役，完成 401 失效证明后才能标记
 M6-B.5 `accepted`，不得自动进入 M7。
+
+用户随后接受详细报告。API Key ID 21 删除返回 200，旧 token 返回 401，`m6b5-operator`
+Context 和 operator token 文件已删除，Cluster registration token 未改变；15 个退役清单条目
+和独立服务/隔离复核全部通过，清单文件 SHA-256 为
+`87e34cef088ee9506a8ced0157d2bd1eadb5f55f99292d5469089c473a04e6a0`。M6-B.5 状态更新为
+`accepted`。下一项只允许讨论和冻结 M7 的范围、故障模型、验收与授权边界，不自动进入真实
+执行。

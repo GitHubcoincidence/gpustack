@@ -26,10 +26,11 @@
 
 ## 当前状态
 
-- 状态：`ready_for_review`
+- 状态：`accepted`
 - 当前阶段：M1～M5、M6-A 和 M6-B.1～M6-B.4 已完成既定验收。M6-B.5.2 formal
   attempt 7 已通过冻结的完整状态链、Server-only 推理与日志、同进程三轮幂等、精确清理、
-  watchdog 和独立事后审计，当前等待用户审阅详细报告；尚未标记为 `accepted`，不得进入 M7。
+  watchdog 和独立事后审计。用户已接受详细报告，阶段专用凭据也已退役，M6-B.5 正式完成；
+  该接受不自动授权执行 M7。
 - 最新产品检查点：`d4920e71b89d6507f8e82fb2aff7dfbb24490103`。Managed 推理代理现使用
   已验证的 `worker_ip + assigned_port`，与 runtime 健康检查及 Python Worker代理语义一致；
   复合 destination、认证、内部路由表和敏感头剥离边界不变。本地、GitHub 与 90 已同步。
@@ -44,8 +45,10 @@
   Server 资源、Docker、GPU、端口、模型文件和仓库状态恢复基线。
 - formal attempt 7 使用 Model 20、Instance 35、ModelFile 14、端口 40000 和唯一 owned
   container `c63e726ffb484825f6a25fa731f610f2b3d1b225fcd08904e68e4d9e0930c106`；全部已按
-  精确 identity 删除。阶段专用 API Key、Context 和 token 文件保留到用户审阅通过，之后按
-  D161 退役并验证旧 token 返回 401；退役前不得把 M6-B.5 标记为 `accepted`。
+  精确 identity 删除。用户接受报告后，阶段专用 API Key ID 21、`m6b5-operator` Context 和
+  operator token 文件已按 D161 退役，旧 token 返回 401；Cluster registration token 保持不变。
+  退役证据含 15 个清单条目，清单文件 SHA-256 为
+  `87e34cef088ee9506a8ced0157d2bd1eadb5f55f99292d5469089c473a04e6a0`。
 
 ## 里程碑
 
@@ -3763,6 +3766,25 @@
   0 MiB/0%，源码 HEAD、origin 和工作树一致。
 - 当前停止位置：`ready_for_review`。用户审阅详细报告前不得标记 `accepted` 或进入 M7；审阅
   通过后只允许先退役阶段专用 API Key、Context 和 token 文件并证明旧 token 返回 401。
+
+### 2026-10-29：M6-B.5 阶段凭据退役并完成验收
+
+- 用户验收：用户接受 formal attempt 7 的详细报告，按 D193 只解锁阶段凭据退役，不自动执行
+  M7。
+- 精确删除：删除前再次确认唯一 API Key ID 21、名称
+  `rust-worker-m6b5-operator-20261028-v2`、scope `management,inference` 和本地 active Context
+  identity。Server `DELETE /v2/api-keys/21` 返回 200，原 token 随后访问 Worker管理接口返回
+  401；只删除 `m6b5-operator` Context 和
+  `/home/wujiaxing2/.config/gpustack-rust/m6b5-operator-token`。
+- 保留边界：M3-D 的 Cluster registration token 文件仍为相同 inode/size/mtime identity；没有
+  删除或改写其他 API Key、Context、Worker credential、模型文件、Server 资源或容器。
+- 独立复核：退役证据目录 mode 0700、15 个文件均为 0600，manifest 全部通过，秘密扫描无
+  命中，清单文件 SHA-256 为
+  `87e34cef088ee9506a8ced0157d2bd1eadb5f55f99292d5469089c473a04e6a0`。Server、Python
+  Worker health/metrics 均为 200；Rust 进程、Managed 容器和 20150/40000 listener 均为 0，
+  两张 GPU 均为 0 MiB/0%。
+- 当前停止位置：M6-B.5 更新为 `accepted`。下一项只允许共同讨论和冻结 M7 的目标、故障模型、
+  验收门和授权边界；本次验收不授权启动 M7、停止服务、创建 workload 或使用 GPU。
 
 ## 未解决风险与待确认事项
 

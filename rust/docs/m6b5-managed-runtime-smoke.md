@@ -274,6 +274,12 @@ models、buffered/streaming chat、completion、错误模型拒绝和 tail/follo
 当前为 `ready_for_review`；用户审阅通过后仍须按验收门退役 API Key、Context 和 token 文件，
 在旧 token 返回 401 前不得标记 `accepted` 或进入 M7。
 
+用户随后接受详细报告。阶段专用 API Key ID 21 删除返回 200，旧 token 访问管理接口返回
+401；`m6b5-operator` Context 和 operator token 文件已删除，Cluster registration token 保持
+相同 identity。退役证据目录含 15 个 0600 文件，manifest 与秘密扫描全部通过，清单文件
+SHA-256 为 `87e34cef088ee9506a8ced0157d2bd1eadb5f55f99292d5469089c473a04e6a0`。服务、容器、
+端口和 GPU 独立复核未发现变化，M6-B.5 状态更新为 `accepted`；该状态不自动授权执行 M7。
+
 ## M6-B.5.1 准备门
 
 准备门必须证明：

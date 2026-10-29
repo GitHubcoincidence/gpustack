@@ -168,6 +168,10 @@
   `cabb29165c85b5a8b68cbe1023b8863ab2d12bc1d4385eed1eb271899c947fa7` 和
   `8d60613d2086ec708261368a126079f896bd49f96bba067ffac931ee3a6482da`。当前为
   `ready_for_review`；用户接受报告后先退役阶段凭据，尚未进入 M7。
+- 用户已接受报告，API Key ID 21、`m6b5-operator` Context 和 operator token 文件完成退役，
+  旧 token 返回 401，Cluster registration token 保持不变。退役证据清单文件 SHA-256 为
+  `87e34cef088ee9506a8ced0157d2bd1eadb5f55f99292d5469089c473a04e6a0`。M6-B.5 当前为
+  `accepted`；下一步只允许讨论和冻结 M7，不自动授权真实执行。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
