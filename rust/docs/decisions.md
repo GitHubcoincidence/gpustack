@@ -921,3 +921,13 @@ Worker、切换 maintenance、创建真实 workload、使用 GPU 或创建阶段
 M7-B 状态为 `accepted`。下一项只允许进入 M7-C 离线故障矩阵的源码复核、实现、fake/mock
 测试和详细报告；不得连接真实 Docker socket、写真实 Server、停止 Python Worker、切换
 maintenance、创建真实 workload、使用 GPU 或创建阶段凭据。
+
+## 2026-10-29 M7-C 离线故障矩阵接受
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D204 | M7-C 故障矩阵与 M7-D 边界 | M7-C 接受产品提交 `0d861a4c9d5502341cbc78eefc60e30bb32c24fd`：控制面和 runtime fake/mock 矩阵覆盖 Worker crash 接管、watch/full sync、Server/Docker/健康探针暂时不可达、启动失败、健康超时、端口冲突、退避及删除竞态和未知/冲突容器。`STARTING` 只把确定性的 invalid spec、planner、ownership 或 workload 故障写为 `ERROR`，基础设施不确定性保持本地失败并保留 Server 状态与 runtime | 用户已审阅完整矩阵、唯一产品修正、212 项测试、隔离边界和真实证据限制并接受 M7-C。下一阶段只能用 90 上只读检查冻结真实输入与恢复材料，不能把离线结果直接提升为真实恢复通过。 |
+
+M7-C 状态为 `accepted`。下一项只允许执行 M7-D 90 只读预检：冻结源码、构建、Server、Runner、
+模型、GPU、端口、Python Worker恢复材料和代理注入边界；不得停止服务、切换 maintenance、创建
+workload、使用 GPU、创建凭据或执行 M7-E。M7-D 通过后仍须另行取得每个 M7-E 窗口的明确授权。

@@ -3930,6 +3930,21 @@
   详细实现报告；用户接受后才能进入 M7-D 90 只读预检。M7-D 仍不得停止服务、创建 workload
   或使用 GPU，M7-E 的每个真实窗口仍需各自明确授权。
 
+### 2026-10-29：M7-C 用户验收
+
+- 用户决定：用户审阅 M7-C 的错误分类、完整故障矩阵、212 项测试、代码提交、隔离边界和
+  未证明的真实恢复范围后明确表示接受，M7-C 从 `ready_for_review` 更新为 `accepted`。
+- 接受证据：产品提交
+  `0d861a4c9d5502341cbc78eefc60e30bb32c24fd`、治理检查点
+  `c34cda417c712454693d1c1122b7b103c6f52982`，以及 90 上 fmt、Clippy `-D warnings`、212 项
+  all-target 测试、doc-tests、locked/offline build 和本地目标文件 pre-commit 结果保持有效。
+- 漂移审计：目标、固定 Server/Docker/vLLM/local-path/single-Worker 范围、Server/Docker 权威
+  边界、未知容器保护和宿主机阶段证据角色均未改变；没有把 fake/mock 结果提升为真实恢复证据，
+  结论为 `aligned`。
+- 当前停止位置：M7-C `accepted`。下一项只允许执行 M7-D 90 只读预检并交付结果；不得停止
+  服务、切换 maintenance、创建 workload、使用 GPU、创建凭据或执行 M7-E。M7-D 通过也只会
+  进入 `ready_for_maintenance_authorization`，不会自动授权任一真实恢复窗口。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

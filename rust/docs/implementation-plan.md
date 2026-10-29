@@ -927,7 +927,7 @@ M7-B 离线实现现已固定在产品提交
 实现、fake/mock 测试和详细报告；任何真实 Docker、Server、服务或 GPU 操作仍未获得授权。
 
 M7-C 离线故障矩阵现已固定在产品提交
-`0d861a4c9d5502341cbc78eefc60e30bb32c24fd`，状态为 `ready_for_review`，尚未由用户接受。
+`0d861a4c9d5502341cbc78eefc60e30bb32c24fd`，并经用户审阅更新为 `accepted`。
 矩阵联合既有与新增 fake/mock 测试覆盖 Worker crash 后接管、watch 断线/full sync、周期 full
 sync 失败、Server 和 Docker 暂时不可达、vLLM 异常退出、Docker start 不确定失败、健康超时、
 端口冲突、退避期间权威删除、删除期间 Server/Docker 故障、未知容器和 ownership/spec 冲突。
@@ -935,5 +935,6 @@ sync 失败、Server 和 Docker 暂时不可达、vLLM 异常退出、Docker sta
 不再从 `STARTING` 擅自写 `ERROR`；确定性的 invalid spec、planner、ownership 或 workload
 失败仍按既有权威状态链报告。90 上 workspace fmt、Clippy `-D warnings`、212 项 all-target
 测试、doc-tests 和 locked/offline build 全部通过，本地目标文件 pre-commit 与
-`git diff --check` 通过。下一项只能交付 M7-C 详细报告并等待用户审阅；接受后才允许进入
-M7-D 只读预检，任何真实维护窗口、workload 或 GPU 操作仍须后续独立授权。
+`git diff --check` 通过。下一项只允许执行 M7-D 90 只读预检；它不得停止服务、切换
+maintenance、创建 workload、使用 GPU、创建凭据或执行 M7-E。任何真实维护窗口仍须后续
+逐项获得明确授权。
