@@ -3786,6 +3786,29 @@
 - 当前停止位置：M6-B.5 更新为 `accepted`。下一项只允许共同讨论和冻结 M7 的目标、故障模型、
   验收门和授权边界；本次验收不授权启动 M7、停止服务、创建 workload 或使用 GPU。
 
+### 2026-10-29：M7-0 恢复与双 GPU 设计冻结
+
+- 用户决定：接受 M7 继续使用宿主机 Rust Worker完成恢复能力和双 GPU TP=2，Worker容器化及
+  最终 R1 重跑留在 M8；本次只冻结设计，不执行维护窗口或 GPU 操作。
+- 冻结范围：启动时以 Server 权威 full sync 和 Docker 实际状态接管唯一完整 tuple/spec 匹配
+  的健康容器；多匹配、缺标签和 spec 冲突 fail closed；Worker退出不删除健康 Managed workload。
+  `restart_on_error` 对齐 Python Worker 的 0/10/20/40/80 秒至 300 秒封顶退避，持久
+  `restart_count` 与进程内连续失败计数分离，日志保留当前和上一代。
+- 故障与实验：Server/watch/Docker 短暂故障不能授权删除；90 上使用只影响 Rust Worker 的
+  TCP/Unix socket 代理，不停止真实 Server 或 Docker daemon。单 GPU 恢复拆为 Worker crash
+  接管、vLLM crash 自动恢复、连接故障恢复三个独立授权窗口；双 GPU继续使用固定
+  Qwen2.5-0.5B、Runner digest、GPU0/GPU1 和 TP=2。
+- 证据角色：M7 的真实结果是宿主机阶段证据；M8 必须使用容器化 Worker重跑恢复与单/双 GPU
+  套件后才能形成最终 R1 candidate。所有真实窗口继续要求 Python Worker精确 stop/restore、
+  watchdog、独立事后审计、短期凭据退役和用户审阅。
+- 漂移审计：目标、Server/Docker 权威边界、固定 vLLM/Docker/local-path/单 Worker范围、未知
+  容器保护和 CLI-first 原则均未改变。没有把 M6 的同进程幂等证据提升为 crash recovery，也
+  没有把宿主机证据提升为容器化发布证据，结论为 `aligned`。
+- 结果：M7-0 `accepted`。本检查点只修改治理文档，没有改产品代码、连接真实 Docker socket、
+  写 Server、停止 Python Worker、切换 maintenance、创建 workload、使用 GPU 或创建凭据。
+- 当前停止位置：下一项只允许进入 M7-A 启动接管的离线实现和自动化验证；完成后必须先在聊天
+  中交付逐项实现报告并由用户审阅。M7-B 及任何真实阶段不能自动开始。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

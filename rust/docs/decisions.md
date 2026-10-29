@@ -885,3 +885,19 @@ D188-D190 不改变唯一模型、Runner、GPU0、状态链、Server-only CLI、
 | D192 | attempt 7 正式判定 | formal attempt 7 固定判为 PASS：完整七状态链、健康先于 `RUNNING`、Server-only models/buffered/streaming chat/completion、错误模型拒绝、tail/follow logs、三轮同进程幂等和幂等后 chat 全部通过；正式与 watchdog 完成封存，`smoke_passed=1`、`cleanup_ok=1`。独立 post-audit 22 个条目和最终现场复核证明 Python Worker、maintenance、Server 资源、Docker、两张 GPU、端口、本地状态、固定模型与仓库恢复基线 | attempt 7 首次覆盖 M6-B.5 冻结的完整业务与恢复门，不再用部分成功或仅恢复成功替代业务验收。三条独立证据链及 manifest 校验使 PASS 可复核。 |
 | D193 | 通过后的审阅与凭据边界 | attempt 7 通过后状态只进入 `ready_for_review`。用户审阅详细报告前不得标记 `accepted` 或进入 M7；用户接受后先按 D161 删除阶段 API Key、Context 和 token 文件并验证旧 token 返回 401，凭据退役证据通过后才把 M6-B.5 标记为 `accepted` | 正式 smoke 通过不替代用户的阶段审阅，也不能让短期管理凭据无限保留。把业务 PASS、用户接受和凭据退役分开记录，既保护验收权，又闭合安全生命周期。 |
 | D194 | M6-B.5 最终接受 | 用户已接受 attempt 7 详细报告；API Key ID 21 删除返回 200，旧 token 返回 401，`m6b5-operator` Context 与 operator token 文件已删除，Cluster registration token 保持不变。退役证据和独立复核通过后，M6-B.5 状态更新为 `accepted`；下一步只允许讨论和冻结 M7，不自动授权其真实执行 | D192 的业务门、D193 的用户审阅门和 D161 的凭据生命周期门已全部闭合。把下一阶段重新放回设计与授权门，避免前一阶段验收被解释成新的维护或 GPU 操作权限。 |
+
+## 2026-10-29 M7 恢复与双 GPU 设计冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D195 | M7 角色与 M8 边界 | M7 继续使用宿主机 Rust Worker，完成进程重启接管、故障恢复、restart-on-error、日志代际和本机双 A100 TP=2。M7 证据只验收宿主机阶段能力；M8 再实现 Worker 容器化，并以容器化 Worker 重跑单/双 GPU 和恢复套件后才能形成 R1 candidate | 实现计划已经把可靠宿主机 Worker 和容器化 candidate 分在 M7/M8；同时章程要求最终发布形态和恢复证据来自 Worker 容器。显式区分阶段证据与最终证据可避免提前宣称 R1 通过。 |
+| D196 | 启动接管判定 | 启动时联合 Server 权威 full sync 与 Docker 枚举。唯一完整 ownership tuple 且 spec hash 匹配的健康容器原位接管，并重建端口、route、manifest 与日志跟踪；零匹配只在权威期望要求运行时创建；多匹配、标签缺失或 spec 冲突 fail closed。Worker退出不删除健康 Managed 容器 | Server 与 Docker 分别拥有期望状态和实际状态，本地 manifest 不能单独授权副作用。严格 tuple/spec 判定既支持 crash recovery，也防止误接管或误删未知/Python/Lab workload。 |
+| D197 | 自动重启与日志代际 | 对齐固定 Python Worker：`restart_on_error=true` 时延迟为 0、10、20、40、80 秒并以 300 秒封顶；进程内连续失败计数在重新健康进入 `RUNNING` 后清零。每次重启递增 Server 持久 `restart_count` 并写 `last_restart_time`，重新经过权威调度/启动状态；关闭策略时停留 `ERROR`。只保留当前和上一代日志，`--previous` 读取上一代，永久删除清除全部日志 | 直接对齐已部署兼容 oracle，避免 Rust 引入第二套重启语义。区分持久 restart count 和暂态连续失败计数，既支持审计，也避免恢复后继承无限退避。 |
+| D198 | Server、watch 与 Docker 故障模型 | 短暂 Server/watch 故障保留健康 workload，禁止从空缓存推导删除，恢复后强制 full sync；Docker API 短暂故障进入健康降级和重试，不立即把全部实例写为失败，恢复后重新枚举。90 上只通过 Rust Worker 专用 TCP/Unix socket 代理制造中断，不停止真实 GPUStack Server 或宿主机 Docker daemon | 共享 Server 和 Docker daemon 的全局停止会影响现有系统且扩大授权面；Worker 专用代理能验证相同客户端错误路径，同时把故障隔离在 Rust 实验范围内。 |
+| D199 | 单 GPU 恢复窗口 | M7-E 拆为三个独立授权窗口：GPU0 上精确终止/重启 Rust Worker并接管同一健康容器；精确终止 owned vLLM 并验证 ERROR、退避、restart count、新容器、两代日志和推理恢复；中断 Rust Worker 专用 Server/Docker 代理并验证 workload 保留及恢复收敛。每个窗口都独立 watchdog、cleanup、Python Worker恢复和事后审计 | 把不同故障源拆开可明确归因、缩短 GPU 占用并限制单次失败面；上一窗口通过不能自动授权下一窗口。 |
+| D200 | 双 GPU TP=2 固定输入 | M7-F 复用固定 Qwen2.5-0.5B revision/local path 和固定 Runner digest，按稳定 UUID 有序分配 GPU0/GPU1，并设置 `tensor_parallel_size=2`。阶段必须证明两卡真实活动、完整 Managed 状态链、Server-only 推理/日志、幂等和删除零残留 | 复用已验证的小模型和镜像减少下载、模型兼容性与启动时间变量，使结果主要归因于多 GPU planner、Docker分配和 vLLM tensor parallel 路径。 |
+| D201 | 门禁、凭据与授权 | M7 依次执行 M7-0 文档冻结、M7-A/B/C 离线实现与验证、M7-D 90 只读预检、M7-E 三个单 GPU 窗口和 M7-F 双 GPU 窗口。设计接受只解锁 M7-A 离线实现，不授权真实 Docker/Server/GPU 操作。真实阶段凭据按阶段临时创建，用户审阅后退役并验证失效；M7 接受不自动进入 M8 | 离线实现、只读准备和风险窗口分离，延续已经验证的最小授权、证据与凭据生命周期，避免设计或前一窗口被解释成后续外部写权限。 |
+
+M7-0 当前为 `accepted`。下一项只允许执行 M7-A 启动接管的离线实现、测试和详细实现报告；
+不得连接真实 Docker socket、写真实 Server、停止 Python Worker、切换 maintenance、创建
+workload、使用 GPU 或创建阶段凭据。
