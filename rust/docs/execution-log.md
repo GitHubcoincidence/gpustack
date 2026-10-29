@@ -3945,6 +3945,47 @@
   服务、切换 maintenance、创建 workload、使用 GPU、创建凭据或执行 M7-E。M7-D 通过也只会
   进入 `ready_for_maintenance_authorization`，不会自动授权任一真实恢复窗口。
 
+### 2026-10-29：M7-D 90 只读预检通过
+
+- 目标和授权：只冻结 M7-E/F 的源码、binary、Server、Worker、Python Worker恢复材料、Runner、
+  模型、双 A100、端口、专用代理和短期凭据准备条件。没有停止服务、切换 maintenance、写
+  Server、创建 workload、启动代理、创建凭据或使用 GPU。
+- 源码和构建：治理 HEAD/origin 为
+  `d6bba026d818370cae3ed0b46e6958ec3af693b0`，M7-C 产品提交
+  `0d861a4c9d5502341cbc78eefc60e30bb32c24fd` 为祖先，工作树干净；Rust 1.99.1 完成
+  workspace/all-targets/all-features locked/offline build。`Cargo.lock` 和 binary SHA-256 分别为
+  `90f1aeaa22b4f06dc77e48497f2fe3394ab07ab55441c8ddb3124a67dca07010`、
+  `6d147b8bb723833aa0b1432a16218f5d40cdc4479ee694a37967a0861d680a75`，binary 自报 commit
+  `d6bba026d818`。
+- 真实身份：Server 为 v2.2.3/`1cfcbbf`；Cluster 和 per-Worker token 的独立只读查询都解析为
+  Worker ID 5/name `rust-m3d-r760xa`，本地 identity UUID 为
+  `7c4e07a3-6b97-4577-9ff0-1fc6c2319596`。Worker 处于 maintenance、可达且没有关联实例，
+  operator Context 为空，M7 operator token 路径未使用。
+- Runtime 输入：Runner digest 精确匹配；Qwen2.5-0.5B 固定 revision、规范路径、10 文件、
+  999,604,126 字节、架构、chat template 和全文件 manifest 两次通过。GPU0/GPU1 UUID 与
+  80 GiB identity 精确匹配，均为 0 MiB、0% 且没有 compute process；Rust 进程、ownership
+  容器和 18080/20150/20151/40000-40063 监听均为 0。
+- 恢复与故障边界：Python Worker固定为同一运行容器
+  `68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165`，恢复动作只能 start 同一
+  对象并等待 health/metrics 200。M7 Server代理固定为 loopback `18080 -> 80`，Docker代理固定
+  为 M7 state 下的独立 Unix socket；两者必须以独立进程组仅注入 Rust Worker，真实 Server、
+  Docker daemon 和 Python Worker路径不变。本阶段只验证工具、权限、端口和路径，没有启动代理。
+- 诊断尝试：attempt 1 因旧 `version --format json` 参数在 binary identity 门停止；attempt 2 因
+  Docker image 稀疏 Config 不含非必要 `User` 键在 Runner read 门停止。两次均未进入外部写入，
+  分别以清单 identity `059254c0b4d26b24026047a70b033ab37bac052c74960df318a16a18447fd427` 和
+  `dc6e0465918390b88703366f8b9aae109a6a51d05a98619125baa72bf72fb079` 封存，不计为通过证据。
+- 正式证据：attempt 3 为 `PASS`；证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m7d-readonly-preflight-d6bba026-attempt-3`，
+  清单文件 SHA-256 为 `6a2fcd779b51f20c0e31fc62c8c00c22d227912cadcfd57e521c7a8e323957c2`。
+  独立复核确认 49 个文件全为 `0600`、无 raw response、秘密扫描和 manifest 通过，13 组正式
+  before/after 快照一致；完成后 Server/Python Worker/metrics 仍为 200，Python Worker容器未变，
+  两卡空闲，仓库干净。
+- 漂移审计：检查范围仍是固定 v2.2.3 Server、本地 Docker、固定 Runner/Qwen、单 Worker、
+  宿主机阶段和 CLI-first；没有引入新后端、Kubernetes、跨 Worker推理或容器化 Worker，也没有
+  把只读准备结果提升为真实恢复证据，结论为 `aligned`。
+- 当前停止位置：M7-D 为 `ready_for_maintenance_authorization`。下一项只能请求并冻结 M7-E.1
+  独立维护窗口；M7-D 结果不授权 M7-E.1，也不能扩展为 M7-E.2、M7-E.3 或 M7-F 的授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

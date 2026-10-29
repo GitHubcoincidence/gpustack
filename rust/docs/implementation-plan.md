@@ -938,3 +938,13 @@ sync 失败、Server 和 Docker 暂时不可达、vLLM 异常退出、Docker sta
 `git diff --check` 通过。下一项只允许执行 M7-D 90 只读预检；它不得停止服务、切换
 maintenance、创建 workload、使用 GPU、创建凭据或执行 M7-E。任何真实维护窗口仍须后续
 逐项获得明确授权。
+
+M7-D attempt 3 已在治理 HEAD `d6bba026d818370cae3ed0b46e6958ec3af693b0` 通过。固定
+Rust binary、`Cargo.lock`、Server v2.2.3、Worker ID 5/UUID、Python Worker恢复对象、Runner
+digest、Qwen2.5-0.5B revision/manifest、两张 A100 identity、Managed 端口和 M7 短期凭据准备
+条件；`127.0.0.1:18080` Server TCP 代理与独立 Docker Unix socket 只记录边界，没有启动。
+49 个 `0600` 证据文件、秘密扫描、manifest 复算以及服务、容器、GPU、端口、进程和 Server
+查询的 13 组前后不变式全部通过。证据清单文件 SHA-256 为
+`6a2fcd779b51f20c0e31fc62c8c00c22d227912cadcfd57e521c7a8e323957c2`。当前状态为
+`ready_for_maintenance_authorization`；下一步只能在新授权下准备 M7-E.1，不能自动执行或把
+该授权扩展到 M7-E.2、M7-E.3 或 M7-F。

@@ -20,6 +20,7 @@
 - [m6a3-managed-file-runbook.md](m6a3-managed-file-runbook.md)：M6-A.3 只读预检、真实无 Docker 文件准备 smoke、证据与回滚边界。
 - [m6b4-managed-runtime-preflight.md](m6b4-managed-runtime-preflight.md)：M6-B.4 只读预检、离线故障注入、证据与停止边界。
 - [m6b5-managed-runtime-smoke.md](m6b5-managed-runtime-smoke.md)：M6-B.5 凭据准备、正式单 GPU Managed smoke、watchdog、验收与回滚边界。
+- [m7d-readonly-preflight.md](m7d-readonly-preflight.md)：M7-D 真实输入、恢复材料、专用代理边界、只读证据与维护授权停止点。
 
 ## 文档语言
 
@@ -172,6 +173,12 @@
   旧 token 返回 401，Cluster registration token 保持不变。退役证据清单文件 SHA-256 为
   `87e34cef088ee9506a8ced0157d2bd1eadb5f55f99292d5469089c473a04e6a0`。M6-B.5 当前为
   `accepted`；下一步只允许讨论和冻结 M7，不自动授权真实执行。
+- M7-A、M7-B 和 M7-C 已完成离线实现、完整质量门和用户验收。M7-D attempt 3 在治理 HEAD
+  `d6bba026d818370cae3ed0b46e6958ec3af693b0` 通过 locked/offline 构建、Server/Worker/Runner/
+  模型/双 A100/端口/凭据准备/代理边界及 13 组前后不变式；证据清单文件 SHA-256 为
+  `6a2fcd779b51f20c0e31fc62c8c00c22d227912cadcfd57e521c7a8e323957c2`。当前为
+  `ready_for_maintenance_authorization`；未授权停止 Python Worker、启动代理、创建 workload、
+  使用 GPU 或执行 M7-E，M7-E 的三个窗口和 M7-F 仍须分别明确授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

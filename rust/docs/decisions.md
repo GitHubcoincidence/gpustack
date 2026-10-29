@@ -931,3 +931,13 @@ maintenance、创建真实 workload、使用 GPU 或创建阶段凭据。
 M7-C 状态为 `accepted`。下一项只允许执行 M7-D 90 只读预检：冻结源码、构建、Server、Runner、
 模型、GPU、端口、Python Worker恢复材料和代理注入边界；不得停止服务、切换 maintenance、创建
 workload、使用 GPU、创建凭据或执行 M7-E。M7-D 通过后仍须另行取得每个 M7-E 窗口的明确授权。
+
+## 2026-10-29 M7-D 只读预检通过
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D205 | M7-D 固定输入与 M7-E 授权边界 | M7-D attempt 3 在治理 HEAD `d6bba026d818370cae3ed0b46e6958ec3af693b0` 通过：固定 Server v2.2.3、Worker ID 5/UUID、Rust binary、`Cargo.lock`、Python Worker恢复对象、Runner digest、Qwen revision/manifest、两张 A100 identity、端口、短期凭据准备条件，以及只注入 Rust Worker 的 loopback TCP/独立 Unix socket 代理边界。49 个受保护证据文件、秘密扫描、manifest 和 13 组 before/after 外部不变式通过，证据清单文件 SHA-256 为 `6a2fcd779b51f20c0e31fc62c8c00c22d227912cadcfd57e521c7a8e323957c2`。状态只进入 `ready_for_maintenance_authorization` | 该结果证明正式输入与恢复材料可用、专用代理不会要求停止真实 Server/Docker daemon，但没有实际停止 Python Worker、创建 workload、启动代理、使用 GPU 或证明恢复行为。M7-E.1/E.2/E.3 和 M7-F 必须分别获得精确授权，上一窗口通过不能外推为下一窗口授权。 |
+
+M7-D 当前为 `ready_for_maintenance_authorization`。下一项只允许共同冻结 M7-E.1 的资源名称、
+watchdog、停止/恢复顺序、故障动作、验收与 cleanup，然后请求该唯一窗口的明确授权；不得自动
+执行 M7-E.1，也不得预授权 M7-E.2、M7-E.3 或 M7-F。
