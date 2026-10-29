@@ -3895,6 +3895,41 @@
 - 当前停止位置：M7-B `accepted`。下一项只允许进入 M7-C 离线故障矩阵的源码复核、实现、
   fake/mock 验证和详细报告；任何真实 Server、Docker、服务、GPU 或凭据操作仍未获得授权。
 
+### 2026-10-29：M7-C 离线故障矩阵待审阅
+
+- 目的与范围：以 fake Server、fake Docker/runtime、临时文件系统、模拟健康探针和已有端口
+  probe 验证 M7 冻结的恢复故障矩阵。没有连接真实 Docker socket、写真实 Server、停止
+  Python Worker、切换 maintenance、创建真实 workload、使用 GPU 或创建阶段凭据。
+- 控制面矩阵：既有 watch 断线测试证明保留最后快照并在重连 full sync 后替换；新增周期 full
+  sync 失败场景证明失败刷新不会清空 assignment，watch 继续连接，下一次完整成功后才原子替换
+  快照。已有 partial refresh 测试继续证明三类资源任一列表失败都不能发布部分状态。
+- runtime 矩阵：新增 Server read、Docker list 和 vLLM health probe 短暂失败场景，证明已发布
+  RUNNING route、容器和 Server 状态均保持，恢复后继续同容器协调。新增 Docker start 失败场景
+  证明 `STARTING` 保留权威状态和已创建容器，下一轮原位接管并启动，不重复创建。
+- 删除与退避：新增退避期间 Server 删除场景，证明 stale desired 和 404 不会直接触发副作用，
+  只有后续 full sync 移除 assignment 后才按重复 404 和完整 ownership 清理。删除期间 Server
+  read 或 Docker list 失败同样保留容器、manifest 和日志；两者恢复后才完成精确清理。
+- 所有权保护：未知无匹配标签容器与 owned workload 并存时不受影响；相同 Instance ID 但 Lab
+  mode 或错误 spec hash 的容器均 fail closed，停止、删除和 Server 更新计数保持为零。既有
+  multiple candidate、部分标签、启动退出、健康 deadline、端口冲突和 Worker crash 接管测试
+  构成矩阵其余项目。
+- 产品修正：`STARTING` 协调现在区分基础设施不确定错误和确定性 workload 错误。Server API、
+  Docker Client/Request/NotFound/响应异常、NVML、store、registry 与环境错误只返回本地
+  `Failed`；Docker `InvalidSpec`、planner/resolve、ownership 安全冲突和确认的 workload 故障
+  仍走脱敏 `ERROR` 写回。分类本身有独立单元契约测试。
+- 代码与质量门：产品提交为
+  `0d861a4c9d5502341cbc78eefc60e30bb32c24fd`，只修改 `control.rs` 和
+  `managed/reconciler.rs`。90 上 workspace fmt、all-targets/all-features locked/offline
+  Clippy `-D warnings`、212 项 all-target 测试、doc-tests 和 locked/offline build 全部通过；
+  本地两文件 pre-commit 与 `git diff --check` 通过。90 没有 `uv`，本地没有 `make`，因此
+  仓库级 `make lint` 无法启动；没有因此产生文件或外部状态变化。
+- 漂移审计：范围仍是固定 v2.2.3 Server、本地 Docker、vLLM、local path、单 Worker 和
+  CLI-first；矩阵没有加入新后端、运行时或真实故障操作，也没有把 fake/mock 结果提升为真实
+  恢复证据，结论为 `aligned`。
+- 当前停止位置：M7-C 为 `ready_for_review`，不是 `accepted`。下一项只允许交付并共同审阅
+  详细实现报告；用户接受后才能进入 M7-D 90 只读预检。M7-D 仍不得停止服务、创建 workload
+  或使用 GPU，M7-E 的每个真实窗口仍需各自明确授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
