@@ -3849,6 +3849,38 @@
   源码复核、实现、fake/mock 验证和详细报告；任何真实 Server、Docker、服务或 GPU 操作仍未
   获得授权。
 
+### 2026-10-29：M7-B 自动重启与日志代际离线实现待审阅
+
+- 目的与范围：只实现固定 Python Worker兼容的 `restart_on_error`、连续失败退避、持久重启
+  元数据和日志代际；全部验证使用 fake Server、fake runtime、临时文件系统和模拟健康探针。
+  没有连接真实 Docker socket、写真实 Server、停止 Python Worker、切换 maintenance、创建
+  真实 workload、使用 GPU 或创建阶段凭据。
+- 故障状态链：协调器持续监测已接管的 `RUNNING` runtime。健康时保持 route 并清零进程内
+  连续失败计数；容器进入终止状态或权威 runtime 缺失时，在再次确认 Instance 仍由本 Worker
+  管理且状态仍为 `RUNNING` 后写 `ERROR`。HTTP/model 暂时未就绪、Docker API 错误或权威冲突
+  只产生本地结果，不把不确定性升级为批量 Server 状态写入。
+- 重启策略：`restart_on_error=false` 时实例停留 `ERROR`。启用时，暂态失败计数产生
+  0、10、20、40、80、160、300 秒封顶的实际序列；到期后重新获取权威 plan、镜像和 ownership，
+  只停止并删除完整 tuple/spec 匹配的失败容器，再把 Server 持久 `restart_count` 加一、写
+  RFC3339 `last_restart_time`、清空 message 并设置 `SCHEDULED`。只有 Server 更新成功才记录
+  本次暂态尝试，随后由既有权威调度链重新进入 `STARTING -> RUNNING`。
+- 日志与代际：manifest、创建、启动接管和日志捕获均使用权威 `restart_count`。新一代日志开始
+  前只保留当前代和前一代；`model logs --previous` 因而可以读取上一代。权威永久删除会清除该
+  Instance 的全部精确日志代际，同时不修改其他 Instance 的文件；异常文件类型继续 fail closed。
+- 契约和测试：client 增加 `Model.restart_on_error`，固定 v2.2.3 fixture 证明该值为 true，缺失
+  字段按兼容默认 true 处理。新增/更新 planner ERROR 重建、策略关闭、首次立即重启、连续退避、
+  健康复位、非零代际接管、两代保留、全部清理和容器副作用计数测试。产品提交为
+  `421e5d3232a1890064729fedc8163b2dd9db3d0c`。
+- 质量门：90 上 `cargo fmt --all --check`、workspace/all-targets/all-features locked/offline
+  Clippy `-D warnings`、203 项 all-target 测试、doc-tests 和 locked/offline build 全部通过；本地
+  六个目标文件的 pre-commit 与 `git diff --check` 通过。90 的仓库级 `make lint` 仍因环境没有
+  `uv` 不可执行，本阶段没有因此修改文件或外部状态。
+- 解释与边界：本阶段证明离线状态机、重启授权、退避、日志代际和幂等保护，不证明真实 vLLM
+  crash recovery、watch/Server/Docker 连接故障矩阵、健康超时、端口竞争、真实 GPU 或双 GPU。
+  这些只允许在后续 M7-C～F 的各自门禁和授权下验证。
+- 当前停止位置：M7-B 为 `ready_for_review`，不是 `accepted`。下一项只允许在聊天中交付并由
+  用户审阅详细实现报告；用户接受后才能进入 M7-C 离线故障矩阵，任何真实阶段仍须独立授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
