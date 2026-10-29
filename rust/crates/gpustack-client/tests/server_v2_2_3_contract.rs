@@ -205,6 +205,7 @@ fn typed_responses_are_tolerant_and_preserve_the_update_contract() {
         serde_json::from_str(MODELS_FULL_SYNC).expect("typed Models response");
     assert_eq!(models.pagination.page, -1);
     assert_eq!(models.items[0].backend.as_deref(), Some("vLLM"));
+    assert_eq!(models.items[0].restart_on_error, Some(true));
 
     let workers: Paginated<WorkerPublic> =
         serde_json::from_str(WORKER_MAINTENANCE_ME).expect("typed maintenance Worker response");

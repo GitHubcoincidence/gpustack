@@ -85,6 +85,15 @@ impl ManagedWorkloadPlanner {
         self.plan_for_state(model, instance, false, "running")
     }
 
+    /// Reconstructs a failed workload before an authorized restart transition.
+    pub fn plan_error(
+        &self,
+        model: &ModelPublic,
+        instance: &ModelInstancePublic,
+    ) -> Result<WorkloadSpecV2, ManagedRuntimePlanError> {
+        self.plan_for_state(model, instance, false, "error")
+    }
+
     fn plan_for_state(
         &self,
         model: &ModelPublic,
@@ -657,6 +666,32 @@ mod tests {
                 .planner
                 .plan_existing(&fixture.model, &fixture.instance)
                 .expect_err("STARTING adoption must remain state-specific")
+                .to_string()
+                .contains("STARTING")
+        );
+    }
+
+    #[test]
+    fn error_recovery_reconstructs_the_same_spec_without_authorizing_create() {
+        let mut fixture = Fixture::new();
+        let starting = fixture
+            .planner
+            .plan(&fixture.model, &fixture.instance)
+            .expect("STARTING plan");
+        fixture.instance.state = ModelInstanceState("error".to_string());
+        fixture.planner.gpus[0].running_compute_processes = 1;
+
+        let failed = fixture
+            .planner
+            .plan_error(&fixture.model, &fixture.instance)
+            .expect("ERROR recovery plan");
+
+        assert_eq!(failed, starting);
+        assert!(
+            fixture
+                .planner
+                .plan(&fixture.model, &fixture.instance)
+                .expect_err("ERROR must not authorize create planning")
                 .to_string()
                 .contains("STARTING")
         );

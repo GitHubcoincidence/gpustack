@@ -38,7 +38,6 @@ impl ManagedRuntimeManifest {
             || self.spec.deployment_id != self.instance_id.to_string()
             || self.spec.labels.get(crate::workload::LABEL_WORKER_UUID) != Some(&self.worker_uuid)
             || self.container_id.trim().is_empty()
-            || self.restart_count != 0
         {
             return Err(ManagedStoreError::Unsafe(
                 "Managed manifest identity is inconsistent".to_string(),
@@ -66,11 +65,12 @@ pub trait ManagedRuntimeStore: Send + Sync + 'static {
         instance_id: i64,
         restart_count: u32,
     ) -> Result<PathBuf, ManagedStoreError>;
-    fn remove_current_log(
+    fn prune_logs(
         &self,
         instance_id: i64,
-        restart_count: u32,
+        current_restart_count: u32,
     ) -> Result<(), ManagedStoreError>;
+    fn remove_logs(&self, instance_id: i64) -> Result<(), ManagedStoreError>;
 }
 
 pub struct FsManagedRuntimeStore {
@@ -127,12 +127,45 @@ impl FsManagedRuntimeStore {
 
     fn log_path(&self, instance_id: i64, restart_count: u32) -> Result<PathBuf, ManagedStoreError> {
         validate_instance_id(instance_id)?;
-        if restart_count != 0 {
-            return Err(ManagedStoreError::Unsafe(
-                "M6-B supports only restart count 0".to_string(),
-            ));
-        }
         Ok(self.logs.join(format!("{instance_id}.{restart_count}.log")))
+    }
+
+    fn log_generations(&self, instance_id: i64) -> Result<Vec<(u32, PathBuf)>, ManagedStoreError> {
+        validate_instance_id(instance_id)?;
+        let prefix = format!("{instance_id}.");
+        let mut generations = Vec::new();
+        for entry in fs::read_dir(&self.logs)
+            .map_err(|error| filesystem("read Managed logs", &self.logs, error))?
+        {
+            let entry =
+                entry.map_err(|error| filesystem("read Managed log entry", &self.logs, error))?;
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            let Some(restart_count) = name
+                .strip_prefix(&prefix)
+                .and_then(|value| value.strip_suffix(".log"))
+                .filter(|value| {
+                    !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
+                })
+                .and_then(|value| value.parse::<u32>().ok())
+            else {
+                continue;
+            };
+            if !entry
+                .file_type()
+                .map_err(|error| filesystem("inspect Managed log entry", entry.path(), error))?
+                .is_file()
+            {
+                return Err(ManagedStoreError::Unsafe(format!(
+                    "Managed log generation is not a regular file: {}",
+                    entry.path().display()
+                )));
+            }
+            generations.push((restart_count, entry.path()));
+        }
+        generations.sort_by_key(|(restart_count, _)| *restart_count);
+        Ok(generations)
     }
 }
 
@@ -217,13 +250,36 @@ impl ManagedRuntimeStore for FsManagedRuntimeStore {
         Ok(path)
     }
 
-    fn remove_current_log(
+    fn prune_logs(
         &self,
         instance_id: i64,
-        restart_count: u32,
+        current_restart_count: u32,
     ) -> Result<(), ManagedStoreError> {
-        remove_file_if_present(&self.log_path(instance_id, restart_count)?)?;
-        sync_directory(&self.logs)
+        let previous = current_restart_count.checked_sub(1);
+        let mut changed = false;
+        for (restart_count, path) in self.log_generations(instance_id)? {
+            if restart_count == current_restart_count || Some(restart_count) == previous {
+                continue;
+            }
+            remove_file_if_present(&path)?;
+            changed = true;
+        }
+        if changed {
+            sync_directory(&self.logs)?;
+        }
+        Ok(())
+    }
+
+    fn remove_logs(&self, instance_id: i64) -> Result<(), ManagedStoreError> {
+        let mut changed = false;
+        for (_, path) in self.log_generations(instance_id)? {
+            remove_file_if_present(&path)?;
+            changed = true;
+        }
+        if changed {
+            sync_directory(&self.logs)?;
+        }
+        Ok(())
     }
 }
 
@@ -531,6 +587,35 @@ mod tests {
                 0o600
             );
         }
+    }
+
+    #[test]
+    fn keeps_current_and_previous_log_generations_then_purges_on_delete() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let store = FsManagedRuntimeStore::open(directory.path(), directory.path())
+            .expect("open Managed store");
+        for restart_count in 0..=2 {
+            fs::write(
+                store.logs.join(format!("301.{restart_count}.log")),
+                format!("generation {restart_count}"),
+            )
+            .expect("seed log generation");
+        }
+        let unrelated = store.logs.join("302.0.log");
+        fs::write(&unrelated, b"unrelated").expect("seed unrelated log");
+
+        store.prune_logs(301, 2).expect("prune log generations");
+
+        assert!(!store.logs.join("301.0.log").exists());
+        assert!(store.logs.join("301.1.log").is_file());
+        assert!(store.logs.join("301.2.log").is_file());
+        assert!(unrelated.is_file());
+
+        store.remove_logs(301).expect("remove all instance logs");
+
+        assert!(!store.logs.join("301.1.log").exists());
+        assert!(!store.logs.join("301.2.log").exists());
+        assert!(unrelated.is_file());
     }
 
     #[test]

@@ -487,6 +487,17 @@ fn render_managed_runtime_result(
         ManagedRuntimeOutcome::Errored { message } => {
             write!(formatter, "outcome=error message={message:?}")
         }
+        ManagedRuntimeOutcome::RestartPending {
+            delay_secs,
+            remaining_secs,
+        } => write!(
+            formatter,
+            "outcome=restart_pending delay_secs={delay_secs} remaining_secs={remaining_secs}"
+        ),
+        ManagedRuntimeOutcome::RestartScheduled { restart_count } => write!(
+            formatter,
+            "outcome=restart_scheduled restart_count={restart_count}"
+        ),
         ManagedRuntimeOutcome::Deleted { container_removed } => write!(
             formatter,
             "outcome=deleted container_removed={container_removed}"
@@ -612,6 +623,12 @@ impl ManagedRuntimeStats {
             }
             ManagedRuntimeOutcome::Errored { .. } => {
                 self.errored = self.errored.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::RestartPending { .. } => {
+                self.noops = self.noops.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::RestartScheduled { .. } => {
+                self.starting = self.starting.saturating_add(1);
             }
             ManagedRuntimeOutcome::Deleted { .. } => {
                 self.deleted = self.deleted.saturating_add(1);
