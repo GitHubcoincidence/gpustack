@@ -1029,3 +1029,12 @@ workload、使用 GPU或执行 M7-E.2/M7-E.3/M7-F。
 M7-E.2 当前状态为 `accepted / tooling_pending`。下一项只允许实现五份正式脚本并执行语法、
 ShellCheck、必需/禁止模式、fake/mock和静态隔离门；不得自动创建凭据、停止 Python Worker、切换
 maintenance、创建 workload、使用 GPU或执行容器 SIGKILL，也不得进入 M7-E.3 或 M7-F。
+
+## 2026-10-30 M7-E.2 正式工具链静态门
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D225 | M7-E.2 五脚本工具链与下一停止点 | 正式工具固定在提交 `b6ec4eac6c506e6d7a3ad96011c5b8b58d35f24d`。executor只精确 KILL完整 ID的旧 vLLM并保持 Rust Worker identity；同时采集 Server watch、Docker wait/events、旧/新容器、restart字段、ModelFile、GPU0和两代日志，完成直连/Server推理与三轮幂等。lib/watchdog可在完整 ownership/spec匹配时逐个清理最多两代容器，post-audit独立复核基线。ShellCheck、90 Bash语法、locked/offline workspace build、9 项精确定向测试、状态链与双代 cleanup mock均通过 | 静态门证明工具表达了冻结协议并具有失败闭合回滚，但不证明真实 Server调度、GPU runtime重建或数据面恢复。状态停在 `tooling_ready / credential_pending`；必须另行授权最长 7 天的双 scope阶段凭据和只读 preflight/错误 HEAD无写注入，之后仍须新的 formal maintenance授权。 |
+
+本次没有创建或读取 M7-E.2 operator credential，没有停止服务、切换 maintenance、创建 workload、
+使用 GPU或注入容器故障。M7-E.3 与 M7-F仍未授权。

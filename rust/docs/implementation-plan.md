@@ -1005,6 +1005,9 @@ ModelFile、端口、Runner、GPU0 assignment、spec和 ownership不变，只把
 三轮幂等、精确 cleanup、watchdog与独立 post-audit。
 
 真实窗口不复合注入 replacement启动失败，因此不宣称在 GPU环境验证完整 10～300 秒退避阶梯；
-完整序列继续由已接受的 M7-B/C离线矩阵证明。M7-E.2 当前为 `tooling_pending`：下一项只允许
-实现并静态验证 `rust/scripts/m7e2/` 五份正式脚本，不自动授权创建阶段凭据、停止 Python Worker、
-切换 maintenance、创建 workload、使用 GPU或执行容器 SIGKILL，也不授权 M7-E.3 或 M7-F。
+完整序列继续由已接受的 M7-B/C离线矩阵证明。`rust/scripts/m7e2/` 五份正式脚本已在提交
+`b6ec4eac6c506e6d7a3ad96011c5b8b58d35f24d` 完成，并通过 ShellCheck、90 Bash语法、
+locked/offline workspace build、9 项精确测试、状态链/双代 cleanup mock和静态隔离门。M7-E.2
+当前为 `tooling_ready / credential_pending`；下一步仍须单独授权阶段凭据和只读 preflight/无写
+注入，不自动授权停止 Python Worker、切换 maintenance、创建 workload、使用 GPU或执行容器
+SIGKILL，也不授权 M7-E.3 或 M7-F。

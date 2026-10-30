@@ -4277,6 +4277,31 @@
   `rust/scripts/m7e2/` 的五份正式脚本；不得创建或读取新阶段凭据，不得停止 Python Worker、切换
   maintenance、创建 workload、使用 GPU或执行容器 SIGKILL，也不得进入 M7-E.3/M7-F。
 
+### 2026-10-30：M7-E.2 正式工具链实现与静态验证
+
+- Git身份：五份正式脚本已在提交 `b6ec4eac6c506e6d7a3ad96011c5b8b58d35f24d` 完成，路径固定为
+  `rust/scripts/m7e2/` 的 lib、preflight、executor、watchdog和 post-audit。
+- 故障与证据：executor在 maintenance重新启用且 runtime不变后启动 ModelInstance watch与
+  `docker wait`，只对完整 ID旧 vLLM执行精确 SIGKILL；Rust Worker PID/starttime/cmdline/listener
+  identity必须全程不变。验收固定检查 137、六状态恢复链、restart count 1、有效 last restart、
+  首次 0 秒退避、新容器/同端口与 spec、同一 ready ModelFile、GPU0和 Docker kill/die/destroy +
+  create/start事件。
+- 日志与业务：工具固定 generation 0/1、Worker serve log options、CLI current/previous日志、
+  Server-only models/chat/completion/logs、直连 vLLM和三轮至少 6 秒幂等门；任何 generation 2、
+  第二次 restart、GPU1或 Worker identity漂移均失败闭合。
+- 回滚：shared lib和 watchdog按完整 Worker UUID、ModelInstance、component/mode/schema和 spec hash
+  逐个验证，最多处理旧/新两代容器；权威模型删除优先，随后精确本地状态清理和同一 Python
+  Worker安全恢复。任何未知第三容器、未知进程或 GPU残留都会拒绝恢复 Python Worker。
+- 质量门：本机 pre-commit ShellCheck通过；本机与 90 Bash语法通过；90 上 Cargo fmt、workspace
+  all-targets/all-features locked/offline build、9 项精确定向 Rust测试通过；恢复状态链正反例和两代
+  stopped-container cleanup mock通过。脚本本机/90 SHA-256逐项一致。
+- 外部不变式：验证后 Server、Python Worker API和 metrics均返回 200，既有 Server/Python Worker
+  容器保持运行，两张 GPU无计算进程。本次没有创建或读取阶段 credential，没有停止服务、切换
+  maintenance、创建模型/容器、使用 GPU或执行真实 SIGKILL。
+- 当前停止位置：`accepted / tooling_ready / credential_pending`。下一步须另行授权创建最长 7 天、
+  management + inference 的 M7-E.2阶段凭据以及只读 preflight/错误 HEAD无写注入；formal attempt、
+  M7-E.3和 M7-F仍未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

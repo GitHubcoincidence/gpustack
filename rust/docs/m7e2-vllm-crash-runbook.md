@@ -3,10 +3,10 @@
 ## 1. 文档状态
 
 - 阶段：M7-E.2。
-- 状态：`accepted / tooling_pending`。
-- 已授权范围：冻结本方案、编写正式工具链并执行离线静态质量门。
-- 当前停止边界：不得创建或读取阶段 operator credential，不得停止 Python Worker、切换
-  maintenance、创建模型或容器、使用 GPU、终止 vLLM 或执行正式维护窗口。
+- 状态：`accepted / tooling_ready / credential_pending`。
+- 已完成范围：冻结本方案、编写正式工具链并执行离线静态质量门。
+- 当前停止边界：工具链通过不授权创建或读取阶段 operator credential；不得停止 Python Worker、
+  切换 maintenance、创建模型或容器、使用 GPU、终止 vLLM 或执行正式维护窗口。
 
 本方案已经由用户接受，但接受不等于授权真实执行。工具链完成后仍须分别取得阶段凭据准备、
 只读 preflight/无写注入和唯一 formal attempt 的精确授权。M7-E.3、M7-F 和 M8 不在本方案的
@@ -270,6 +270,12 @@ post-audit必须由独立脚本读取现场，不复用 executor内存结论。�
 
 ## 12. 当前停止点
 
-M7-E.2 协议已经用户接受，状态为 `accepted / tooling_pending`。下一项只允许实现五份 Git 权威
-脚本并执行本机/90 的语法、ShellCheck、必需/禁止模式、fake/mock和无副作用静态门；不得自动
-创建凭据、停止 Python Worker、切换 maintenance、创建 workload、使用 GPU或执行容器 SIGKILL。
+M7-E.2 五份 Git 权威脚本已在提交
+`b6ec4eac6c506e6d7a3ad96011c5b8b58d35f24d` 完成。本机 pre-commit ShellCheck、90 上 Bash语法、
+workspace locked/offline build、9 项精确定向测试、恢复状态链 mock、双代停止容器 cleanup mock、
+必需/禁止模式和运行基线不变检查全部通过；Server、Python Worker和 metrics仍为 200，未创建
+Rust runtime或占用 GPU。
+
+当前状态为 `accepted / tooling_ready / credential_pending`。下一项只能在新授权下准备最长 7 天、
+management + inference 的 M7-E.2 阶段凭据，并运行只读 preflight与错误 HEAD无写注入；这仍不
+授权停止 Python Worker、切换 maintenance、创建 workload、使用 GPU或执行容器 SIGKILL。
