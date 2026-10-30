@@ -4294,7 +4294,9 @@
   Worker安全恢复。任何未知第三容器、未知进程或 GPU残留都会拒绝恢复 Python Worker。
 - 质量门：本机 pre-commit ShellCheck通过；本机与 90 Bash语法通过；90 上 Cargo fmt、workspace
   all-targets/all-features locked/offline build、9 项精确定向 Rust测试通过；恢复状态链正反例和两代
-  stopped-container cleanup mock通过。脚本本机/90 SHA-256逐项一致。
+  stopped-container cleanup mock通过。脚本本机/90 SHA-256逐项一致。全仓 `make lint`没有记为
+  PASS：本机缺少 `make`，90 的 lint入口在执行 hook前因缺少 `uv`停止；目标文件 pre-commit已独立
+  完成并通过。
 - 外部不变式：验证后 Server、Python Worker API和 metrics均返回 200，既有 Server/Python Worker
   容器保持运行，两张 GPU无计算进程。本次没有创建或读取阶段 credential，没有停止服务、切换
   maintenance、创建模型/容器、使用 GPU或执行真实 SIGKILL。
