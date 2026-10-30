@@ -80,6 +80,9 @@ formal attempt 1 使用以下互不复用的路径：
   已按 D211 封存，不得修改或复用；
 - preflight attempt 3：`~/.local/state/gpustack-rust-worker/evidence/m7e1-worker-crash-preflight-attempt-3`；
 - no-write injection attempt 3：`~/.local/state/gpustack-rust-worker/evidence/m7e1-worker-crash-pre-window-injection-attempt-3`；
+- preflight/injection attempt 4 已通过并保持不可变；formal/watchdog/post-audit attempt 2 已按
+  D215 固定为失败和恢复证据，不得修改或复用；
+- retry 3 使用全新的 preflight/injection attempt 5 与 formal/watchdog/post-audit attempt 3；
 - executor：`~/.local/state/gpustack-rust-worker/tools/m7e1-worker-crash-attempt-1.sh`
 - watchdog：`~/.local/state/gpustack-rust-worker/tools/m7e1-worker-crash-watchdog-attempt-1.sh`
 - preflight：`~/.local/state/gpustack-rust-worker/tools/m7e1-worker-crash-preflight-attempt-1.sh`
@@ -300,7 +303,12 @@ watchdog 未能删除随后变为 stopped 的精确 owned 容器，也未自动�
 审计确认三项健康端点 200、目标 Server资源/Rust容器/进程/端口均为零、两卡 0 MiB 且 Worker
 保持 maintenance。
 
-retry 2 已按 D214 修订 maintenance 重入和 stopped-container cleanup。下一步仅允许完成质量门、
-提交同步以及全新的 preflight/injection attempt 4；formal/watchdog/post-audit attempt 2 使用
-全新路径，并必须取得新的精确 maintenance authorization。attempt 1 结果和授权不得复用，
-也不得把恢复 PASS 提升为 M7-E.1 业务通过。
+formal attempt 2 已按 D215 固定为 `failed_during_window`：Rust Worker端点和心跳实际就绪，但
+maintenance 对象保留启动前的 `unreachable=true`，错误的 harness 谓词在模型创建、GPU使用和
+SIGKILL前超时。cleanup、watchdog 和独立 post-audit 已恢复全部基线。
+
+retry 3 按 D216 用“相对启动前快照严格推进的新心跳 + 三端点 + 精确 PID/listener identity”证明
+maintenance Worker存活；非 maintenance READY 仍严格要求 `unreachable=false`。下一步仅允许
+完成质量门、提交同步以及全新的 preflight/injection attempt 5；formal/watchdog/post-audit
+attempt 3 必须取得新的精确 maintenance authorization。旧结果、路径和授权不得复用，也不得把
+恢复 PASS 提升为 M7-E.1 业务通过。

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Read-only gate for the M7-E.1 Worker crash maintenance window.
-# shellcheck disable=SC1090,SC1091
+# shellcheck disable=SC1090,SC1091,SC2317
 set -o errexit -o errtrace -o nounset -o pipefail
 
 umask 077
@@ -287,7 +287,13 @@ grep -Fq -- 'timeout --foreground --signal=TERM --kill-after=180 1200' "$WATCHDO
 grep -Fq -- 'm7e1_process_identity_matches_file' "$EXECUTOR"
 grep -Fq -- 'm7e1_validate_owned_container' "$LIB"
 grep -Fq -- 'm7e1_validate_owned_container_identity' "$LIB"
+grep -Fq -- 'm7e1_maintenance_worker_has_new_heartbeat' "$EXECUTOR" "$LIB"
 grep -Fq -- 'already_stopped=true' "$LIB"
+if sed -n '/^wait_for_worker_ready() {/,/^}/p' "$EXECUTOR" |
+  grep -Fq -- '.unreachable == false'; then
+  printf 'STOP: maintenance startup must not trust the stale unreachable field\n' >&2
+  exit 1
+fi
 maintenance_rearm_line="$(grep -nF "phase='prepare_worker_restart_safety'" "$EXECUTOR" |
   cut -d: -f1)"
 intentional_crash_line="$(grep -nF "phase='intentional_worker_crash'" "$EXECUTOR" |
@@ -306,6 +312,26 @@ for script in "$LIB" "$EXECUTOR" "$WATCHDOG" "$POST_AUDIT"; do
     exit 1
   fi
 done
+(
+  heartbeat_file="$(mktemp)"
+  trap 'unlink "$heartbeat_file"' EXIT
+  jq -n '{
+    id:5,
+    state:"maintenance",
+    unreachable:true,
+    maintenance:{enabled:true,message:"formal maintenance"},
+    gpu_count:2,
+    heartbeat_time:"2026-10-30T07:24:39Z"
+  }' >"$heartbeat_file"
+  heartbeat_epoch="$(date -d '2026-10-30T07:24:39Z' +%s)"
+  m7e1_maintenance_worker_has_new_heartbeat "$heartbeat_file" \
+    "$((heartbeat_epoch - 1))"
+  if m7e1_maintenance_worker_has_new_heartbeat "$heartbeat_file" \
+    "$heartbeat_epoch"; then
+    printf 'STOP: an unchanged maintenance heartbeat was accepted\n' >&2
+    exit 1
+  fi
+) >"$EVIDENCE/maintenance-heartbeat-readiness-test.txt"
 (
   test_root="$(mktemp -d)"
   trap 'find "$test_root" -xdev -depth -delete' EXIT
@@ -367,10 +393,11 @@ done
 ) >"$EVIDENCE/stopped-container-cleanup-test.txt"
 printf 'bash_n=PASS\nexact_pid_guard=PASS\nsame_container_contract=PASS\n' \
   >"$EVIDENCE/script-static-audit.txt"
-printf 'watchdog_timeout=1200\nunknown_process_policy=fail_closed\nconfig_env_capture=absent\n' \
-  >>"$EVIDENCE/script-static-audit.txt"
-printf 'restart_maintenance_rearm=PASS\nstopped_container_cleanup=PASS\n' \
-  >>"$EVIDENCE/script-static-audit.txt"
+{
+  printf 'watchdog_timeout=1200\nunknown_process_policy=fail_closed\nconfig_env_capture=absent\n'
+  printf 'restart_maintenance_rearm=PASS\nstopped_container_cleanup=PASS\n'
+  printf 'maintenance_fresh_heartbeat=PASS\nmaintenance_stale_unreachable_ignored=PASS\n'
+} >>"$EVIDENCE/script-static-audit.txt"
 
 current_step='no_write_executor_injection'
 announce 7 '错误 HEAD 的执行器无写故障注入'

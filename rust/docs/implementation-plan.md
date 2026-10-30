@@ -973,3 +973,11 @@ retry 2 工具链在 crash 前重新 enable maintenance并再次验证 runtime/�
 identity同时支持 running 和 stopped 容器，watchdog 模型删除幂等，pre/post 允许宿主机 Rust
 Worker停止后的 unreachable maintenance 对象。下一步先完成质量门和全新 preflight/injection
 attempt 4；formal/watchdog/post-audit attempt 2 必须使用新路径并重新取得明确维护授权。
+
+preflight/injection attempt 4 随后通过，formal attempt 2 在新授权下进入维护窗口，但在模型创建
+前因初始 maintenance Worker就绪等待超时而失败。取证确认 Rust进程、API/ready/metrics 和两卡
+上报均正常，Server心跳从旧快照推进到 `2026-10-30T07:24:39Z`；唯一失败谓词是 maintenance
+对象仍保留 `unreachable=true`。Server v2.2.3 在 maintenance 固定 state 时不持久化单独变化的
+reachability，因此 retry 3 改用“启动前后心跳严格推进 + 三端点 + 精确 PID/listener identity”
+证明维护态 Worker重新加入控制环；非维护 READY 仍要求 `unreachable=false`。下一步完成质量门、
+提交同步和全新 preflight/injection attempt 5；formal attempt 3 仍需新的明确授权。

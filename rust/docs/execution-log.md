@@ -4157,6 +4157,40 @@
   preflight/injection attempt 4。formal/watchdog/post-audit attempt 2 必须使用新路径并重新取得
   明确维护授权；attempt 1 授权已消费，不得自动重试或进入 M7-E.2/E.3/F。
 
+### 2026-10-30：M7-E.1 preflight attempt 4 通过与 formal attempt 2 安全恢复
+
+- 准备门：治理 HEAD `dc36582fab2d6ee96f92338cc0bb196c654edc34` 上的 preflight/injection
+  attempt 4 从头通过八步；manifest 文件 SHA-256 分别为
+  `5459ff56e57db60f60fd8637f9c206fc06c51d20fb23d83eca9247143102dd27` 和
+  `859858c5cb9be9ced81fdb7b151c7386ace6318cda21f5ebaeffc46dd50b9aa6`。最终窗口前复核确认
+  三项既有健康端点 200、目标 Worker maintenance、模型名和正式路径未使用、Rust容器/进程/
+  端口为零、两卡空闲。
+- 正式执行：用户明确授权 formal attempt 2。watchdog 启动并停止精确 Python Worker后，宿主机
+  Rust Worker成功运行：20150 health/ready、20151 metrics、持久 Worker ID 5 和两张 GPU上报
+  均正常，Server心跳从 `2026-10-30T03:11:07Z` 推进到 `2026-10-30T07:24:39Z`。
+- 失败位置：`wait_for_worker_ready` 同时硬编码 `.unreachable == false`。Server返回的 maintenance
+  对象仍为 `state=maintenance`、`gpu_count=2`、`unreachable=true`，因此等待 120 秒后以
+  `FAIL/initial_rust_worker_ready_timeout` 结束。执行器尚未创建 Model、ModelInstance、ModelFile、
+  vLLM容器，未使用 GPU，也未发送计划 SIGKILL，故没有形成任何接管业务结论。
+- 根因：Server v2.2.3 的 worker syncer先在内存更新 reachability，但只在 `state` 或
+  `state_message` 变化时持久化；maintenance 的 `compute_state()` 始终返回同一 maintenance state，
+  使独立 `unreachable` 字段可能保留 Worker启动前的旧值。这是 harness 对 maintenance 派生字段
+  的错误假设，不是 Rust Worker启动失败。
+- 恢复与证据：executor cleanup、watchdog recovery 和独立 post-audit 全部完成，同一 Python
+  Worker恢复，目标 Server资源、Rust容器/进程、20150/20151/Managed端口和两卡 workload 均为零。
+  formal/watchdog/post-audit manifest 文件 SHA-256 分别为
+  `b94d5bfc2a65daebc9e92c1c97656a80cb66fc948d2d7570106f9d5d672a144c`、
+  `b68d0f78e60f7e2a49cb6bc983695db6718d88dfa79076dfa48d217dcf01ad0f` 和
+  `9bc77c4ebcd04290ae899f85a226f4f3deaf753266575e275e347428c0aa0360`。formal attempt 2 保持
+  `failed_during_window`，恢复 PASS 不改变该判定。
+- retry 3 修正：maintenance 启动/重启改用启动前 Worker快照作为心跳下界，要求 Server观察到
+  严格更新的 `heartbeat_time`，并继续要求三个 Worker端点、精确 PID/listener owner、进程
+  identity、maintenance/state 和 `gpu_count=2`。非 maintenance 的稳定 READY 门仍严格要求
+  `unreachable=false`。preflight 加入 stale-unreachable/new-heartbeat 正反回归。
+- 当前停止位置：`retry_3_validation_pending`。下一项只允许完成质量门、提交同步以及全新只读
+  preflight/injection attempt 5；formal attempt 3 必须重新取得明确维护窗口授权，不能复用
+  attempt 2 授权或进入 M7-E.2/E.3/F。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

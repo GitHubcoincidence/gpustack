@@ -53,6 +53,7 @@ cleanup_ok=1
 finalizing=0
 python_worker_id=''
 rust_pid=''
+rust_heartbeat_floor_epoch=''
 model_id=''
 instance_id=''
 model_file_id=''
@@ -114,8 +115,13 @@ write_process_identity() {
 
 start_rust_worker() {
   local label="$1"
+  local baseline="$EVIDENCE/rust-worker-${label}-baseline.json"
   local summary="$EVIDENCE/rust-summary-${label}.json"
   local events="$EVIDENCE/rust-events-${label}.log"
+  "$M7E1_BINARY" --context "$M7E1_OPERATOR_CONTEXT" --output json \
+    worker get "$M7E1_WORKER_ID" >"$baseline" 2>"$baseline.stderr" || return 1
+  rust_heartbeat_floor_epoch="$(date -d "$(jq -r '.heartbeat_time // empty' "$baseline")" \
+    +%s 2>/dev/null)" || return 1
   setsid "$M7E1_BINARY" --output json worker "${worker_args[@]}" run --managed-runtime \
     >"$summary" \
     2> >(while IFS= read -r line; do
@@ -146,8 +152,8 @@ wait_for_worker_ready() {
         "http://$M7E1_WORKER_IP:20151/metrics" 2>/dev/null)" == '200' ]] &&
       "$M7E1_BINARY" --context "$M7E1_OPERATOR_CONTEXT" --output json \
         worker get "$M7E1_WORKER_ID" >"$output" 2>"$output.stderr" &&
-      jq -e '.id == 5 and .unreachable == false and .gpu_count == 2' \
-        "$output" >/dev/null; then
+      m7e1_maintenance_worker_has_new_heartbeat \
+        "$output" "$rust_heartbeat_floor_epoch"; then
       ready=1
       break
     fi

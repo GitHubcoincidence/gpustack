@@ -137,6 +137,27 @@ m7e1_gpu_memory_used() {
     awk -F', *' -v gpu_index="$gpu_index" '$1 == gpu_index {print $2}'
 }
 
+m7e1_maintenance_worker_has_new_heartbeat() {
+  local worker_file="$1"
+  local heartbeat_floor_epoch="$2"
+  local heartbeat_time heartbeat_epoch
+  jq -e \
+    --argjson worker_id "$M7E1_WORKER_ID" '
+      .id == $worker_id and
+      .maintenance.enabled == true and
+      .state == "maintenance" and
+      .gpu_count == 2 and
+      (.heartbeat_time | type == "string" and length > 0)
+    ' "$worker_file" >/dev/null || return 1
+  heartbeat_time="$(jq -r '.heartbeat_time' "$worker_file")"
+  heartbeat_epoch="$(date -d "$heartbeat_time" +%s 2>/dev/null)" || return 1
+
+  # Maintenance pins the Server state, so its separately stored unreachable flag can
+  # remain stale. A heartbeat newer than the pre-start snapshot proves this process
+  # has rejoined the Server control loop without trusting that stale field.
+  [[ "$heartbeat_epoch" -gt "$heartbeat_floor_epoch" ]]
+}
+
 m7e1_capture_gpu() {
   local evidence="$1"
   local prefix="$2"

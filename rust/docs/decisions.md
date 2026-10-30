@@ -988,3 +988,14 @@ SIGKILL。preflight 通过后最多进入 `ready_for_maintenance_authorization`�
 当前状态为 `retry_2_validation_pending`。只允许完成脚本质量门、提交同步以及全新的只读
 preflight/injection attempt 4；不得自动停止 Python Worker、创建模型/容器、使用 GPU0 或执行
 formal attempt 2。API Key ID 23 仍为阶段凭据，最终接受前必须退役并证明旧 token 返回 401。
+
+## 2026-10-30 M7-E.1 formal attempt 2 判定与 retry 3
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D215 | formal attempt 2 判定与恢复 | preflight/injection attempt 4 通过后，用户明确授权 formal attempt 2。执行器停止精确 Python Worker并启动 Rust Worker，但在创建模型、容器、使用 GPU 或发送 SIGKILL 前以 `FAIL/initial_rust_worker_ready_timeout` 停止。Rust Worker API、ready、metrics 和新心跳实际已就绪；Server Worker 保持 maintenance、`gpu_count=2`，但 `unreachable=true`。formal/watchdog/post-audit manifest 文件 SHA-256 分别为 `b94d5bfc2a65daebc9e92c1c97656a80cb66fc948d2d7570106f9d5d672a144c`、`b68d0f78e60f7e2a49cb6bc983695db6718d88dfa79076dfa48d217dcf01ad0f` 和 `9bc77c4ebcd04290ae899f85a226f4f3deaf753266575e275e347428c0aa0360`；cleanup、watchdog recovery 和独立 post-audit 均通过 | 正式窗口已经进入，故结果必须保持 `failed_during_window`，不能改写为 STOP。零模型、零容器、零 GPU、零 SIGKILL只限定失败发生位置；恢复 PASS 只证明同一 Python Worker、Server资源、端口和双卡回到基线。 |
+| D216 | maintenance 就绪证据 | retry 3 的 maintenance 启动/重启门不再要求 `unreachable=false`，改为同时要求三个 Worker端点 200、20150/20151 监听 owner 为精确 Rust PID、进程 identity 匹配、Worker ID 5、maintenance/state 正确、`gpu_count=2`，以及 Server `heartbeat_time` 严格晚于启动前快照。非 maintenance 的稳定 READY 门继续要求 `unreachable=false`。preflight 增加 stale-unreachable/new-heartbeat 正反回归；下一轮使用 preflight/injection attempt 5 和 formal/watchdog/post-audit attempt 3 | Server v2.2.3 的同步器只在计算出的 state/message 变化时持久化 reachability；maintenance 固定 state 后，独立 `unreachable` 字段可能保留启动前旧值。attempt 2 已证明心跳从 `2026-10-30T03:11:07Z` 推进到 `2026-10-30T07:24:39Z` 而该字段仍为 true。新判据验证真实进程、网络端点和 Server控制环，不把陈旧派生字段当作维护态存活真值，也不放宽可调度 READY。 |
+
+当前状态为 `retry_3_validation_pending`。formal attempt 2 授权已经消费；修正、质量门、提交同步和
+全新只读 preflight/injection attempt 5 可以继续，但 formal attempt 3 必须再次取得精确维护窗口
+授权，且不得扩展到 M7-E.2、M7-E.3 或 M7-F。
