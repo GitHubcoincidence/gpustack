@@ -962,3 +962,10 @@ M7-E.1 协议状态为 `accepted`，正式工具链静态门已通过。当前�
 当前状态为 `credential_ready / preflight_pending`。用户已授权只读 preflight 和错误 HEAD 无写
 注入；该授权不包含停止 Python Worker、改变 maintenance、创建模型/容器、使用 GPU 或真实
 SIGKILL。preflight 通过后最多进入 `ready_for_maintenance_authorization`。
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D210 | preflight attempt 1 判定与 retry 2 | preflight attempt 1 固定判为 `STOP/fixed_runtime_inputs`：前四步和第五码身份检查前半段通过，随后 `m7e1_gpu_memory_used` 以 gawk 内置函数名 `index` 作为 `-v` 变量而退出。该目录 700、40 个文件全为 0600、无 symlink，目录内容树 SHA-256 为 `35fbcbf969adf8da3107faa0c41d41da31218275d6d2fb647ba9e8f25209dc0f`，双 token 扫描零命中；原 attempt 1 injection 路径未创建。只把变量窄改为 `gpu_index`，新 preflight/injection 使用 attempt 2 路径并从头执行全部八步 | 失败发生在维护窗口前的只读 GPU 基线函数，没有外部写入或业务结论。保留失败目录并滚动新路径可避免覆盖历史；变量改名只修复 gawk 可移植性，不改变 GPU 判定、正式工作负载、成功标准或 formal attempt 1 授权边界。 |
+
+当前状态为 `preflight_retry_2_pending`。formal、watchdog 和 post-audit 仍保持 attempt 1 identity
+且尚未创建；preflight attempt 2 通过后仍须新的维护窗口授权。

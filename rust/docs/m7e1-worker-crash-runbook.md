@@ -3,9 +3,9 @@
 ## 1. 文档状态
 
 - 阶段：M7-E.1。
-- 状态：`accepted / credential_ready / preflight_pending`。
-- 目的：按已接受协议冻结 attempt 1 正式工具链和阶段凭据，执行已授权的只读准备门。
-- 当前停止边界：API Key ID 23 和 `m7e1-operator` Context 已就绪；只允许运行只读
+- 状态：`accepted / credential_ready / preflight_retry_2_pending`。
+- 目的：保留 preflight attempt 1 的兼容性停止证据，在窄修正后从头执行 attempt 2 准备门。
+- 当前停止边界：API Key ID 23 和 `m7e1-operator` Context 已就绪；只允许重跑只读
   preflight 与错误 HEAD 无写注入，不允许停止 Python Worker、切换 maintenance、创建模型或
   vLLM 资源、启动 Rust Worker/vLLM、使用 GPU 或执行真实 SIGKILL。
 
@@ -67,13 +67,15 @@ M7-E.1 验证的是 **Worker crash 后接管健康 runtime**，不是 vLLM crash
 
 ## 5. 尝试 identity 与受保护路径
 
-attempt 1 使用以下互不复用的路径：
+formal attempt 1 使用以下互不复用的路径：
 
 - formal evidence：`~/.local/state/gpustack-rust-worker/evidence/m7e1-worker-crash-attempt-1`
 - watchdog evidence：`~/.local/state/gpustack-rust-worker/evidence/m7e1-worker-crash-watchdog-attempt-1`
 - post-audit evidence：`~/.local/state/gpustack-rust-worker/evidence/m7e1-worker-crash-post-audit-attempt-1`
-- preflight evidence：`~/.local/state/gpustack-rust-worker/evidence/m7e1-worker-crash-preflight-attempt-1`
-- no-write injection evidence：`~/.local/state/gpustack-rust-worker/evidence/m7e1-worker-crash-pre-window-injection-attempt-1`
+- preflight attempt 1：`~/.local/state/gpustack-rust-worker/evidence/m7e1-worker-crash-preflight-attempt-1`，
+  已按 D210 以 `STOP/fixed_runtime_inputs` 保留，不得修改或复用；
+- preflight attempt 2：`~/.local/state/gpustack-rust-worker/evidence/m7e1-worker-crash-preflight-attempt-2`；
+- no-write injection attempt 2：`~/.local/state/gpustack-rust-worker/evidence/m7e1-worker-crash-pre-window-injection-attempt-2`；
 - executor：`~/.local/state/gpustack-rust-worker/tools/m7e1-worker-crash-attempt-1.sh`
 - watchdog：`~/.local/state/gpustack-rust-worker/tools/m7e1-worker-crash-watchdog-attempt-1.sh`
 - preflight：`~/.local/state/gpustack-rust-worker/tools/m7e1-worker-crash-preflight-attempt-1.sh`

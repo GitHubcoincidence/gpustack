@@ -4067,6 +4067,26 @@
   attempt 1 只读 preflight 与错误 HEAD 无写注入。即使通过，也只进入
   `ready_for_maintenance_authorization`，不得自动进入 formal 窗口。
 
+### 2026-10-30：M7-E.1 preflight attempt 1 安全停止
+
+- 运行：在治理 HEAD `0238bba1b7e526d2b01e6597d60e0cec047c2892` 启动 attempt 1。
+  源码/脚本身份、locked/offline 构建与六项接管测试、凭据/Context 双 scope 认证、外部基线均
+  已通过；第 5/8 步固定输入检查调用 GPU 显存辅助函数时停止。
+- 根因：`lib.sh` 的 gawk 调用使用 `-v index=...`，而 `index` 是 gawk 内置函数名，90 返回
+  `cannot use gawk builtin 'index' as variable name`。这是正式脚本的可移植性错误，不是产品、
+  GPU、Server、Docker 或凭据失败。
+- 失败证据：preflight attempt 1 目录为 700，40 个文件全为 0600、无 symlink，内容树
+  SHA-256 为 `35fbcbf969adf8da3107faa0c41d41da31218275d6d2fb647ba9e8f25209dc0f`；operator/Cluster
+  token 内容扫描零命中。原 attempt 1 injection 路径未创建，formal/watchdog/post-audit 路径
+  仍未使用。
+- 外部不变式：停止后 Server、Python Worker health/metrics 均为 200；Rust 进程和 owned
+  容器为 0；GPU0/GPU1 均为 0 MiB/0%。没有停止服务、切换 maintenance、创建 Server 资源、
+  启动 vLLM 或使用 GPU。
+- 修正：仅把 shell 局部变量和 awk 变量从 `index` 改为 `gpu_index`；五份脚本重新通过 Git
+  Bash `bash -n`、ShellCheck 0.11.0 和 `git diff --check`。按 D210，下一次只读准备滚动到全新
+  `m7e1-worker-crash-preflight-attempt-2` 和对应 injection attempt 2，并从头执行八步。
+- 当前停止位置：`preflight_retry_2_pending`；该修正与重跑不扩展 formal 维护窗口授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
