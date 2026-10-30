@@ -4230,6 +4230,28 @@
   用户接受报告后才退役 API Key ID 23、`m7e1-operator` Context和 operator token文件并证明旧
   token 401。不得自动进入 M7-E.2/E.3/F。
 
+### 2026-10-30：M7-E.1 阶段凭据退役并完成验收
+
+- 用户验收：用户接受 formal attempt 3 的详细报告，授权只退役 API Key ID 23、
+  `m7e1-operator` Context和受保护 operator token文件，并明确不进入 M7-E.2、M7-E.3 或 M7-F。
+- 精确删除：删除前再次确认 Key ID 23、名称 `rust-worker-m7e1-operator-20261030`、scope
+  `management,inference`、active Context、token文件 mode/owner/link和 post-audit PASS。
+  `DELETE /v2/api-keys/23` 返回 200，内存保留的原 token随后访问 `/v2/workers/5` 返回 401。
+- 本地退役：只删除 `m7e1-operator` 和
+  `/home/wujiaxing2/.config/gpustack-rust/m7-operator-token`；删除前后的其他 Context经排序白名单
+  比较完全一致。token文件删除前再次核对 device/inode/mode/owner/link/size/mtime，未按路径宽删。
+- 保留边界：M3-D Cluster registration token在退役前后保持同一 device/inode/mode/owner/link/
+  size/mtime且内容内存比较一致；没有删除其他 API Key、Context、Worker credential、模型文件、
+  Server资源、容器或证据。
+- 独立复核：退役证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m7e1-credential-retirement-attempt-1`
+  为 0700，23 个文件全为 0600、无 symlink；manifest复算、Cluster token精确扫描和通用秘密扫描
+  通过，清单文件 SHA-256 为
+  `1b92ded9aa88df05390345e3b8827259c266ffe879a28983a60391700dfa3614`。Server、Python Worker
+  health/metrics均为 200，同一 Python Worker运行，Rust容器/进程/监听为零，两张 GPU空闲。
+- 当前停止位置：M7-E.1 更新为 `accepted`。下一项最多讨论和冻结 M7-E.2 的 vLLM crash自动恢复
+  协议；不得自动创建凭据、停止 Python Worker、创建 workload、使用 GPU或执行 M7-E.2/E.3/F。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

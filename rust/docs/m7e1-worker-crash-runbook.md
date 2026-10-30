@@ -308,6 +308,10 @@ formal attempt 3 已按 D217-D218 完成并通过。精确 SIGKILL 后，Worker�
 生命周期事件为零，直连与 Server推理、日志和三轮幂等通过。formal、watchdog、独立 post-audit
 和完整 cleanup均为 PASS，同一 Python Worker及双卡基线已恢复。
 
-当前停止在 `ready_for_review`。只有用户接受本次报告后，才能退役 API Key ID 23、
-`m7e1-operator` Context和 operator token文件并证明旧 token返回 401；完成凭据退役后才可把
-M7-E.1 标记为 `accepted`。不得自动进入 M7-E.2、M7-E.3 或 M7-F。
+用户已接受本次报告。API Key ID 23 删除返回 200，原 token返回 401；`m7e1-operator` Context
+和 operator token文件已删除，其他 Context与 Cluster registration token保持不变。退役证据
+目录含 23 个 0600 文件，manifest和独立现场审计通过，清单文件 SHA-256 为
+`1b92ded9aa88df05390345e3b8827259c266ffe879a28983a60391700dfa3614`。
+
+M7-E.1 当前为 `accepted`。下一项只允许讨论和冻结 M7-E.2 的 vLLM crash自动恢复协议；不得
+自动创建凭据、停止 Python Worker、创建 workload、使用 GPU或执行 M7-E.2、M7-E.3、M7-F。

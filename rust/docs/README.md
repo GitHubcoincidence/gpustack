@@ -189,8 +189,11 @@
 - M7-E.1 formal attempt 3 已通过：精确 SIGKILL 后，Worker缺席期间和新 Worker接管后是同一
   健康 vLLM 容器，runtime/Server资源/端口/restart/log identity无变化，Docker生命周期事件为
   零，直连与 Server推理及三轮幂等通过。formal、watchdog、独立 post-audit和完整 cleanup均为
-  PASS，同一 Python Worker及双卡基线已恢复。当前为 `ready_for_review`；用户接受后先退役阶段
-  凭据，尚未授权 M7-E.2、M7-E.3 或 M7-F。
+  PASS，同一 Python Worker及双卡基线已恢复。用户已接受报告，API Key ID 23、
+  `m7e1-operator` Context和 operator token文件完成退役，旧 token返回 401，Cluster registration
+  token保持不变；退役 manifest文件 SHA-256 为
+  `1b92ded9aa88df05390345e3b8827259c266ffe879a28983a60391700dfa3614`。M7-E.1 当前为
+  `accepted`，尚未授权 M7-E.2、M7-E.3 或 M7-F。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

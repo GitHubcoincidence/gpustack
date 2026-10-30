@@ -988,3 +988,9 @@ preflight/injection attempt 5 与最终漂移门通过后，用户授权 formal 
 last restart和 generation 0 日志均未变化。正常 cleanup、watchdog与独立 post-audit恢复同一
 Python Worker及双卡基线，三套证据均为 PASS。M7-E.1 当前为 `ready_for_review`；用户接受后先
 退役阶段凭据，尚未授权 M7-E.2、M7-E.3 或 M7-F。
+
+用户随后接受 M7-E.1 报告。API Key ID 23 删除返回 200，旧 token返回 401；
+`m7e1-operator` Context和 operator token文件已删除，其他 Context与 Cluster registration token
+保持不变。23 项退役证据及独立现场复核通过，清单文件 SHA-256 为
+`1b92ded9aa88df05390345e3b8827259c266ffe879a28983a60391700dfa3614`。M7-E.1 状态更新为
+`accepted`；下一项只允许讨论和冻结 M7-E.2，不自动进入真实维护窗口。

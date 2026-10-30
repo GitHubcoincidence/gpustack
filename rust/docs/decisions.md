@@ -1007,3 +1007,11 @@ formal attempt 2。API Key ID 23 仍为阶段凭据，最终接受前必须退�
 
 当前状态为 `ready_for_review`。M7-E.1 尚未因技术 PASS 自动标记为 `accepted`；下一项只允许
 用户审阅本次结论，接受后执行阶段凭据退役。不得自动进入 M7-E.2、M7-E.3 或 M7-F。
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D219 | M7-E.1 验收与凭据退役 | 用户接受 formal attempt 3 报告后，精确删除 API Key ID 23；Server DELETE 返回 200，原 token随后访问 `/v2/workers/5` 返回 401。只删除 `m7e1-operator` Context和 `/home/wujiaxing2/.config/gpustack-rust/m7-operator-token`，其他 Context保持不变，Cluster registration token identity/content保持不变。退役证据目录含 23 个 0600 文件，manifest 文件 SHA-256 为 `1b92ded9aa88df05390345e3b8827259c266ffe879a28983a60391700dfa3614`，复算、秘密扫描和独立现场审计通过 | 短期凭据生命周期是 M7-E.1 的接受条件，不是可选清理。401、Context/token缺失、Cluster token保留和运行基线共同证明只退役本阶段权限，未破坏 Worker注册或其他阶段材料。 |
+
+M7-E.1 状态更新为 `accepted`。该状态只接受 Worker crash 后同一健康 vLLM接管结论；下一项最多
+讨论和冻结 M7-E.2 的 vLLM crash恢复协议，不自动授权创建凭据、停止 Python Worker、创建
+workload、使用 GPU或执行 M7-E.2/M7-E.3/M7-F。
