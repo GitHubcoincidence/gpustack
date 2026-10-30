@@ -994,3 +994,17 @@ Python Worker及双卡基线，三套证据均为 PASS。M7-E.1 当前为 `ready
 保持不变。23 项退役证据及独立现场复核通过，清单文件 SHA-256 为
 `1b92ded9aa88df05390345e3b8827259c266ffe879a28983a60391700dfa3614`。M7-E.1 状态更新为
 `accepted`；下一项只允许讨论和冻结 M7-E.2，不自动进入真实维护窗口。
+
+用户随后接受 M7-E.2 协议。该窗口固定只对完整 ownership/spec匹配的唯一 Rust-owned vLLM
+容器执行一次精确 `docker kill --signal KILL <full-id>`，Rust Worker、Server和 Docker daemon
+全程保持运行。正式门要求有序观察
+`RUNNING -> ERROR -> SCHEDULED -> INITIALIZING -> STARTING -> RUNNING`，持久
+`restart_count` 从 0 精确增至 1、`last_restart_time`正确写入，首次 0 秒退避成立；同一 ready
+ModelFile、端口、Runner、GPU0 assignment、spec和 ownership不变，只把旧容器替换为一个新
+容器并保留 generation 0/1 日志。恢复后必须通过 current/previous日志、Server-only和直连推理、
+三轮幂等、精确 cleanup、watchdog与独立 post-audit。
+
+真实窗口不复合注入 replacement启动失败，因此不宣称在 GPU环境验证完整 10～300 秒退避阶梯；
+完整序列继续由已接受的 M7-B/C离线矩阵证明。M7-E.2 当前为 `tooling_pending`：下一项只允许
+实现并静态验证 `rust/scripts/m7e2/` 五份正式脚本，不自动授权创建阶段凭据、停止 Python Worker、
+切换 maintenance、创建 workload、使用 GPU或执行容器 SIGKILL，也不授权 M7-E.3 或 M7-F。

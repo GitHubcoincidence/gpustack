@@ -4252,6 +4252,31 @@
 - 当前停止位置：M7-E.1 更新为 `accepted`。下一项最多讨论和冻结 M7-E.2 的 vLLM crash自动恢复
   协议；不得自动创建凭据、停止 Python Worker、创建 workload、使用 GPU或执行 M7-E.2/E.3/F。
 
+### 2026-10-30：M7-E.2 vLLM crash自动恢复协议接受
+
+- 用户决定：用户接受 M7-E.2 设计；本次只冻结文档和后续无副作用工具链范围，没有创建凭据、
+  停止服务、切换 maintenance、创建模型/容器、使用 GPU或执行故障注入。
+- 单一故障：在 GPU0固定 TP=1 workload健康 RUNNING且重新进入 maintenance后，对经过 full ID、
+  image、Worker UUID、ModelInstance、mode/component/schema、spec hash和 GPU assignment复核的唯一
+  Rust-owned vLLM容器执行一次精确 `docker kill --signal KILL`。Rust Worker PID/listeners、Server、
+  Docker daemon、Python/未知容器和 GPU1保持不变。
+- 状态与资源：预先启动 Server watch和 Docker event采集，要求观察
+  `RUNNING -> ERROR -> SCHEDULED -> INITIALIZING -> STARTING -> RUNNING`。同一 ready/100%
+  ModelFile直接复用，不要求重启链再次经过 DOWNLOADING；端口、Runner、模型路径、GPU0、spec、
+  ownership和 Model/Instance/File identity保持不变，旧容器 kill/die/destroy后只出现一个新容器。
+- 退避边界：真实窗口只证明健康 RUNNING后的首次 0 秒层级、`restart_count 0 -> 1`和有效
+  `last_restart_time`。完整 0/10/20/40/80/160/300 秒序列继续引用 M7-B/C离线证据；不在同一
+  formal attempt中复合制造 replacement启动失败，真实 10 秒层级需要时另立 M7-E.2b。
+- 日志与业务：generation 0/1必须同时存在，current/previous选择正确；恢复后完成 Server-only
+  models、buffered chat、completion、logs和直连 vLLM，三轮至少 6 秒重复协调不得出现第二个
+  replacement、generation 2或 restart count漂移。
+- 安全框架：冻结 1200 秒独立 watchdog、attempt专用 formal/watchdog/post-audit/preflight/
+  no-write路径、权威优先和完整 ownership fallback cleanup、Python Worker安全恢复、0700/0600
+  证据、Config.Env预落盘删除、秘密扫描和验收后 401凭据退役。
+- 当前停止位置：`accepted / tooling_pending`。下一项只允许实现并静态验证
+  `rust/scripts/m7e2/` 的五份正式脚本；不得创建或读取新阶段凭据，不得停止 Python Worker、切换
+  maintenance、创建 workload、使用 GPU或执行容器 SIGKILL，也不得进入 M7-E.3/M7-F。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

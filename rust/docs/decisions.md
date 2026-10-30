@@ -1015,3 +1015,17 @@ formal attempt 2。API Key ID 23 仍为阶段凭据，最终接受前必须退�
 M7-E.1 状态更新为 `accepted`。该状态只接受 Worker crash 后同一健康 vLLM接管结论；下一项最多
 讨论和冻结 M7-E.2 的 vLLM crash恢复协议，不自动授权创建凭据、停止 Python Worker、创建
 workload、使用 GPU或执行 M7-E.2/M7-E.3/M7-F。
+
+## 2026-10-30 M7-E.2 vLLM crash协议接受
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D220 | M7-E.2 单故障目标 | GPU0 上建立固定 TP=1健康 workload后，只对完整 ownership/spec匹配的唯一 Rust-owned vLLM容器执行一次精确 `docker kill --signal KILL <full-id>`；Rust Worker、Server、Docker daemon、Python/未知容器和 GPU1不作为故障对象。正式状态子序列固定为 `RUNNING -> ERROR -> SCHEDULED -> INITIALIZING -> STARTING -> RUNNING` | 单一容器故障可把结果归因于 Rust Worker的 terminal detection、ERROR写回和 runtime重建；不同时引入 Worker crash或连接故障，维持 M7-E三个独立窗口的边界。 |
+| D221 | maintenance 与 ModelFile复用 | 首次部署时暂时解除 maintenance完成调度；稳定 RUNNING后重新启用并在整个故障恢复期间保持。实例已经绑定 Worker ID 5，Rust Worker可在 maintenance中把同一实例写回 SCHEDULED并继续协调。固定 Server复用同一 ready/100% ModelFile，重启子链允许从 INITIALIZING直接进入 STARTING，不要求再次 DOWNLOADING | Rust受限模式的启动安全不变量要求 maintenance；故障前重新启用只冻结新调度，不停止现有 runtime。同一 ready ModelFile不应因 runtime crash重新下载，固定 v2.2.3 Controller也会直接完成 ready文件同步。 |
+| D222 | 真实退避证据范围 | formal attempt只验证健康 RUNNING后的首次 0 秒层级：无非零 `RestartPending`，出现 `restart_scheduled restart_count=1`，并正确写入 `last_restart_time`。不在 replacement健康前再次制造启动失败；完整 0、10、20、40、80、160、300 秒序列继续由 M7-B/C离线测试证明，真实 10 秒层级若需要则另立 M7-E.2b | 健康 RUNNING会清零进程内连续失败计数。要触发 10 秒必须叠加第二次启动期故障，会改变独立变量、扩大窗口并降低归因清晰度；一次真实 crash足以验证本窗口的主要自动恢复链。 |
+| D223 | 新容器、代际与数据面门 | PASS要求持久 restart count从 0精确增至 1，新容器 ID/StartedAt变化，但端口、Runner digest、模型路径、GPU0、spec hash、ownership和 Model/Instance/File identity不变；只保留 generation 0/1，`model logs`与 `--previous`分别读取当前/上一代；Server-only models/chat/completion/logs、直连推理和三轮幂等全部通过 | 这些条件联合区分“真正由 Worker重建并恢复”与 Docker自重启、手工替换、重复容器或仅表面 RUNNING。持久状态、实际容器、日志和数据面四条证据链缺一不可。 |
+| D224 | 工具、凭据与授权停止点 | 新增中文 runbook，并在后续使用 `rust/scripts/m7e2/` 的 lib/preflight/executor/watchdog/post-audit、1200 秒独立 watchdog、attempt专用证据路径、精确 fallback cleanup和独立 post-audit。M7-E.1凭据不得复用；新凭据最长 7 天且验收后立即退役。协议接受只授权文档和工具链静态实现，不授权凭据、维护窗口、Server写入、容器或 GPU操作 | 把设计、无副作用工具实现、凭据/preflight和真实窗口继续分段，可以复用 M7-E.1 已验证的安全框架，同时避免前一阶段权限或证据串用。 |
+
+M7-E.2 当前状态为 `accepted / tooling_pending`。下一项只允许实现五份正式脚本并执行语法、
+ShellCheck、必需/禁止模式、fake/mock和静态隔离门；不得自动创建凭据、停止 Python Worker、切换
+maintenance、创建 workload、使用 GPU或执行容器 SIGKILL，也不得进入 M7-E.3 或 M7-F。

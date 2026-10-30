@@ -22,6 +22,7 @@
 - [m6b5-managed-runtime-smoke.md](m6b5-managed-runtime-smoke.md)：M6-B.5 凭据准备、正式单 GPU Managed smoke、watchdog、验收与回滚边界。
 - [m7d-readonly-preflight.md](m7d-readonly-preflight.md)：M7-D 真实输入、恢复材料、专用代理边界、只读证据与维护授权停止点。
 - [m7e1-worker-crash-runbook.md](m7e1-worker-crash-runbook.md)：已接受的 M7-E.1 Rust Worker 精确 crash、同容器接管、watchdog、验收与回滚协议。
+- [m7e2-vllm-crash-runbook.md](m7e2-vllm-crash-runbook.md)：已接受的 M7-E.2 vLLM 精确 crash、自动重建、日志代际、watchdog、验收与回滚协议。
 
 ## 文档语言
 
@@ -194,6 +195,13 @@
   token保持不变；退役 manifest文件 SHA-256 为
   `1b92ded9aa88df05390345e3b8827259c266ffe879a28983a60391700dfa3614`。M7-E.1 当前为
   `accepted`，尚未授权 M7-E.2、M7-E.3 或 M7-F。
+- M7-E.2 vLLM crash协议已接受：GPU0固定 TP=1 workload健康后，只精确 KILL完整 ownership/spec
+  匹配的唯一 vLLM容器；Rust Worker、Server和 Docker daemon保持运行。正式门要求
+  `RUNNING -> ERROR -> SCHEDULED -> INITIALIZING -> STARTING -> RUNNING`、restart count
+  `0 -> 1`、首次 0 秒退避、同一 ready ModelFile/端口/spec/GPU0、新容器、generation 0/1日志、
+  Server-only推理和三轮幂等。完整 10～300 秒退避阶梯不在本次真实窗口复合注入，继续由
+  M7-B/C离线矩阵证明。当前为 `tooling_pending`，只允许实现/静态验证五份脚本；尚未授权凭据、
+  服务切换、workload、GPU、容器 SIGKILL、M7-E.3或 M7-F。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
