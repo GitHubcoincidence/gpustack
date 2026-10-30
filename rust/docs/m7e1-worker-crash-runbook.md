@@ -3,14 +3,14 @@
 ## 1. 文档状态
 
 - 阶段：M7-E.1。
-- 状态：`proposed / ready_for_review`。
-- 目的：共同审阅并冻结真实维护窗口协议。
-- 当前授权：只允许编写、检查和提交本方案；不允许停止 Python Worker、切换 maintenance、
-  创建凭据或 Server 资源、启动 Rust Worker/vLLM、使用 GPU 或注入故障。
+- 状态：`accepted / formal_toolchain_implemented / static_audit_pending`。
+- 目的：按已接受协议实现并静态审计 attempt 1 正式工具链。
+- 当前授权：只允许编写、检查、提交和静态审计正式脚本；不允许停止 Python Worker、切换
+  maintenance、创建凭据或 Server 资源、启动 Rust Worker/vLLM、使用 GPU 或注入故障。
 
-本方案通过后也不会自动开始执行。后续还要依次完成方案接受、正式脚本静态审计、受保护短期
-凭据准备、只读 preflight 与无写故障注入，最后再次请求只覆盖 M7-E.1 attempt 1 的精确维护
-窗口授权。M7-E.2、M7-E.3 和 M7-F 不在该授权范围内。
+本方案已经由用户接受，但接受不等于授权执行。正式脚本静态审计完成后，仍要依次取得受保护
+短期凭据准备授权、运行只读 preflight 与无写故障注入，最后再次请求只覆盖 M7-E.1 attempt 1
+的精确维护窗口授权。M7-E.2、M7-E.3 和 M7-F 不在该授权范围内。
 
 ## 2. 验证目标
 
@@ -39,9 +39,9 @@ M7-E.1 验证的是 **Worker crash 后接管健康 runtime**，不是 vLLM crash
 - 不把 cleanup 成功、容器存活或直接 vLLM 推理成功单独提升为正式 PASS。
 - 不把本阶段的宿主机 Worker 证据外推为 M8 容器化 Worker 的发布证据。
 
-## 4. 冻结输入候选
+## 4. 冻结输入
 
-| 项目 | 候选固定值 |
+| 项目 | 固定值 |
 |---|---|
 | Server | `http://127.0.0.1/`，v2.2.3，commit `1cfcbbf` |
 | Rust Worker | ID 5，UUID `7c4e07a3-6b97-4577-9ff0-1fc6c2319596`，名称 `rust-m3d-r760xa` |
@@ -76,9 +76,28 @@ attempt 1 使用以下互不复用的路径：
 - executor：`~/.local/state/gpustack-rust-worker/tools/m7e1-worker-crash-attempt-1.sh`
 - watchdog：`~/.local/state/gpustack-rust-worker/tools/m7e1-worker-crash-watchdog-attempt-1.sh`
 - preflight：`~/.local/state/gpustack-rust-worker/tools/m7e1-worker-crash-preflight-attempt-1.sh`
+- post-audit：`~/.local/state/gpustack-rust-worker/tools/m7e1-worker-crash-post-audit-attempt-1.sh`
+- shared library：`~/.local/state/gpustack-rust-worker/tools/m7e1-worker-crash-lib-attempt-1.sh`
 
 目录必须事先不存在；脚本为 `0700`，目录为 `0700`，证据文件为 `0600`。attempt 失败后不能覆盖
 原路径，任何 retry 必须使用新的 attempt identity、重新 preflight 并重新请求授权。
+
+五份脚本的 Git 权威源分别为 `rust/scripts/m7e1/lib.sh`、`preflight.sh`、`executor.sh`、
+`watchdog.sh` 和 `post-audit.sh`。90 上的 tools 副本只能从干净冻结 HEAD 安装，并在 preflight、
+watchdog、executor 与 post-audit 之间用 SHA-256 相互验证；不得手工修改运行副本。
+
+### 5.1 正式工具链职责
+
+- `lib.sh`：冻结资源 identity，并集中实现只读采集、PID identity、完整 ownership 校验、精确
+  runtime fallback cleanup、Python Worker安全恢复、秘密扫描和证据封存。
+- `preflight.sh`：执行源码/脚本身份、locked/offline 构建、六项接管测试、短期凭据、固定输入、
+  外部基线和静态安全门；用错误 HEAD 证明 executor 在窗口前 STOP 且不写外部状态。
+- `executor.sh`：执行唯一正式状态机；只在所有外部门和 armed watchdog 身份通过后停止固定
+  Python Worker，建立 workload，精确 SIGKILL Rust Worker，验证同容器接管并统一 cleanup。
+- `watchdog.sh`：以独立 session leader 身份先写 armed identity，再在 1200 秒边界内运行
+  executor；任何非零退出都进入精确回滚，未知 PID/容器 fail closed。
+- `post-audit.sh`：不复用 executor 内存状态，独立对照 preflight 基线复核服务、资源、容器、
+  端口、GPU、源码、模型和三条证据链。
 
 ## 6. 正式执行前门禁
 
@@ -111,8 +130,9 @@ preflight 通过只把状态推进到 `ready_for_maintenance_authorization`，�
 
 ## 7. 正式维护窗口顺序
 
-正式 attempt 的硬超时为 1200 秒。watchdog 必须从独立 SSH 生命周期启动并先进入 armed 状态；
-主 executor 只在验证 watchdog PID、starttime、脚本 SHA 和 evidence identity 后继续。
+正式 attempt 的硬超时为 1200 秒。watchdog 必须通过独立 SSH 命令以 `setsid` session leader
+启动并先写入 armed 状态；它再把 executor 作为受保护子进程启动。executor 只有在验证 watchdog
+PID、starttime、PGID、SID、shell identity、watchdog/executor SHA 和 evidence identity 后继续。
 
 ### 7.1 进入窗口与建立 workload
 
@@ -261,6 +281,7 @@ token 文件并证明旧 token 返回 401；凭据退役完成后才能把 M7-E.
 
 ## 12. 当前停止点
 
-本方案当前只是待审阅草案。允许的下一步只有共同修改并接受本方案；接受后才可编写和审计
-attempt 1 脚本、准备阶段凭据并运行只读 preflight。任何真实服务、Server、Docker、GPU 或
-故障注入操作都需要后续独立、精确的 M7-E.1 maintenance authorization。
+本方案已接受，attempt 1 五份脚本已经实现，当前只允许完成本地与 90 的语法、ShellCheck、
+必需/禁止模式和 Git identity 静态审计。静态审计通过后也不会自动准备凭据或运行 preflight；
+这些动作必须取得下一项单独授权。任何真实服务、Server、Docker、GPU 或故障注入操作仍需要
+后续独立、精确的 M7-E.1 maintenance authorization。

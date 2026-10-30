@@ -941,3 +941,12 @@ workload、使用 GPU、创建凭据或执行 M7-E。M7-D 通过后仍须另行�
 M7-D 当前为 `ready_for_maintenance_authorization`。下一项只允许共同冻结 M7-E.1 的资源名称、
 watchdog、停止/恢复顺序、故障动作、验收与 cleanup，然后请求该唯一窗口的明确授权；不得自动
 执行 M7-E.1，也不得预授权 M7-E.2、M7-E.3 或 M7-F。
+
+## 2026-10-30 M7-E.1 协议接受与正式工具链
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D206 | M7-E.1 同容器接管协议与脚本授权 | 用户接受 M7-E.1：固定 GPU0、TP=1、Qwen2.5-0.5B、Runner digest、Worker ID 5 和既有 data/log；只对经 PID/starttime/executable/binary/参数/PGID/SID/listener owner 重复验证的 Rust Worker发送精确 SIGKILL。PASS 必须证明 Worker缺席期间直连 vLLM 成功，重启后 container ID、StartedAt、端口、ownership/spec、Server资源、restart count、last restart和 generation 0 日志不变，Docker event 无生命周期动作，Server-only 推理/日志和三轮幂等通过。授权仅覆盖五份正式脚本的编写和静态审计 | 把 Worker crash 与 vLLM crash、Server/Docker 代理故障分开，可精确证明健康 runtime 的原位接管。独立 session watchdog、权威优先 cleanup、完整 ownership fallback、Python Worker安全恢复和 post-audit 限制故障面；方案接受不构成凭据、维护窗口、Server写入、容器、GPU 或 SIGKILL 授权。 |
+
+M7-E.1 协议状态为 `accepted`，正式工具链已实现并等待静态审计。下一步最多推进到脚本静态门；
+凭据准备、只读 preflight/无写注入和 formal attempt 1 必须分别遵守后续授权停止点。

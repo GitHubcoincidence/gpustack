@@ -4009,6 +4009,28 @@
   创建凭据/workload、使用 GPU 或注入故障。用户接受方案后仍须完成脚本静态门、只读
   preflight、无写注入和新的精确维护窗口授权。
 
+### 2026-10-30：M7-E.1 协议接受与 attempt 1 工具链实现
+
+- 用户决定：接受 M7-E.1 协议，并只授权编写与静态审计 attempt 1 脚本；明确不授权创建凭据、
+  停止 Python Worker、切换 maintenance、写 Server、创建 workload、使用 GPU 或真实 SIGKILL。
+- 工具链：新增 `lib.sh`、`preflight.sh`、`executor.sh`、`watchdog.sh` 和 `post-audit.sh`。共享库
+  集中固定 identity、PID/ownership guard、安全恢复和证据封存；preflight 冻结源码/凭据/输入并
+  做错误 HEAD 无写注入；executor 实现正式同容器接管状态机；watchdog 以独立 session armed
+  identity 和 1200 秒边界保护；post-audit 独立对照 preflight 基线。
+- SIGKILL guard：发送信号前两次复核 Rust PID/starttime/executable/binary SHA/参数 SHA/PGID/SID、
+  20150/20151 owner 与 vLLM 容器隔离。接管验收逐字段比较同一 container、manifest、Server
+  runtime contract 和 generation 0 log inode，并检查 Docker event 禁止生命周期动作。
+- 恢复边界：正常和异常路径都优先通过唯一模型做权威删除；只有 Instance 已 404 且完整
+  ownership/spec tuple 匹配才可 fallback stop/remove 记录容器。Rust-owned 容器、Managed 端口、
+  两卡进程和显存全部清空后才允许恢复固定 Python Worker。
+- 当前证据：本记录只描述源码实现；本地 Git Bash `bash -n` 已覆盖五份脚本，90 ShellCheck 和
+  冻结提交 identity 尚待完成。没有执行任一脚本、访问凭据、改变外部服务或使用 GPU。
+- 漂移审计：目标仍是固定 v2.2.3 Server、本地 Docker、vLLM、固定 Qwen/Runner、单 Worker、
+  GPU0 和宿主机阶段；没有加入 Kubernetes、其他后端、跨 Worker、GPU1 workload 或 M8 容器化，
+  也没有把脚本实现提升为真实恢复证据，结论为 `aligned`。
+- 当前停止位置：只允许完成脚本静态审计并提交/同步。通过后仍须单独授权准备短期凭据和运行
+  只读 preflight/无写注入；formal attempt 1 还需要新的精确维护窗口授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
