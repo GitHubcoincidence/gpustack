@@ -4087,6 +4087,26 @@
   `m7e1-worker-crash-preflight-attempt-2` 和对应 injection attempt 2，并从头执行八步。
 - 当前停止位置：`preflight_retry_2_pending`；该修正与重跑不扩展 formal 维护窗口授权。
 
+### 2026-10-30：M7-E.1 preflight attempt 2 secret scan 误报停止
+
+- 运行：attempt 2 在治理 HEAD `12ffa3410431579c07583ba026d683649d4cd4b7` 从头执行。源码、
+  locked/offline 构建和六项测试、凭据、外部基线、固定输入和静态安全门均通过；错误 HEAD
+  executor 已在 `window_entered=0` 的 pre-window gate 停止。
+- 根因：executor 封存时对整个 injection evidence 递归 secret scan。复制进去的固定 `lib.sh`
+  包含 scanner 自身的 `Cookie:` 正则文本，该文本被自己的正则匹配，导致结果从预期 STOP
+  改写为 `FAIL/secret_scan_detected_sensitive_content`。命中文件只有 `lib.sh`；operator 和
+  Cluster token 值对 preflight/injection 两目录的精确扫描均为零。
+- 证据：preflight 目录 700、43 个文件全 0600、内容树 SHA-256
+  `f5c7abb1081c7dcf2bb372389b0c777f3b9014bf47519cd5af6cee25d2795d91`；injection 目录
+  700、11 个文件全 0600，manifest 复核通过，manifest 文件 SHA-256 为
+  `dad9ffe2576c8911c5284cae666252a7b621fdbee199623cdf757a48e957ab1e`。
+- 修正与回归：不排除任何文件，只把 `Authorization`/`Cookie` header 名拆成不含冒号的局部
+  片段，在运行时组装原正则。固定源码扫描为 0；通过 `/dev/stdin` 输入合成 Cookie、Bearer
+  和 API Key 时各返回 1。`bash -n`、ShellCheck 0.11.0 和 `git diff --check` 通过。
+- 外部边界：停止后健康端点仍为 200，Rust进程/容器为 0，`window_entered=0`；没有停止服务、
+  改 maintenance、创建模型/vLLM 或使用 GPU。下一次使用全新 preflight/injection attempt 3，
+  必须从头执行，formal 窗口仍未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

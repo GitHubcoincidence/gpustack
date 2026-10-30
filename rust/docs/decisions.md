@@ -969,3 +969,10 @@ SIGKILL。preflight 通过后最多进入 `ready_for_maintenance_authorization`�
 
 当前状态为 `preflight_retry_2_pending`。formal、watchdog 和 post-audit 仍保持 attempt 1 identity
 且尚未创建；preflight attempt 2 通过后仍须新的维护窗口授权。
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D211 | preflight attempt 2 判定与 retry 3 | attempt 2 固定判为 `STOP/no_write_executor_injection`：前六步通过，错误 HEAD executor 已在 `window_entered=0` 停止，但封存时 secret scanner 把复制的 `lib.sh` 内自身 `Cookie:` 正则源码误判为敏感内容，故 injection 被标为 FAIL。preflight 目录为 700、43 个文件全 0600、内容树 SHA-256 `f5c7abb1081c7dcf2bb372389b0c777f3b9014bf47519cd5af6cee25d2795d91`；injection 目录为 700、11 个文件全 0600、manifest 文件 SHA-256 `dad9ffe2576c8911c5284cae666252a7b621fdbee199623cdf757a48e957ab1e`，两目录双 token 精确扫描均为零。scanner 改为由不含冒号的 header 片段在运行时组装同一正则，源码零命中，合成 Cookie/Bearer/API Key 各一命中；retry 使用 attempt 3 路径 | 误报发生于窗口前封存，不代表 token 泄漏；真实 token 精确扫描为零，服务、容器和 GPU 未变化。运行时组装避免正则扫描自身，同时不排除脚本或缩小扫描文件范围，保持原秘密门强度。 |
+
+当前状态为 `preflight_retry_3_pending`。formal attempt 1 仍未授权；attempt 3 必须从头重跑全部
+八步，不能把 attempt 1～2 的成功前缀拼接为 PASS。

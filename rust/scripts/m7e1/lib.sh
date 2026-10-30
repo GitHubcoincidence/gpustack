@@ -414,10 +414,12 @@ m7e1_restore_python_worker_if_safe() {
 }
 
 m7e1_secret_file_count() {
+  local authorization_header='Authorization'
+  local cookie_header='Cookie'
+  local pattern
+  pattern="gpustack_[[:alnum:]]{20,}|BEGIN [A-Z ]*PRIVATE KEY|${authorization_header}:[[:space:]]*Bearer[[:space:]]+[[:alnum:]_]|${cookie_header}:[[:space:]]*[^[:space:]]+"
   {
-    grep -RIlE \
-      'gpustack_[[:alnum:]]{20,}|BEGIN [A-Z ]*PRIVATE KEY|Authorization:[[:space:]]*Bearer[[:space:]]+[[:alnum:]_]|Cookie:[[:space:]]*[^[:space:]]+' \
-      "$@" 2>/dev/null || true
+    grep -RIlE "$pattern" "$@" 2>/dev/null || true
   } | wc -l
 }
 
