@@ -4044,6 +4044,29 @@
 - 当前停止位置：`credential_pending`。下一项必须单独授权准备最长 24 小时的短期 operator
   凭据和运行只读 preflight/错误 HEAD 无写注入；formal attempt 1 还需要新的精确维护窗口授权。
 
+### 2026-10-30：M7-E.1 阶段凭据就绪与工具链身份门加固
+
+- 授权与凭据：用户授权准备阶段专用凭据以及执行 attempt 1 只读 preflight/错误 HEAD 无写
+  注入。使用既有受保护管理凭据调用正式 `/v2/api-keys`，创建 API Key ID 23、名称
+  `rust-worker-m7e1-operator-20261030`、scope `management,inference`，`created_at` 为
+  `2026-10-30T02:35:33.249928Z`，`expires_at` 为 `2026-10-31T02:35:33.178646Z`，计算生命周期
+  为精确 86,400 秒。
+- 秘密边界：完整 token 原子写入
+  `/home/wujiaxing2/.config/gpustack-rust/m7-operator-token`；文件 mode 0600、owner
+  `wujiaxing2:wujiaxing2`、link count 1。新 token 对 API Key 管理、Worker 管理和 inference
+  models 均返回 200；active Context `m7e1-operator` 精确引用该文件。完整 token 未进入聊天、
+  命令参数、输出、日志、Git 或证据。
+- 现场不变式：准备前后 Server、Python Worker health/metrics 均为 200；Rust 进程和 owned
+  容器均为 0，两张 GPU 均为 0 MiB/0%。五个 attempt 1 证据路径仍未使用，没有停止服务、
+  切换 maintenance、创建 workload、启动 vLLM 或使用 GPU。
+- 安全审计：恢复执行前发现 executor 只复核 preflight 清单和 PASS 状态，尚未把 preflight
+  内的治理 HEAD 与当前正式脚本逐项绑定。按 D209 窄幅加固 executor/post-audit，新增 HEAD、
+  产品提交、Cargo.lock 和脚本 SHA 绑定；`git diff --check`、Git Bash `bash -n` 和经官方
+  SHA-256 校验的 ShellCheck 0.11.0 均通过。
+- 当前停止位置：`preflight_pending`。下一项是在包含 D208-D209 的干净新治理 HEAD 上执行
+  attempt 1 只读 preflight 与错误 HEAD 无写注入。即使通过，也只进入
+  `ready_for_maintenance_authorization`，不得自动进入 formal 窗口。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

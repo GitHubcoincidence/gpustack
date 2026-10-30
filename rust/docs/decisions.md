@@ -951,3 +951,14 @@ watchdog、停止/恢复顺序、故障动作、验收与 cleanup，然后请求
 
 M7-E.1 协议状态为 `accepted`，正式工具链静态门已通过。当前停止在 `credential_pending`；
 凭据准备、只读 preflight/无写注入和 formal attempt 1 必须分别遵守后续授权停止点。
+
+## 2026-10-30 M7-E.1 凭据准备与 preflight 身份绑定
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D208 | M7-E.1 阶段凭据 | 创建唯一 API Key ID 23、名称 `rust-worker-m7e1-operator-20261030`、scope `management,inference`、生命周期精确 86,400 秒；完整 token 只写入 90 的 `/home/wujiaxing2/.config/gpustack-rust/m7-operator-token`，文件为 0600、owner `wujiaxing2:wujiaxing2`、单硬链接。Context 固定为 active `m7e1-operator`，Server URL `http://127.0.0.1/` | 网页最短有效期为 7 天，但 Server v2.2.3 的正式 API 支持任意正秒数。使用精确 24 小时凭据可同时满足冻结生命周期和双 scope 门，不需要放宽协议；秘密不进入聊天、参数、日志、Git 或证据。 |
+| D209 | preflight 与正式脚本身份绑定 | executor 在接受 preflight PASS 前，除清单复核外还必须逐项核对 preflight `governance_head`、产品提交、Cargo.lock、lib、executor 和 watchdog SHA；post-audit 复核 HEAD、产品提交、lock 和 lib。修正后重新执行语法与 ShellCheck 静态门，并在新的治理 HEAD 上运行 attempt 1 preflight | 仅校验旧 preflight 清单完整且 PASS 不能证明其对应当前源码和脚本。显式绑定所有正式输入可阻止旧预检被误复用于新执行器，不改变实验目标、工作负载、成功标准或维护授权边界。 |
+
+当前状态为 `credential_ready / preflight_pending`。用户已授权只读 preflight 和错误 HEAD 无写
+注入；该授权不包含停止 Python Worker、改变 maintenance、创建模型/容器、使用 GPU 或真实
+SIGKILL。preflight 通过后最多进入 `ready_for_maintenance_authorization`。

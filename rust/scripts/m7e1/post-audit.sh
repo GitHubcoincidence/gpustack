@@ -71,6 +71,14 @@ announce 1 '验证 preflight、formal 与 watchdog 证据链'
 (cd "$PREFLIGHT" && sha256sum --check manifest.sha256) \
   >"$EVIDENCE/preflight-manifest-check.txt"
 [[ "$(sed -n 's/^status=//p' "$PREFLIGHT/preflight-result.txt")" == 'PASS' ]]
+[[ "$(sed -n 's/^governance_head=//p' "$PREFLIGHT/source-identity.txt")" == \
+  "$EXPECTED_HEAD" ]]
+[[ "$(sed -n 's/^product_commit=//p' "$PREFLIGHT/source-identity.txt")" == \
+  "$PRODUCT_COMMIT" ]]
+[[ "$(sed -n 's/^cargo_lock_sha256=//p' "$PREFLIGHT/source-identity.txt")" == \
+  "$EXPECTED_LOCK_SHA" ]]
+[[ "$(sed -n 's/^lib_sha256=//p' "$PREFLIGHT/source-identity.txt")" == \
+  "$EXPECTED_LIB_SHA" ]]
 formal_status='missing'
 formal_cleanup='unknown'
 if [[ -f "$FORMAL_EVIDENCE/manifest.sha256" ]]; then

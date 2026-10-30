@@ -3,14 +3,15 @@
 ## 1. 文档状态
 
 - 阶段：M7-E.1。
-- 状态：`accepted / formal_toolchain_static_audited / credential_pending`。
-- 目的：按已接受协议冻结 attempt 1 正式工具链，等待下一项授权。
-- 当前停止边界：脚本编写和静态审计授权已经完成；不允许停止 Python Worker、切换
-  maintenance、创建凭据或 Server 资源、启动 Rust Worker/vLLM、使用 GPU 或注入故障。
+- 状态：`accepted / credential_ready / preflight_pending`。
+- 目的：按已接受协议冻结 attempt 1 正式工具链和阶段凭据，执行已授权的只读准备门。
+- 当前停止边界：API Key ID 23 和 `m7e1-operator` Context 已就绪；只允许运行只读
+  preflight 与错误 HEAD 无写注入，不允许停止 Python Worker、切换 maintenance、创建模型或
+  vLLM 资源、启动 Rust Worker/vLLM、使用 GPU 或执行真实 SIGKILL。
 
-本方案已经由用户接受，但接受不等于授权执行。正式脚本静态审计完成后，仍要依次取得受保护
-短期凭据准备授权、运行只读 preflight 与无写故障注入，最后再次请求只覆盖 M7-E.1 attempt 1
-的精确维护窗口授权。M7-E.2、M7-E.3 和 M7-F 不在该授权范围内。
+本方案已经由用户接受，但接受不等于授权执行。受保护短期凭据已经准备完成，当前授权只覆盖
+只读 preflight 与无写故障注入；通过后仍须再次请求只覆盖 M7-E.1 attempt 1 的精确维护窗口
+授权。M7-E.2、M7-E.3 和 M7-F 不在该授权范围内。
 
 ## 2. 验证目标
 

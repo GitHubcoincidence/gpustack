@@ -567,6 +567,18 @@ require_equal "$(sha256sum "$PREFLIGHT/manifest.sha256" | awk '{print $1}')" \
   >"$EVIDENCE/preflight-manifest-check.txt" || fail 'preflight_manifest_check_failed'
 require_equal "$(sed -n 's/^status=//p' "$PREFLIGHT/preflight-result.txt")" \
   'PASS' 'preflight_status_not_pass'
+require_equal "$(sed -n 's/^governance_head=//p' "$PREFLIGHT/source-identity.txt")" \
+  "$EXPECTED_HEAD" 'preflight_source_head_mismatch'
+require_equal "$(sed -n 's/^product_commit=//p' "$PREFLIGHT/source-identity.txt")" \
+  "$PRODUCT_COMMIT" 'preflight_product_commit_mismatch'
+require_equal "$(sed -n 's/^cargo_lock_sha256=//p' "$PREFLIGHT/source-identity.txt")" \
+  "$EXPECTED_LOCK_SHA" 'preflight_cargo_lock_mismatch'
+require_equal "$(sed -n 's/^lib_sha256=//p' "$PREFLIGHT/source-identity.txt")" \
+  "$EXPECTED_LIB_SHA" 'preflight_lib_identity_mismatch'
+require_equal "$(sed -n 's/^executor_sha256=//p' "$PREFLIGHT/source-identity.txt")" \
+  "$(sha256sum "$0" | awk '{print $1}')" 'preflight_executor_identity_mismatch'
+require_equal "$(sed -n 's/^watchdog_sha256=//p' "$PREFLIGHT/source-identity.txt")" \
+  "$EXPECTED_WATCHDOG_SHA" 'preflight_watchdog_identity_mismatch'
 
 cargo clean --manifest-path "$M7E1_REPO/rust/Cargo.toml" -p gpustack-cli \
   >"$EVIDENCE/cargo-clean.log" 2>&1
