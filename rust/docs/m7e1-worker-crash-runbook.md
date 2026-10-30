@@ -303,12 +303,11 @@ watchdog 未能删除随后变为 stopped 的精确 owned 容器，也未自动�
 审计确认三项健康端点 200、目标 Server资源/Rust容器/进程/端口均为零、两卡 0 MiB 且 Worker
 保持 maintenance。
 
-formal attempt 2 已按 D215 固定为 `failed_during_window`：Rust Worker端点和心跳实际就绪，但
-maintenance 对象保留启动前的 `unreachable=true`，错误的 harness 谓词在模型创建、GPU使用和
-SIGKILL前超时。cleanup、watchdog 和独立 post-audit 已恢复全部基线。
+formal attempt 3 已按 D217-D218 完成并通过。精确 SIGKILL 后，Worker缺席期间与新 Worker接管
+后的 container、runtime contract、manifest和 generation 0 log identity保持不变；Docker
+生命周期事件为零，直连与 Server推理、日志和三轮幂等通过。formal、watchdog、独立 post-audit
+和完整 cleanup均为 PASS，同一 Python Worker及双卡基线已恢复。
 
-retry 3 按 D216 用“相对启动前快照严格推进的新心跳 + 三端点 + 精确 PID/listener identity”证明
-maintenance Worker存活；非 maintenance READY 仍严格要求 `unreachable=false`。下一步仅允许
-完成质量门、提交同步以及全新的 preflight/injection attempt 5；formal/watchdog/post-audit
-attempt 3 必须取得新的精确 maintenance authorization。旧结果、路径和授权不得复用，也不得把
-恢复 PASS 提升为 M7-E.1 业务通过。
+当前停止在 `ready_for_review`。只有用户接受本次报告后，才能退役 API Key ID 23、
+`m7e1-operator` Context和 operator token文件并证明旧 token返回 401；完成凭据退役后才可把
+M7-E.1 标记为 `accepted`。不得自动进入 M7-E.2、M7-E.3 或 M7-F。

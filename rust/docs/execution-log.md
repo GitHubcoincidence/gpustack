@@ -4191,6 +4191,45 @@
   preflight/injection attempt 5；formal attempt 3 必须重新取得明确维护窗口授权，不能复用
   attempt 2 授权或进入 M7-E.2/E.3/F。
 
+### 2026-10-30：M7-E.1 formal attempt 3 同容器接管通过
+
+- 准备与授权：治理 HEAD `3dc036f12ad141faafda96f82af7a9d5ce0a4bec` 上的 preflight/
+  injection attempt 5 从头通过。两份 manifest 文件 SHA-256 分别为
+  `b0e7a6a472432ebae9ed9d59d92a977c9e6712e488f7df0bc52904e3be57cb8c` 和
+  `607419375060707275afee447feb01e3df170b6eed87ddcbf1d1962137fc291f`；62/10 个条目、0700/
+  0600 权限、秘密扫描和九组外部 before/after 不变式通过。用户随后明确授权唯一 formal
+  attempt 3，最终七项只读门再次确认源码、工具、凭据、Worker、Python Worker、资源、端口和
+  双 GPU 均符合冻结输入。
+- 运行基线：停止精确 Python Worker后，D216 的 maintenance 新心跳门在真实窗口通过。创建
+  Model 23、ModelInstance 38、ModelFile 17，Managed端口 40000；唯一 vLLM 容器为
+  `0fb3c4c4b6b024fcbe8d27f06f7531c2dcaf7a4eafe825a732f0ed0124c89416`，spec hash 为
+  `4448ae2641aa3456eacd64707a08c8589a4dcae0488861cc25972a683b355da1`，只使用 GPU0。
+  crash 前直连和 Server models/chat/completion/logs 全部通过。
+- 精确故障：maintenance 重新启用并证明 runtime/推理不变后，对通过 PID、starttime、binary、
+  cmdline、PGID/SID和 20150/20151 listener owner 复核的宿主机 Rust Worker PID `1616884`
+  发送唯一 SIGKILL；进程以 137 退出，Worker API/metrics listener 消失，vLLM进程保持运行。
+- 缺席与接管：Worker缺席期间，pre-crash 与 worker-absent 的 runtime contract、完整 container
+  inspect 白名单、recovery manifest、log文件集合和 inode identity 逐字节一致；直连 models/chat
+  成功，GPU0 保持唯一计算进程，GPU1未使用。新 Rust Worker随后输出同一 container ID 的
+  `outcome=running` 并接管；after-adoption 及三轮 idempotency 的五组 identity 与 pre-crash
+  全部逐字节一致。
+- 验收细节：crash-to-adoption Docker event 中 create/start/die/stop/kill/restart/destroy 数量为
+  0；ModelInstance始终 `running`、worker 5、端口 40000、`restart_count=0`、
+  `last_restart_time=null`；只有 `38.0.log`。接管后直连推理、Server models/chat/completion/logs和
+  最终 buffered chat 全部通过。
+- cleanup 与审计：正常删除唯一模型和 ModelFile，Rust容器/manifest/cache/log收敛，优雅停止
+  Rust Worker并恢复同一 Python Worker ID。formal 154 条 manifest、watchdog 7 条 manifest、
+  post-audit 26 条 manifest 的文件 SHA-256 分别为
+  `eaf2bdba3403d7bec847284f73ccf482c34febe2fc7beead1ad8c786aff66d98`、
+  `8447cb8230ae9ba57f97b5c4f11fce381a1d313cf71373fdd056eff7f50b0d4e` 和
+  `5f9e1a639571eae646c00afcc95bf7c34f7c4a8ddd5cd4a6becf4b98bba919ed`，三者均为 PASS。
+  独立审计确认三个健康端点 200、Server资源/Rust容器/进程/端口为零、双卡 0 MiB/0%、同一
+  Python Worker运行、清单复算和双 token精确扫描通过。
+- 结论与边界：M7-E.1 的“Rust Worker crash 后接管同一健康 vLLM且服务连续”主张通过；结果不
+  外推到 vLLM crash、Docker/Server代理故障、GPU1或跨 Worker恢复。当前为 `ready_for_review`；
+  用户接受报告后才退役 API Key ID 23、`m7e1-operator` Context和 operator token文件并证明旧
+  token 401。不得自动进入 M7-E.2/E.3/F。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

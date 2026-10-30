@@ -186,10 +186,11 @@
   maintenance、Server资源、Docker、端口和两卡基线。retry 2 工具链会在 crash 前重新 enable
   maintenance，并支持完整 identity 匹配的 stopped 容器清理；当前为
   `retry_2_validation_pending`，formal attempt 2 仍须新的明确授权。
-- M7-E.1 formal attempt 2 在模型创建前因 maintenance Worker的陈旧 `unreachable=true` 被 harness
-  误判为未就绪；Rust端点、两卡上报和 Server新心跳实际正常，完整回滚与独立审计已通过。
-  retry 3 改用启动前后心跳推进、三个端点和精确 PID/listener identity，非 maintenance READY
-  仍要求 reachable。当前为 `retry_3_validation_pending`；formal attempt 3 仍须新的明确授权。
+- M7-E.1 formal attempt 3 已通过：精确 SIGKILL 后，Worker缺席期间和新 Worker接管后是同一
+  健康 vLLM 容器，runtime/Server资源/端口/restart/log identity无变化，Docker生命周期事件为
+  零，直连与 Server推理及三轮幂等通过。formal、watchdog、独立 post-audit和完整 cleanup均为
+  PASS，同一 Python Worker及双卡基线已恢复。当前为 `ready_for_review`；用户接受后先退役阶段
+  凭据，尚未授权 M7-E.2、M7-E.3 或 M7-F。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

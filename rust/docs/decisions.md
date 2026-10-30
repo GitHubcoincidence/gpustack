@@ -999,3 +999,11 @@ formal attempt 2。API Key ID 23 仍为阶段凭据，最终接受前必须退�
 当前状态为 `retry_3_validation_pending`。formal attempt 2 授权已经消费；修正、质量门、提交同步和
 全新只读 preflight/injection attempt 5 可以继续，但 formal attempt 3 必须再次取得精确维护窗口
 授权，且不得扩展到 M7-E.2、M7-E.3 或 M7-F。
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D217 | retry 3 准备门与正式授权 | 治理 HEAD `3dc036f12ad141faafda96f82af7a9d5ce0a4bec` 上的 preflight/injection attempt 5 通过；manifest 文件 SHA-256 分别为 `b0e7a6a472432ebae9ed9d59d92a977c9e6712e488f7df0bc52904e3be57cb8c` 和 `607419375060707275afee447feb01e3df170b6eed87ddcbf1d1962137fc291f`。stale-unreachable/new-heartbeat 正反回归和全部外部不变式通过。用户随后按精确范围授权一次 formal attempt 3 | 新准备门同时证明 D216 的替代证据在 90 的真实 Bash/jq/date 环境成立，并保持错误 HEAD 注入 `window_entered=0`；授权只覆盖本次唯一维护窗口，不能延伸。 |
+| D218 | formal attempt 3 PASS 与审阅停止点 | formal attempt 3 以 Worker PID `1616884` 的精确 SIGKILL/137 验证 Worker缺席连续性和同容器接管。Model 23、Instance 38、ModelFile 17、端口 40000、容器 `0fb3c4c4b6b024fcbe8d27f06f7531c2dcaf7a4eafe825a732f0ed0124c89416` 和 spec hash 全程固定；crash-to-adoption 没有容器生命周期事件，restart count 保持 0、last restart 为空、日志保持 generation 0，三轮调和无漂移。formal/watchdog/post-audit manifest 文件 SHA-256 分别为 `eaf2bdba3403d7bec847284f73ccf482c34febe2fc7beead1ad8c786aff66d98`、`8447cb8230ae9ba57f97b5c4f11fce381a1d313cf71373fdd056eff7f50b0d4e` 和 `5f9e1a639571eae646c00afcc95bf7c34f7c4a8ddd5cd4a6becf4b98bba919ed`，结果均为 PASS | 证据直接支持“宿主机 Rust Worker crash 后可接管同一健康 vLLM，且服务不中断、runtime 不重建”的 M7-E.1 主张。它不回答 vLLM crash、Docker/Server故障或跨 Worker恢复。完整 cleanup 恢复同一 Python Worker和双卡基线，当前只能进入 `ready_for_review`；用户接受后才退役 API Key ID 23、Context 和 operator token并证明旧 token 401。 |
+
+当前状态为 `ready_for_review`。M7-E.1 尚未因技术 PASS 自动标记为 `accepted`；下一项只允许
+用户审阅本次结论，接受后执行阶段凭据退役。不得自动进入 M7-E.2、M7-E.3 或 M7-F。

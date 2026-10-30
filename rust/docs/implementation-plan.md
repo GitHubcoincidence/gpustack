@@ -981,3 +981,10 @@ preflight/injection attempt 4 随后通过，formal attempt 2 在新授权下进
 reachability，因此 retry 3 改用“启动前后心跳严格推进 + 三端点 + 精确 PID/listener identity”
 证明维护态 Worker重新加入控制环；非维护 READY 仍要求 `unreachable=false`。下一步完成质量门、
 提交同步和全新 preflight/injection attempt 5；formal attempt 3 仍需新的明确授权。
+
+preflight/injection attempt 5 与最终漂移门通过后，用户授权 formal attempt 3。该次运行完成
+精确 SIGKILL/137、Worker缺席期间直连推理、同一容器接管、接管后 Server推理/日志、零 Docker
+生命周期事件和三轮幂等；容器 ID、StartedAt、端口、spec/ownership、Server资源、restart count、
+last restart和 generation 0 日志均未变化。正常 cleanup、watchdog与独立 post-audit恢复同一
+Python Worker及双卡基线，三套证据均为 PASS。M7-E.1 当前为 `ready_for_review`；用户接受后先
+退役阶段凭据，尚未授权 M7-E.2、M7-E.3 或 M7-F。
