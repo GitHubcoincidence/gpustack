@@ -202,8 +202,9 @@
   Server-only推理和三轮幂等。完整 10～300 秒退避阶梯不在本次真实窗口复合注入，继续由
   M7-B/C离线矩阵证明。五份正式脚本已在提交
   `b6ec4eac6c506e6d7a3ad96011c5b8b58d35f24d` 通过静态/离线质量门；当前为
-  `tooling_ready / credential_pending`。尚未授权阶段凭据、只读 preflight、服务切换、workload、
-  GPU、容器 SIGKILL、M7-E.3或 M7-F。
+  `ready_for_maintenance_authorization`。API Key ID 24、`m7e2-operator` Context及受保护 token已准备，
+  preflight attempt 1和错误 HEAD无写注入通过；尚未授权服务切换、workload、GPU、容器 SIGKILL、
+  M7-E.3或 M7-F。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

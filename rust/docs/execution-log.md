@@ -4304,6 +4304,31 @@
   management + inference 的 M7-E.2阶段凭据以及只读 preflight/错误 HEAD无写注入；formal attempt、
   M7-E.3和 M7-F仍未授权。
 
+### 2026-10-30：M7-E.2 凭据准备与 preflight attempt 1通过
+
+- 授权边界：用户明确授权创建 M7-E.2阶段凭据并运行只读 preflight/错误 HEAD无写注入；没有
+  授权停止 Python Worker、切换 maintenance、创建 workload、占用 GPU或执行容器 SIGKILL。
+- 凭据：使用既有受保护管理凭据经官方 API创建 API Key ID 24，名称
+  `rust-worker-m7e2-operator-20261030`，scope `management,inference`，生命周期 604,800 秒，创建/
+  到期时间为 `2026-10-30T11:49:31.418096Z` / `2026-11-06T11:49:31.342438Z`。完整 token只写入
+  `/home/wujiaxing2/.config/gpustack-rust/m7e2-operator-token`，mode 0600、owner
+  `wujiaxing2:wujiaxing2`、单硬链接；active Context为 `m7e2-operator`，management与inference
+  认证均返回200。
+- 凭据证据：目录 `m7e2-credential-prepare-attempt-1`含9个0600文件、0 symlink，真实 operator/
+  registration token精确扫描和通用秘密扫描均为0；manifest文件 SHA-256为
+  `3030c072729685874cad12d2ae86cb6378ebdcb8e37fd3b145abe7523f48082b`。
+- preflight：attempt 1在治理 HEAD `321b97861830b8f358154da5d0d6600cedb78bd3`依次通过源码/五脚本
+  identity、locked/offline build与9项重启测试、双 scope、外部基线、固定 Server/Runner/模型/
+  Worker/Python Worker/双 GPU identity、状态链/双代 cleanup mock、错误 HEAD注入和前后不变式。
+- 注入判定：错误 HEAD执行器证据为预期 `STOP`，reason `source_head_mismatch`、`window_entered=0`；
+  它只证明执行器在维护窗口前失败闭合，不是 formal失败或产品结果。
+- 独立复核：preflight/injection目录分别有67/11个0600文件、0 symlink，manifest重算通过；manifest
+  文件 SHA-256分别为 `4f38f32c855ed094aa1608e547f20058b9f99f0a574b45e812f978e5aec61209`和
+  `dcddc7cf5c0c97555d7efae5b12b246d24bd7a5be2eaa9d21977189e61a94e6f`。复核时 Server、Python
+  Worker API和metrics均为200，Rust进程、20150/20151监听和GPU计算进程均为0，Git HEAD/远端一致。
+- 当前停止位置：`ready_for_maintenance_authorization`。本次凭据/preflight授权已消费；formal
+  attempt 1必须取得新的明确维护授权，M7-E.3和 M7-F仍未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

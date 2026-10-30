@@ -1038,3 +1038,12 @@ maintenance、创建 workload、使用 GPU或执行容器 SIGKILL，也不得进
 
 本次没有创建或读取 M7-E.2 operator credential，没有停止服务、切换 maintenance、创建 workload、
 使用 GPU或注入容器故障。M7-E.3 与 M7-F仍未授权。
+
+## 2026-10-30 M7-E.2 凭据准备与 preflight attempt 1
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D226 | 阶段凭据、只读预检与正式窗口停止点 | 用户授权准备 M7-E.2阶段凭据和运行只读 preflight/错误 HEAD无写注入。创建 API Key ID 24、名称 `rust-worker-m7e2-operator-20261030`、scope `management,inference`、生命周期 604,800 秒，token只写入90的 `m7e2-operator-token` 0600文件；active Context固定为 `m7e2-operator`。preflight attempt 1八组门全部通过，错误 HEAD注入为预期 `STOP/source_head_mismatch/window_entered=0`。credential、preflight、injection manifest文件 SHA-256依次为 `3030c072729685874cad12d2ae86cb6378ebdcb8e37fd3b145abe7523f48082b`、`4f38f32c855ed094aa1608e547f20058b9f99f0a574b45e812f978e5aec61209`、`dcddc7cf5c0c97555d7efae5b12b246d24bd7a5be2eaa9d21977189e61a94e6f` | 把凭据与只读准备同真实维护窗口分离，使源码、脚本、Runner、模型、Worker、GPU、cleanup和秘密边界在任何服务写入前先被冻结。三套证据分别为9、67、11个0600文件且无symlink，manifest独立复算通过；现场三个健康端点200、Rust进程与GPU计算进程为0。状态只提升到 `ready_for_maintenance_authorization`，正式 attempt 1必须取得新的明确授权。 |
+
+API Key ID 24到期时间为 `2026-11-06T11:49:31.342438Z`；正式验收后必须删除该 Key、Context和
+token文件并证明旧 token返回401。M7-E.3与 M7-F仍未授权。

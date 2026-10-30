@@ -1011,3 +1011,10 @@ locked/offline workspace build、9 项精确测试、状态链/双代 cleanup mo
 当前为 `tooling_ready / credential_pending`；下一步仍须单独授权阶段凭据和只读 preflight/无写
 注入，不自动授权停止 Python Worker、切换 maintenance、创建 workload、使用 GPU或执行容器
 SIGKILL，也不授权 M7-E.3 或 M7-F。
+
+用户随后授权 M7-E.2 阶段凭据和只读 preflight。API Key ID 24、名称
+`rust-worker-m7e2-operator-20261030`、双 scope、604,800 秒生命周期、`m7e2-operator` Context和
+0600 token文件准备完成；credential/preflight/injection三套证据 manifest复算、权限、秘密扫描
+和外部不变式通过。错误 HEAD注入按预期在 `window_entered=0`停止，preflight attempt 1状态为
+`ready_for_maintenance_authorization`。formal attempt 1仍须新的明确授权，不能从本次只读授权
+自动继承。
