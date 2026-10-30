@@ -976,3 +976,15 @@ SIGKILL。preflight 通过后最多进入 `ready_for_maintenance_authorization`�
 
 当前状态为 `preflight_retry_3_pending`。formal attempt 1 仍未授权；attempt 3 必须从头重跑全部
 八步，不能把 attempt 1～2 的成功前缀拼接为 PASS。
+
+## 2026-10-30 M7-E.1 preflight attempt 3 与 formal attempt 1 判定
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D212 | preflight attempt 3 通过与 formal 授权消费 | preflight attempt 3 在治理 HEAD `acf46012136bcd473027b478ed3e1fffc66f4deb` 从头通过八步；preflight/injection manifest 文件 SHA-256 分别为 `7df6fdc823df2c1cb004bbd2ed3b07b3bd147aaa12fadd6b4a50c5ff227da4b4` 和 `f94f8cb0173921d3107c74feecbd62c8f34f73e81aeab0ebd0dc3c19c19c71a4`。错误 HEAD 注入保持 `window_entered=0`，前后服务、资源、Docker、GPU、端口和进程不变；随后用户明确授权 formal attempt 1 的唯一维护窗口 | attempt 3 首次同时满足冻结身份、动态 cleanup 回归、秘密扫描和外部不变式。formal attempt 1 的授权只覆盖该次唯一资源和回滚，执行后即消费，不能延伸到 retry。 |
+| D213 | formal attempt 1 判定与恢复 | attempt 1 固定判为 `failed_during_window`。完整状态链、Server/直连推理、精确 SIGKILL 退出 137 和 Worker缺席期间同一 vLLM 连续性通过；重启 Rust Worker因 Server Worker 已退出 maintenance 而触发启动安全不变量，未进入同容器接管判据。formal/watchdog manifest 文件 SHA-256 分别为 `141517ae2694dcb22888da7a748d48678afb587a069ff581bfce03885cc52a89` 和 `d9a4bc49c5f133938af4584b67fa61411854e0d42f1768f94d701bf95a19efd4`，两者均为 FAIL。精确补救删除唯一 stopped Rust容器并启动同一 Python Worker ID；脱敏后的补救 manifest 为 `132e45918cc1632069c2c61f6c0cf96ee721d755f4ab4dc83e866cc12f8b6daf`，独立恢复审计 attempt 2 manifest 为 `5e4ec4568e51a47bab4da4ccb7e0d1f3c0e92781366af0ab875cd8b6c3dc2477` 且 PASS | 业务失败发生在接管逻辑之前，不能判定产品接管失败或成功。恢复成功只证明环境已回到安全基线，不能改写 formal FAIL。手工补救最初保存的完整 Python `docker inspect` 含 Cluster token 环境字段；内容未输出，两个文件已立即白名单脱敏、记录原/新哈希、重建 manifest，并以真实双 token 和通用模式零命中复核。 |
+| D214 | retry 2 工具链修订与授权边界 | retry 在 SIGKILL 前重新 enable maintenance，并验证 Worker maintenance、原 runtime identity、直连与 Server推理均不变；精确 fallback cleanup 把 ownership/spec 身份验证与运行态验证分开，允许删除同一已停止容器，也容忍 `docker stop` 返回错误但随后确认容器确已停止；watchdog 对已不存在模型的删除保持幂等；pre/post 基线不再要求已停止 Rust Worker仍为 reachable。preflight 增加 maintenance 重入顺序和 stopped-container mock 回归。下一轮使用全新 preflight/injection attempt 4、formal/watchdog/post-audit attempt 2 路径 | 启动安全不变量要求 maintenance，故障前重新启用只阻止新调度，不改变已运行 vLLM。cleanup 必须能处理 Docker“未收到 exit event”后实际变为 stopped 的状态，同时继续用完整 identity fail closed。attempt 1 路径、证据和授权已消费；修订验证和只读 preflight 可继续，任何 formal attempt 2 仍需新的明确维护授权。 |
+
+当前状态为 `retry_2_validation_pending`。只允许完成脚本质量门、提交同步以及全新的只读
+preflight/injection attempt 4；不得自动停止 Python Worker、创建模型/容器、使用 GPU0 或执行
+formal attempt 2。API Key ID 23 仍为阶段凭据，最终接受前必须退役并证明旧 token 返回 401。

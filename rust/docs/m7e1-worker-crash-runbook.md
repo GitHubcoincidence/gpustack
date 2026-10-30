@@ -158,6 +158,9 @@ PID、starttime、PGID、SID、shell identity、watchdog/executor SHA 和 eviden
 6. 记录 Model、ModelInstance、ModelFile ID。若 ModelFile 在 before 基线已存在，只记录复用，
    cleanup 不得删除；只有本 attempt 创建且基线不存在的 ModelFile 才可在 cleanup 精确删除。
 7. 用 Server-only CLI 完成 `inference models`、buffered chat、completion 和 `model logs` 基线。
+8. 在故障注入前重新 enable maintenance，等待 Worker稳定进入 maintenance 且仍 reachable；再次
+   比较完整 runtime identity，并复核直连 vLLM 与 Server-only 推理。该步骤只冻结新调度，
+   不得停止、重建或重启现有 vLLM 容器。
 
 ### 7.2 crash 前不可变 identity
 
@@ -250,6 +253,8 @@ watchdog 监视主 executor，而不是把“Rust PID 消失”本身当作故�
    唯一测试模型并等待收敛；
 4. 若 Rust 已死且权威删除无法清理 runtime，只允许对记录的精确 container ID 在 image、
    ModelInstance ID、Worker UUID、mode、component、schema、spec hash 全部匹配时 stop/remove；
+   同一容器若已经 stopped，必须重新验证完整 identity 后直接 remove，不得因缺少 running 状态
+   把已停止的 owned 容器遗留在主机上；
 5. 只清理该 attempt 精确 manifest/cache/log 和 attempt-created ModelFile，不触碰未知、Python、
    Lab 或 baseline 资源；
 6. 只有 owned 容器为零、GPU0/GPU1 回到基线、Managed 端口无监听且 Rust PID 已消失后，才启动
@@ -288,9 +293,14 @@ token 文件并证明旧 token 返回 401；凭据退役完成后才能把 M7-E.
 
 ## 12. 当前停止点
 
-本方案已接受，attempt 1 五份脚本在提交
-`d549825c1a0069ee75ea56895eda9d58f0e87551` 完成静态审计：本机与 90 的 `bash -n`、90 上
-ShellCheck 0.9.0、必需/禁止模式、Git identity 和只读现场隔离门全部通过。当前停在
-`credential_pending`；准备短期凭据和运行 preflight/无写注入必须取得下一项单独授权。任何
-真实服务、Server、Docker、GPU 或故障注入操作仍需要后续独立、精确的 M7-E.1 maintenance
-authorization。
+formal attempt 1 已执行并固定为 `failed_during_window`：SIGKILL 与 Worker缺席连续性通过，
+但重启进程因 maintenance=false 被启动安全不变量拒绝，尚未触达接管判据。formal cleanup 和
+watchdog 未能删除随后变为 stopped 的精确 owned 容器，也未自动恢复 Python Worker；已在原
+授权的完整回滚范围内按完整 labels/spec 精确删除该容器并启动同一 Python Worker ID。独立恢复
+审计确认三项健康端点 200、目标 Server资源/Rust容器/进程/端口均为零、两卡 0 MiB 且 Worker
+保持 maintenance。
+
+retry 2 已按 D214 修订 maintenance 重入和 stopped-container cleanup。下一步仅允许完成质量门、
+提交同步以及全新的 preflight/injection attempt 4；formal/watchdog/post-audit attempt 2 使用
+全新路径，并必须取得新的精确 maintenance authorization。attempt 1 结果和授权不得复用，
+也不得把恢复 PASS 提升为 M7-E.1 业务通过。

@@ -4107,6 +4107,56 @@
   改 maintenance、创建模型/vLLM 或使用 GPU。下一次使用全新 preflight/injection attempt 3，
   必须从头执行，formal 窗口仍未授权。
 
+### 2026-10-30：M7-E.1 preflight attempt 3 通过与 formal attempt 1 失败恢复
+
+- preflight：治理 HEAD `acf46012136bcd473027b478ed3e1fffc66f4deb` 上的 attempt 3 从头
+  通过八步。preflight 目录 0700、60 个 manifest 条目；injection 目录 0700、10 个 manifest
+  条目，错误 HEAD 执行器以 `STOP/source_head_mismatch`、`window_entered=0` 结束。两份 manifest
+  文件 SHA-256 分别为 `7df6fdc823df2c1cb004bbd2ed3b07b3bd147aaa12fadd6b4a50c5ff227da4b4`
+  和 `f94f8cb0173921d3107c74feecbd62c8f34f73e81aeab0ebd0dc3c19c19c71a4`；双 token与
+  通用 secret 模式零命中，八组 before/after 外部快照一致。
+- 授权与执行：用户明确授权 formal attempt 1 的精确窗口。最终 pre-window gate 再次确认三项
+  健康端点 200、目标 Worker maintenance、模型名未占用、Rust进程/容器/端口为零、两卡空闲。
+  watchdog 以独立 session leader 启动，停止精确 Python Worker容器后启动宿主机 Rust Worker。
+- 业务通过前缀：Model 22、Instance 37、ModelFile 16 和端口 40000 完成七状态链；唯一容器
+  `e60554585d3e30226ae389937538044bcd254fdbf8cf65190e6653b4ebd40a51` 使用 GPU0。crash 前
+  Server/直连推理通过；PID 817109 经完整 identity/listener guard 后收到 SIGKILL并以 137 退出。
+  Worker缺席期间 container identity、runtime contract、日志和直连 vLLM 推理保持不变，GPU0
+  仍为唯一计算进程，GPU1 未使用。
+- 正式失败：重启 PID 824543 只存活约一秒，事件日志明确返回
+  `Server Worker maintenance must remain enabled`。脚本在部署前 disable maintenance 后没有在
+  crash 前重新 enable，故重启安全不变量按设计拒绝进程；attempt 未进入同容器 adoption、
+  Docker event、恢复后 Server推理或三轮幂等判据。formal 固定为
+  `FAIL/rust_worker_restart_ready_timeout`，不能解释为产品接管失败或成功。
+- 自动回滚失败：权威模型和 ModelFile 已删除，GPU workload 最终退出；Docker stop 曾返回
+  `tried to kill container, but did not receive an exit event`，容器稍后实际变为 stopped。原精确
+  fallback validator 只接受 running，formal/watchdog 均拒绝删除该 stopped 容器；其存在又使
+  Python Worker安全恢复 guard fail closed。formal/watchdog manifest 文件 SHA-256 分别为
+  `141517ae2694dcb22888da7a748d48678afb587a069ff581bfce03885cc52a89` 和
+  `d9a4bc49c5f133938af4584b67fa61411854e0d42f1768f94d701bf95a19efd4`，结果均为 FAIL。
+- 精确补救：只读复核确认容器已 stopped 且 labels 中 Worker UUID、Instance 37、mode/component、
+  schema 和 spec hash 全部匹配，随后只删除该唯一容器并启动同一 Python Worker ID
+  `68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165`。三项健康端点恢复 200，
+  Rust容器/进程/20150/20151/40000 监听为零，两卡 0 MiB、无计算进程。
+- 证据安全修复：手工补救首次把完整 Python `docker inspect` 写入两个受保护 JSON，精确扫描
+  发现其中包含 Cluster token 环境值。密钥内容未输出到聊天或命令结果；两个文件立即原地替换
+  为 Id/Image/Name/restart/network/mount/running/status 白名单字段，记录原始与脱敏 SHA，重建
+  manifest。脱敏后 operator/Cluster token 和通用模式均为零命中；补救 manifest SHA-256 为
+  `132e45918cc1632069c2c61f6c0cf96ee721d755f4ab4dc83e866cc12f8b6daf`。
+- 独立恢复审计：原 post-audit 因 watchdog `recovery_ok=0` 在 evidence-chain 门正确失败。补救后
+  recovery audit attempt 2 独立重查 Git、Server资源、Worker maintenance、同一 Python Worker、
+  Docker、Rust进程、端口、GPU、四组 manifest/权限和秘密，结果 PASS；manifest SHA-256 为
+  `5e4ec4568e51a47bab4da4ccb7e0d1f3c0e92781366af0ab875cd8b6c3dc2477`。恢复 PASS 不改变
+  formal attempt 1 的 `failed_during_window` 判定。
+- retry 2 修订：executor 在 crash 前重新 enable maintenance，并再次验证 Worker、完整 runtime
+  identity、直连与 Server推理；shared cleanup把 ownership/spec identity 与 running状态分离，
+  对同一 stopped 容器可直接 remove，对 stop 返回错误则轮询真实状态后再决定；watchdog 对已
+  删除模型保持幂等；pre/post 不把已停止 Rust Worker的 unreachable maintenance 对象误判为
+  漂移。preflight 新增 maintenance 顺序静态门和 stopped-container mock 回归。
+- 当前停止位置：`retry_2_validation_pending`。只允许完成质量门、提交同步和全新只读
+  preflight/injection attempt 4。formal/watchdog/post-audit attempt 2 必须使用新路径并重新取得
+  明确维护授权；attempt 1 授权已消费，不得自动重试或进入 M7-E.2/E.3/F。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

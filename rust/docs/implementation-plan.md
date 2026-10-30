@@ -962,3 +962,14 @@ attempt 专用证据路径、秘密排除、正常 cleanup、独立 post-audit �
 preflight、executor、独立 session watchdog 和 post-audit 当前固定。状态为 `credential_pending`；
 脚本通过不授权准备凭据、停止 Python Worker、切换 maintenance、创建 workload、使用 GPU 或
 注入故障。仍须单独授权凭据与只读 preflight/无写注入，再单独请求 M7-E.1 attempt 1 维护授权。
+
+preflight attempt 3 后续通过，formal attempt 1 在明确授权下完成模型运行、Server/直连推理、
+精确 SIGKILL 和 Worker缺席连续性，但重启 Worker因 maintenance=false 被启动安全不变量拒绝，
+因此固定为 `failed_during_window`，尚未验证同容器接管。Docker stop 的“不返回 exit event”又使
+容器稍后变为 stopped，原 fallback 只接受 running 容器，formal/watchdog recovery 均失败。
+精确补救和独立审计已恢复同一 Python Worker并清空目标资源、容器、端口和两卡 workload。
+
+retry 2 工具链在 crash 前重新 enable maintenance并再次验证 runtime/推理不变；fallback 按完整
+identity同时支持 running 和 stopped 容器，watchdog 模型删除幂等，pre/post 允许宿主机 Rust
+Worker停止后的 unreachable maintenance 对象。下一步先完成质量门和全新 preflight/injection
+attempt 4；formal/watchdog/post-audit attempt 2 必须使用新路径并重新取得明确维护授权。

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC1091,SC2317
+# shellcheck disable=SC1090,SC1091,SC2317,SC2329
 set -o errexit -o errtrace -o nounset -o pipefail
 
 umask 077
@@ -785,6 +785,36 @@ m7e1_direct_vllm_probe "$assigned_port" "$EVIDENCE/pre-crash-direct" ||
   fail 'pre_crash_direct_vllm_failed'
 server_inference_suite pre-crash-server || fail 'pre_crash_server_inference_failed'
 event gate_passed pre_crash_runtime_baseline
+
+phase='prepare_worker_restart_safety'
+"$M7E1_BINARY" --context "$M7E1_OPERATOR_CONTEXT" --output json \
+  worker maintenance enable "$M7E1_WORKER_ID" \
+  --message "M7-E.1 attempt $FORMAL_ATTEMPT crash/restart safety" \
+  >"$EVIDENCE/maintenance-enable-before-crash.json"
+jq -e '.worker_id == 5 and .after.enabled == true' \
+  "$EVIDENCE/maintenance-enable-before-crash.json" >/dev/null ||
+  fail 'maintenance_reenable_not_confirmed'
+for _ in $(seq 1 60); do
+  if "$M7E1_BINARY" --context "$M7E1_OPERATOR_CONTEXT" --output json \
+    worker get "$M7E1_WORKER_ID" >"$EVIDENCE/worker-maintenance-before-crash.json" \
+    2>"$EVIDENCE/worker-maintenance-before-crash.stderr" &&
+    jq -e '.id == 5 and .maintenance.enabled == true and .state == "maintenance" and
+      .unreachable == false' "$EVIDENCE/worker-maintenance-before-crash.json" >/dev/null; then
+    break
+  fi
+  sleep 1
+done
+jq -e '.id == 5 and .maintenance.enabled == true and .state == "maintenance" and
+  .unreachable == false' "$EVIDENCE/worker-maintenance-before-crash.json" >/dev/null ||
+  fail 'worker_did_not_reenter_maintenance'
+capture_runtime_identity restart-safety || fail 'restart_safety_runtime_identity_failed'
+compare_runtime_identity pre-crash restart-safety ||
+  fail 'runtime_changed_when_maintenance_reenabled'
+m7e1_direct_vllm_probe "$assigned_port" "$EVIDENCE/restart-safety-direct" ||
+  fail 'restart_safety_direct_vllm_failed'
+server_inference_suite restart-safety-server ||
+  fail 'restart_safety_server_inference_failed'
+event gate_passed restart_safety_maintenance_enabled
 
 phase='intentional_worker_crash'
 install -m 0600 /dev/null "$EVIDENCE/intentional-worker-crash.marker"

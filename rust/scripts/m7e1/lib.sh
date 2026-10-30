@@ -189,12 +189,20 @@ m7e1_validate_owned_container() {
   local file="$1"
   local instance_id="$2"
   local spec_hash="$3"
+  m7e1_validate_owned_container_identity "$file" "$instance_id" "$spec_hash" || return 1
+  jq -e '.running == true and .status == "running"' "$file" >/dev/null
+}
+
+m7e1_validate_owned_container_identity() {
+  local file="$1"
+  local instance_id="$2"
+  local spec_hash="$3"
   jq -e \
     --arg uuid "$M7E1_WORKER_UUID" \
     --arg instance "$instance_id" \
     --arg hash "$spec_hash" \
     --arg image "$M7E1_RUNNER_IMAGE_ID" '
-      .Id != null and .Image == $image and .running == true and .status == "running" and
+      .Id != null and .Image == $image and
       .labels["io.gpustack.implementation"] == "rust" and
       .labels["io.gpustack.schema-version"] == "2" and
       .labels["io.gpustack.mode"] == "managed" and
@@ -373,7 +381,7 @@ m7e1_remove_exact_owned_container() {
   local container_id="$2"
   local spec_hash="$3"
   local evidence="$4"
-  local current_ids safe_file
+  local current_ids safe_file stop_exit stopped
   [[ "$instance_id" =~ ^[1-9][0-9]*$ ]] || return 1
   [[ "$container_id" =~ ^[0-9a-f]{64}$ ]] || return 1
   [[ "$spec_hash" =~ ^[0-9a-f]{64}$ ]] || return 1
@@ -381,10 +389,30 @@ m7e1_remove_exact_owned_container() {
   [[ "$current_ids" == "$container_id" ]] || return 1
   safe_file="$evidence/fallback-owned-container.json"
   m7e1_capture_container "$container_id" "$safe_file"
-  m7e1_validate_owned_container "$safe_file" "$instance_id" "$spec_hash" || return 1
-  docker stop --time 30 "$container_id" >"$evidence/fallback-container-stop.txt" 2>&1 || return 1
+  m7e1_validate_owned_container_identity "$safe_file" "$instance_id" "$spec_hash" || return 1
+  stop_exit=0
+  if [[ "$(jq -r '.running' "$safe_file")" == 'true' ]]; then
+    timeout 60 docker stop --timeout 30 "$container_id" \
+      >"$evidence/fallback-container-stop.txt" 2>&1 || stop_exit=$?
+    stopped=0
+    for _ in $(seq 1 60); do
+      if [[ "$(docker inspect --format '{{.State.Running}}' "$container_id" 2>/dev/null)" == 'false' ]]; then
+        stopped=1
+        break
+      fi
+      sleep 1
+    done
+    [[ "$stopped" -eq 1 ]] || return 1
+  else
+    printf 'already_stopped=true\n' >"$evidence/fallback-container-stop.txt"
+  fi
+  printf 'docker_stop_exit=%s\n' "$stop_exit" >"$evidence/fallback-container-stop-result.txt"
   m7e1_capture_container "$container_id" "$evidence/fallback-owned-container-stopped.json" || return 1
+  m7e1_validate_owned_container_identity \
+    "$evidence/fallback-owned-container-stopped.json" "$instance_id" "$spec_hash" || return 1
+  jq -e '.running == false' "$evidence/fallback-owned-container-stopped.json" >/dev/null || return 1
   docker rm "$container_id" >"$evidence/fallback-container-remove.txt" 2>&1 || return 1
+  ! docker inspect "$container_id" >/dev/null 2>&1
 }
 
 m7e1_restore_python_worker_if_safe() {

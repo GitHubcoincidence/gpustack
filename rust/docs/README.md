@@ -180,12 +180,12 @@
   `6a2fcd779b51f20c0e31fc62c8c00c22d227912cadcfd57e521c7a8e323957c2`。当前为
   `ready_for_maintenance_authorization`；未授权停止 Python Worker、启动代理、创建 workload、
   使用 GPU 或执行 M7-E，M7-E 的三个窗口和 M7-F 仍须分别明确授权。
-- M7-E.1“Rust Worker crash 后接管同一健康 vLLM”维护协议已经接受，五份 attempt 1 正式脚本
-  已在提交 `d549825c1a0069ee75ea56895eda9d58f0e87551` 通过本机/90 `bash -n`、90 ShellCheck
-  和静态安全门，当前为 `credential_pending`。协议固定精确 PID `SIGKILL`、同 container ID/`StartedAt`/
-  端口/spec/restart count/log generation 证明、Docker event 无生命周期变更、Server-only
-  恢复验收、1200 秒独立 watchdog、精确 cleanup 和凭据退役门。当前仍未授权创建凭据、停止
-  Python Worker、切换 maintenance、创建 workload、使用 GPU 或执行故障注入。
+- M7-E.1 formal attempt 1 已固定为 `failed_during_window`：完整状态链、推理、精确 PID
+  `SIGKILL` 和 Worker缺席期间同一 vLLM 连续性通过，但重启 Worker因 maintenance=false 被
+  启动安全不变量拒绝，未触达接管判据。精确手工补救与独立恢复审计已恢复同一 Python Worker、
+  maintenance、Server资源、Docker、端口和两卡基线。retry 2 工具链会在 crash 前重新 enable
+  maintenance，并支持完整 identity 匹配的 stopped 容器清理；当前为
+  `retry_2_validation_pending`，formal attempt 2 仍须新的明确授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

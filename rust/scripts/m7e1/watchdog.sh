@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1090,SC2317
+# shellcheck disable=SC1090,SC2317,SC2329
 set -o errexit -o errtrace -o nounset -o pipefail
 
 umask 077
@@ -156,6 +156,16 @@ discover_resources() {
 
 delete_authoritative_model() {
   [[ "$model_id" =~ ^[1-9][0-9]*$ ]] || return 0
+  if [[ "$(jq -r --argjson id "$model_id" \
+    '[.[] | select(.id == $id)] | length' "$WATCHDOG_EVIDENCE/models.json")" == '0' ]]; then
+    return 0
+  fi
+  jq -e --argjson id "$model_id" --arg name "$M7E1_TARGET_MODEL" \
+    '[.[] | select(.id == $id and .name == $name)] | length == 1' \
+    "$WATCHDOG_EVIDENCE/models.json" >/dev/null || {
+    recovery_ok=0
+    return
+  }
   "$M7E1_BINARY" --context "$M7E1_OPERATOR_CONTEXT" --output json \
     model delete "$model_id" --yes >"$WATCHDOG_EVIDENCE/model-delete.json" \
     2>"$WATCHDOG_EVIDENCE/model-delete.stderr" || recovery_ok=0

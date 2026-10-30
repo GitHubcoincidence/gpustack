@@ -211,7 +211,7 @@ snapshot before
 [[ "$(docker inspect --format '{{.State.Running}}' "$M7E1_PYTHON_WORKER_ID")" == 'true' ]]
 jq -e --argjson id "$M7E1_WORKER_ID" --arg name "$M7E1_WORKER_NAME" '
   [.items[] | select(.id == $id and .name == $name and
-    .maintenance.enabled == true and .state == "maintenance" and .unreachable == false)] |
+    .maintenance.enabled == true and .state == "maintenance")] |
   length == 1
 ' "$EVIDENCE/before-workers.json" >/dev/null
 jq -e --arg name "$M7E1_TARGET_MODEL" \
@@ -286,6 +286,16 @@ done
 grep -Fq -- 'timeout --foreground --signal=TERM --kill-after=180 1200' "$WATCHDOG"
 grep -Fq -- 'm7e1_process_identity_matches_file' "$EXECUTOR"
 grep -Fq -- 'm7e1_validate_owned_container' "$LIB"
+grep -Fq -- 'm7e1_validate_owned_container_identity' "$LIB"
+grep -Fq -- 'already_stopped=true' "$LIB"
+maintenance_rearm_line="$(grep -nF "phase='prepare_worker_restart_safety'" "$EXECUTOR" |
+  cut -d: -f1)"
+intentional_crash_line="$(grep -nF "phase='intentional_worker_crash'" "$EXECUTOR" |
+  cut -d: -f1)"
+[[ "$maintenance_rearm_line" =~ ^[1-9][0-9]*$ ]]
+[[ "$intentional_crash_line" =~ ^[1-9][0-9]*$ ]]
+[[ "$maintenance_rearm_line" -lt "$intentional_crash_line" ]]
+grep -Fq -- 'event gate_passed restart_safety_maintenance_enabled' "$EXECUTOR"
 grep -Fq -- 'Config.Env' "$POST_AUDIT" && {
   printf 'STOP: post-audit must not capture container environment\n' >&2
   exit 1
@@ -296,9 +306,70 @@ for script in "$LIB" "$EXECUTOR" "$WATCHDOG" "$POST_AUDIT"; do
     exit 1
   fi
 done
+(
+  test_root="$(mktemp -d)"
+  trap 'find "$test_root" -xdev -depth -delete' EXIT
+  test_container='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  test_instance='42'
+  test_spec='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+  # The cleanup helper resolves these mock command names dynamically in the subshell.
+  # shellcheck disable=SC2329
+  m7e1_owned_container_ids() {
+    printf '%s\n' "$test_container"
+  }
+  # shellcheck disable=SC2329
+  docker() {
+    case "$1" in
+      inspect)
+        [[ ! -e "$test_root/removed" ]] || return 1
+        if [[ "$2" == '--format' ]]; then
+          printf 'false\n'
+          return 0
+        fi
+        jq -n \
+          --arg id "$test_container" \
+          --arg image "$M7E1_RUNNER_IMAGE_ID" \
+          --arg uuid "$M7E1_WORKER_UUID" \
+          --arg instance "$test_instance" \
+          --arg hash "$test_spec" '[{
+            Id:$id,Image:$image,Name:"/gpustack-rs-managed-42",
+            Config:{Labels:{
+              "io.gpustack.implementation":"rust",
+              "io.gpustack.schema-version":"2",
+              "io.gpustack.mode":"managed",
+              "io.gpustack.owner-id":$uuid,
+              "io.gpustack.component":"vllm",
+              "io.gpustack.worker-uuid":$uuid,
+              "io.gpustack.model-instance-id":$instance,
+              "io.gpustack.spec-hash":$hash
+            },Cmd:[],Entrypoint:[]},
+            HostConfig:{RestartPolicy:{Name:"no"},NetworkMode:"host"},
+            Mounts:[],State:{Running:false,Status:"exited",StartedAt:"",Pid:0}
+          }]'
+        ;;
+      stop)
+        return 91
+        ;;
+      rm)
+        [[ "$2" == "$test_container" ]] || return 1
+        : >"$test_root/removed"
+        printf '%s\n' "$test_container"
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  }
+  m7e1_remove_exact_owned_container \
+    "$test_instance" "$test_container" "$test_spec" "$test_root"
+  [[ -f "$test_root/removed" ]]
+  grep -qx 'already_stopped=true' "$test_root/fallback-container-stop.txt"
+) >"$EVIDENCE/stopped-container-cleanup-test.txt"
 printf 'bash_n=PASS\nexact_pid_guard=PASS\nsame_container_contract=PASS\n' \
   >"$EVIDENCE/script-static-audit.txt"
 printf 'watchdog_timeout=1200\nunknown_process_policy=fail_closed\nconfig_env_capture=absent\n' \
+  >>"$EVIDENCE/script-static-audit.txt"
+printf 'restart_maintenance_rearm=PASS\nstopped_container_cleanup=PASS\n' \
   >>"$EVIDENCE/script-static-audit.txt"
 
 current_step='no_write_executor_injection'

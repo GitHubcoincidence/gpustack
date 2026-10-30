@@ -154,7 +154,7 @@ cmp "$PREFLIGHT/before-python-worker.json" "$EVIDENCE/python-worker.json"
 "$M7E1_BINARY" --context "$M7E1_OPERATOR_CONTEXT" --output json \
   worker get "$M7E1_WORKER_ID" >"$EVIDENCE/worker.json"
 jq -e '.id == 5 and .name == "rust-m3d-r760xa" and .maintenance.enabled == true and
-  .state == "maintenance" and .unreachable == false' "$EVIDENCE/worker.json" >/dev/null
+  .state == "maintenance"' "$EVIDENCE/worker.json" >/dev/null
 
 current_step='server_and_docker_resources'
 announce 4 '复核测试资源、Rust 容器、进程和端口全部清空'
