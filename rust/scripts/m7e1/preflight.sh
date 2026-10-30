@@ -274,7 +274,7 @@ current_step='script_static_audit'
 announce 6 '故障注入、同容器验收、回滚和秘密边界静态审计'
 for required in \
   'm7e1_process_identity_matches_file' \
-  'kill -KILL "$rust_pid"' \
+  "kill -KILL \"\$rust_pid\"" \
   'docker events' \
   'compare_runtime_identity' \
   'm7e1_direct_vllm_probe' \
@@ -291,7 +291,10 @@ grep -Fq -- 'Config.Env' "$POST_AUDIT" && {
   exit 1
 }
 for script in "$LIB" "$EXECUTOR" "$WATCHDOG" "$POST_AUDIT"; do
-  ! grep -Eq '(^|[[:space:]])pkill([[:space:]]|$)|kill[[:space:]]+--[[:space:]]+-' "$script"
+  if grep -Eq '(^|[[:space:]])pkill([[:space:]]|$)|kill[[:space:]]+--[[:space:]]+-' "$script"; then
+    printf 'STOP: broad process termination is forbidden: %s\n' "$script" >&2
+    exit 1
+  fi
 done
 printf 'bash_n=PASS\nexact_pid_guard=PASS\nsame_container_contract=PASS\n' \
   >"$EVIDENCE/script-static-audit.txt"

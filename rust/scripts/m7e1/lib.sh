@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Shared identity and safety helpers for the M7-E.1 formal toolchain.
+# shellcheck disable=SC2034 # Constants form the interface consumed by sourcing scripts.
 
 readonly M7E1_REPO='/home/wujiaxing2/workspaces/gpustack'
 readonly M7E1_BINARY="$M7E1_REPO/rust/target/debug/gpustack-rs"
