@@ -947,6 +947,7 @@ watchdog、停止/恢复顺序、故障动作、验收与 cleanup，然后请求
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D206 | M7-E.1 同容器接管协议与脚本授权 | 用户接受 M7-E.1：固定 GPU0、TP=1、Qwen2.5-0.5B、Runner digest、Worker ID 5 和既有 data/log；只对经 PID/starttime/executable/binary/参数/PGID/SID/listener owner 重复验证的 Rust Worker发送精确 SIGKILL。PASS 必须证明 Worker缺席期间直连 vLLM 成功，重启后 container ID、StartedAt、端口、ownership/spec、Server资源、restart count、last restart和 generation 0 日志不变，Docker event 无生命周期动作，Server-only 推理/日志和三轮幂等通过。授权仅覆盖五份正式脚本的编写和静态审计 | 把 Worker crash 与 vLLM crash、Server/Docker 代理故障分开，可精确证明健康 runtime 的原位接管。独立 session watchdog、权威优先 cleanup、完整 ownership fallback、Python Worker安全恢复和 post-audit 限制故障面；方案接受不构成凭据、维护窗口、Server写入、容器、GPU 或 SIGKILL 授权。 |
+| D207 | M7-E.1 静态门与下一停止点 | 正式工具链固定在提交 `d549825c1a0069ee75ea56895eda9d58f0e87551`。五份脚本在本机和 90 的 `bash -n` 通过，90 上 ShellCheck 0.9.0 零告警；精确 SIGKILL、同容器 Docker event、ownership fallback、1200 秒独立 session watchdog、Python Worker安全恢复和秘密排除必需模式通过，宽进程终止、宽清理和危险 Git/Docker模式缺失。只读复核保持三个健康端点 200、Rust容器/进程 0、两卡 0 MiB/0% | 静态门只证明正式工具链可进入下一准备阶段，不证明凭据、外部 preflight 或真实恢复。状态停在 `credential_pending`；必须另行授权准备最长 24 小时的阶段凭据和运行只读 preflight/错误 HEAD 无写注入，之后仍须新的 formal maintenance 授权。 |
 
-M7-E.1 协议状态为 `accepted`，正式工具链已实现并等待静态审计。下一步最多推进到脚本静态门；
+M7-E.1 协议状态为 `accepted`，正式工具链静态门已通过。当前停止在 `credential_pending`；
 凭据准备、只读 preflight/无写注入和 formal attempt 1 必须分别遵守后续授权停止点。

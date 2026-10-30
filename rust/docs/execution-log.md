@@ -4023,13 +4023,26 @@
 - 恢复边界：正常和异常路径都优先通过唯一模型做权威删除；只有 Instance 已 404 且完整
   ownership/spec tuple 匹配才可 fallback stop/remove 记录容器。Rust-owned 容器、Managed 端口、
   两卡进程和显存全部清空后才允许恢复固定 Python Worker。
-- 当前证据：本记录只描述源码实现；本地 Git Bash `bash -n` 已覆盖五份脚本，90 ShellCheck 和
-  冻结提交 identity 尚待完成。没有执行任一脚本、访问凭据、改变外部服务或使用 GPU。
+- 静态证据：五份脚本固定在提交 `d549825c1a0069ee75ea56895eda9d58f0e87551`。本机 Git Bash
+  与 90 的 `bash -n` 全部通过；90 临时解包 Ubuntu ShellCheck 0.9.0，对五份脚本执行
+  `--shell=bash --external-sources` 后零告警，临时工具目录已删除。脚本 SHA-256 为 executor
+  `94b070b827168f5df4fb5e5141506573ed29ad181377e0fa1da88c739abad37b`、lib
+  `70b7361e04ba1554ab3b59cb8fd3e735bdfb082dfca1d52e1e2d03aa2d401cde`、post-audit
+  `383b02cabceb2cf1b9d9d850131eefca8e07cfe52787798bbc9f43986cd28a99`、preflight
+  `4d806068e2c124d24acb8ed25ec5089bf4a20b6613b19c5cee71a0f49f49eabd`、watchdog
+  `aae2a9977460404e6b5747dbabd889716d5ef50a5f1d65efa99f7c25d2321b03`。
+- 静态安全门：精确 signal、Docker event、进程 identity、完整 ownership、Python Worker安全
+  恢复、1200 秒 timeout 和 watchdog session leader 必需模式通过；`pkill`、进程组宽杀、
+  `rm -rf`、危险 Git reset、Docker prune 和 world-write 禁止模式通过。仓库脚本按主机 umask
+  检出为 0775，但 Git内容干净且正式 tools/evidence 副本强制 0700/0600并校验 SHA。
+- 只读现场：HEAD/origin/branch一致，M7-C 产品树无漂移，六个 attempt 1 路径和 operator token
+  路径均未使用；Server、Python Worker health、metrics 均为 200，Rust-owned 容器和进程为 0，
+  GPU0/GPU1 均为 0 MiB、0%。没有执行五份脚本、访问凭据、停止服务、写 Server/Docker或使用 GPU。
 - 漂移审计：目标仍是固定 v2.2.3 Server、本地 Docker、vLLM、固定 Qwen/Runner、单 Worker、
   GPU0 和宿主机阶段；没有加入 Kubernetes、其他后端、跨 Worker、GPU1 workload 或 M8 容器化，
   也没有把脚本实现提升为真实恢复证据，结论为 `aligned`。
-- 当前停止位置：只允许完成脚本静态审计并提交/同步。通过后仍须单独授权准备短期凭据和运行
-  只读 preflight/无写注入；formal attempt 1 还需要新的精确维护窗口授权。
+- 当前停止位置：`credential_pending`。下一项必须单独授权准备最长 24 小时的短期 operator
+  凭据和运行只读 preflight/错误 HEAD 无写注入；formal attempt 1 还需要新的精确维护窗口授权。
 
 ## 未解决风险与待确认事项
 

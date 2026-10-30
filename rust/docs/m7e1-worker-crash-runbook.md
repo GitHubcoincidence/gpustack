@@ -3,9 +3,9 @@
 ## 1. 文档状态
 
 - 阶段：M7-E.1。
-- 状态：`accepted / formal_toolchain_implemented / static_audit_pending`。
-- 目的：按已接受协议实现并静态审计 attempt 1 正式工具链。
-- 当前授权：只允许编写、检查、提交和静态审计正式脚本；不允许停止 Python Worker、切换
+- 状态：`accepted / formal_toolchain_static_audited / credential_pending`。
+- 目的：按已接受协议冻结 attempt 1 正式工具链，等待下一项授权。
+- 当前停止边界：脚本编写和静态审计授权已经完成；不允许停止 Python Worker、切换
   maintenance、创建凭据或 Server 资源、启动 Rust Worker/vLLM、使用 GPU 或注入故障。
 
 本方案已经由用户接受，但接受不等于授权执行。正式脚本静态审计完成后，仍要依次取得受保护
@@ -281,7 +281,9 @@ token 文件并证明旧 token 返回 401；凭据退役完成后才能把 M7-E.
 
 ## 12. 当前停止点
 
-本方案已接受，attempt 1 五份脚本已经实现，当前只允许完成本地与 90 的语法、ShellCheck、
-必需/禁止模式和 Git identity 静态审计。静态审计通过后也不会自动准备凭据或运行 preflight；
-这些动作必须取得下一项单独授权。任何真实服务、Server、Docker、GPU 或故障注入操作仍需要
-后续独立、精确的 M7-E.1 maintenance authorization。
+本方案已接受，attempt 1 五份脚本在提交
+`d549825c1a0069ee75ea56895eda9d58f0e87551` 完成静态审计：本机与 90 的 `bash -n`、90 上
+ShellCheck 0.9.0、必需/禁止模式、Git identity 和只读现场隔离门全部通过。当前停在
+`credential_pending`；准备短期凭据和运行 preflight/无写注入必须取得下一项单独授权。任何
+真实服务、Server、Docker、GPU 或故障注入操作仍需要后续独立、精确的 M7-E.1 maintenance
+authorization。

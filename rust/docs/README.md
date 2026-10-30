@@ -181,7 +181,8 @@
   `ready_for_maintenance_authorization`；未授权停止 Python Worker、启动代理、创建 workload、
   使用 GPU 或执行 M7-E，M7-E 的三个窗口和 M7-F 仍须分别明确授权。
 - M7-E.1“Rust Worker crash 后接管同一健康 vLLM”维护协议已经接受，五份 attempt 1 正式脚本
-  已实现并等待静态审计。协议固定精确 PID `SIGKILL`、同 container ID/`StartedAt`/
+  已在提交 `d549825c1a0069ee75ea56895eda9d58f0e87551` 通过本机/90 `bash -n`、90 ShellCheck
+  和静态安全门，当前为 `credential_pending`。协议固定精确 PID `SIGKILL`、同 container ID/`StartedAt`/
   端口/spec/restart count/log generation 证明、Docker event 无生命周期变更、Server-only
   恢复验收、1200 秒独立 watchdog、精确 cleanup 和凭据退役门。当前仍未授权创建凭据、停止
   Python Worker、切换 maintenance、创建 workload、使用 GPU 或执行故障注入。

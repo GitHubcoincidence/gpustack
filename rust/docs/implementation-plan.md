@@ -957,7 +957,8 @@ destroy，缺席期间直连 vLLM 推理成功，恢复后 Server-only CLI 推�
 
 协议同时冻结 1200 秒独立 watchdog、精确 PID guard、唯一资源 identity、失败回滚顺序、
 attempt 专用证据路径、秘密排除、正常 cleanup、独立 post-audit 和用户审阅后的凭据退役门。
-五份 attempt 1 脚本已实现：shared lib、preflight、executor、独立 session watchdog 和
-post-audit；当前只允许完成静态审计。脚本通过不授权准备凭据、停止 Python Worker、切换
-maintenance、创建 workload、使用 GPU 或注入故障。随后仍须单独授权凭据与只读 preflight/
-无写注入，再单独请求 M7-E.1 attempt 1 维护授权。
+五份 attempt 1 脚本已实现并在提交 `d549825c1a0069ee75ea56895eda9d58f0e87551`
+通过本机/90 `bash -n`、90 ShellCheck 0.9.0、必需/禁止模式和只读现场隔离门：shared lib、
+preflight、executor、独立 session watchdog 和 post-audit 当前固定。状态为 `credential_pending`；
+脚本通过不授权准备凭据、停止 Python Worker、切换 maintenance、创建 workload、使用 GPU 或
+注入故障。仍须单独授权凭据与只读 preflight/无写注入，再单独请求 M7-E.1 attempt 1 维护授权。
