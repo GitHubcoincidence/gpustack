@@ -1018,3 +1018,17 @@ SIGKILL，也不授权 M7-E.3 或 M7-F。
 和外部不变式通过。错误 HEAD注入按预期在 `window_entered=0`停止，preflight attempt 1状态为
 `ready_for_maintenance_authorization`。formal attempt 1仍须新的明确授权，不能从本次只读授权
 自动继承。
+
+用户随后授权 formal attempt 1。由于文档检查点使治理 HEAD前进，先在当前 HEAD完成全新的
+preflight/injection attempt 2，再进入维护窗口。旧 vLLM经完整 identity复核后精确 SIGKILL并以
+137退出；Rust Worker保持存活，Server正确观察到 `ERROR -> SCHEDULED`、restart count 1和有效
+last restart。随后 Server返回的空 LoRA表示为 `mounted_loras: []`，而 R1预条件把任何非 null
+LoRA值都拒绝，导致同一实例被反复判为超出 Managed scope且没有创建 replacement。formal attempt
+1因此固定为 `FAIL/automatic_vllm_recovery_timeout`；正常 cleanup、watchdog恢复和独立 post-audit
+全部通过，同一 Python Worker、三项健康端点、资源、容器、端口和双 GPU均恢复基线。
+
+提交 `d2f7044dc89db74466be96fc2fda3c3a72eb9ec9` 将空 LoRA数组解释为“未挂载 LoRA”，同时继续
+拒绝非空列表；新增空/非空正反回归。90 上格式、155项 Worker测试和 all-targets/all-features
+Clippy通过。当前状态为 `retry_preflight_pending`：下一步只允许冻结 attempt 2的新 formal、watchdog、
+post-audit、preflight和 injection路径，更新正式脚本的产品提交 identity并运行离线/只读门。真实
+retry必须重新取得明确维护授权，M7-E.3和 M7-F仍未授权。

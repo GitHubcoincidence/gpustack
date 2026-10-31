@@ -3,11 +3,11 @@
 ## 1. 文档状态
 
 - 阶段：M7-E.2。
-- 状态：`accepted / ready_for_maintenance_authorization`。
-- 已完成范围：冻结方案、实现正式工具链、执行离线静态门、准备阶段凭据并通过只读 preflight与
-  错误 HEAD无写注入。
-- 当前停止边界：preflight通过不构成正式维护授权；不得停止 Python Worker、切换 maintenance、
-  创建模型或容器、使用 GPU、终止 vLLM 或执行 formal attempt 1。
+- 状态：`formal_attempt_1_failed / remediation_validated / retry_preflight_pending`。
+- 已完成范围：冻结方案、实现正式工具链、准备阶段凭据、完成 formal attempt 1及独立恢复审计，
+  并验证该次暴露的空 LoRA表示兼容修复。
+- 当前停止边界：只允许准备 attempt 2的新证据 identity并运行无副作用质量门和 preflight；不得
+  自动停止 Python Worker、切换 maintenance、创建模型或容器、使用 GPU或执行 retry。
 
 本方案已经由用户接受，但接受不等于授权真实执行。工具链完成后仍须分别取得阶段凭据准备、
 只读 preflight/无写注入和唯一 formal attempt 的精确授权。M7-E.3、M7-F 和 M8 不在本方案的
@@ -284,6 +284,25 @@ preflight attempt 1和错误 HEAD无写注入的 manifest文件 SHA-256分别为
 `dcddc7cf5c0c97555d7efae5b12b246d24bd7a5be2eaa9d21977189e61a94e6f`。八组 preflight门、
 前后不变式、秘密扫描和独立 manifest复算通过；错误 HEAD注入按预期在 `window_entered=0`停止。
 
-当前状态为 `accepted / ready_for_maintenance_authorization`。下一项只能在新的明确授权下执行唯一
-formal attempt 1；当前凭据/preflight授权已经消费，不自动授权停止 Python Worker、切换
-maintenance、创建 workload、使用 GPU或执行容器 SIGKILL。
+formal attempt 1 在用户明确授权下进入维护窗口。当前 HEAD 的 preflight attempt 2和错误 HEAD
+无写注入通过，manifest文件 SHA-256分别为
+`b9e3e26d0b907d5b762bec6f778c1cced905f3a75f28aaed4ff1c87973328aa2`和
+`0bf2f6639417eda1b843e343c31525dcb3d41c99564e8061e67172f67557cb28`。旧 vLLM经完整 identity
+复核后收到唯一 SIGKILL并以 137退出；Rust Worker PID和 listeners保持不变，Server状态依次到达
+`ERROR -> SCHEDULED`，`restart_count=1`且 `last_restart_time`有效。随后 Worker连续拒绝该
+`SCHEDULED`实例，原因是 Server把无 LoRA表示为 `mounted_loras: []`，而 R1预条件把任意非 null
+表示都判为超出范围；replacement容器没有创建，正式结果固定为
+`FAIL/automatic_vllm_recovery_timeout`，不得用 cleanup成功改判。
+
+formal、watchdog和 post-audit manifest文件 SHA-256分别为
+`5a5c1f6d123af25d1cbd7934325df900451bad45b26f55559fcc203599b0aef3`、
+`d8b1e4791071009d18643c3ee30045d94cdb98b47be56f9912988c7ddd9714d9`和
+`e78aff45d13d6abe9e2ba22a1d4c6906e5052722d1502323838371f937782652`。`cleanup_ok=1`、watchdog
+`recovery_ok=1`且独立 post-audit为 PASS；同一 Python Worker、三个健康端点、Server资源、Rust
+进程/容器/端口和两张 GPU均恢复基线。
+
+提交 `d2f7044dc89db74466be96fc2fda3c3a72eb9ec9` 把空数组按“没有挂载 LoRA”处理，同时继续拒绝
+非空 LoRA。90 上格式、155项 `gpustack-worker`测试和 all-targets/all-features Clippy通过。当前
+状态为 `retry_preflight_pending`：下一项只允许为 attempt 2冻结新证据路径、更新 formal脚本中的
+产品提交并运行新的只读 preflight/错误 HEAD注入。真实 retry仍须新的明确维护授权；attempt 1授权
+已经消费，M7-E.3和 M7-F仍未授权。

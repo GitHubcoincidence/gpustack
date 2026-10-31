@@ -1047,3 +1047,10 @@ maintenance、创建 workload、使用 GPU或执行容器 SIGKILL，也不得进
 
 API Key ID 24到期时间为 `2026-11-06T11:49:31.342438Z`；正式验收后必须删除该 Key、Context和
 token文件并证明旧 token返回401。M7-E.3与 M7-F仍未授权。
+
+## 2026-10-31 M7-E.2 formal attempt 1失败与兼容修复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D227 | formal attempt 1判定与证据保留 | attempt 1固定判为 `FAIL/automatic_vllm_recovery_timeout`。精确 SIGKILL/137、Rust Worker存活、`ERROR -> SCHEDULED`、restart count 1和 last restart均成立，但 replacement容器未创建，不能满足完整恢复链。formal/watchdog/post-audit manifest文件 SHA-256分别为 `5a5c1f6d123af25d1cbd7934325df900451bad45b26f55559fcc203599b0aef3`、`d8b1e4791071009d18643c3ee30045d94cdb98b47be56f9912988c7ddd9714d9`和 `e78aff45d13d6abe9e2ba22a1d4c6906e5052722d1502323838371f937782652`；`cleanup_ok=1`、`recovery_ok=1`和 post-audit PASS只证明安全恢复，不改变正式失败 | 冻结协议要求 `SCHEDULED -> INITIALIZING -> STARTING -> RUNNING`、新容器、日志和推理恢复。保留失败结论可避免用局部状态链或成功 cleanup替代核心产品能力，同时三份清单证明现场已安全恢复，可继续离线诊断。 |
+| D228 | 空 LoRA表示与 retry授权边界 | R1把 Server的 `mounted_loras: []`视为没有挂载 LoRA，允许单 Worker vLLM实例继续初始化；非空数组和非数组值仍超出 R1范围。提交 `d2f7044dc89db74466be96fc2fda3c3a72eb9ec9`加入空/非空正反回归，格式、155项 Worker测试和 all-targets/all-features Clippy通过。下一步只允许建立 attempt 2新路径、更新工具 identity并运行新的离线/只读 preflight；formal retry须重新明确授权 | attempt 1证据中该空数组出现5次，Rust事件连续9次以 `outside the R1 Managed scope`拒绝同一 SCHEDULED实例；这直接解释了无 replacement。把空集合按语义空值处理修复 Server往返表示差异而不扩展 LoRA能力。attempt 1授权已经消费，代码修复和只读验证不能自动授权下一次服务中断、GPU使用或 SIGKILL。 |

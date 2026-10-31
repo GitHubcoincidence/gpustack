@@ -201,10 +201,12 @@
   `0 -> 1`、首次 0 秒退避、同一 ready ModelFile/端口/spec/GPU0、新容器、generation 0/1日志、
   Server-only推理和三轮幂等。完整 10～300 秒退避阶梯不在本次真实窗口复合注入，继续由
   M7-B/C离线矩阵证明。五份正式脚本已在提交
-  `b6ec4eac6c506e6d7a3ad96011c5b8b58d35f24d` 通过静态/离线质量门；当前为
-  `ready_for_maintenance_authorization`。API Key ID 24、`m7e2-operator` Context及受保护 token已准备，
-  preflight attempt 1和错误 HEAD无写注入通过；尚未授权服务切换、workload、GPU、容器 SIGKILL、
-  M7-E.3或 M7-F。
+  `b6ec4eac6c506e6d7a3ad96011c5b8b58d35f24d` 通过静态/离线质量门。formal attempt 1完成精确
+  SIGKILL/137、Rust Worker存活和 `ERROR -> SCHEDULED`，但 Server的空
+  `mounted_loras: []`被误判为超出 R1范围，没有创建 replacement，结果固定为 FAIL；完整 cleanup、
+  watchdog恢复和 post-audit通过。提交 `d2f7044dc89db74466be96fc2fda3c3a72eb9ec9`已修复空集合
+  兼容并通过155项 Worker测试和 Clippy。当前为 `retry_preflight_pending`；真实 retry、M7-E.3和
+  M7-F仍未授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

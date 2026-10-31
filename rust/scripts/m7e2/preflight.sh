@@ -12,7 +12,7 @@ readonly EXPECTED_HEAD="${M7E2_EXPECTED_HEAD:?M7E2_EXPECTED_HEAD is required}"
 readonly PREFLIGHT_ATTEMPT="${M7E2_PREFLIGHT_ATTEMPT:?M7E2_PREFLIGHT_ATTEMPT is required}"
 readonly KEY_ID="${M7E2_KEY_ID:?M7E2_KEY_ID is required}"
 readonly KEY_NAME="${M7E2_KEY_NAME:?M7E2_KEY_NAME is required}"
-readonly PRODUCT_COMMIT='0d861a4c9d5502341cbc78eefc60e30bb32c24fd'
+readonly PRODUCT_COMMIT='d2f7044dc89db74466be96fc2fda3c3a72eb9ec9'
 readonly EXPECTED_LOCK_SHA='90f1aeaa22b4f06dc77e48497f2fe3394ab07ab55441c8ddb3124a67dca07010'
 readonly LIB="$REPO/rust/scripts/m7e2/lib.sh"
 readonly EXECUTOR="$REPO/rust/scripts/m7e2/executor.sh"
@@ -137,6 +137,8 @@ jq -e --arg commit "${EXPECTED_HEAD:0:12}" '.git_commit == $commit' \
 printf 'binary_sha256=%s\n' "$(sha256sum "$M7E2_BINARY" | awk '{print $1}')" \
   >"$EVIDENCE/binary-identity.txt"
 tests=(
+  'managed::coordinator::tests::initializes_an_instance_with_the_server_empty_lora_selection'
+  'managed::coordinator::tests::rejects_an_instance_with_mounted_loras'
   'managed::reconciler::tests::running_snapshot_without_a_container_enters_error_before_restart'
   'managed::reconciler::tests::error_state_respects_disabled_restart_policy'
   'managed::reconciler::tests::failed_runtime_restarts_with_backoff_and_two_log_generations'

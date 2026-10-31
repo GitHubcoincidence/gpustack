@@ -4329,6 +4329,39 @@
 - 当前停止位置：`ready_for_maintenance_authorization`。本次凭据/preflight授权已消费；formal
   attempt 1必须取得新的明确维护授权，M7-E.3和 M7-F仍未授权。
 
+### 2026-10-31：M7-E.2 formal attempt 1失败、完整恢复与产品修复
+
+- 授权与最终门：用户以“没问题”接受上一条列明的单次维护范围。纯文档检查点使治理 HEAD前进后，
+  没有降低 executor的精确 HEAD门，而是在 `4d8a4a314c3d394c382a9fb0e9067ea305f689d0`
+  重新运行 preflight/injection attempt 2；67/11个0600文件、零 symlink、清单复算和前后不变式
+  通过，manifest文件 SHA-256分别为
+  `b9e3e26d0b907d5b762bec6f778c1cced905f3a75f28aaed4ff1c87973328aa2`和
+  `0bf2f6639417eda1b843e343c31525dcb3d41c99564e8061e67172f67557cb28`。
+- 正式成功前缀：1200秒独立 watchdog武装后停止精确 Python Worker，宿主机 Rust Worker以 PID
+  `4186566`启动。Model 24、Instance 39、ModelFile 18、端口40000和唯一 GPU0 vLLM建立健康
+  基线；旧完整容器 ID `9a7dede1f2a99926f12d008688cd22091de80ecd52e4d2fcc6605ca6457dc2fd`
+  经 identity复核后收到唯一 SIGKILL并以137退出。Rust Worker PID/listeners保持不变，Server watch
+  观察到 `RUNNING -> ERROR -> SCHEDULED`，restart count从0变为1且 last restart有效。
+- 失败判定：进入 SCHEDULED后没有创建 replacement。Rust事件连续9次记录
+  `ModelInstance is outside the R1 Managed scope`；Server watch中的恢复对象5次带有
+  `mounted_loras: []`。R1协调器当时以 `mounted_loras.is_some()`拒绝任何非 null值，把 Server的
+  空集合表示误判为实际 LoRA挂载。300轮恢复观察后正式结果固定为
+  `FAIL/automatic_vllm_recovery_timeout`、`recovery_passed=0`，不得以回滚成功改判。
+- 回滚与独立审计：正常 cleanup删除唯一 Model/Instance/ModelFile和本地 attempt状态，停止精确 Rust
+  Worker并恢复同一 Python Worker。formal含111个0600文件，`cleanup_ok=1`；watchdog含17个0600
+  文件，`recovery_ok=1`；独立 post-audit含27个0600文件并为 PASS。三者均无 symlink，三个健康
+  端点为200，Rust进程/容器/监听、Server测试资源和双卡显存/计算进程均为0。三份 manifest文件
+  SHA-256依次为 `5a5c1f6d123af25d1cbd7934325df900451bad45b26f55559fcc203599b0aef3`、
+  `d8b1e4791071009d18643c3ee30045d94cdb98b47be56f9912988c7ddd9714d9`和
+  `e78aff45d13d6abe9e2ba22a1d4c6906e5052722d1502323838371f937782652`。
+- 产品修复：提交 `d2f7044dc89db74466be96fc2fda3c3a72eb9ec9`只把空 LoRA数组按“未挂载”
+  处理，非空数组和非数组值继续拒绝；新增两个协调器正反回归。90 上 `cargo fmt --check`、全部155项
+  `gpustack-worker`测试和 all-targets/all-features Clippy `-D warnings`通过，没有新增依赖或修改
+  `Cargo.lock`。
+- 当前停止位置：`retry_preflight_pending`。下一项只允许冻结 attempt 2互不复用的 formal/watchdog/
+  post-audit/preflight/injection路径，更新脚本内产品提交 identity并运行新的离线和只读门。attempt 1
+  授权已消费；真实 retry、M7-E.3和 M7-F均未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
