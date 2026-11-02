@@ -1127,3 +1127,14 @@ ShellCheck通过，90上四脚本Bash语法和Server/Docker各20次真实代理i
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D238 | 代理身份修复后的只读门与下一停止点 | 修复提交`777506c53c66aa75ee41fe9c5c8a0054dc3240b6`上的preflight/injection attempt 3全部通过。preflight包含65个0600文件，manifest文件SHA-256为`17eb437eb8d75b3469cb28dbc2d1dda4a4a20617e82caa9adba3c8a778d51a04`；错误HEAD注入包含11个0600文件，按预期为`STOP/source_head_mismatch/window_entered=0`，manifest文件SHA-256为`c289aa0c8fd1a5285cec5cf0f9890d759d88114850257794e00f4efef3c64883`。两目录均为0700、无symlink且清单复算通过 | 新门证明修复后的脚本identity、locked/offline构建、八项恢复测试、双scope、固定输入、代理exec等待、watchdog失败闭合、错误HEAD无写和外部不变式成立。记录本决定会推进治理HEAD，因此还须在最终文档HEAD运行一次全新preflight；任何formal retry仍须新的明确维护授权。 |
+
+## 2026-11-02 M7-E.3 formal attempt 2判定与Worker身份修复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D239 | formal attempt 2判定与证据保留 | attempt 2固定判为`FAIL/initial_rust_worker_start_failed`。formal在停止精确Python Worker、建立双代理后停止，未创建Model、ModelInstance、ModelFile或vLLM容器，也未进入两个连接故障子阶段。formal/watchdog manifest文件SHA-256分别为`516f4f29c6275e7c4331bf2818d57c88e88f5016415978ee89abb9efd25a1a79`和`d7ee34fd49b4b4d202a3b1375587301cc728ba669853b65b1efca2e154e8633a`，两者均为FAIL；独立post-audit在`watchdog_recovery=0`证据链门停止且没有manifest。精确Worker补救和attempt 1孤儿代理清理manifest文件SHA-256分别为`9843fac5ebf1a52adc387a65c76470a9d2acc528e77a0383143e5d01a90ef04f`和`ff72ddb97735bdefad803157295b65e0e9da8c153093dc9e3db0658dd65ba46d` | 本次故障来自实验工具在`setsid`完成exec前采集Worker身份，不能解释为产品连接恢复失败或成功。formal失败、watchdog恢复失败和post-audit停止必须分别保留；精确补救只证明现场恢复，不能填补未执行的Server/Docker故障证据。 |
+| D240 | Worker最终身份发布与下一授权边界 | 提交`e994ed68e0bb134083a42094b3000f78ea5c0409`把Worker身份记录统一为最多10秒等待最终exec，只在role、固定`gpustack-rs`、完整cmdline SHA及PID=PGID=SID同时匹配后发布；executor/watchdog终止前使用Worker专用验证，缺少身份时立即fail closed，不再进入无限`wait`。preflight新增静态使用门和延迟身份转换回归。下一步只运行新治理HEAD的全新只读preflight/错误HEAD注入；formal attempt 3仍须重新明确授权 | 该修复关闭与代理相同的exec竞态，同时保持未知进程绝不按名称终止的安全边界。它不改变模型、Runner、代理、故障时长、成功标准或产品实现，因此可作为有界工具修复；attempt 2授权已经消费，且新的外部状态必须重新门禁。 |
+
+恢复期间GPU0曾被另一用户`sco`的宿主机vLLM benchmark占用；进程不属于GPUStack、Docker或本
+项目，未被停止或修改。最终只读复核时该进程已自行结束，Server、同一Python Worker和metrics均
+为200，Rust/代理进程、18080监听和Docker代理socket为零，两张GPU均为0 MiB/0%。

@@ -4589,6 +4589,47 @@
 - 当前停止位置：记录本结果会推进治理HEAD，下一步只允许在最终文档HEAD运行新的attempt 4；
   通过后才重新进入`ready_for_maintenance_authorization`。formal retry仍须用户重新明确授权。
 
+### 2026-11-02：M7-E.3 formal attempt 2失败、精确恢复与Worker身份修复
+
+- 授权与最终门：用户重新明确授权attempt 2。治理HEAD
+  `260da89e727674474131ca08c42c29bc4c48b060`上的preflight/injection attempt 4分别使用
+  `m7e3-preflight-attempt-4`和`m7e3-pre-window-injection-attempt-4`，manifest文件SHA-256为
+  `5f36fb9748d9065bbe06ae1371f8c6f0dbf8b775dc7cab49f1c5cf554bd9af85`和
+  `f62b26e0ede24bc22a23a123b270e559f710baae6de4509773c8f04483e7144b`；最终只读门再次通过。
+- 正式失败：精确停止Python Worker并建立Server/Docker双代理后，Rust Worker后台PID在`setsid`
+  到`gpustack-rs`的exec窗口内被立即读取，identity校验拒绝过渡进程，formal以
+  `FAIL/initial_rust_worker_start_failed`停止。未创建Model、ModelInstance、ModelFile或vLLM
+  容器，Server和Docker连接故障子阶段均未开始，不能据此解释产品恢复能力。
+- cleanup阻塞与精确补救：Worker随后完成exec并保持运行，但正式identity尚未发布；原cleanup把
+  缺失identity误当成无需终止，随后对仍存活后台PID执行`wait`而阻塞。只读核对确认PID
+  `4020688`的父进程为本次executor，且starttime、PID=PGID=SID、目标二进制和完整固定cmdline
+  SHA全部匹配；只对该PID依次有界发送INT/TERM。补救目录为0700、4个0600文件、0 symlink，
+  manifest文件SHA-256为
+  `9843fac5ebf1a52adc387a65c76470a9d2acc528e77a0383143e5d01a90ef04f`。
+- 正式证据判定：formal为`FAIL/cleanup_ok=0`，64个文件、0 symlink，manifest文件SHA-256为
+  `516f4f29c6275e7c4331bf2818d57c88e88f5016415978ee89abb9efd25a1a79`。watchdog为
+  `FAIL/recovery_ok=0`，15个文件、0 symlink，manifest文件SHA-256为
+  `d7ee34fd49b4b4d202a3b1375587301cc728ba669853b65b1efca2e154e8633a`。独立post-audit在第1组
+  `evidence_chain`因`watchdog_recovery=0`停止，只有7个诊断文件且无manifest，不得作为恢复PASS。
+- attempt 1遗留处理：发现PID `3950876`是attempt 1 cleanup启动、socket已不可达的Docker代理。
+  原身份记录恰在exec前保存了`/usr/bin/bash`，但PID、starttime和cmdline SHA与当前最终
+  `/usr/bin/socat1`完全相同；重新采集最终identity并同时匹配原三项后，只终止该专用进程组。
+  清理证据为0700、5个0600文件、0 symlink，manifest文件SHA-256为
+  `ff72ddb97735bdefad803157295b65e0e9da8c153093dc9e3db0658dd65ba46d`。
+- 外部GPU漂移：Python Worker恢复后，GPU0一度被用户`sco`从独立VS Code/Codex会话启动的宿主机
+  vLLM benchmark占用约69.9 GB；它不属于GPUStack、Docker或本项目，未被停止或修改。最终复核时
+  该进程已自行结束，GPU0/GPU1均为0 MiB/0%。
+- 工具修复：提交`e994ed68e0bb134083a42094b3000f78ea5c0409`新增
+  `m7e3_wait_for_worker_identity`和Worker专用identity验证；只有最终`gpustack-rs`、固定cmdline、
+  role和PID=PGID=SID全部匹配才原子发布。executor/watchdog停止前再次验证；缺少identity时立即
+  fail closed，不再无限等待。preflight新增静态强制门和两次过渡失败、第三次成功的身份转换测试。
+- 质量与当前现场：`git diff --check`、四脚本ShellCheck、90四脚本`bash -n`和身份转换测试通过。
+  Server、Python Worker、metrics均为200，同一Python Worker运行；Rust/代理进程、18080监听和
+  Docker代理socket均为零，双GPU为空。90仓库仍在旧治理HEAD且工作树干净，等待本次提交同步。
+- 当前停止位置：`retry_preflight_pending`。attempt 2授权已经消费，formal/watchdog/post-audit失败
+  和两份补救证据保持原样。下一步只允许提交同步并在新治理HEAD运行全新只读preflight/错误HEAD
+  注入；通过后才能请求formal attempt 3的新维护窗口授权。M7-F未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

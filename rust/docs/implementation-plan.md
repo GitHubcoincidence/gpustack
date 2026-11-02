@@ -1113,3 +1113,21 @@ HEAD运行attempt 2；即使再次通过，也只进入`ready_for_maintenance_au
 65/11个0600文件、零symlink、清单复算、八项恢复测试、双scope、固定identity、新增代理等待/
 watchdog静态门、错误HEAD无写和外部不变式全部成立。记录该结果后还需在最终文档HEAD运行
 attempt 4；通过后状态为`ready_for_maintenance_authorization`，但formal retry授权不会自动继承。
+
+最终治理HEAD`260da89e727674474131ca08c42c29bc4c48b060`上的preflight/injection
+attempt 4通过后，用户重新授权formal attempt 2。executor停止精确Python Worker并启动双代理，
+但在Rust Worker的`setsid`尚未exec为最终`gpustack-rs`时立即采集身份，因而以
+`FAIL/initial_rust_worker_start_failed`停止。没有创建任何阶段Server资源或vLLM容器，也没有执行
+两个连接故障子阶段。Rust Worker已exec完成却没有正式identity，cleanup随后在后台PID的`wait`处
+阻塞；按父executor、PID/starttime、PGID/SID、二进制和cmdline精确补证并有界终止后，原cleanup
+完成代理清理和Python Worker恢复。formal/watchdog保持FAIL，post-audit在证据链门停止。
+
+工具修复提交`e994ed68e0bb134083a42094b3000f78ea5c0409`把Worker启动改为等待最终exec并
+原子发布专用identity；Worker健康门、executor cleanup和watchdog终止均使用role/二进制/cmdline/
+PID=PGID=SID专用验证。缺少身份时cleanup立即fail closed，不再无限等待未知进程。preflight增加
+静态门和延迟身份转换回归；`git diff --check`、四脚本ShellCheck、90四脚本`bash -n`及身份转换
+测试通过。
+
+当前为`retry_preflight_pending`。恢复期间观察到的GPU0外部benchmark属于用户`sco`，没有被本项目
+操作且已自行结束；最终复核两张GPU为空。下一步只在包含本记录的新治理HEAD运行全新只读
+preflight/injection；formal attempt 3必须重新取得维护窗口授权，M7-F仍未授权。

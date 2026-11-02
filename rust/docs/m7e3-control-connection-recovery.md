@@ -206,3 +206,26 @@ attempt 2证明现场恢复；原formal和一次补救证据因封存后日志�
 代理等待与watchdog身份门、八项恢复测试、双scope、固定输入、错误HEAD无写和外部不变式成立。
 记录该结果会推进治理HEAD，因此下一步只允许在最终文档HEAD运行attempt 4；formal retry仍须
 新的明确维护授权。
+
+最终治理HEAD`260da89e727674474131ca08c42c29bc4c48b060`上的preflight/injection
+attempt 4随后通过，用户据此重新授权formal attempt 2。正式执行在停止Python Worker并建立双代理
+后，Rust Worker后台PID仍处于`setsid`到`gpustack-rs`的exec窗口；执行器立即读取到过渡身份并以
+`initial_rust_worker_start_failed`停止。未创建Model、ModelInstance、ModelFile或vLLM容器，也未
+进入Server/Docker连接故障子阶段，因此该attempt不支持任何产品恢复结论。
+
+formal在cleanup中因没有已发布的Worker身份而无法精确终止已exec完成的Rust Worker，并在等待
+后台PID时阻塞。按PID、父executor、starttime、PGID/SID、二进制和完整cmdline SHA-256精确补证后，
+只对该Worker发送有界INT/TERM，原executor继续完成代理清理和Python Worker恢复。formal和watchdog
+均保持FAIL，独立post-audit在`watchdog_recovery=0`证据链门停止；成功恢复不得改判正式结果。另对
+attempt 1遗留但不可达的Docker代理按原PID/starttime/cmdline与当前最终`socat1`身份交叉验证后
+精确清除。
+
+修复提交`e994ed68e0bb134083a42094b3000f78ea5c0409`新增Worker专用身份等待和验证：只在
+`gpustack-rs`二进制、固定cmdline及PID=PGID=SID全部成立后原子发布身份；executor和watchdog在停止
+Worker前再次验证该身份，缺失或不匹配时立即fail closed而不再无限`wait`。preflight新增静态强制门
+和“前两次过渡身份失败、第三次最终身份成功”的回归测试。修复通过`git diff --check`、四脚本
+ShellCheck、90上的四脚本`bash -n`和身份转换测试。
+
+当前状态为`retry_preflight_pending`。attempt 2授权已经消费，所有失败和补救证据保持原样；下一步
+只允许把本记录纳入新治理HEAD并运行全新的只读preflight/错误HEAD注入。只有新门再次确认GPU0
+空闲且外部状态未漂移后，才能请求formal attempt 3的新维护授权；M7-F仍未授权。
