@@ -550,6 +550,47 @@ m7e3_process_identity_matches_file() {
   [[ "$(m7e3_process_sid "$pid")" == "$sid" ]]
 }
 
+m7e3_worker_identity_matches_file() {
+  local identity="$1"
+  local pid pgid sid role exe
+  m7e3_process_identity_matches_file "$identity" || return 1
+  pid="$(sed -n 's/^pid=//p' "$identity")"
+  pgid="$(sed -n 's/^pgid=//p' "$identity")"
+  sid="$(sed -n 's/^sid=//p' "$identity")"
+  role="$(sed -n 's/^role=//p' "$identity")"
+  exe="$(sed -n 's/^exe=//p' "$identity")"
+  [[ "$role" == 'rust_worker' ]] || return 1
+  [[ "$pid" == "$pgid" && "$pid" == "$sid" ]] || return 1
+  [[ "$exe" == "$(readlink -f "$M7E3_BINARY")" ]] || return 1
+  [[ "$(sed -n 's/^cmdline_sha256=//p' "$identity")" == \
+    "$(m7e3_expected_worker_cmdline_sha)" ]]
+}
+
+m7e3_wait_for_worker_identity() {
+  local pid="$1"
+  local output="$2"
+  local candidate="${output}.candidate"
+
+  # setsid may still be the executable behind the background PID for a short
+  # interval. Publish the identity only after the exact Worker has exec'd.
+  for _ in $(seq 1 100); do
+    if [[ ! -r "/proc/$pid/stat" ]]; then
+      [[ ! -e "$candidate" && ! -L "$candidate" ]] || unlink "$candidate"
+      return 1
+    fi
+    if m7e3_record_process_identity "$pid" rust_worker "$candidate" &&
+      m7e3_worker_identity_matches_file "$candidate"; then
+      mv -f -- "$candidate" "$output"
+      chmod 0600 "$output"
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  [[ ! -e "$candidate" && ! -L "$candidate" ]] || unlink "$candidate"
+  return 1
+}
+
 m7e3_terminate_recorded_process() {
   local identity="$1"
   local evidence="$2"

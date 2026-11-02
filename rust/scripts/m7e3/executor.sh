@@ -262,31 +262,10 @@ wait_for_docker_recovery() {
   return 1
 }
 
-write_process_identity() {
-  local pid="$1"
-  local output="$2"
-  local exe sha cmdline_sha starttime pgid sid
-  [[ -r "/proc/$pid/stat" ]] || return 1
-  exe="$(readlink -f "/proc/$pid/exe")"
-  sha="$(sha256sum "$exe" | awk '{print $1}')"
-  cmdline_sha="$(m7e3_process_cmdline_sha "$pid")"
-  starttime="$(m7e3_process_starttime "$pid")"
-  pgid="$(m7e3_process_pgid "$pid")"
-  sid="$(m7e3_process_sid "$pid")"
-  [[ "$exe" == "$(readlink -f "$M7E3_BINARY")" ]] || return 1
-  [[ "$cmdline_sha" == "$(m7e3_expected_worker_cmdline_sha)" ]] || return 1
-  [[ "$pgid" == "$pid" && "$sid" == "$pid" ]] || return 1
-  {
-    printf 'pid=%s\nstarttime=%s\nexe=%s\nsha256=%s\n' \
-      "$pid" "$starttime" "$exe" "$sha"
-    printf 'cmdline_sha256=%s\npgid=%s\nsid=%s\n' "$cmdline_sha" "$pgid" "$sid"
-  } >"$output"
-  chmod 0600 "$output"
-}
-
 start_rust_worker() {
   local label="$1"
   local baseline="$EVIDENCE/rust-worker-${label}-baseline.json"
+  local identity="$EVIDENCE/rust-process-${label}.txt"
   local summary="$EVIDENCE/rust-summary-${label}.json"
   local events="$EVIDENCE/rust-events-${label}.log"
   "$M7E3_BINARY" --context "$M7E3_OPERATOR_CONTEXT" --output json \
@@ -299,13 +278,14 @@ start_rust_worker() {
       printf '%s\t%s\n' "$(m7e3_timestamp)" "$line"
     done >>"$events") &
   rust_pid=$!
-  for _ in $(seq 1 50); do
-    [[ -r "/proc/$rust_pid/stat" ]] && break
-    sleep 0.1
-  done
-  kill -0 "$rust_pid" 2>/dev/null || return 1
-  write_process_identity "$rust_pid" "$EVIDENCE/rust-process-${label}.txt" || return 1
-  install -m 0600 "$EVIDENCE/rust-process-${label}.txt" \
+  if ! m7e3_wait_for_worker_identity "$rust_pid" "$identity"; then
+    if [[ -r "/proc/$rust_pid/stat" ]]; then
+      m7e3_record_process_identity \
+        "$rust_pid" rust_worker "${identity}.unverified" || true
+    fi
+    return 1
+  fi
+  install -m 0600 "$identity" \
     "$EVIDENCE/rust-process-current.txt"
   printf '%s\n' "$rust_pid" >"$EVIDENCE/rust-worker-${label}.pid"
 }
@@ -335,7 +315,7 @@ wait_for_worker_ready() {
     'worker_api_listener_owner_mismatch'
   require_equal "$(m7e3_listener_owner_pids 20151)" "$rust_pid" \
     'worker_metrics_listener_owner_mismatch'
-  m7e3_process_identity_matches_file "$EVIDENCE/rust-process-current.txt"
+  m7e3_worker_identity_matches_file "$EVIDENCE/rust-process-current.txt"
 }
 
 start_instance_watch() {
@@ -574,13 +554,16 @@ delete_attempt_model_file() {
 }
 
 stop_current_rust_worker() {
+  local identity="$EVIDENCE/rust-process-current.txt"
   [[ -n "$rust_pid" ]] || return 0
   if [[ ! -r "/proc/$rust_pid/stat" ]]; then
     wait "$rust_pid" 2>/dev/null || true
     rust_pid=''
     return 0
   fi
-  m7e3_terminate_recorded_process "$EVIDENCE/rust-process-current.txt" "$EVIDENCE" || return 1
+  [[ -f "$identity" ]] || return 1
+  m7e3_worker_identity_matches_file "$identity" || return 1
+  m7e3_terminate_recorded_process "$identity" "$EVIDENCE" || return 1
   wait "$rust_pid" 2>/dev/null || true
   rust_pid=''
 }

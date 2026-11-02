@@ -291,6 +291,8 @@ for required in \
   'm7e3_proxy_args' \
   'm7e3_wait_for_proxy_identity' \
   'm7e3_proxy_identity_matches_file' \
+  'm7e3_wait_for_worker_identity' \
+  'm7e3_worker_identity_matches_file' \
   'm7e3_terminate_recorded_proxy' \
   'm7e3_server_proxy_probe' \
   'm7e3_docker_proxy_probe' \
@@ -314,6 +316,10 @@ grep -Fq -- 'kill -KILL -- "-$pgid"' "$LIB"
 grep -Fq -- 'm7e3_wait_for_proxy_identity "$pid" "$kind" "$identity"' "$EXECUTOR"
 grep -Fq -- 'm7e3_wait_for_proxy_identity "$pid" "$kind" "$recovery_identity"' "$WATCHDOG"
 grep -Fq -- '[[ -f "$identity" ]] && m7e3_proxy_identity_matches_file' "$WATCHDOG"
+grep -Fq -- 'm7e3_wait_for_worker_identity "$rust_pid" "$identity"' "$EXECUTOR"
+grep -Fq -- 'm7e3_worker_identity_matches_file "$identity"' "$EXECUTOR"
+grep -Fq -- 'm7e3_worker_identity_matches_file "$identity"' "$WATCHDOG"
+grep -Fq -- '[[ -f "$identity" ]] || return 1' "$EXECUTOR"
 grep -Fq -- 'gpustack:rust_worker_watch_reconnects_total' "$EXECUTOR"
 grep -Fq -- 'gpustack:rust_worker_watch_connected' "$EXECUTOR"
 grep -Fq -- 'outcome=failed message=' "$EXECUTOR"
@@ -372,6 +378,44 @@ done
   printf 'server_proxy_args=PASS\ndocker_proxy_args=PASS\noutage_durations=PASS\n'
 ) >"$EVIDENCE/proxy-contract-test.txt"
 (
+  test_pid=''
+  test_output="$EVIDENCE/.worker-identity-transition-test"
+  identity_attempt=0
+  cleanup_worker_identity_test() {
+    if [[ -n "$test_pid" && -r "/proc/$test_pid/stat" ]]; then
+      kill -TERM "$test_pid" 2>/dev/null || true
+    fi
+    [[ -z "$test_pid" ]] || wait "$test_pid" 2>/dev/null || true
+    for path in "$test_output" "${test_output}.candidate"; do
+      [[ ! -e "$path" && ! -L "$path" ]] || unlink "$path"
+    done
+  }
+  trap cleanup_worker_identity_test EXIT
+  sleep 30 &
+  test_pid=$!
+  # shellcheck disable=SC2329 # Called indirectly by the identity wait helper.
+  m7e3_record_process_identity() {
+    local pid="$1"
+    local role="$2"
+    local output="$3"
+    [[ "$pid" == "$test_pid" && "$role" == 'rust_worker' ]]
+    identity_attempt=$((identity_attempt + 1))
+    printf 'attempt=%s\n' "$identity_attempt" >"$output"
+  }
+  # shellcheck disable=SC2329 # Called indirectly by the identity wait helper.
+  m7e3_worker_identity_matches_file() {
+    local identity="$1"
+    [[ "$(sed -n 's/^attempt=//p' "$identity")" -ge 3 ]]
+  }
+  m7e3_wait_for_worker_identity "$test_pid" "$test_output"
+  [[ "$(sed -n 's/^attempt=//p' "$test_output")" == '3' ]]
+  [[ ! -e "${test_output}.candidate" && ! -L "${test_output}.candidate" ]]
+  printf 'delayed_identity_attempts=%s\nworker_identity_transition=PASS\n' \
+    "$identity_attempt"
+  cleanup_worker_identity_test
+  trap - EXIT
+) >"$EVIDENCE/worker-identity-transition-test.txt"
+(
   heartbeat_file="$(mktemp)"
   trap 'unlink "$heartbeat_file"' EXIT
   jq -n '{
@@ -389,7 +433,7 @@ done
     exit 1
   fi
 ) >"$EVIDENCE/maintenance-heartbeat-readiness-test.txt"
-printf 'bash_n=PASS\nproxy_identity_guard=PASS\nserial_fault_order=PASS\n' \
+printf 'bash_n=PASS\nproxy_identity_guard=PASS\nworker_identity_guard=PASS\nserial_fault_order=PASS\n' \
   >"$EVIDENCE/script-static-audit.txt"
 {
   printf 'watchdog_timeout=1500\nunknown_process_policy=fail_closed\n'

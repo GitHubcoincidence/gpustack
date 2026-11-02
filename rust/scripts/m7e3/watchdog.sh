@@ -93,7 +93,11 @@ enable_maintenance() {
 terminate_rust_worker() {
   local identity="$FORMAL_EVIDENCE/rust-process-current.txt"
   if [[ -f "$identity" ]]; then
-    m7e3_terminate_recorded_process "$identity" "$WATCHDOG_EVIDENCE" || recovery_ok=0
+    if m7e3_worker_identity_matches_file "$identity"; then
+      m7e3_terminate_recorded_process "$identity" "$WATCHDOG_EVIDENCE" || recovery_ok=0
+    else
+      recovery_ok=0
+    fi
   elif [[ "$(pgrep -af '[g]pustack-rs' 2>/dev/null | wc -l)" != '0' ]]; then
     # Unknown processes are never killed by name; recovery remains failed closed.
     recovery_ok=0
