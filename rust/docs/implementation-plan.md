@@ -1082,5 +1082,8 @@ watch、heartbeat/status和同一runtime后，再停止专用Docker Unix socket�
 降级但不写`ERROR`。两个阶段均要求同一`RUNNING`实例、容器ID/StartedAt/端口/spec/ownership、
 restart count 0、generation 0日志和GPU0 assignment不变，Docker生命周期事件为零，恢复后三轮
 幂等。真实Server、Docker daemon、Rust Worker和vLLM容器不得作为故障对象；Docker故障期日志
-读取不要求连续，但恢复后必须重新可读。当前为`protocol_frozen / tooling_validation_pending`，只
-允许实现和离线/只读验证M7-E.3工具，不授权凭据、正式维护窗口、GPU或M7-F。
+读取不要求连续，但恢复后必须重新可读。五份正式工具已在提交
+`3a01873f050f9c7aefee8d4d6bc9c45cdda758f3`完成，并通过ShellCheck、90 Bash语法、八项定向回归、
+workspace all-targets/all-features locked/offline build、代理identity自测和只读现场复核。当前为
+`tooling_ready / credential_pending`；下一步只允许在新授权下准备最长7天双scope凭据并运行只读
+preflight/错误HEAD无写注入，不授权正式维护窗口、代理启动、GPU或M7-F。

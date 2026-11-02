@@ -4502,9 +4502,16 @@
 - 工具设计：`rust/scripts/m7e3/`沿用M7-E.2已验证的五件套证据、watchdog、cleanup和post-audit
   骨架，新增代理完整进程身份、串行恢复屏障、控制面metrics和runtime失败证据。watchdog超时冻结
   为1500秒，先恢复代理再清理runtime并恢复同一Python Worker。
-- 当前停止位置：`protocol_frozen / tooling_validation_pending`。下一项只允许完成脚本静态检查、
-  90 Bash/ShellCheck、locked/offline定向测试和只读现场复核；未授权创建凭据、停止Python Worker、
-  启动代理、创建workload、使用GPU、执行真实故障或进入M7-F。
+- 工具结果：提交`3a01873f050f9c7aefee8d4d6bc9c45cdda758f3`新增五份正式脚本。本机项目
+  锁定环境ShellCheck零告警；90五脚本`bash -n`、八项精确定向测试和workspace all-targets/
+  all-features locked/offline build通过。代理参数与cmdline SHA契约自测通过，90实际`socat`
+  executable解析为`/usr/bin/socat1`并由工具使用解析后路径启动。
+- 只读现场：Server、Python Worker和metrics均为200；18080无监听，Docker代理socket和父目录
+  不存在，无Rust进程；两张A100均为0 MiB/0%，Git工作树和远端跟踪保持原基线。未启动代理、
+  未停止服务、未创建资源且未使用GPU。
+- 当前停止位置：`tooling_ready / credential_pending`。下一项只允许在单独授权下创建最长7天、
+  management/inference双scope凭据并运行只读preflight/错误HEAD无写注入；未授权停止Python
+  Worker、启动代理、创建workload、使用GPU、执行真实故障或进入M7-F。
 
 ## 未解决风险与待确认事项
 

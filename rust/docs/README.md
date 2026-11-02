@@ -236,8 +236,10 @@
   中间设置完整恢复屏障，不允许两个故障重叠。Server故障至少70秒并要求heartbeat/status/watch
   失败及full sync/watch恢复；Docker故障至少20秒并要求本地ready降级、runtime本地失败和同容器
   重新枚举。全程同一vLLM容器、`RUNNING`、restart count 0、generation 0日志和推理保持，Docker
-  生命周期事件为零。当前为`protocol_frozen / tooling_validation_pending`；未授权凭据、维护窗口、
-  代理启动、GPU使用、真实故障或M7-F。
+  生命周期事件为零。五份正式工具已在提交`3a01873f050f9c7aefee8d4d6bc9c45cdda758f3`完成，
+  ShellCheck、90 Bash语法、八项定向回归、workspace locked/offline build、代理identity自测和只读
+  现场复核通过。当前为`tooling_ready / credential_pending`；下一步仍须单独授权阶段凭据和只读
+  preflight/错误HEAD无写注入，不授权维护窗口、代理启动、GPU、真实故障或M7-F。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

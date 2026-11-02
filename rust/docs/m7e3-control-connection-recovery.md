@@ -176,7 +176,12 @@ Docker inspect只保存白名单字段，不保存`Config.Env`。operator、Clus
 
 ## 8. 当前停止点
 
-协议已由用户接受并冻结。当前状态为`protocol_frozen / tooling_validation_pending`：只允许完成
-`rust/scripts/m7e3/`工具、静态检查、90上的Bash/ShellCheck/locked-offline测试和只读现场复核。
-尚未授权创建阶段凭据、停止Python Worker、启动代理、创建workload、使用GPU或执行真实连接故障；
-M7-F也未授权。
+协议已由用户接受并冻结。五份正式工具已在提交
+`3a01873f050f9c7aefee8d4d6bc9c45cdda758f3`完成：本机项目锁定环境ShellCheck零告警，90上
+五脚本`bash -n`、八项定向回归、workspace all-targets/all-features locked/offline build、代理参数
+和cmdline identity自测全部通过；只读现场确认三个健康端点200、代理路径未使用、无Rust进程且
+双GPU空闲。
+
+当前状态为`tooling_ready / credential_pending`。下一步只允许在单独授权下创建最长7天的双scope
+阶段凭据并运行只读preflight/错误HEAD无写注入；尚未授权停止Python Worker、启动代理、创建
+workload、使用GPU、执行真实连接故障或进入M7-F。
