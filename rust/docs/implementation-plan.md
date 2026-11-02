@@ -1074,3 +1074,13 @@ attempt 2精确删除 API Key ID 24，旧 token返回401，`m7e2-operator` Conte
 文件消失，其他 Context、Cluster registration token和 persisted Worker token保持不变。服务、
 Python Worker、Git、容器、端口和双 GPU基线以及退役证据清单均通过独立复核。M7-E.2更新为
 `accepted`；下一项只允许讨论和冻结 M7-E.3，尚未授权创建凭据或执行连接故障窗口，M7-F也未授权。
+
+用户随后接受 M7-E.3协议。阶段固定为一个明确授权的维护窗口、两个严格串行且不重叠的故障
+子阶段：先停止Rust Worker专用`127.0.0.1:18080` Server代理至少70秒，完整恢复full sync、三个
+watch、heartbeat/status和同一runtime后，再停止专用Docker Unix socket代理至少20秒。Server
+故障期必须证明控制面失败与推理连续；Docker故障期必须证明2秒协调真实产生本地failed/ready
+降级但不写`ERROR`。两个阶段均要求同一`RUNNING`实例、容器ID/StartedAt/端口/spec/ownership、
+restart count 0、generation 0日志和GPU0 assignment不变，Docker生命周期事件为零，恢复后三轮
+幂等。真实Server、Docker daemon、Rust Worker和vLLM容器不得作为故障对象；Docker故障期日志
+读取不要求连续，但恢复后必须重新可读。当前为`protocol_frozen / tooling_validation_pending`，只
+允许实现和离线/只读验证M7-E.3工具，不授权凭据、正式维护窗口、GPU或M7-F。

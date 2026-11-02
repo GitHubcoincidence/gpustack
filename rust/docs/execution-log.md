@@ -4488,6 +4488,24 @@
 - 当前停止位置：M7-E.2更新为 `accepted`。下一项只允许讨论和冻结 M7-E.3；不得自动创建凭据、
   停止 Python Worker、启动故障代理、使用GPU或执行 M7-E.3/M7-F。
 
+### 2026-11-02：M7-E.3协议冻结并进入工具验证
+
+- 用户决策：接受一个维护窗口内两个严格串行子阶段；先Server代理故障并完整恢复，再Docker代理
+  故障，两个故障不得重叠，前一阶段失败时不执行后一阶段。
+- 故障边界：只允许终止完整身份匹配、独立session中的Rust Worker专用`socat`进程组。真实
+  GPUStack Server、Docker daemon、Rust Worker、vLLM容器、Python Worker以外容器和GPU1均不是
+  故障对象。
+- 判定冻结：Server故障至少70秒，必须观察heartbeat/status/watch失败和重连；Docker故障至少
+  20秒，必须观察2秒runtime协调的本地failed及ready降级。全程ModelInstance保持`RUNNING`、
+  restart count 0、同容器/端口/spec/ownership/generation 0和推理连续，Docker生命周期事件为零；
+  Docker故障期日志可暂不可读，但恢复后必须恢复。
+- 工具设计：`rust/scripts/m7e3/`沿用M7-E.2已验证的五件套证据、watchdog、cleanup和post-audit
+  骨架，新增代理完整进程身份、串行恢复屏障、控制面metrics和runtime失败证据。watchdog超时冻结
+  为1500秒，先恢复代理再清理runtime并恢复同一Python Worker。
+- 当前停止位置：`protocol_frozen / tooling_validation_pending`。下一项只允许完成脚本静态检查、
+  90 Bash/ShellCheck、locked/offline定向测试和只读现场复核；未授权创建凭据、停止Python Worker、
+  启动代理、创建workload、使用GPU、执行真实故障或进入M7-F。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

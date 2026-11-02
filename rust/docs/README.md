@@ -23,6 +23,7 @@
 - [m7d-readonly-preflight.md](m7d-readonly-preflight.md)：M7-D 真实输入、恢复材料、专用代理边界、只读证据与维护授权停止点。
 - [m7e1-worker-crash-runbook.md](m7e1-worker-crash-runbook.md)：已接受的 M7-E.1 Rust Worker 精确 crash、同容器接管、watchdog、验收与回滚协议。
 - [m7e2-vllm-crash-runbook.md](m7e2-vllm-crash-runbook.md)：已接受的 M7-E.2 vLLM 精确 crash、自动重建、日志代际、watchdog、验收与回滚协议。
+- [m7e3-control-connection-recovery.md](m7e3-control-connection-recovery.md)：已冻结的 M7-E.3 Rust Worker专用 Server/Docker代理串行故障、运行时保留、恢复收敛和回滚协议。
 
 ## 文档语言
 
@@ -231,6 +232,12 @@
   SHA-256为 `78660c810f862ac9b10bdfe809831e621dbb4cdba828e331ce48dc7275e80a9b`；独立复核确认服务、
   Python Worker、容器、进程、端口和双 GPU基线不变。M7-E.2当前为 `accepted`；下一项只允许讨论
   和冻结 M7-E.3，M7-E.3和 M7-F仍未授权执行。
+- 用户已接受 M7-E.3协议：一个维护窗口内严格串行终止Rust Worker专用Server代理和Docker代理，
+  中间设置完整恢复屏障，不允许两个故障重叠。Server故障至少70秒并要求heartbeat/status/watch
+  失败及full sync/watch恢复；Docker故障至少20秒并要求本地ready降级、runtime本地失败和同容器
+  重新枚举。全程同一vLLM容器、`RUNNING`、restart count 0、generation 0日志和推理保持，Docker
+  生命周期事件为零。当前为`protocol_frozen / tooling_validation_pending`；未授权凭据、维护窗口、
+  代理启动、GPU使用、真实故障或M7-F。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
