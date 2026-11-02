@@ -4362,6 +4362,38 @@
   post-audit/preflight/injection路径，更新脚本内产品提交 identity并运行新的离线和只读门。attempt 1
   授权已消费；真实 retry、M7-E.3和 M7-F均未授权。
 
+### 2026-11-02：M7-E.2 formal attempt 2固定失败、完整回滚与时间解析修复
+
+- 预窗口门：preflight/injection attempt 3在治理 HEAD
+  `c0d48e60cc26f5f47c9c1b4dbb22b76c741fe256`通过；69/11个文件全部0600、无symlink，manifest
+  文件 SHA-256分别为 `86c336748de7ef2dd9b40d1abc8db212a8112310bdc6915910aaab291fd6b8ac`
+  和 `0cf420d0461fcd662f49626c092a8031cd13884b8fe8cd455199dbc740eb67a6`。错误 HEAD注入按预期为
+  `STOP/source_head_mismatch/window_entered=0`。
+- 正式恢复事实：用户单次授权后，旧容器
+  `f1280d419f184d22fa8cae872d9299dca391f8236e4c33f36f45721650cbdb18`经完整 identity复核后收到
+  精确 SIGKILL并以137退出；Rust Worker PID保持存活。replacement
+  `692e9ca63972e8ef32d81da80bcad2ed321cba5c4fd2ec6a185dc05a6e84249b`创建成功，Model 25、
+  Instance 40、ModelFile 19、端口40000和 spec hash保持一致，Server watch得到
+  `RUNNING -> ERROR -> SCHEDULED -> INITIALIZING -> STARTING -> RUNNING`，restart count为1。
+- 失败判定：formal结果固定为 `FAIL/last_restart_time_outside_recovery_window`。故障 epoch为
+  `1793414984`，`last_restart_time=2026-10-31T02:49:46Z`正确解析为`1793414986`；但 Server watch
+  的 `scheduled.updated_at=2026-10-31T02:49:46.306224`省略 UTC后缀，原 executor在 CST宿主机
+  按本地时间解析，产生8小时假偏差。executor在恢复后推理、current/previous日志和三轮幂等门前
+  失败，因此已观察恢复不能提升为完整 formal PASS。
+- 回滚与证据：formal/watchdog/post-audit分别含123/17/27个0600文件、0 symlink，manifest复算
+  PASS，文件 SHA-256分别为
+  `2316e8de4e410c232625c700bb736bee69599c7f151bc40fc827f3d948ed2295`、
+  `6c718e20887cb099e1fc70ec31e1f0446d214f665527a5366f25fa9f4ff221d1`和
+  `29c2e428ef8b03e6a573194117b28ff916accdfa109623aced0d0e3d1c151b54`。`cleanup_ok=1`、watchdog
+  `recovery_ok=1`和独立 post-audit PASS；同一 Python Worker、三个健康端点、Server资源、Rust
+  进程/容器/端口和两张 GPU均恢复基线。
+- 工具修复：共享函数只把严格无后缀 ISO-8601 Server时间解释为 UTC，显式 `Z`/offset保持原义，
+  其他形状拒绝；API Key、心跳、last restart和 scheduled字段统一使用。90 上五脚本 Bash语法与
+  attempt 2原值的无后缀/`Z`/`+08:00`等价性正反自测通过，三者 epoch均为`1793414986`；本地
+  ShellCheck 0.11.0五脚本零告警，90 当前没有 ShellCheck二进制。
+- 当前停止位置：`retry_preflight_pending`。下一项只允许提交同步并在新 HEAD运行全新
+  preflight/injection attempt 4；formal attempt 3仍需新的明确维护授权。M7-E.3和 M7-F未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

@@ -205,8 +205,12 @@
   SIGKILL/137、Rust Worker存活和 `ERROR -> SCHEDULED`，但 Server的空
   `mounted_loras: []`被误判为超出 R1范围，没有创建 replacement，结果固定为 FAIL；完整 cleanup、
   watchdog恢复和 post-audit通过。提交 `d2f7044dc89db74466be96fc2fda3c3a72eb9ec9`已修复空集合
-  兼容并通过155项 Worker测试和 Clippy。当前为 `retry_preflight_pending`；真实 retry、M7-E.3和
-  M7-F仍未授权。
+  兼容并通过155项 Worker测试和 Clippy。formal attempt 2随后成功建立 replacement并观察到完整
+  六状态链，但 executor把 Server省略后缀的 UTC scheduled时间按 CST解析，在后置推理、日志和
+  幂等门前判为 `FAIL/last_restart_time_outside_recovery_window`；完整 cleanup、watchdog recovery
+  和 post-audit恢复基线。工具现以严格共享函数统一解析 Server时间，90 Bash语法和无后缀/`Z`/
+  offset正反自测通过。当前为 `retry_preflight_pending`；下一项只运行 preflight/injection attempt 4，
+  formal attempt 3、M7-E.3和 M7-F仍未授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

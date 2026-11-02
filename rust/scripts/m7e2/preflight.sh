@@ -187,9 +187,10 @@ created_at="$(jq -r --argjson id "$KEY_ID" \
   '.items[] | select(.id == $id) | .created_at' "$EVIDENCE/api-keys.json")"
 expires_at="$(jq -r --argjson id "$KEY_ID" \
   '.items[] | select(.id == $id) | .expires_at' "$EVIDENCE/api-keys.json")"
-lifetime_seconds=$(( $(date -d "$expires_at" +%s) - $(date -d "$created_at" +%s) ))
+lifetime_seconds=$(( $(m7e2_server_timestamp_epoch "$expires_at") -
+  $(m7e2_server_timestamp_epoch "$created_at") ))
 [[ "$lifetime_seconds" -gt 0 && "$lifetime_seconds" -le 604800 ]]
-[[ "$(date -d "$expires_at" +%s)" -gt "$(date +%s)" ]]
+[[ "$(m7e2_server_timestamp_epoch "$expires_at")" -gt "$(date +%s)" ]]
 [[ "$(m7e2_filtered_get operator 'http://127.0.0.1/v2/workers/5' \
   "$EVIDENCE/management-auth.json" \
   '{id,name,state,unreachable,maintenance,port,metrics_port,gpu_count,ip}')" == '200' ]]
@@ -346,6 +347,19 @@ fi
   fi
 ) >"$EVIDENCE/maintenance-heartbeat-readiness-test.txt"
 (
+  timezone_free='2026-10-31T02:49:46.306224'
+  timezone_free_epoch="$(m7e2_server_timestamp_epoch "$timezone_free")"
+  zulu_epoch="$(m7e2_server_timestamp_epoch "${timezone_free}Z")"
+  offset_epoch="$(m7e2_server_timestamp_epoch '2026-10-31T10:49:46.306224+08:00')"
+  [[ "$timezone_free_epoch" == "$zulu_epoch" ]]
+  [[ "$timezone_free_epoch" == "$offset_epoch" ]]
+  if m7e2_server_timestamp_epoch '2026-10-31 02:49:46'; then
+    printf 'STOP: an unsupported Server timestamp shape was accepted\n' >&2
+    exit 1
+  fi
+  printf 'timezone_free_utc_epoch=%s\nstatus=PASS\n' "$timezone_free_epoch"
+) >"$EVIDENCE/server-timestamp-normalization-test.txt"
+(
   test_root="$(mktemp -d)"
   trap 'find "$test_root" -xdev -depth -delete' EXIT
   test_container_a='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -438,6 +452,7 @@ printf 'bash_n=PASS\nexact_pid_guard=PASS\nvllm_crash_contract=PASS\n' \
   printf 'watchdog_timeout=1200\nunknown_process_policy=fail_closed\nconfig_env_capture=absent\n'
   printf 'restart_maintenance_rearm=PASS\ntwo_generation_stopped_container_cleanup=PASS\n'
   printf 'recovery_state_chain=running,error,scheduled,initializing,starting,running\n'
+  printf 'server_timestamp_utc_normalization=PASS\n'
   printf 'maintenance_fresh_heartbeat=PASS\nmaintenance_stale_unreachable_ignored=PASS\n'
 } >>"$EVIDENCE/script-static-audit.txt"
 

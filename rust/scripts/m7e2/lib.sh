@@ -30,6 +30,20 @@ m7e2_timestamp() {
   date --iso-8601=ns
 }
 
+m7e2_server_timestamp_epoch() {
+  local timestamp="$1"
+
+  # GPUStack v2.2.3 may omit the suffix from UTC API timestamps. Normalize only
+  # that exact shape so host timezone settings cannot change formal evidence.
+  if [[ "$timestamp" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?$ ]]; then
+    timestamp="${timestamp}Z"
+  elif [[ ! "$timestamp" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
+    return 1
+  fi
+
+  date -u -d "$timestamp" +%s 2>/dev/null
+}
+
 m7e2_auth_get() {
   local url="$1"
   local output="$2"
@@ -150,7 +164,7 @@ m7e2_maintenance_worker_has_new_heartbeat() {
       (.heartbeat_time | type == "string" and length > 0)
     ' "$worker_file" >/dev/null || return 1
   heartbeat_time="$(jq -r '.heartbeat_time' "$worker_file")"
-  heartbeat_epoch="$(date -d "$heartbeat_time" +%s 2>/dev/null)" || return 1
+  heartbeat_epoch="$(m7e2_server_timestamp_epoch "$heartbeat_time")" || return 1
 
   # Maintenance pins the Server state, so its separately stored unreachable flag can
   # remain stale. A heartbeat newer than the pre-start snapshot proves this process

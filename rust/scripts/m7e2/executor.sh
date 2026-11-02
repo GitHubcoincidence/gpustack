@@ -123,8 +123,8 @@ start_rust_worker() {
   local events="$EVIDENCE/rust-events-${label}.log"
   "$M7E2_BINARY" --context "$M7E2_OPERATOR_CONTEXT" --output json \
     worker get "$M7E2_WORKER_ID" >"$baseline" 2>"$baseline.stderr" || return 1
-  rust_heartbeat_floor_epoch="$(date -d "$(jq -r '.heartbeat_time // empty' "$baseline")" \
-    +%s 2>/dev/null)" || return 1
+  rust_heartbeat_floor_epoch="$(m7e2_server_timestamp_epoch \
+    "$(jq -r '.heartbeat_time // empty' "$baseline")")" || return 1
   setsid "$M7E2_BINARY" --output json worker "${worker_args[@]}" run --managed-runtime \
     >"$summary" \
     2> >(while IFS= read -r line; do
@@ -1080,12 +1080,13 @@ jq -s --argjson instance "$instance_id" '
 ' "$EVIDENCE/model-instance-watch.ndjson" >"$EVIDENCE/recovery-state-chain.json"
 last_restart_time="$(jq -r '.instances[0].last_restart_time' \
   "$EVIDENCE/after-recovery-model-status.json")"
-last_restart_epoch="$(date -d "$last_restart_time" +%s)" || fail 'last_restart_time_invalid'
+last_restart_epoch="$(m7e2_server_timestamp_epoch "$last_restart_time")" ||
+  fail 'last_restart_time_invalid'
 scheduled_updated_at="$(jq -s -r --argjson instance "$instance_id" '
   [.[] | select(.data.id == $instance and .data.state == "scheduled") |
     .data.updated_at] | first // empty
 ' "$EVIDENCE/model-instance-watch.ndjson")"
-scheduled_epoch="$(date -d "$scheduled_updated_at" +%s)" ||
+scheduled_epoch="$(m7e2_server_timestamp_epoch "$scheduled_updated_at")" ||
   fail 'scheduled_updated_at_invalid'
 [[ "$last_restart_epoch" -ge "$((fault_started_epoch - 1))" &&
   "$last_restart_epoch" -le "$((scheduled_epoch + 1))" &&

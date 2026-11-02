@@ -1032,3 +1032,15 @@ LoRA值都拒绝，导致同一实例被反复判为超出 Managed scope且没�
 Clippy通过。当前状态为 `retry_preflight_pending`：下一步只允许冻结 attempt 2的新 formal、watchdog、
 post-audit、preflight和 injection路径，更新正式脚本的产品提交 identity并运行离线/只读门。真实
 retry必须重新取得明确维护授权，M7-E.3和 M7-F仍未授权。
+
+preflight/injection attempt 3通过后，formal attempt 2在新授权下完成旧容器精确 SIGKILL/137、
+replacement创建和完整六状态恢复链，restart count为1且同一 ModelFile、端口、spec和 ownership
+保持不变。原 executor随后把 Server省略后缀的 UTC `scheduled.updated_at`按宿主机 CST解析，和带
+`Z`的 last restart形成8小时假偏差，因此 attempt 2固定为
+`FAIL/last_restart_time_outside_recovery_window`；后置推理、日志和幂等门没有执行，不能接受完整
+formal主张。cleanup、watchdog recovery和独立 post-audit均恢复基线。
+
+工具修复把 Server时间统一交给严格解析器：无后缀 ISO-8601按 UTC，`Z`/offset保持显式含义，
+畸形格式拒绝。五脚本90 Bash语法、三种等价时间正反自测和本地 ShellCheck 0.11.0零告警通过；
+90 当前未安装 ShellCheck。下一步只允许提交同步并运行新的 preflight/injection attempt 4；formal
+attempt 3仍须新的独立维护授权，不得自动进入 M7-E.3或 M7-F。

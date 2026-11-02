@@ -1054,3 +1054,13 @@ token文件并证明旧 token返回401。M7-E.3与 M7-F仍未授权。
 |---|---|---|---|
 | D227 | formal attempt 1判定与证据保留 | attempt 1固定判为 `FAIL/automatic_vllm_recovery_timeout`。精确 SIGKILL/137、Rust Worker存活、`ERROR -> SCHEDULED`、restart count 1和 last restart均成立，但 replacement容器未创建，不能满足完整恢复链。formal/watchdog/post-audit manifest文件 SHA-256分别为 `5a5c1f6d123af25d1cbd7934325df900451bad45b26f55559fcc203599b0aef3`、`d8b1e4791071009d18643c3ee30045d94cdb98b47be56f9912988c7ddd9714d9`和 `e78aff45d13d6abe9e2ba22a1d4c6906e5052722d1502323838371f937782652`；`cleanup_ok=1`、`recovery_ok=1`和 post-audit PASS只证明安全恢复，不改变正式失败 | 冻结协议要求 `SCHEDULED -> INITIALIZING -> STARTING -> RUNNING`、新容器、日志和推理恢复。保留失败结论可避免用局部状态链或成功 cleanup替代核心产品能力，同时三份清单证明现场已安全恢复，可继续离线诊断。 |
 | D228 | 空 LoRA表示与 retry授权边界 | R1把 Server的 `mounted_loras: []`视为没有挂载 LoRA，允许单 Worker vLLM实例继续初始化；非空数组和非数组值仍超出 R1范围。提交 `d2f7044dc89db74466be96fc2fda3c3a72eb9ec9`加入空/非空正反回归，格式、155项 Worker测试和 all-targets/all-features Clippy通过。下一步只允许建立 attempt 2新路径、更新工具 identity并运行新的离线/只读 preflight；formal retry须重新明确授权 | attempt 1证据中该空数组出现5次，Rust事件连续9次以 `outside the R1 Managed scope`拒绝同一 SCHEDULED实例；这直接解释了无 replacement。把空集合按语义空值处理修复 Server往返表示差异而不扩展 LoRA能力。attempt 1授权已经消费，代码修复和只读验证不能自动授权下一次服务中断、GPU使用或 SIGKILL。 |
+
+## 2026-11-02 M7-E.2 formal attempt 2判定与时间证据修复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D229 | formal attempt 2判定与可支持结论 | attempt 2固定判为 `FAIL/last_restart_time_outside_recovery_window`。旧容器 `f1280d419f184d22fa8cae872d9299dca391f8236e4c33f36f45721650cbdb18`精确 SIGKILL/137后，新容器 `692e9ca63972e8ef32d81da80bcad2ed321cba5c4fd2ec6a185dc05a6e84249b`成功建立，Server观察到完整六状态链，restart count为1；但 executor在后置功能、日志和幂等门前失败。formal/watchdog/post-audit manifest文件 SHA-256分别为 `2316e8de4e410c232625c700bb736bee69599c7f151bc40fc827f3d948ed2295`、`6c718e20887cb099e1fc70ec31e1f0446d214f665527a5366f25fa9f4ff221d1`和 `29c2e428ef8b03e6a573194117b28ff916accdfa109623aced0d0e3d1c151b54` | 已观察证据支持“产品已自动替换容器并返回 RUNNING”，但不支持完整 M7-E.2 PASS所需的恢复后推理、日志代际和幂等结论。失败结论和未执行门必须保留；cleanup、watchdog recovery和 post-audit PASS只证明安全恢复。 |
+| D230 | Server无时区 UTC解析与下一授权边界 | 对严格形状 `YYYY-MM-DDTHH:MM:SS[.fraction]`补 `Z`后解析；已有 `Z`或显式 offset保持原义，其他格式失败闭合。API Key生命周期、Worker心跳、last restart和 scheduled时间统一使用共享函数，并以 attempt 2原值验证无后缀、`Z`和`+08:00`都得到 epoch `1793414986`。下一步只运行全新 preflight/injection attempt 4；formal attempt 3须重新授权 | v2.2.3 watch给出无后缀 UTC `2026-10-31T02:49:46.306224`，原 `date -d`在 CST主机得到比正确值小8小时的 epoch，而带 `Z`的 last restart正确。严格归一修复实验工具的时区依赖，不放宽恢复窗口、不修改产品行为或正式成功条件，也不继承已消费的 attempt 2授权。 |
+
+当前状态为 `retry_preflight_pending`。90 上五脚本 `bash -n`和时间解析正反自测、本地 ShellCheck
+0.11.0五脚本零告警已通过；90 当前没有 ShellCheck二进制。M7-E.3和 M7-F仍未授权。

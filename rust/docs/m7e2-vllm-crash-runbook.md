@@ -306,3 +306,27 @@ formal、watchdog和 post-audit manifest文件 SHA-256分别为
 状态为 `retry_preflight_pending`：下一项只允许为 attempt 2冻结新证据路径、更新 formal脚本中的
 产品提交并运行新的只读 preflight/错误 HEAD注入。真实 retry仍须新的明确维护授权；attempt 1授权
 已经消费，M7-E.3和 M7-F仍未授权。
+
+preflight/injection attempt 3随后在治理 HEAD
+`c0d48e60cc26f5f47c9c1b4dbb22b76c741fe256`通过，manifest文件 SHA-256分别为
+`86c336748de7ef2dd9b40d1abc8db212a8112310bdc6915910aaab291fd6b8ac`和
+`0cf420d0461fcd662f49626c092a8031cd13884b8fe8cd455199dbc740eb67a6`。用户授权的 formal
+attempt 2完成唯一 SIGKILL/137，Rust Worker保持存活，replacement容器成功创建，Server实际观察到
+`RUNNING -> ERROR -> SCHEDULED -> INITIALIZING -> STARTING -> RUNNING`，restart count为1。
+
+该 attempt仍固定为 `FAIL/last_restart_time_outside_recovery_window`。Server watch的
+`scheduled.updated_at=2026-10-31T02:49:46.306224`是省略后缀的 UTC，而原 executor在 CST主机上
+把它按本地时间解析；带 `Z`的 `last_restart_time=2026-10-31T02:49:46Z`因此被误判到恢复窗口外。
+失败发生在后置推理、双代日志和幂等门之前，不能把已观察到的容器恢复提升为完整 formal PASS。
+formal、watchdog和 post-audit清单文件 SHA-256分别为
+`2316e8de4e410c232625c700bb736bee69599c7f151bc40fc827f3d948ed2295`、
+`6c718e20887cb099e1fc70ec31e1f0446d214f665527a5366f25fa9f4ff221d1`和
+`29c2e428ef8b03e6a573194117b28ff916accdfa109623aced0d0e3d1c151b54`；cleanup、watchdog recovery和
+独立 post-audit恢复了完整基线。
+
+共享工具现只对 Server的严格无时区 ISO-8601形状补 `Z`，显式时区保持原义，其他形状拒绝；API
+Key生命周期、Worker心跳、last restart和 scheduled时间统一使用该解析器。90 上五脚本 Bash语法和
+无时区/`Z`/`+08:00`等价性正反自测通过，本地 ShellCheck 0.11.0五脚本零告警；90 当前没有
+ShellCheck二进制。当前状态为 `retry_preflight_pending`：下一项只允许在新治理 HEAD运行
+preflight/injection attempt 4。
+formal attempt 3仍须新的明确维护授权，M7-E.3和 M7-F仍未授权。
