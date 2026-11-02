@@ -4630,6 +4630,46 @@
   和两份补救证据保持原样。下一步只允许提交同步并在新治理HEAD运行全新只读preflight/错误HEAD
   注入；通过后才能请求formal attempt 3的新维护窗口授权。M7-F未授权。
 
+### 2026-11-02：M7-E.3 formal attempt 3暴露数据面readiness耦合并完成修复
+
+- 前置门：最终治理HEAD`055cabdc31a36ecd3046c23bd32c79d4697f44d6`上的preflight/injection
+  attempt 5通过。两目录分别含66/11个0600文件、0 symlink，manifest文件SHA-256为
+  `897a1b130e872cd241801051f85d54aa0ec037ce7775d59b785a6efe953a1d45`和
+  `22ac7e81b216621ca684ed172115c94dc14b691ca22a8dfaeb5a174ed4f0bc3f`；错误HEAD仍在
+  `window_entered=0`停止。用户随后授权attempt 3维护窗口。
+- 基线建立：final gate通过后精确停止Python Worker，双代理和Rust Worker身份门通过；唯一模型
+  ID 28、实例43、ModelFile 22和容器
+  `44a70d253878481d98c4d1c23fdf2db5b34d0a7994f9836c94ddaa19a9544c07`在GPU0、端口40000达到
+  `RUNNING`。GPU1未使用，直连和Server-only基线推理通过。
+- 正式失败：21:12:12只停止Server代理。即时直连/Server推理通过；约40秒时直连health/models/
+  chat仍成功，实例仍为`RUNNING`、restart count 0、同一容器/StartedAt/端口/spec/ownership和
+  generation 0日志不变，但Server模型列表成功后chat返回503
+  `Managed Worker runtime is not ready`。executor以
+  `FAIL/server-outage-40s_server_inference_failed`停止；未满足70秒故障下限，未执行Docker子阶段。
+- 根因：2秒协调连续记录对`/v2/model-instances/43`的HTTP transport失败；协调结果把registry
+  readiness降为false，而Worker chat/completion代理把该全局位作为前置门。健康vLLM和最后确认
+  route均仍存在，因此这是控制面健康与数据面可用性的实现耦合，不是模型、GPU或外网下载失败。
+- 恢复证据：formal正常cleanup为`cleanup_ok=1`；其158个0600文件、0 symlink，manifest文件
+  SHA-256为`70342776a72066ad0083f1e73a4ac899fc4309ebf9c82beb0c5765c01d5ddd7d`。watchdog因
+  identity文件仍在但记录PID已被正常cleanup停止而误判，写出`recovery_ok=0`；23个0600文件、
+  manifest文件SHA-256为`f73ab46479d530bad0e1dd28370434f8eeb948edd5e66093d180f7582f8414fb`。
+  post-audit在证据链门停止，7个诊断文件且无manifest。三者均保持FAIL。
+- 补充现场审计：独立只读审计确认三个健康端点200、同一Python Worker、Git和全局资源ID回到
+  preflight基线，Rust进程/容器/代理/端口/socket为空，两张GPU均0 MiB且无计算进程。21个0600
+  文件、0 symlink、秘密扫描和清单复算通过，manifest文件SHA-256为
+  `1c4b25523a58cfde2a2bfb52f72972ab7cb84ad0de3865ec0bb86283e1472f83`；该PASS只证明现场恢复。
+- 产品修复：inference proxy按最后确认且仍存在的route转发，不再因全局readiness为false直接503；
+  `/readyz`仍按registry readiness返回503。新增回归同时证明readyz降级和数据面转发连续，认证、
+  ModelInstance目标header、敏感header过滤及缺失route/上游失败边界不变。
+- watchdog修复：记录PID已不存在时把精确Worker终止视为幂等完成；PID仍存在时继续完整身份验证，
+  malformed identity保持失败闭合。preflight新增已退出/格式错误identity正反测试和静态门。
+- 质量门：本地目标ShellCheck和`git diff --check`通过；90上Rustfmt、Bash语法、156项Worker库测试、
+  workspace all-targets/all-features locked/offline build及已退出identity正反测试通过。没有启动新的
+  Worker、容器或GPU workload。
+- 当前停止位置：`retry_preflight_pending`。attempt 3授权已消费。下一步只允许提交并同步本修复与
+  检查点，在新HEAD运行全新只读preflight/错误HEAD注入；formal attempt 4须重新明确授权，M7-F
+  未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

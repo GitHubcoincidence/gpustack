@@ -229,3 +229,27 @@ ShellCheck、90上的四脚本`bash -n`和身份转换测试。
 当前状态为`retry_preflight_pending`。attempt 2授权已经消费，所有失败和补救证据保持原样；下一步
 只允许把本记录纳入新治理HEAD并运行全新的只读preflight/错误HEAD注入。只有新门再次确认GPU0
 空闲且外部状态未漂移后，才能请求formal attempt 3的新维护授权；M7-F仍未授权。
+
+最终治理HEAD`055cabdc31a36ecd3046c23bd32c79d4697f44d6`上的preflight/injection
+attempt 5随后通过，用户据此授权formal attempt 3。该次运行首次完成双代理和Rust Worker安全
+启动，并把唯一GPU0 TP=1 workload部署到`RUNNING`。Server代理中断后，即时直连和Server-only
+推理成功；约40秒时同一vLLM容器、ModelInstance `RUNNING`、restart count 0、端口、spec、
+ownership和generation 0日志仍未变化，直连vLLM chat继续成功，但Server-only chat返回503
+`Managed Worker runtime is not ready`。executor按冻结门以
+`server-outage-40s_server_inference_failed`停止，没有把不足70秒的Server故障提升为通过，也没有
+进入Docker故障子阶段。
+
+取证确认2秒协调在Server不可达时持续读取ModelInstance失败，并把全局runtime readiness降为
+false；Worker推理代理把该全局位当作请求前置门，因而拒绝仍有最后确认路由且健康的vLLM。修复将
+`/readyz`与数据面路由分离：`/readyz`仍反映协调健康，而受原认证保护的chat/completion按最后确认
+并仍存在的ModelInstance路由转发；路由缺失和上游失败仍分别失败。该语义同时满足后续Docker代理
+故障期“ready降级但健康runtime推理连续”的冻结要求。
+
+formal正常cleanup为`cleanup_ok=1`并恢复服务和资源。独立watchdog随后把“正式Worker identity文件
+存在但记录PID已安全退出”误判为身份失败，故`recovery_ok=0`，post-audit在证据链门停止。watchdog
+已改为只对仍存在的PID执行完整身份验证和终止；记录PID不存在视为幂等成功，格式错误或存活但不
+匹配的PID仍fail closed。补充只读审计只证明现场恢复，不改变formal/watchdog/post-audit的FAIL。
+
+当前状态为`retry_preflight_pending`。attempt 3授权已经消费；下一步只允许提交上述产品与watchdog
+修复、运行质量门并在新HEAD执行全新的只读preflight/错误HEAD注入。formal attempt 4仍须新的明确
+维护授权，M7-F仍未授权。

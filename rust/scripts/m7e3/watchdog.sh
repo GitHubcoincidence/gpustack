@@ -93,6 +93,9 @@ enable_maintenance() {
 terminate_rust_worker() {
   local identity="$FORMAL_EVIDENCE/rust-process-current.txt"
   if [[ -f "$identity" ]]; then
+    if m7e3_recorded_process_is_absent "$identity"; then
+      return
+    fi
     if m7e3_worker_identity_matches_file "$identity"; then
       m7e3_terminate_recorded_process "$identity" "$WATCHDOG_EVIDENCE" || recovery_ok=0
     else

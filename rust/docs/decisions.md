@@ -1138,3 +1138,19 @@ ShellCheck通过，90上四脚本Bash语法和Server/Docker各20次真实代理i
 恢复期间GPU0曾被另一用户`sco`的宿主机vLLM benchmark占用；进程不属于GPUStack、Docker或本
 项目，未被停止或修改。最终只读复核时该进程已自行结束，Server、同一Python Worker和metrics均
 为200，Rust/代理进程、18080监听和Docker代理socket为零，两张GPU均为0 MiB/0%。
+
+## 2026-11-02 M7-E.3 formal attempt 3判定与数据面连续性修复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D241 | preflight attempt 5与formal attempt 3判定 | 最终治理HEAD`055cabdc31a36ecd3046c23bd32c79d4697f44d6`上的preflight/injection attempt 5通过后，用户授权formal attempt 3。attempt 3固定为`FAIL/server-outage-40s_server_inference_failed`：唯一workload已到`RUNNING`，Server代理中断约40秒时直连vLLM、同一容器、`RUNNING`实例、restart count 0、端口/spec/ownership和generation 0均保持，但Server-only chat返回503；故障不足70秒且Docker子阶段未执行。formal/watchdog manifest文件SHA-256分别为`70342776a72066ad0083f1e73a4ac899fc4309ebf9c82beb0c5765c01d5ddd7d`和`f73ab46479d530bad0e1dd28370434f8eeb948edd5e66093d180f7582f8414fb`，均为FAIL；post-audit在证据链门停止且无manifest | 冻结主张明确要求故障期直连和Server-only推理都连续、Server故障至少70秒且两个子阶段都通过。直连成功和runtime不变只证明vLLM未受影响，不能替代经Server的数据面连续性，也不能跳过未执行的Docker故障。 |
+| D242 | 控制面readiness与最后确认数据面路由分离 | `/readyz`继续反映Managed协调器是否健康；chat/completion代理不再用全局readiness作为前置拒绝条件，而是只在已认证请求携带有效ModelInstance目标且registry仍有最后确认路由时转发。路由缺失仍返回404，上游不可达仍返回502，Worker/Cluster token认证和敏感header剥离均不改变。新增回归同时断言readyz为503而已发布路由仍可返回200 | attempt 3的2秒事件证明Server GET失败会形成`outcome=failed`并把readiness置0，但容器、直连健康和Server权威状态都未变化。冻结恢复语义要求不确定基础设施错误保留最后确认状态；把控制面健康位用于数据面熔断会违背该语义，并且同样会破坏计划中的Docker代理故障推理连续性。 |
+| D243 | watchdog已退出Worker身份语义与下一授权边界 | 正常cleanup已精确停止记录Worker时，watchdog把“identity文件存在、记录PID已不存在”视为幂等成功；只有PID仍存在时才要求role、二进制、cmdline、starttime及PID=PGID=SID完整匹配后终止。格式错误、未知或存活但不匹配的PID继续fail closed。preflight增加实际已退出/格式错误identity正反测试和静态使用门。下一步只在新HEAD运行全新preflight/injection，formal attempt 4必须重新授权 | attempt 3 formal的`cleanup_ok=1`和补充现场审计均证明Worker已安全退出，但watchdog因仍保留正式identity文件写出`recovery_ok=0`。幂等恢复必须区分“已完成终止”和“未知存活进程”；该修复不放宽任何存活进程的身份或终止边界，也不继承已消费的维护授权。 |
+
+preflight/injection attempt 5目录分别含66/11个0600文件、无symlink，manifest文件SHA-256分别为
+`897a1b130e872cd241801051f85d54aa0ec037ce7775d59b785a6efe953a1d45`和
+`22ac7e81b216621ca684ed172115c94dc14b691ca22a8dfaeb5a174ed4f0bc3f`。formal/watchdog分别含
+158/23个0600文件、无symlink且清单复算通过；post-audit含7个诊断文件，无manifest，保持FAIL。
+补充现场审计含21个0600文件、无symlink，manifest文件SHA-256为
+`1c4b25523a58cfde2a2bfb52f72972ab7cb84ad0de3865ec0bb86283e1472f83`，只支持服务、资源和双GPU
+恢复基线。当前为`retry_preflight_pending`；M7-F未授权。

@@ -143,6 +143,7 @@ tests=(
   'managed::reconciler::tests::transient_health_probe_failure_preserves_running_route_and_state'
   'managed::reconciler::tests::transient_docker_start_failure_preserves_starting_state_and_recovers'
   'managed::reconciler::tests::deletion_waits_for_server_and_docker_recovery_before_mutation'
+  'worker_api::tests::inference_proxy_preserves_a_published_route_while_readiness_is_degraded'
   'control::tests::disconnect_preserves_state_until_full_sync_recovery'
   'control::tests::failed_periodic_full_sync_keeps_the_last_snapshot_until_recovery'
 )
@@ -293,6 +294,7 @@ for required in \
   'm7e3_proxy_identity_matches_file' \
   'm7e3_wait_for_worker_identity' \
   'm7e3_worker_identity_matches_file' \
+  'm7e3_recorded_process_is_absent' \
   'm7e3_terminate_recorded_proxy' \
   'm7e3_server_proxy_probe' \
   'm7e3_docker_proxy_probe' \
@@ -319,6 +321,7 @@ grep -Fq -- '[[ -f "$identity" ]] && m7e3_proxy_identity_matches_file' "$WATCHDO
 grep -Fq -- 'm7e3_wait_for_worker_identity "$rust_pid" "$identity"' "$EXECUTOR"
 grep -Fq -- 'm7e3_worker_identity_matches_file "$identity"' "$EXECUTOR"
 grep -Fq -- 'm7e3_worker_identity_matches_file "$identity"' "$WATCHDOG"
+grep -Fq -- 'm7e3_recorded_process_is_absent "$identity"' "$WATCHDOG"
 grep -Fq -- '[[ -f "$identity" ]] || return 1' "$EXECUTOR"
 grep -Fq -- 'gpustack:rust_worker_watch_reconnects_total' "$EXECUTOR"
 grep -Fq -- 'gpustack:rust_worker_watch_connected' "$EXECUTOR"
@@ -415,6 +418,20 @@ done
   cleanup_worker_identity_test
   trap - EXIT
 ) >"$EVIDENCE/worker-identity-transition-test.txt"
+(
+  stale_identity="$EVIDENCE/.stale-worker-identity-test"
+  trap 'unlink "$stale_identity"' EXIT
+  printf 'pid=%s\n' "$(( $(< /proc/sys/kernel/pid_max) + 1 ))" >"$stale_identity"
+  m7e3_recorded_process_is_absent "$stale_identity"
+  printf 'pid=invalid\n' >"$stale_identity"
+  if m7e3_recorded_process_is_absent "$stale_identity"; then
+    printf 'STOP: malformed Worker identity was accepted as an exited process\n' >&2
+    exit 1
+  fi
+  printf 'exited_worker_identity=PASS\nmalformed_worker_identity=PASS\n'
+  unlink "$stale_identity"
+  trap - EXIT
+) >"$EVIDENCE/exited-worker-identity-test.txt"
 (
   heartbeat_file="$(mktemp)"
   trap 'unlink "$heartbeat_file"' EXIT

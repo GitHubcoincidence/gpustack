@@ -259,10 +259,9 @@ async fn proxy_managed_inference(
         .managed
         .as_ref()
         .ok_or_else(ApiError::managed_service_unavailable)?;
-    if !managed.registry.is_ready() {
-        return Err(ApiError::managed_service_unavailable());
-    }
     let instance_id = parse_model_instance_header(request.headers())?;
+    // A published route is the last confirmed data-plane authority. Transient
+    // control or Docker failures may lower /readyz without invalidating it.
     let route = managed
         .registry
         .route(instance_id)
@@ -1291,6 +1290,50 @@ mod tests {
         assert_eq!(
             readyz(State(Arc::new(state))).await.status(),
             StatusCode::SERVICE_UNAVAILABLE
+        );
+    }
+
+    #[tokio::test]
+    async fn inference_proxy_preserves_a_published_route_while_readiness_is_degraded() {
+        let proxy = Arc::new(FakeInferenceProxy {
+            request: Mutex::new(None),
+            status: StatusCode::OK,
+            headers: HeaderMap::new(),
+            chunks: Vec::new(),
+        });
+        let state = managed_state(proxy.clone());
+        state
+            .managed
+            .as_ref()
+            .expect("Managed API")
+            .registry
+            .set_ready(false);
+        let request = Request::builder()
+            .uri(CHAT_COMPLETIONS_PATH)
+            .header(MODEL_INSTANCE_HEADER, "model-18-301.static")
+            .body(Body::from(r#"{"model":"qwen"}"#))
+            .expect("request");
+
+        assert_eq!(
+            readyz(State(Arc::new(state.clone()))).await.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            proxy_managed_inference(&state, request, CHAT_COMPLETIONS_PATH)
+                .await
+                .expect("published route remains available")
+                .status(),
+            StatusCode::OK
+        );
+        assert_eq!(
+            proxy
+                .request
+                .lock()
+                .expect("proxy request lock")
+                .as_ref()
+                .expect("forwarded request")
+                .target,
+            "http://10.213.80.90:40000/v1/chat/completions"
         );
     }
 

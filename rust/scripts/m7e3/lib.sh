@@ -566,6 +566,15 @@ m7e3_worker_identity_matches_file() {
     "$(m7e3_expected_worker_cmdline_sha)" ]]
 }
 
+m7e3_recorded_process_is_absent() {
+  local identity="$1"
+  local pid
+  [[ -f "$identity" ]] || return 1
+  pid="$(sed -n 's/^pid=//p' "$identity")"
+  [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+  [[ ! -r "/proc/$pid/stat" ]]
+}
+
 m7e3_wait_for_worker_identity() {
   local pid="$1"
   local output="$2"

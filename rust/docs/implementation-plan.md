@@ -1131,3 +1131,20 @@ PID=PGID=SID专用验证。缺少身份时cleanup立即fail closed，不再无�
 当前为`retry_preflight_pending`。恢复期间观察到的GPU0外部benchmark属于用户`sco`，没有被本项目
 操作且已自行结束；最终复核两张GPU为空。下一步只在包含本记录的新治理HEAD运行全新只读
 preflight/injection；formal attempt 3必须重新取得维护窗口授权，M7-F仍未授权。
+
+最终治理HEAD`055cabdc31a36ecd3046c23bd32c79d4697f44d6`的preflight/injection attempt 5
+通过后，用户授权formal attempt 3。双代理、Rust Worker和GPU0 TP=1 workload均成功建立；Server
+代理中断后即时推理通过，但约40秒时控制面GET失败把Managed registry readiness降为false，Worker
+推理代理因此对仍健康且路由未变的vLLM返回503。直连chat、同一`RUNNING`实例、容器、端口、
+spec、ownership和restart count 0均保持。formal以
+`FAIL/server-outage-40s_server_inference_failed`停止，Server故障不足70秒，Docker子阶段未执行。
+
+产品修复把控制面/运行时健康的`/readyz`与最后确认的数据面路由分开：readiness可以在连接或Docker
+不确定时降级，但已发布且未被权威删除的路由继续代理推理。新增单测同时验证readyz 503和路由转发
+200；Worker API认证、目标实例header、敏感header剥离、404和502边界不变。watchdog另修复正常
+cleanup后残留identity文件的幂等判断：记录PID已不存在为成功，仍存活时继续完整身份校验。
+
+formal cleanup为`cleanup_ok=1`；watchdog因修复前的已退出PID误判保持FAIL，post-audit在证据链门
+停止。补充只读审计证明Server、同一Python Worker、资源、容器、代理、端口和双GPU恢复基线，
+但不改判formal。当前为`retry_preflight_pending`；下一步提交修复和检查点，在新HEAD运行全新
+preflight/injection。formal attempt 4仍须新的明确授权，M7-F未授权。
