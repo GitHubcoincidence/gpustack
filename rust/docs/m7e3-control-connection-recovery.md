@@ -182,6 +182,12 @@ Docker inspect只保存白名单字段，不保存`Config.Env`。operator、Clus
 和cmdline identity自测全部通过；只读现场确认三个健康端点200、代理路径未使用、无Rust进程且
 双GPU空闲。
 
-当前状态为`tooling_ready / credential_pending`。下一步只允许在单独授权下创建最长7天的双scope
-阶段凭据并运行只读preflight/错误HEAD无写注入；尚未授权停止Python Worker、启动代理、创建
+用户已授权并完成阶段凭据与只读preflight attempt 1：API Key ID 25、名称
+`rust-worker-m7e3-operator-20261102`、scope`management,inference`、生命周期604,800秒；active
+Context为`m7e3-operator`。治理HEAD`6a86b6e9b98a431293c24093511061c6331e6e12`上的八组门通过，
+错误HEAD注入按预期为`STOP/source_head_mismatch/window_entered=0`，三套证据权限、manifest、
+秘密扫描和现场不变式通过。
+
+记录该结果会推进治理HEAD。下一步只允许在新HEAD运行全新的只读preflight/injection attempt 2；
+通过后状态为`ready_for_maintenance_authorization`。尚未授权停止Python Worker、启动代理、创建
 workload、使用GPU、执行真实连接故障或进入M7-F。

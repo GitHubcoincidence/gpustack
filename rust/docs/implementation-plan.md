@@ -1087,3 +1087,11 @@ restart count 0、generation 0日志和GPU0 assignment不变，Docker生命周�
 workspace all-targets/all-features locked/offline build、代理identity自测和只读现场复核。当前为
 `tooling_ready / credential_pending`；下一步只允许在新授权下准备最长7天双scope凭据并运行只读
 preflight/错误HEAD无写注入，不授权正式维护窗口、代理启动、GPU或M7-F。
+
+用户随后授权M7-E.3阶段凭据和只读preflight。API Key ID 25、名称
+`rust-worker-m7e3-operator-20261102`、双scope、604,800秒生命周期、`m7e3-operator` Context和
+0600 token文件已准备完成；credential/preflight/injection三套证据的权限、manifest复算、秘密
+扫描和外部不变式通过。治理HEAD`6a86b6e9b98a431293c24093511061c6331e6e12`上的preflight
+attempt 1八组门通过，错误HEAD注入在`window_entered=0`停止。记录该结果后必须在新的干净治理
+HEAD运行attempt 2；即使再次通过，也只进入`ready_for_maintenance_authorization`，正式维护窗口
+仍须新的明确授权。

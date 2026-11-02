@@ -4513,6 +4513,32 @@
   management/inference双scope凭据并运行只读preflight/错误HEAD无写注入；未授权停止Python
   Worker、启动代理、创建workload、使用GPU、执行真实故障或进入M7-F。
 
+### 2026-11-02：M7-E.3凭据准备与preflight attempt 1通过
+
+- 授权边界：用户授权创建最长7天的M7-E.3双scope阶段凭据，并运行只读preflight和错误HEAD
+  无写注入；没有授权停止Python Worker、启动Server/Docker代理、切换maintenance、创建
+  workload、使用GPU、执行真实连接故障或进入M7-F。
+- 凭据：使用既有受保护管理凭据调用正式`/v2/api-keys`，创建API Key ID 25、名称
+  `rust-worker-m7e3-operator-20261102`、scope`management,inference`，创建/到期时间为
+  `2026-11-02T08:00:20.452609Z`和`2026-11-09T08:00:20.377427Z`，生命周期604,800秒。
+  完整token只原子安装到`/home/wujiaxing2/.config/gpustack-rust/m7e3-operator-token`，文件为
+  0600、owner`wujiaxing2:wujiaxing2`、单硬链接；active Context为`m7e3-operator`，management
+  和inference认证均为200。
+- preflight：attempt 1在治理HEAD`6a86b6e9b98a431293c24093511061c6331e6e12`依次通过源码和
+  五脚本identity、locked/offline workspace构建与八项恢复测试、三种token和双scope、外部基线、
+  固定Server/代理/Runner/模型/Worker/Python Worker/双GPU identity、串行故障与回滚静态门、错误
+  HEAD无写注入以及前后不变式。注入结果为预期`STOP/source_head_mismatch/window_entered=0`。
+- 独立复核：credential/preflight/injection目录分别含12/65/11个0600文件、0 symlink，manifest
+  复算通过；manifest文件SHA-256依次为
+  `c13e2148f27409072a982f7beec5c355be2bec25b8cedf913dc190ef0ee79ebe`、
+  `6d2660661c3d9fb8e81f8139c271c96515dc11823efdf705aa92376026f2dddc`和
+  `8bff07ab657903771717d88b7854c469397a060024b3ad75b27e75cc07ed44b6`。复核时三个健康端点200，
+  Rust进程/Managed容器/18080监听和Docker代理socket均为零，两张A100为0 MiB/0%，没有遗留秘密
+  临时目录。
+- 当前停止位置：记录本结果会推进治理HEAD，因此下一步只允许在新HEAD运行全新的只读
+  preflight/injection attempt 2。通过后状态才重新回到`ready_for_maintenance_authorization`；
+  formal attempt 1仍须新的明确维护授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

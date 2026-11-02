@@ -1094,3 +1094,15 @@ M7-E.3和 M7-F仍未授权。
 
 当前状态为 `accepted`。下一项只允许讨论和冻结 M7-E.3；不得从本次验收继承创建凭据、停止
 Python Worker、启动代理、使用 GPU或注入连接故障的权限，M7-F仍未授权。
+
+## 2026-11-02 M7-E.3 凭据准备与只读 preflight
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D236 | M7-E.3阶段凭据、只读预检与正式窗口停止点 | 用户授权创建最长7天的双scope阶段凭据，并运行只读preflight和错误HEAD无写注入。创建API Key ID 25、名称`rust-worker-m7e3-operator-20261102`、scope `management,inference`、生命周期604,800秒；token只写入90的`m7e3-operator-token` 0600文件，active Context固定为`m7e3-operator`。治理HEAD `6a86b6e9b98a431293c24093511061c6331e6e12`上的preflight attempt 1八组门全部通过，错误HEAD注入按预期为`STOP/source_head_mismatch/window_entered=0` | 把凭据和只读验证同真实维护窗口分离，可以在任何服务停止、代理启动、workload创建或GPU使用前验证源码、恢复测试、双scope、固定runtime identity、串行故障工具、回滚和秘密边界。credential/preflight/injection三套证据分别含12/65/11个0600文件、无symlink且manifest复算通过；状态只提升到`ready_for_maintenance_authorization`，正式attempt仍须新的明确授权。 |
+
+API Key ID 25创建/到期时间为`2026-11-02T08:00:20.452609Z`和
+`2026-11-09T08:00:20.377427Z`。阶段验收后必须删除该Key、Context和token文件并证明旧token
+返回401。记录本检查点会推进治理HEAD，因此正式窗口前必须在新HEAD重新运行完整只读
+preflight/错误HEAD注入；本授权不包含停止Python Worker、启动代理、创建workload、使用GPU、
+执行真实连接故障或进入M7-F。

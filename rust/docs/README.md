@@ -240,6 +240,10 @@
   ShellCheck、90 Bash语法、八项定向回归、workspace locked/offline build、代理identity自测和只读
   现场复核通过。当前为`tooling_ready / credential_pending`；下一步仍须单独授权阶段凭据和只读
   preflight/错误HEAD无写注入，不授权维护窗口、代理启动、GPU、真实故障或M7-F。
+- 用户随后授权并完成M7-E.3阶段凭据与只读preflight attempt 1：API Key ID 25为最长7天的
+  `management,inference`双scope凭据，active Context为`m7e3-operator`；八组门、错误HEAD无写
+  注入、三套证据清单和外部不变式通过。文档检查点会推进治理HEAD，下一步只允许在新HEAD运行
+  attempt 2；正式维护窗口仍须新的明确授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
