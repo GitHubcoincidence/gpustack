@@ -209,8 +209,12 @@
   六状态链，但 executor把 Server省略后缀的 UTC scheduled时间按 CST解析，在后置推理、日志和
   幂等门前判为 `FAIL/last_restart_time_outside_recovery_window`；完整 cleanup、watchdog recovery
   和 post-audit恢复基线。工具现以严格共享函数统一解析 Server时间，90 Bash语法和无后缀/`Z`/
-  offset正反自测通过。当前为 `retry_preflight_pending`；下一项只运行 preflight/injection attempt 4，
-  formal attempt 3、M7-E.3和 M7-F仍未授权。
+  offset正反自测通过。formal attempt 3随后通过自动 replacement、完整六状态链、恢复窗口、Docker
+  生命周期及恢复后直连/Server推理；current/previous日志非空且不同，但 direct
+  `serveLogOptions`误用 Cluster token而返回401，三轮幂等未执行，结果固定为 FAIL。工具现用
+  persisted Worker token完成 Worker API取证，并把三种 token纳入精确秘密扫描。当前为
+  `retry_preflight_pending`；下一项只运行 preflight/injection attempt 5，formal attempt 4、
+  M7-E.3和 M7-F仍未授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

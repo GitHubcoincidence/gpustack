@@ -389,7 +389,7 @@ validate_two_log_generations() {
   [[ -s "$EVIDENCE/current-generation.log" && -s "$EVIDENCE/previous-generation.log" ]] || return 1
   [[ "$(sha256sum "$EVIDENCE/current-generation.log" | awk '{print $1}')" != \
     "$(sha256sum "$EVIDENCE/previous-generation.log" | awk '{print $1}')" ]] || return 1
-  [[ "$(m7e2_filtered_get cluster \
+  [[ "$(m7e2_filtered_get worker \
     "http://$M7E2_WORKER_IP:20150/serveLogOptions/$instance_id" \
     "$EVIDENCE/serve-log-options.json" \
     '{restarts:[.restarts[] | {previous,started_at,containers}]}')" == '200' ]] || return 1
@@ -565,7 +565,7 @@ seal_evidence() {
   local requested_exit="$1"
   local status='FAIL'
   local reason="${failure_reason:-maintenance_window_or_cleanup_failed}"
-  local secret_count
+  local generic_secret_count known_secret_count secret_count
   if [[ "$requested_exit" -eq 0 && "$recovery_passed" -eq 1 && "$cleanup_ok" -eq 1 ]]; then
     status='PASS'
     reason='vllm_crash_restart_two_log_generations_inference_idempotency_and_cleanup_passed'
@@ -587,7 +587,9 @@ seal_evidence() {
     printf 'old_container_id=%s\nnew_container_id=%s\nowned_spec_hash=%s\n' \
       "${old_container_id:-none}" "${new_container_id:-none}" "${owned_spec_hash:-none}"
   } >"$EVIDENCE/result.txt"
-  secret_count="$(m7e2_secret_file_count "$EVIDENCE")"
+  generic_secret_count="$(m7e2_secret_file_count "$EVIDENCE")"
+  known_secret_count="$(m7e2_known_secret_file_count "$EVIDENCE")"
+  secret_count=$((generic_secret_count + known_secret_count))
   printf 'secret_file_count=%s\n' "$secret_count" >"$EVIDENCE/secret-scan.txt"
   if [[ "$secret_count" -ne 0 ]]; then
     requested_exit=1

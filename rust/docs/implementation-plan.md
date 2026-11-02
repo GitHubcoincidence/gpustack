@@ -1044,3 +1044,15 @@ formal主张。cleanup、watchdog recovery和独立 post-audit均恢复基线。
 畸形格式拒绝。五脚本90 Bash语法、三种等价时间正反自测和本地 ShellCheck 0.11.0零告警通过；
 90 当前未安装 ShellCheck。下一步只允许提交同步并运行新的 preflight/injection attempt 4；formal
 attempt 3仍须新的独立维护授权，不得自动进入 M7-E.3或 M7-F。
+
+preflight/injection attempt 4通过后，formal attempt 3完成精确 SIGKILL/137、新容器、完整六状态
+恢复链、restart时间窗口、Docker生命周期、恢复后直连和 Server-only推理。两份 CLI日志均非空、
+内容不同，持久代际文件也正确；但 executor以 Cluster registration token请求只接受 Worker token的
+`serveLogOptions`而得到401，正式结果固定为 `FAIL/two_log_generation_contract_failed`，后续三轮
+幂等没有执行。cleanup、watchdog recovery和独立 post-audit恢复基线。
+
+工具修复新增 persisted Worker token principal，只把 Worker API日志选项取证切到该 principal；
+operator和 Cluster用途不变。preflight验证 Worker token权限、principal分派和失败 raw清理；四套
+证据路径都对三种 token执行精确秘密扫描。下一步只允许质量门、提交同步和全新
+preflight/injection attempt 5；formal attempt 4仍须新的独立维护授权，不得自动进入 M7-E.3或
+M7-F。

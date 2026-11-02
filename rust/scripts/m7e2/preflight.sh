@@ -170,6 +170,11 @@ announce 3 '阶段凭据、Context 与双 scope 认证'
 [[ "$(stat -c '%a' "$M7E2_CLUSTER_TOKEN")" == '600' ]]
 [[ "$(stat -c '%U:%G' "$M7E2_CLUSTER_TOKEN")" == 'wujiaxing2:wujiaxing2' ]]
 [[ "$(stat -c '%h' "$M7E2_CLUSTER_TOKEN")" == '1' ]]
+[[ -f "$M7E2_WORKER_TOKEN" && ! -L "$M7E2_WORKER_TOKEN" ]]
+[[ "$(stat -c '%a' "$M7E2_WORKER_TOKEN")" == '600' ]]
+[[ "$(stat -c '%U:%G' "$M7E2_WORKER_TOKEN")" == 'wujiaxing2:wujiaxing2' ]]
+[[ "$(stat -c '%h' "$M7E2_WORKER_TOKEN")" == '1' ]]
+[[ "$(stat -c '%a' "$(dirname "$M7E2_WORKER_TOKEN")")" == '700' ]]
 "$M7E2_BINARY" --output json context list >"$EVIDENCE/contexts.json"
 jq -e --arg context "$M7E2_OPERATOR_CONTEXT" --arg token "$M7E2_OPERATOR_TOKEN" '
   [.[] | select(.name == $context and .server_url == "http://127.0.0.1/" and
@@ -206,6 +211,7 @@ lifetime_seconds=$(( $(m7e2_server_timestamp_epoch "$expires_at") -
     "$created_at" "$expires_at" "$lifetime_seconds"
   stat -c 'operator_token=%n mode=%a owner=%U:%G links=%h' "$M7E2_OPERATOR_TOKEN"
   stat -c 'cluster_token=%n mode=%a owner=%U:%G links=%h' "$M7E2_CLUSTER_TOKEN"
+  stat -c 'worker_token=%n mode=%a owner=%U:%G links=%h' "$M7E2_WORKER_TOKEN"
 } >"$EVIDENCE/credential-metadata.txt"
 
 current_step='external_baseline'
@@ -289,6 +295,7 @@ for required in \
   'http://127.0.0.1/v2/model-instances?watch=true' \
   'outcome=restart_scheduled restart_count=1' \
   "model logs \"\$model_id\" --tail 40 --previous" \
+  'm7e2_filtered_get worker' \
   'm7e2_restore_python_worker_if_safe' \
   'pre_window_safety_checks'; do
   grep -Fq -- "$required" "$EXECUTOR" "$LIB"
@@ -359,6 +366,35 @@ fi
   fi
   printf 'timezone_free_utc_epoch=%s\nstatus=PASS\n' "$timezone_free_epoch"
 ) >"$EVIDENCE/server-timestamp-normalization-test.txt"
+(
+  test_root="$(mktemp -d)"
+  trap 'find "$test_root" -xdev -depth -delete' EXIT
+  output="$test_root/worker-response.json"
+  # shellcheck disable=SC2329
+  m7e2_worker_get() {
+    [[ "$1" == 'http://worker.test/serveLogOptions/42' ]]
+    printf '{"restarts":[{"previous":false,"started_at":"now","containers":[]}]}' >"$2"
+    printf '200'
+  }
+  [[ "$(m7e2_filtered_get worker \
+    'http://worker.test/serveLogOptions/42' "$output" \
+    '{restarts:[.restarts[] | {previous,started_at,containers}]}')" == '200' ]]
+  jq -e '.restarts | length == 1' "$output" >/dev/null
+  # shellcheck disable=SC2329
+  m7e2_worker_get() {
+    printf '{"code":401,"reason":"Unauthorized"}' >"$2"
+    printf '401'
+  }
+  failed_output="$test_root/failed-response.json"
+  if m7e2_filtered_get worker 'http://worker.test/serveLogOptions/42' \
+    "$failed_output" '{restarts:[.restarts[]]}' 2>/dev/null; then
+    printf 'STOP: invalid Worker response passed the filtered GET gate\n' >&2
+    exit 1
+  fi
+  [[ ! -e "$failed_output" ]]
+  [[ -z "$(find "$test_root" -maxdepth 1 -name 'failed-response.json.raw.*' -print -quit)" ]]
+  printf 'worker_principal_dispatch=PASS\nfailed_raw_cleanup=PASS\n'
+) >"$EVIDENCE/worker-auth-dispatch-test.txt"
 (
   test_root="$(mktemp -d)"
   trap 'find "$test_root" -xdev -depth -delete' EXIT
@@ -453,6 +489,7 @@ printf 'bash_n=PASS\nexact_pid_guard=PASS\nvllm_crash_contract=PASS\n' \
   printf 'restart_maintenance_rearm=PASS\ntwo_generation_stopped_container_cleanup=PASS\n'
   printf 'recovery_state_chain=running,error,scheduled,initializing,starting,running\n'
   printf 'server_timestamp_utc_normalization=PASS\n'
+  printf 'worker_api_auth_principal=worker_token\nfailed_raw_cleanup=PASS\n'
   printf 'maintenance_fresh_heartbeat=PASS\nmaintenance_stale_unreachable_ignored=PASS\n'
 } >>"$EVIDENCE/script-static-audit.txt"
 
@@ -495,15 +532,7 @@ done
 (cd "$M7E2_MODEL_PATH" && sha256sum --check --strict "$M7E2_MODEL_MANIFEST") \
   >"$EVIDENCE/model-manifest-recheck.txt"
 
-operator_token="$(tr -d '\r\n' <"$M7E2_OPERATOR_TOKEN")"
-cluster_token="$(tr -d '\r\n' <"$M7E2_CLUSTER_TOKEN")"
-if grep -RIlF -- "$operator_token" "$EVIDENCE" "$INJECTION_EVIDENCE" >/dev/null ||
-  grep -RIlF -- "$cluster_token" "$EVIDENCE" "$INJECTION_EVIDENCE" >/dev/null; then
-  unset operator_token cluster_token
-  printf 'STOP: evidence contains a token value\n' >&2
-  exit 1
-fi
-unset operator_token cluster_token
+[[ "$(m7e2_known_secret_file_count "$EVIDENCE" "$INJECTION_EVIDENCE")" == '0' ]]
 [[ "$(m7e2_secret_file_count "$EVIDENCE" "$INJECTION_EVIDENCE")" == '0' ]]
 printf 'secret_scan=PASS\n' >"$EVIDENCE/secret-scan.txt"
 printf 'status=PASS\nstage=M7-E.2-preflight\nattempt=%s\nexternal_mutation=none\nstatus_detail=ready_for_maintenance_authorization\n' \

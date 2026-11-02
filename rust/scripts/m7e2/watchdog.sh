@@ -284,7 +284,7 @@ restore_safety_baseline() {
 
 seal_watchdog() {
   local status='FAIL'
-  local secret_count
+  local generic_secret_count known_secret_count secret_count
   [[ "$runner_exit" -eq 0 ]] && status='PASS'
   [[ "$runner_exit" -eq 0 || "$recovery_ok" -eq 1 ]] || status='FAIL'
   {
@@ -293,7 +293,9 @@ seal_watchdog() {
     printf 'executor_exit=%s\ntimeout_seconds=1200\nkill_after_seconds=180\n' "$runner_exit"
     printf 'recovery_ok=%s\n' "$recovery_ok"
   } >"$WATCHDOG_EVIDENCE/result.txt"
-  secret_count="$(m7e2_secret_file_count "$WATCHDOG_EVIDENCE")"
+  generic_secret_count="$(m7e2_secret_file_count "$WATCHDOG_EVIDENCE")"
+  known_secret_count="$(m7e2_known_secret_file_count "$WATCHDOG_EVIDENCE")"
+  secret_count=$((generic_secret_count + known_secret_count))
   printf 'secret_file_count=%s\n' "$secret_count" >"$WATCHDOG_EVIDENCE/secret-scan.txt"
   if [[ "$secret_count" -ne 0 ]]; then
     runner_exit=1

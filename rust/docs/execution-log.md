@@ -4394,6 +4394,39 @@
 - 当前停止位置：`retry_preflight_pending`。下一项只允许提交同步并在新 HEAD运行全新
   preflight/injection attempt 4；formal attempt 3仍需新的明确维护授权。M7-E.3和 M7-F未授权。
 
+### 2026-11-02：M7-E.2 formal attempt 3固定失败、完整恢复与 Worker API取证修复
+
+- 预窗口门：preflight/injection attempt 4在治理 HEAD
+  `63f82b6f15bcf8c445782f6e438afb3131093d67`通过；70/11个文件全部0600、无symlink，manifest文件
+  SHA-256分别为 `721ffd3c1e4dec6730e7821c579179a896b9f39a893876dab62b94d66d7771f3`和
+  `53ccf11418b3e005b1ae03364326433cbe17b45f27708cf2a83841dec8b1d737`。错误 HEAD注入按预期为
+  `STOP/source_head_mismatch/window_entered=0`。
+- 正式恢复：旧容器 `1c228092197f1016dd71e12df1e124f913e6cf44b744a310b1a6fd4fdbc25d7d`
+  精确 SIGKILL并以137退出，Rust Worker PID `3077144`保持运行；replacement
+  `7de388d2b2f3a0d9a836df76afb05a9d4caf896775d640072d62f57a6f8e4d11`成功创建。Model 26、
+  Instance 41、ModelFile 20、端口40000和 spec hash保持一致，六状态链、restart count 1、修正后的
+  UTC恢复窗口及 Docker kill/die/destroy/create/start门全部通过。恢复后直连 vLLM、Server-only
+  models/chat/completion/logs均通过。
+- 失败判定：formal结果固定为 `FAIL/two_log_generation_contract_failed`。CLI current/previous日志
+  分别3865/3853字节，SHA-256为
+  `6e81eca546a82d2ed3940843fd600e49f40d03b987eeff4f9c9a9e82786c66e0`和
+  `ad92156193195305186950f8c39b873ab216c590713e8b8912aa116403a8582c`；持久文件正好是`41.0.log`和
+  `41.1.log`。随后 executor用 Cluster registration token直连只接受 Worker token的
+  `/serveLogOptions/41`，原始响应为401。三轮幂等未执行，不能把已有恢复和日志证据提升为 PASS。
+- 回滚与证据：formal/watchdog/post-audit分别含137/17/27个0600文件、0 symlink，manifest复算
+  PASS，文件 SHA-256分别为
+  `43bedbbba5b71cb56690706b1ea4d176df6ba934049b4e9ec86d407dc9dda193`、
+  `f246038d3ae4ef7b9f74406a41a2e5892b7f8203e702f19745de6d7970ebe8d5`和
+  `2c82078b7193744d7115e8271892e4809fd1b195efce1eced11f79a902e284cc`。`cleanup_ok=1`、watchdog
+  `recovery_ok=1`和独立 post-audit PASS；三个健康端点、同一 Python Worker、Server资源、Rust
+  进程/容器/端口和两张 GPU均恢复基线。
+- 工具修复：shared lib新增 persisted Worker token principal；只有 Worker API日志选项取证切换到
+  它，operator/Cluster用途不变。preflight新增 Worker token权限、principal dispatch和失败 raw
+  临时文件清理正反测试；formal/watchdog/preflight/post-audit统一精确扫描三种 token。五脚本
+  Bash语法、ShellCheck、helper正反测试和既有 attempt 3证据秘密扫描通过。
+- 当前停止位置：`retry_preflight_pending`。下一项只允许质量门、提交同步和新 HEAD上的
+  preflight/injection attempt 5；formal attempt 4仍须新的明确维护授权。M7-E.3和 M7-F未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

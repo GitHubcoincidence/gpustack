@@ -330,3 +330,25 @@ Key生命周期、Worker心跳、last restart和 scheduled时间统一使用该�
 ShellCheck二进制。当前状态为 `retry_preflight_pending`：下一项只允许在新治理 HEAD运行
 preflight/injection attempt 4。
 formal attempt 3仍须新的明确维护授权，M7-E.3和 M7-F仍未授权。
+
+preflight/injection attempt 4随后通过，manifest文件 SHA-256分别为
+`721ffd3c1e4dec6730e7821c579179a896b9f39a893876dab62b94d66d7771f3`和
+`53ccf11418b3e005b1ae03364326433cbe17b45f27708cf2a83841dec8b1d737`。用户授权的 formal
+attempt 3证明时间修复有效：旧容器精确 SIGKILL/137后，replacement创建、完整六状态链、restart
+count 1、恢复窗口和 Docker生命周期门均通过；恢复后直连和 Server-only推理也通过。
+
+attempt 3仍固定为 `FAIL/two_log_generation_contract_failed`。`model logs` current/previous分别生成
+3865/3853字节且 SHA不同，持久文件恰为 `41.0.log`和`41.1.log`；失败来自 executor使用 Cluster
+registration token直连只接受 persisted Worker token的 `/serveLogOptions/41`，原始响应为401。
+三轮幂等未执行，因此不能以已有两代日志和推理证据改判。formal、watchdog和 post-audit清单文件
+SHA-256分别为 `43bedbbba5b71cb56690706b1ea4d176df6ba934049b4e9ec86d407dc9dda193`、
+`f246038d3ae4ef7b9f74406a41a2e5892b7f8203e702f19745de6d7970ebe8d5`和
+`2c82078b7193744d7115e8271892e4809fd1b195efce1eced11f79a902e284cc`；cleanup、watchdog recovery和
+独立 post-audit恢复完整基线。
+
+共享工具现把 Worker API取证限定为0600 persisted Worker token，Cluster token用途保持不变；
+preflight新增 token metadata、principal dispatch正反测试和失败 raw清理测试。formal、watchdog、
+preflight和 post-audit均精确扫描 operator/cluster/worker三种 token，且继续执行通用秘密模式扫描。
+五脚本 Bash语法、ShellCheck和 helper正反测试通过。当前为 `retry_preflight_pending`：下一项只允许
+提交同步并运行 preflight/injection attempt 5；formal attempt 4仍须新的维护授权，M7-E.3和 M7-F
+仍未授权。

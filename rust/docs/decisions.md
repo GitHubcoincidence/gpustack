@@ -1064,3 +1064,14 @@ token文件并证明旧 token返回401。M7-E.3与 M7-F仍未授权。
 
 当前状态为 `retry_preflight_pending`。90 上五脚本 `bash -n`和时间解析正反自测、本地 ShellCheck
 0.11.0五脚本零告警已通过；90 当前没有 ShellCheck二进制。M7-E.3和 M7-F仍未授权。
+
+## 2026-11-02 M7-E.2 formal attempt 3判定与 Worker API取证修复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D231 | formal attempt 3判定与可支持结论 | attempt 3固定判为 `FAIL/two_log_generation_contract_failed`。旧容器 `1c228092197f1016dd71e12df1e124f913e6cf44b744a310b1a6fd4fdbc25d7d`精确 SIGKILL/137后，新容器 `7de388d2b2f3a0d9a836df76afb05a9d4caf896775d640072d62f57a6f8e4d11`成功建立，自动恢复、时间窗口、Docker生命周期及恢复后直连/Server推理通过；current/previous CLI日志分别3865/3853字节且 SHA不同，持久文件为`41.0.log`/`41.1.log`。formal/watchdog/post-audit manifest文件 SHA-256分别为 `43bedbbba5b71cb56690706b1ea4d176df6ba934049b4e9ec86d407dc9dda193`、`f246038d3ae4ef7b9f74406a41a2e5892b7f8203e702f19745de6d7970ebe8d5`和 `2c82078b7193744d7115e8271892e4809fd1b195efce1eced11f79a902e284cc` | 直接 `serveLogOptions`校验收到401，导致完整日志契约门失败且三轮幂等未执行。已有证据支持产品自动重建、推理恢复和两份不同日志存在，但不支持完整 formal PASS；cleanup和恢复审计不能改判。 |
+| D232 | Worker API认证主体与秘密边界 | `/serveLogOptions`使用 Rust Worker注册后持久化的0600 Worker token；Cluster registration token仍只用于其既有 Server/推理边界。preflight验证 Worker token文件身份、mock principal dispatch和失败 raw清理；formal/watchdog/preflight/post-audit对 operator、cluster、worker三种 token执行精确值扫描并保留通用模式扫描。下一步只运行新 preflight/injection attempt 5，formal attempt 4须重新授权 | Worker API受 `require_worker_token`保护，而 attempt 3原始响应明确为401；current/previous CLI日志和两代文件证明日志本身存在。切换取证 principal修复认证错误，不改变产品、故障变量、日志成功条件或已消费授权；扩大秘密扫描防止新使用的 Worker token进入证据。 |
+
+当前状态为 `retry_preflight_pending`。attempt 3的三套封存证据分别含137/17/27个0600文件、无
+symlink且 manifest复算通过；Server、同一 Python Worker、资源、容器、端口和双 GPU已恢复基线。
+M7-E.3和 M7-F仍未授权。

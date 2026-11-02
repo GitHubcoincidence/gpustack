@@ -197,17 +197,8 @@ m7e2_capture_gpu "$EVIDENCE" after
 [[ "$(m7e2_gpu_compute_count "$M7E2_GPU1_UUID")" == '0' ]]
 [[ "$(m7e2_gpu_memory_used 0)" == '0' ]]
 [[ "$(m7e2_gpu_memory_used 1)" == '0' ]]
-operator_token="$(tr -d '\r\n' <"$M7E2_OPERATOR_TOKEN")"
-cluster_token="$(tr -d '\r\n' <"$M7E2_CLUSTER_TOKEN")"
-if grep -RIlF -- "$operator_token" \
-  "$PREFLIGHT" "$FORMAL_EVIDENCE" "$WATCHDOG_EVIDENCE" "$EVIDENCE" >/dev/null ||
-  grep -RIlF -- "$cluster_token" \
-    "$PREFLIGHT" "$FORMAL_EVIDENCE" "$WATCHDOG_EVIDENCE" "$EVIDENCE" >/dev/null; then
-  unset operator_token cluster_token
-  printf 'STOP: evidence contains a token value\n' >&2
-  exit 1
-fi
-unset operator_token cluster_token
+[[ "$(m7e2_known_secret_file_count \
+  "$PREFLIGHT" "$FORMAL_EVIDENCE" "$WATCHDOG_EVIDENCE" "$EVIDENCE")" == '0' ]]
 [[ "$(m7e2_secret_file_count \
   "$PREFLIGHT" "$FORMAL_EVIDENCE" "$WATCHDOG_EVIDENCE" "$EVIDENCE")" == '0' ]]
 printf 'secret_scan=PASS\n' >"$EVIDENCE/secret-scan.txt"

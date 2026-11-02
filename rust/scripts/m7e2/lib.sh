@@ -24,6 +24,7 @@ readonly M7E2_GPU1_UUID='GPU-b1f89e65-e9c4-26f5-a306-8a520df07708'
 readonly M7E2_OPERATOR_CONTEXT='m7e2-operator'
 readonly M7E2_OPERATOR_TOKEN='/home/wujiaxing2/.config/gpustack-rust/m7e2-operator-token'
 readonly M7E2_CLUSTER_TOKEN='/home/wujiaxing2/.config/gpustack-rust/m3d-registration-token'
+readonly M7E2_WORKER_TOKEN="$M7E2_DATA_DIR/managed/worker-token"
 readonly M7E2_PYTHON_WORKER_ID='68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165'
 
 m7e2_timestamp() {
@@ -66,6 +67,17 @@ m7e2_cluster_get() {
     --output "$output" --write-out '%{http_code}'
 }
 
+m7e2_worker_get() {
+  local url="$1"
+  local output="$2"
+  {
+    printf 'header = "Authorization: Bearer '
+    tr -d '\r\n' <"$M7E2_WORKER_TOKEN"
+    printf '"\nurl = "%s"\n' "$url"
+  } | curl --config - --silent --show-error --max-time 20 \
+    --output "$output" --write-out '%{http_code}'
+}
+
 m7e2_filtered_get() {
   local principal="$1"
   local url="$2"
@@ -83,12 +95,20 @@ m7e2_filtered_get() {
       unlink "$raw"
       return 1
     fi
+  elif [[ "$principal" == 'worker' ]]; then
+    if ! status="$(m7e2_worker_get "$url" "$raw")"; then
+      unlink "$raw"
+      return 1
+    fi
   else
     unlink "$raw"
     return 1
   fi
   if ! jq "$filter" "$raw" >"$output"; then
-    unlink "$raw" "$output" 2>/dev/null || true
+    unlink "$raw"
+    if [[ -e "$output" || -L "$output" ]]; then
+      unlink "$output"
+    fi
     return 1
   fi
   unlink "$raw"
@@ -529,6 +549,16 @@ m7e2_secret_file_count() {
   {
     grep -RIlE "$pattern" "$@" 2>/dev/null || true
   } | wc -l
+}
+
+m7e2_known_secret_file_count() {
+  local token_file token
+  for token_file in "$M7E2_OPERATOR_TOKEN" "$M7E2_CLUSTER_TOKEN" "$M7E2_WORKER_TOKEN"; do
+    [[ -f "$token_file" && ! -L "$token_file" ]] || return 1
+    token="$(tr -d '\r\n' <"$token_file")"
+    [[ -n "$token" ]] || return 1
+    grep -RIlF -- "$token" "$@" 2>/dev/null || true
+  done | sort -u | wc -l
 }
 
 m7e2_seal_directory() {
