@@ -289,6 +289,7 @@ current_step='script_static_audit'
 announce 6 '专用代理、串行故障、运行时保留、回滚和秘密边界静态审计'
 for required in \
   'm7e3_proxy_args' \
+  'm7e3_wait_for_proxy_identity' \
   'm7e3_proxy_identity_matches_file' \
   'm7e3_terminate_recorded_proxy' \
   'm7e3_server_proxy_probe' \
@@ -310,6 +311,9 @@ done
 grep -Fq -- 'timeout --foreground --signal=TERM --kill-after=180 1500' "$WATCHDOG"
 grep -Fq -- 'kill -TERM -- "-$pgid"' "$LIB"
 grep -Fq -- 'kill -KILL -- "-$pgid"' "$LIB"
+grep -Fq -- 'm7e3_wait_for_proxy_identity "$pid" "$kind" "$identity"' "$EXECUTOR"
+grep -Fq -- 'm7e3_wait_for_proxy_identity "$pid" "$kind" "$recovery_identity"' "$WATCHDOG"
+grep -Fq -- '[[ -f "$identity" ]] && m7e3_proxy_identity_matches_file' "$WATCHDOG"
 grep -Fq -- 'gpustack:rust_worker_watch_reconnects_total' "$EXECUTOR"
 grep -Fq -- 'gpustack:rust_worker_watch_connected' "$EXECUTOR"
 grep -Fq -- 'outcome=failed message=' "$EXECUTOR"

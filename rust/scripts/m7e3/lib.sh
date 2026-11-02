@@ -198,6 +198,32 @@ m7e3_record_process_identity() {
   chmod 0600 "$output"
 }
 
+m7e3_wait_for_proxy_identity() {
+  local pid="$1"
+  local kind="$2"
+  local output="$3"
+  local candidate="${output}.candidate"
+
+  # The background PID can still be the shell or setsid briefly before exec.
+  # Publish an identity only after the process has become the exact proxy.
+  for _ in $(seq 1 100); do
+    if [[ ! -r "/proc/$pid/stat" ]]; then
+      [[ ! -e "$candidate" && ! -L "$candidate" ]] || unlink "$candidate"
+      return 1
+    fi
+    if m7e3_record_process_identity "$pid" "${kind}_proxy" "$candidate" &&
+      m7e3_proxy_identity_matches_file "$candidate" "$kind"; then
+      mv -f -- "$candidate" "$output"
+      chmod 0600 "$output"
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  [[ ! -e "$candidate" && ! -L "$candidate" ]] || unlink "$candidate"
+  return 1
+}
+
 m7e3_proxy_identity_matches_file() {
   local identity="$1"
   local kind="$2"

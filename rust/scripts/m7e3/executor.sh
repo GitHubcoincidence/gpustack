@@ -111,13 +111,13 @@ start_proxy() {
   fi
   setsid "$(readlink -f "$(command -v socat)")" "${args[@]}" >"$log" 2>&1 &
   pid=$!
-  for _ in $(seq 1 50); do
-    [[ -r "/proc/$pid/stat" ]] && break
-    sleep 0.1
-  done
-  kill -0 "$pid" 2>/dev/null || return 1
-  m7e3_record_process_identity "$pid" "${kind}_proxy" "$identity" || return 1
-  m7e3_proxy_identity_matches_file "$identity" "$kind" || return 1
+  if ! m7e3_wait_for_proxy_identity "$pid" "$kind" "$identity"; then
+    if [[ -r "/proc/$pid/stat" ]]; then
+      m7e3_record_process_identity \
+        "$pid" "${kind}_proxy_unverified" "${identity}.unverified" || true
+    fi
+    return 1
+  fi
   install -m 0600 "$identity" "$EVIDENCE/${kind}-proxy-current.txt"
   for _ in $(seq 1 30); do
     if [[ "$kind" == 'server' ]] && m7e3_server_proxy_probe; then

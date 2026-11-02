@@ -4539,6 +4539,39 @@
   preflight/injection attempt 2。通过后状态才重新回到`ready_for_maintenance_authorization`；
   formal attempt 1仍须新的明确维护授权。
 
+### 2026-11-02：M7-E.3 formal attempt 1代理启动失败、精确补救与工具修复
+
+- 正式判定：用户明确授权attempt 1后，治理HEAD
+  `5d4b0a3af8843ff76d1b23bc7700e2d9583013ae`的最终门通过，精确Python Worker进入维护停止。
+  Server代理启动时，后台PID `3950838`、starttime `154751884`仍处在`setsid`到`socat1`的exec
+  竞态窗口，identity记录为`/usr/bin/setsid`并被严格门拒绝，formal固定为
+  `FAIL/server_proxy_start_failed`。没有启动Rust Worker、创建Model/ModelInstance/ModelFile或
+  vLLM容器，没有使用GPU，也没有执行Server/Docker连接故障子阶段。
+- 恢复缺陷：该PID随后exec为完整匹配预期参数的`/usr/bin/socat1`并继续监听18080，但正式
+  current identity尚未发布，executor cleanup没有归因它；watchdog在探针可达时直接返回，又没有
+  identity门，因此错误记录`recovery_ok=1`。首次post-audit在第4组发现18080残留并固定FAIL，证明
+  独立审计正确阻止了错误恢复结论。
+- 精确补救：只读复核确认PID/starttime未变化，重新采集后PID=PGID=SID、executable和cmdline
+  SHA全部匹配专用Server代理；只对该进程组发TERM。18080随后清空，真实Server保持200。
+  formal封存后代理退出向原本为空的`server-proxy-initial.log`写入唯一退出行，使其从空文件哈希
+  `e3b0c442...`变为`91718f58...`；formal manifest因此固定为`INVALIDATED`，不被重写或提升。
+- 恢复审计：首次proxy recovery目录因封存后`tee`摘要写入也产生单文件manifest漂移；第一次
+  supplemental audit在该证据链门FAIL并封存。attempt 2显式裁决两项已知漂移后，独立确认三个
+  健康端点200、Worker 5 maintenance、Server/Docker资源与preflight基线一致、代理/进程/容器/
+  端口/socket清空、双A100为0 MiB且无计算进程、秘密扫描为零。26个文件全部0600、无symlink，
+  manifest文件SHA-256为
+  `8d5589ce89768113730fcc790fc0d2b3c6c6ee41b2f0f483c9678cc2a7ac7093`。
+- 工具修复：shared lib新增等待最终proxy identity的函数，最长等待exec完成，只在executable、
+  cmdline、PID/PGID/SID全部匹配后发布正式identity；executor和watchdog统一使用。watchdog对探针
+  可达但没有匹配identity、或没有identity却仍有专用listener/socket的情况失败闭合。preflight
+  静态门新增三项强制使用检查。
+- 质量证据：本地目标脚本pre-commit/ShellCheck和diff检查通过；90仓库外验证的四脚本`bash -n`
+  通过，Server TCP代理和Docker Unix代理各连续20次完成启动、最终`socat1`身份确认和精确终止，
+  无`setsid`/`bash`误记录。测试后服务、容器、端口、socket和双GPU基线通过。
+- 当前停止位置：`retry_preflight_pending`。attempt 1授权已经消费；下一步只允许把修复和本记录
+  纳入干净治理HEAD，运行新的只读preflight/错误HEAD注入。真实formal retry仍须新的明确维护
+  授权，M7-F未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

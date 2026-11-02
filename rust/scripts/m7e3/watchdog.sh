@@ -107,10 +107,12 @@ recover_proxy() {
   local pid ready=0
   local -a args
   if [[ "$kind" == 'server' ]] && m7e3_server_proxy_probe; then
-    return 0
+    [[ -f "$identity" ]] && m7e3_proxy_identity_matches_file "$identity" "$kind"
+    return
   fi
   if [[ "$kind" == 'docker' ]] && m7e3_docker_proxy_probe; then
-    return 0
+    [[ -f "$identity" ]] && m7e3_proxy_identity_matches_file "$identity" "$kind"
+    return
   fi
   if [[ -f "$identity" ]]; then
     m7e3_terminate_recorded_proxy "$identity" "$kind" "$WATCHDOG_EVIDENCE" || return 1
@@ -125,13 +127,13 @@ recover_proxy() {
   setsid "$(readlink -f "$(command -v socat)")" "${args[@]}" \
     >"$WATCHDOG_EVIDENCE/${kind}-proxy-recovery.log" 2>&1 &
   pid=$!
-  for _ in $(seq 1 50); do
-    [[ -r "/proc/$pid/stat" ]] && break
-    sleep 0.1
-  done
-  kill -0 "$pid" 2>/dev/null || return 1
-  m7e3_record_process_identity "$pid" "${kind}_proxy" "$recovery_identity" || return 1
-  m7e3_proxy_identity_matches_file "$recovery_identity" "$kind" || return 1
+  if ! m7e3_wait_for_proxy_identity "$pid" "$kind" "$recovery_identity"; then
+    if [[ -r "/proc/$pid/stat" ]]; then
+      m7e3_record_process_identity \
+        "$pid" "${kind}_proxy_unverified" "${recovery_identity}.unverified" || true
+    fi
+    return 1
+  fi
   for _ in $(seq 1 30); do
     if [[ "$kind" == 'server' ]] && m7e3_server_proxy_probe; then
       ready=1
@@ -158,7 +160,14 @@ stop_proxy() {
   if [[ ! -f "$identity" ]]; then
     identity="$FORMAL_EVIDENCE/${kind}-proxy-current.txt"
   fi
-  [[ -f "$identity" ]] || return 0
+  if [[ ! -f "$identity" ]]; then
+    if [[ "$kind" == 'server' ]]; then
+      [[ "$(m7e3_listener_count "$M7E3_SERVER_PROXY_PORT")" == '0' ]]
+    else
+      [[ ! -e "$M7E3_DOCKER_PROXY_SOCKET" && ! -L "$M7E3_DOCKER_PROXY_SOCKET" ]]
+    fi
+    return
+  fi
   m7e3_terminate_recorded_proxy "$identity" "$kind" "$WATCHDOG_EVIDENCE" || return 1
   if [[ "$kind" == 'server' ]]; then
     pid="$watchdog_server_proxy_pid"

@@ -1106,3 +1106,18 @@ API Key ID 25创建/到期时间为`2026-11-02T08:00:20.452609Z`和
 返回401。记录本检查点会推进治理HEAD，因此正式窗口前必须在新HEAD重新运行完整只读
 preflight/错误HEAD注入；本授权不包含停止Python Worker、启动代理、创建workload、使用GPU、
 执行真实连接故障或进入M7-F。
+
+## 2026-11-02 M7-E.3 formal attempt 1判定与代理身份修复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D237 | formal attempt 1判定、恢复证据与代理exec竞态修复 | attempt 1固定为`FAIL/server_proxy_start_failed`。Python Worker精确停止后，`setsid socat`的后台PID在`exec`前被记录为`/usr/bin/setsid`，身份门拒绝继续；没有启动Rust Worker、创建模型/容器或使用GPU。随后同一PID已成为预期`socat1`并继续监听18080，但因`server-proxy-current.txt`尚未发布，原cleanup未识别它，watchdog又错误地把“探针可达”当作安全代理而报告`recovery_ok=1`。首次post-audit在残留监听处失败并阻止错误恢复结论。精确补救按PID/starttime/PGID/SID/executable/cmdline重新验证后只终止该专用进程组，supplemental recovery audit attempt 2证明最终基线恢复。工具改为等待exec完成后才发布代理身份；watchdog对可达但无匹配身份的代理失败闭合 | `setsid`/shell到`socat1`的短暂exec窗口是进程身份采集竞态，不是产品连接恢复结果。保持formal失败并单独证明恢复，避免把未进入故障阶段的运行解释为产品失败或成功；等待最终executable和cmdline后再发布identity，同时拒绝未归因可达代理，关闭残留进程和错误`recovery_ok`两条路径。 |
+
+formal目录含56个0600文件、0 symlink，但精确补救终止残留代理时，仍持有日志FD的`socat1`在
+封存后向`server-proxy-initial.log`写入唯一一行退出记录，因此formal manifest固定标记为
+`INVALIDATED`，不得用于通过性证明。原proxy recovery目录也因封存后`tee`摘要写入而有一个
+`console.log`哈希漂移；该证据只作诊断，不作最终恢复证明。最终supplemental recovery audit
+attempt 2含26个0600文件、0 symlink，manifest文件SHA-256为
+`8d5589ce89768113730fcc790fc0d2b3c6c6ee41b2f0f483c9678cc2a7ac7093`并复算通过。修复后本地
+ShellCheck通过，90上四脚本Bash语法和Server/Docker各20次真实代理identity循环通过。下一步只
+允许提交同步并在新HEAD运行全新的只读preflight/injection；formal retry须重新明确授权。

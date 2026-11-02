@@ -1095,3 +1095,16 @@ preflight/错误HEAD无写注入，不授权正式维护窗口、代理启动、
 attempt 1八组门通过，错误HEAD注入在`window_entered=0`停止。记录该结果后必须在新的干净治理
 HEAD运行attempt 2；即使再次通过，也只进入`ready_for_maintenance_authorization`，正式维护窗口
 仍须新的明确授权。
+
+用户随后授权formal attempt 1。最终门通过并精确停止Python Worker后，Server代理后台PID在
+`setsid`尚未exec为`socat1`时被立即采集，严格identity门以`server_proxy_start_failed`拒绝继续；
+因此没有启动Rust Worker、创建workload、使用GPU或进入两个连接故障子阶段。该PID随后成为真实
+代理但因current identity尚未发布而未被cleanup/watchdog归因，首次post-audit在18080残留监听处
+失败。按同一PID/starttime和完整代理identity精确补救后，supplemental recovery audit attempt 2
+证明服务、资源、进程、端口、socket和双GPU已恢复基线；formal及一次proxy recovery证据因残留
+进程/`tee`的封存后日志写入标记为INVALIDATED，不作通过性证据。
+
+工具修复现在等待后台PID完成exec并成为完整匹配的`socat1`后才发布identity，watchdog拒绝没有
+匹配identity的可达代理和无identity的残留listener/socket。修复通过本地ShellCheck、90 Bash
+语法以及Server/Docker代理各20次真实identity启动/终止循环。当前为`retry_preflight_pending`；
+下一步只运行新HEAD的只读preflight/injection，正式retry必须取得新的维护授权。

@@ -191,3 +191,13 @@ Context为`m7e3-operator`。治理HEAD`6a86b6e9b98a431293c24093511061c6331e6e12`
 记录该结果会推进治理HEAD。下一步只允许在新HEAD运行全新的只读preflight/injection attempt 2；
 通过后状态为`ready_for_maintenance_authorization`。尚未授权停止Python Worker、启动代理、创建
 workload、使用GPU、执行真实连接故障或进入M7-F。
+
+formal attempt 1随后在精确停止Python Worker后固定失败于`server_proxy_start_failed`：后台PID
+在`setsid`尚未exec为`socat1`时被过早采集，严格identity门拒绝继续；没有启动Rust Worker、创建
+workload、使用GPU或进入故障子阶段。该PID随后成为预期代理但因current identity未发布而残留，
+首次post-audit发现18080监听并失败。按完整identity精确终止后，独立supplemental recovery audit
+attempt 2证明现场恢复；原formal和一次补救证据因封存后日志写入标记为INVALIDATED。
+
+工具已改为等待exec完成后才发布proxy identity，并让watchdog拒绝任何可达但无匹配identity的
+代理。修复通过本地ShellCheck、90 Bash语法和Server/Docker代理各20次真实identity循环。当前为
+`retry_preflight_pending`；attempt 1授权已消费，正式retry仍须重新授权。

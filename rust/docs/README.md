@@ -244,6 +244,11 @@
   `management,inference`双scope凭据，active Context为`m7e3-operator`；八组门、错误HEAD无写
   注入、三套证据清单和外部不变式通过。文档检查点会推进治理HEAD，下一步只允许在新HEAD运行
   attempt 2；正式维护窗口仍须新的明确授权。
+- formal attempt 1在停止Python Worker后因`setsid`到`socat1`的exec身份采集竞态固定失败，未启动
+  Rust Worker、创建workload或使用GPU。首次post-audit发现未归因的18080代理残留；完整identity
+  精确补救和supplemental recovery audit attempt 2证明现场恢复。工具现等待最终`socat1`identity
+  后再发布，并让watchdog拒绝无匹配identity的可达代理；Server/Docker各20次真实循环通过。当前
+  为`retry_preflight_pending`，formal retry须重新授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
