@@ -3,11 +3,11 @@
 ## 1. 文档状态
 
 - 阶段：M7-E.2。
-- 状态：`formal_attempt_1_failed / remediation_validated / retry_preflight_pending`。
-- 已完成范围：冻结方案、实现正式工具链、准备阶段凭据、完成 formal attempt 1及独立恢复审计，
-  并验证该次暴露的空 LoRA表示兼容修复。
-- 当前停止边界：只允许准备 attempt 2的新证据 identity并运行无副作用质量门和 preflight；不得
-  自动停止 Python Worker、切换 maintenance、创建模型或容器、使用 GPU或执行 retry。
+- 状态：`formal_attempt_4_passed / ready_for_review`。
+- 已完成范围：冻结方案、正式工具链、阶段凭据、四次 formal attempt及独立恢复审计；attempt 4
+  已通过全部业务、日志、幂等、cleanup、watchdog和 post-audit门。
+- 当前停止边界：等待用户审阅 attempt 4详细报告；审阅通过后只允许退役 M7-E.2阶段凭据并验证
+  旧 token返回401。不得自动进入 M7-E.3、M7-F或 M8。
 
 本方案已经由用户接受，但接受不等于授权真实执行。工具链完成后仍须分别取得阶段凭据准备、
 只读 preflight/无写注入和唯一 formal attempt 的精确授权。M7-E.3、M7-F 和 M8 不在本方案的
@@ -352,3 +352,31 @@ preflight和 post-audit均精确扫描 operator/cluster/worker三种 token，且
 五脚本 Bash语法、ShellCheck和 helper正反测试通过。当前为 `retry_preflight_pending`：下一项只允许
 提交同步并运行 preflight/injection attempt 5；formal attempt 4仍须新的维护授权，M7-E.3和 M7-F
 仍未授权。
+
+preflight/injection attempt 5随后在治理 HEAD
+`d3ad24c4352319bbd26a1e146a35a641931b74f6`通过，manifest文件 SHA-256分别为
+`b9feac9beadd328c2b4bafc9feef9865f93a9dff5029e126e0820f48ac5720f0`和
+`5baebc2cf514a38f8def32691c25a4245541566c078fec53d7559742d0a5d226`。用户按冻结范围授权
+formal attempt 4后，旧容器
+`372882403fb047f42985d5964104f72379816be96bb5d1ca06538bd911883329`收到唯一 SIGKILL并以137
+退出；Rust Worker PID保持运行，并自动创建 replacement
+`5f2a2ca810bf45db2c9805c3d4397614161e0d03e8fe18195f779be6bd185341`。Server观察到完整
+`RUNNING -> ERROR -> SCHEDULED -> INITIALIZING -> STARTING -> RUNNING`，restart count精确为1，
+last restart位于故障后的首次调度窗口内。
+
+Model 27、Instance 42、ModelFile 21、端口40000、Runner digest、GPU0 assignment和 spec hash
+`52e42770c3bbd4622c64dabb13b8d2141517d26d72460df9d21e9f6d595cf373`保持一致；ModelFile继续为
+ready/100%且未重新下载。current/previous日志分别为3865/3853字节、SHA-256分别为
+`099234158dd08f87ffb2e56af85f814e4ebb3878fdb9cf3170e4452bac96a4f1`和
+`fc0127b1adc665e7e9a4532dd8c981bf3d0bc8ababf7eaf8de0b659e5a4b3094`，日志选项正确标记当前代和
+上一代。恢复后的直连与 Server-only推理、三轮幂等、精确 cleanup、watchdog和独立 post-audit
+全部通过。
+
+formal、watchdog和 post-audit manifest文件 SHA-256分别为
+`73668123892189d0ef2ec0b90f28db1e561bd3792e01afc9192d2325ecb8f26e`、
+`1540d66e8cbd7e5972f6a021567a3f81fbe29e7690ccf0a122c665e180b8468e`和
+`f83247ca03c22a02efbfb71e87c02fdf354e3f7da8fbaa4401293676d0bcadf8`；164/8/27个文件全部0600、
+无 symlink、秘密扫描和清单复算通过。三个健康端点、同一 Python Worker、Server资源、Rust
+进程/容器/端口和双 GPU均恢复基线。当前为 `ready_for_review`；用户接受详细报告后才退役
+API Key ID 24、`m7e2-operator` Context和 operator token文件，并验证旧 token返回401。M7-E.3
+和 M7-F仍未授权。

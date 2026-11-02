@@ -215,6 +215,16 @@
   persisted Worker token完成 Worker API取证，并把三种 token纳入精确秘密扫描。当前为
   `retry_preflight_pending`；下一项只运行 preflight/injection attempt 5，formal attempt 4、
   M7-E.3和 M7-F仍未授权。
+- M7-E.2 formal attempt 4已通过：唯一旧 vLLM容器精确 SIGKILL/137后，存活 Rust Worker自动
+  创建唯一 replacement，完整六状态链、restart count 1、首次0秒退避、同一 ModelFile/端口/
+  Runner/GPU0/spec/ownership、current/previous双代日志、恢复后直连与 Server-only推理及三轮
+  幂等全部通过。正常 cleanup、watchdog和独立 post-audit恢复同一 Python Worker及双卡基线；
+  formal/watchdog/post-audit manifest文件 SHA-256分别为
+  `73668123892189d0ef2ec0b90f28db1e561bd3792e01afc9192d2325ecb8f26e`、
+  `1540d66e8cbd7e5972f6a021567a3f81fbe29e7690ccf0a122c665e180b8468e`和
+  `f83247ca03c22a02efbfb71e87c02fdf354e3f7da8fbaa4401293676d0bcadf8`。当前为
+  `ready_for_review`；用户接受报告后才退役阶段 API Key、Context和 operator token并把 M7-E.2
+  标记为 `accepted`。M7-E.3和 M7-F仍未授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

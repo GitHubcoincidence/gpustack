@@ -1056,3 +1056,15 @@ operator和 Cluster用途不变。preflight验证 Worker token权限、principal
 证据路径都对三种 token执行精确秘密扫描。下一步只允许质量门、提交同步和全新
 preflight/injection attempt 5；formal attempt 4仍须新的独立维护授权，不得自动进入 M7-E.3或
 M7-F。
+
+preflight/injection attempt 5通过后，用户授权 formal attempt 4。旧 vLLM容器经完整 identity
+复核后收到唯一 SIGKILL并以137退出，Rust Worker保持原进程；它自动创建唯一 replacement并使同一
+实例经过 `RUNNING -> ERROR -> SCHEDULED -> INITIALIZING -> STARTING -> RUNNING`。restart
+count精确为1，last restart落在故障与首次重新调度窗口内；同一 ModelFile、端口、Runner、GPU0、
+spec和 ownership保持不变。current/previous日志、Server-only与直连推理、三轮幂等均通过，未
+出现第二次重启、第三代日志或额外容器。
+
+正常 cleanup、1200秒独立 watchdog和 post-audit全部通过，Python Worker、Server资源、端口、
+容器、进程和双 GPU恢复基线，三套证据清单复算和秘密扫描通过。M7-E.2当前为
+`ready_for_review`；只有用户接受详细报告后才允许退役阶段 API Key、Context和 token文件并验证
+旧 token返回401。M7-E.3和 M7-F仍未授权。

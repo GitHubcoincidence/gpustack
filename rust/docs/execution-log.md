@@ -4427,6 +4427,44 @@
 - 当前停止位置：`retry_preflight_pending`。下一项只允许质量门、提交同步和新 HEAD上的
   preflight/injection attempt 5；formal attempt 4仍须新的明确维护授权。M7-E.3和 M7-F未授权。
 
+### 2026-11-02：M7-E.2 formal attempt 4通过、完整恢复与审阅停止点
+
+- 预窗口门：preflight/injection attempt 5在治理 HEAD
+  `d3ad24c4352319bbd26a1e146a35a641931b74f6`通过；71/11个文件全部0600、无 symlink，manifest文件
+  SHA-256分别为 `b9feac9beadd328c2b4bafc9feef9865f93a9dff5029e126e0820f48ac5720f0`和
+  `5baebc2cf514a38f8def32691c25a4245541566c078fec53d7559742d0a5d226`。错误 HEAD注入按预期为
+  `STOP/source_head_mismatch/window_entered=0`；最终漂移审计确认源码、脚本、服务、资源、端口、
+  容器和双 GPU未漂移。
+- 故障与恢复：Model 27、Instance 42、ModelFile 21在端口40000、GPU0和固定 Runner上达到健康
+  RUNNING。完整 identity复核后，旧容器
+  `372882403fb047f42985d5964104f72379816be96bb5d1ca06538bd911883329`收到唯一 SIGKILL并以137
+  退出；Rust Worker PID `3126097`和 listeners保持不变，自动创建 replacement
+  `5f2a2ca810bf45db2c9805c3d4397614161e0d03e8fe18195f779be6bd185341`。Server有序观察到
+  `RUNNING -> ERROR -> SCHEDULED -> INITIALIZING -> STARTING -> RUNNING`；故障 epoch
+  `1793589608`、重新调度/last restart epoch均为`1793589609`，restart count精确为1。
+- 身份与功能：新旧 StartedAt不同，但端口、Runner image、GPU0 UUID、Model/Instance/File、
+  spec hash `52e42770c3bbd4622c64dabb13b8d2141517d26d72460df9d21e9f6d595cf373`和 ownership保持一致；
+  ModelFile保持 ready/100%、999,604,126字节且未重新下载。Docker事件只有一次
+  kill/die/destroy和一次 create/start，没有 Docker restart或第二个 replacement。恢复后直连
+  vLLM和 Server-only models/chat/completion/logs全部通过。
+- 日志与幂等：持久日志恰为`42.0.log`和`42.1.log`，serve log options正确标识 current/previous；
+  CLI current/previous证据分别3865/3853字节，SHA-256为
+  `099234158dd08f87ffb2e56af85f814e4ebb3878fdb9cf3170e4452bac96a4f1`和
+  `fc0127b1adc665e7e9a4532dd8c981bf3d0bc8ababf7eaf8de0b659e5a4b3094`。连续三轮中 Instance 42
+  始终 RUNNING、restart count 1、端口40000、GPU0和两代日志不变，最后一次 buffered chat通过。
+- 结果与恢复：formal为
+  `PASS/vllm_crash_restart_two_log_generations_inference_idempotency_and_cleanup_passed`，
+  `cleanup_ok=1`；watchdog为 PASS、`recovery_ok=1`，独立 post-audit为 PASS。formal/watchdog/
+  post-audit分别含164/8/27个0600文件、0 symlink，manifest复算和三 token精确/通用秘密扫描通过，
+  manifest文件 SHA-256分别为
+  `73668123892189d0ef2ec0b90f28db1e561bd3792e01afc9192d2325ecb8f26e`、
+  `1540d66e8cbd7e5972f6a021567a3f81fbe29e7690ccf0a122c665e180b8468e`和
+  `f83247ca03c22a02efbfb71e87c02fdf354e3f7da8fbaa4401293676d0bcadf8`。同一 Python Worker和三个
+  健康端点恢复，Rust进程/容器/端口和双 GPU回到空闲基线。
+- 当前停止位置：`ready_for_review`。用户接受详细报告后才允许退役 API Key ID 24、
+  `m7e2-operator` Context和 operator token文件并验证旧 token返回401；退役前不得把 M7-E.2标记
+  为 `accepted`。M7-E.3和 M7-F未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

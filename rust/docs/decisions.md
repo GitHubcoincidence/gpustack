@@ -1075,3 +1075,13 @@ token文件并证明旧 token返回401。M7-E.3与 M7-F仍未授权。
 当前状态为 `retry_preflight_pending`。attempt 3的三套封存证据分别含137/17/27个0600文件、无
 symlink且 manifest复算通过；Server、同一 Python Worker、资源、容器、端口和双 GPU已恢复基线。
 M7-E.3和 M7-F仍未授权。
+
+## 2026-11-02 M7-E.2 formal attempt 4通过与审阅停止点
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D233 | formal attempt 4判定与可支持结论 | attempt 4判为 PASS。旧容器 `372882403fb047f42985d5964104f72379816be96bb5d1ca06538bd911883329`经唯一 SIGKILL以137退出，Rust Worker保持存活并创建新容器 `5f2a2ca810bf45db2c9805c3d4397614161e0d03e8fe18195f779be6bd185341`；完整六状态链、restart count 1、首次0秒退避、同一 ModelFile/端口/Runner/GPU0/spec/ownership、双代日志、恢复后直连与 Server-only推理和三轮幂等全部通过。formal/watchdog/post-audit manifest文件 SHA-256分别为 `73668123892189d0ef2ec0b90f28db1e561bd3792e01afc9192d2325ecb8f26e`、`1540d66e8cbd7e5972f6a021567a3f81fbe29e7690ccf0a122c665e180b8468e`和 `f83247ca03c22a02efbfb71e87c02fdf354e3f7da8fbaa4401293676d0bcadf8` | attempt 4首次满足冻结的全部产品、日志、幂等、cleanup、watchdog、post-audit和秘密门，因此支持“存活 Rust Worker可在唯一 vLLM容器 crash后自动重建同一实例并恢复推理”的 M7-E.2主张。该结论不外推到 Worker crash、Server/Docker连接故障、GPU1或跨 Worker恢复。 |
+| D234 | 用户审阅与阶段凭据边界 | 技术结果只进入 `ready_for_review`。用户接受详细报告后，才允许精确删除 API Key ID 24、`m7e2-operator` Context和 operator token文件，并验证旧 token返回401；Cluster registration token和 persisted Worker token不属于该退役范围。完成凭据退役证据后才能把 M7-E.2标记为 `accepted` | 正式 PASS不替代用户验收，也不应让短期管理权限长期保留。把业务结果、用户接受和凭据退役分开，可同时保留验收权与最小权限生命周期。 |
+
+当前状态为 `ready_for_review`。三个健康端点、同一 Python Worker、Server资源、Rust进程/容器、
+端口和双 GPU已恢复基线；M7-E.3和 M7-F仍未授权。
