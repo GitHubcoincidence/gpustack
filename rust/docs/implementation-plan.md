@@ -1152,3 +1152,8 @@ preflight/injection。formal attempt 4仍须新的明确授权，M7-F未授权�
 修复提交`2f72d2bd46bdb6e71ea3f4df7d32fb98e375925c`后的preflight attempt 6在第1组
 按旧产品提交漂移门STOP，未进入构建、注入或外部变更。M7-E.3固定产品提交显式更新为该修复提交；
 下一步以全新attempt 7运行完整只读preflight/injection，不能复用attempt 6目录或结果。
+
+治理HEAD`eb10dd63f8f9c636e255686b1a35d5b990076fce`上的preflight/injection attempt 7通过，
+新增数据面连续性和watchdog已退出identity正反门、九项恢复测试、双scope、固定identity、错误HEAD
+无写与外部不变式全部成立。记录结果后只运行最终文档HEAD的attempt 8；即使通过也只进入
+`ready_for_maintenance_authorization`，formal attempt 4仍须新的明确维护授权。

@@ -1154,3 +1154,9 @@ preflight/injection attempt 5目录分别含66/11个0600文件、无symlink，ma
 补充现场审计含21个0600文件、无symlink，manifest文件SHA-256为
 `1c4b25523a58cfde2a2bfb52f72972ab7cb84ad0de3865ec0bb86283e1472f83`，只支持服务、资源和双GPU
 恢复基线。当前为`retry_preflight_pending`；M7-F未授权。
+
+## 2026-11-02 M7-E.3数据面修复后preflight attempt 7
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D244 | 数据面与watchdog修复后的只读门 | 治理HEAD`eb10dd63f8f9c636e255686b1a35d5b990076fce`上的preflight/injection attempt 7全部通过。preflight含68个0600文件、0 symlink，manifest文件SHA-256为`2f68debd7207735769e9b08d5d4e05aa675f1dce52c32858dba7a302c01c55a2`；错误HEAD注入含11个0600文件、0 symlink，按预期为`STOP/source_head_mismatch/window_entered=0`，manifest文件SHA-256为`8ee991ed6229138570d5becc712f9487b22556ed5eb09dbb8f4de5a3e9cba812`。两清单独立复算通过 | 门禁证明新`PRODUCT_COMMIT`、九项恢复测试、readiness降级时已发布路由连续、已退出/格式错误identity正反语义、双scope、固定输入、脚本身份、错误HEAD无写和外部不变式成立。记录本决定会推进治理HEAD，故还须在最终文档HEAD运行attempt 8；formal attempt 4仍须新的明确授权。 |

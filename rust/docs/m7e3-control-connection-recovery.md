@@ -258,3 +258,8 @@ formal正常cleanup为`cleanup_ok=1`并恢复服务和资源。独立watchdog随
 `PRODUCT_COMMIT`漂移门安全停止于第1组，未执行构建、错误HEAD注入或任何外部变更。M7-E.3产品
 基线现显式推进到该修复提交；后续治理提交不得再修改`rust/crates`，下一步使用全新attempt 7路径
 重新运行完整只读门。
+
+治理HEAD`eb10dd63f8f9c636e255686b1a35d5b990076fce`上的preflight/injection attempt 7
+全部通过：新数据面连续性测试、已退出/格式错误Worker identity正反测试、九项恢复测试、脚本静态
+门、固定输入、双scope、错误HEAD无写和外部不变式成立。记录该结果会推进治理HEAD，因此下一步
+只运行最终只读attempt 8；通过后才能请求formal attempt 4的新维护授权。

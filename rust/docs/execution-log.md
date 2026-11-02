@@ -4670,6 +4670,12 @@
   attempt 6在`source_and_script_identity`按旧`PRODUCT_COMMIT`的`rust/crates`漂移门安全STOP；
   只创建诊断目录，没有执行构建、错误HEAD注入、服务停止、代理启动、资源创建或GPU使用。M7-E.3
   产品基线显式推进到该修复提交，下一次必须使用全新attempt 7路径。
+- 修复后完整预检：治理HEAD`eb10dd63f8f9c636e255686b1a35d5b990076fce`上的preflight/
+  injection attempt 7通过。preflight含68个0600文件、0 symlink，manifest文件SHA-256为
+  `2f68debd7207735769e9b08d5d4e05aa675f1dce52c32858dba7a302c01c55a2`；injection含11个0600
+  文件、0 symlink，结果为`STOP/source_head_mismatch/window_entered=0`，manifest文件SHA-256为
+  `8ee991ed6229138570d5becc712f9487b22556ed5eb09dbb8f4de5a3e9cba812`。九项恢复测试、新数据面
+  连续性测试、已退出/格式错误identity正反测试、清单复算、秘密扫描和前后外部不变式通过。
 - 当前停止位置：`retry_preflight_pending`。attempt 3授权已消费。下一步只允许提交并同步本修复与
   检查点，在新HEAD运行全新只读preflight/错误HEAD注入；formal attempt 4须重新明确授权，M7-F
   未授权。
