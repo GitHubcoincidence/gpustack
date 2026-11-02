@@ -1148,3 +1148,7 @@ formal cleanup为`cleanup_ok=1`；watchdog因修复前的已退出PID误判保�
 停止。补充只读审计证明Server、同一Python Worker、资源、容器、代理、端口和双GPU恢复基线，
 但不改判formal。当前为`retry_preflight_pending`；下一步提交修复和检查点，在新HEAD运行全新
 preflight/injection。formal attempt 4仍须新的明确授权，M7-F未授权。
+
+修复提交`2f72d2bd46bdb6e71ea3f4df7d32fb98e375925c`后的preflight attempt 6在第1组
+按旧产品提交漂移门STOP，未进入构建、注入或外部变更。M7-E.3固定产品提交显式更新为该修复提交；
+下一步以全新attempt 7运行完整只读preflight/injection，不能复用attempt 6目录或结果。

@@ -4666,6 +4666,10 @@
 - 质量门：本地目标ShellCheck和`git diff --check`通过；90上Rustfmt、Bash语法、156项Worker库测试、
   workspace all-targets/all-features locked/offline build及已退出identity正反测试通过。没有启动新的
   Worker、容器或GPU workload。
+- 第一次修复后预检：提交`2f72d2bd46bdb6e71ea3f4df7d32fb98e375925c`同步后，preflight
+  attempt 6在`source_and_script_identity`按旧`PRODUCT_COMMIT`的`rust/crates`漂移门安全STOP；
+  只创建诊断目录，没有执行构建、错误HEAD注入、服务停止、代理启动、资源创建或GPU使用。M7-E.3
+  产品基线显式推进到该修复提交，下一次必须使用全新attempt 7路径。
 - 当前停止位置：`retry_preflight_pending`。attempt 3授权已消费。下一步只允许提交并同步本修复与
   检查点，在新HEAD运行全新只读preflight/错误HEAD注入；formal attempt 4须重新明确授权，M7-F
   未授权。

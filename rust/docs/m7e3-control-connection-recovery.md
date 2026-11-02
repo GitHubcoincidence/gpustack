@@ -253,3 +253,8 @@ formal正常cleanup为`cleanup_ok=1`并恢复服务和资源。独立watchdog随
 当前状态为`retry_preflight_pending`。attempt 3授权已经消费；下一步只允许提交上述产品与watchdog
 修复、运行质量门并在新HEAD执行全新的只读preflight/错误HEAD注入。formal attempt 4仍须新的明确
 维护授权，M7-F仍未授权。
+
+修复提交`2f72d2bd46bdb6e71ea3f4df7d32fb98e375925c`后的preflight attempt 6按旧
+`PRODUCT_COMMIT`漂移门安全停止于第1组，未执行构建、错误HEAD注入或任何外部变更。M7-E.3产品
+基线现显式推进到该修复提交；后续治理提交不得再修改`rust/crates`，下一步使用全新attempt 7路径
+重新运行完整只读门。
