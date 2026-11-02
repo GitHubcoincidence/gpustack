@@ -744,11 +744,10 @@ m7e3_restore_python_worker_if_safe() {
   [[ "$(docker ps -aq --no-trunc \
     --filter label=io.gpustack.implementation=rust \
     --filter label=io.gpustack.mode=managed | wc -l)" == '0' ]] || return 1
+  [[ "$(pgrep -af '[g]pustack-rs' 2>/dev/null | wc -l)" == '0' ]] || return 1
   [[ "$(m7e3_managed_listener_count)" == '0' ]] || return 1
-  [[ "$(m7e3_gpu_compute_count "$M7E3_GPU0_UUID")" == '0' ]] || return 1
-  [[ "$(m7e3_gpu_compute_count "$M7E3_GPU1_UUID")" == '0' ]] || return 1
-  [[ "$(m7e3_gpu_memory_used 0)" == '0' ]] || return 1
-  [[ "$(m7e3_gpu_memory_used 1)" == '0' ]] || return 1
+  # The Python Worker observes host GPU jobs; unrelated jobs must not extend
+  # recovery downtime.
   if [[ "$(docker inspect --format '{{.State.Running}}' "$M7E3_PYTHON_WORKER_ID" 2>/dev/null)" != 'true' ]]; then
     docker start "$M7E3_PYTHON_WORKER_ID" >"$evidence/python-worker-start.txt" \
       2>"$evidence/python-worker-start.stderr" || return 1
@@ -762,6 +761,24 @@ m7e3_restore_python_worker_if_safe() {
     fi
     sleep 1
   done
+  return 1
+}
+
+m7e3_docker_runtime_recovered_since() {
+  local log_file="$1"
+  local first_line="$2"
+  local instance_id="$3"
+  local container_id="$4"
+  local line
+  [[ -f "$log_file" && "$first_line" =~ ^[1-9][0-9]*$ ]] || return 1
+  [[ "$instance_id" =~ ^[1-9][0-9]*$ && "$container_id" =~ ^[0-9a-f]{64}$ ]] || return 1
+  while IFS= read -r line; do
+    [[ "$line" == *"resource=model_instance id=$instance_id "* ]] || continue
+    if [[ "$line" == *"outcome=running container_id=\"$container_id\""* ]] ||
+      [[ "$line" == *'outcome=noop reason="RUNNING Managed workload is already adopted"'* ]]; then
+      return 0
+    fi
+  done < <(tail -n "+$first_line" "$log_file")
   return 1
 }
 

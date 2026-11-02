@@ -251,8 +251,9 @@ wait_for_docker_recovery() {
   for sample in $(seq 1 60); do
     if [[ "$(curl --silent --max-time 3 --output /dev/null --write-out '%{http_code}' \
       "http://$M7E3_WORKER_IP:20150/readyz" 2>/dev/null)" == '200' ]] &&
-      tail -n "+$first_event_line" "$EVIDENCE/rust-events-before-outage.log" |
-        grep -F "outcome=running container_id=\"$old_container_id\"" >/dev/null; then
+      m7e3_docker_runtime_recovered_since \
+        "$EVIDENCE/rust-events-before-outage.log" "$first_event_line" \
+        "$instance_id" "$old_container_id"; then
       printf 'sample=%s\ncontainer_id=%s\n' "$sample" "$old_container_id" \
         >"$EVIDENCE/docker-recovery-observed.txt"
       return 0

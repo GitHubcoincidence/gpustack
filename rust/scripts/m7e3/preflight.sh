@@ -305,6 +305,7 @@ for required in \
   'wait_for_control_recovery' \
   'wait_for_docker_disconnect' \
   'wait_for_docker_recovery' \
+  'm7e3_docker_runtime_recovered_since' \
   'compare_runtime_contract' \
   'm7e3_direct_vllm_probe' \
   'docker events' \
@@ -332,6 +333,12 @@ grep -Fq -- 'docker_outage_passed' "$EXECUTOR"
 grep -Fq -- 'm7e3_validate_owned_container' "$LIB"
 grep -Fq -- 'm7e3_validate_owned_container_identity' "$LIB"
 grep -Fq -- 'm7e3_maintenance_worker_has_new_heartbeat' "$EXECUTOR" "$LIB"
+restore_worker_body="$(sed -n '/^m7e3_restore_python_worker_if_safe() {/,/^}/p' "$LIB")"
+grep -Fq -- "pgrep -af '[g]pustack-rs'" <<<"$restore_worker_body"
+if grep -Fq -- 'm7e3_gpu_' <<<"$restore_worker_body"; then
+  printf 'STOP: unrelated GPU jobs must not block Python Worker recovery\n' >&2
+  exit 1
+fi
 if sed -n '/^wait_for_worker_ready() {/,/^}/p' "$EXECUTOR" |
   grep -F -- '.unreachable == false' >/dev/null; then
   printf 'STOP: maintenance startup must not trust the stale unreachable field\n' >&2
@@ -432,6 +439,50 @@ done
   unlink "$stale_identity"
   trap - EXIT
 ) >"$EVIDENCE/exited-worker-identity-test.txt"
+(
+  recovery_log="$EVIDENCE/.docker-runtime-recovery-test.log"
+  instance_id=44
+  container_id='3e3c8a112948a9010e3dd2e914c09fc7b2d93cb86f667891a4d156db349e6f43'
+  trap 'unlink "$recovery_log"' EXIT
+  printf '%s\n' \
+    'mode=managed-runtime resource=model_instance id=44 outcome=noop reason="RUNNING Managed workload is already adopted"' \
+    >"$recovery_log"
+  if m7e3_docker_runtime_recovered_since \
+    "$recovery_log" 2 "$instance_id" "$container_id"; then
+    printf 'STOP: a recovery event before the observation floor was accepted\n' >&2
+    exit 1
+  fi
+  printf '%s\n' \
+    'mode=managed-runtime resource=model_instance id=45 outcome=noop reason="RUNNING Managed workload is already adopted"' \
+    'mode=managed-runtime resource=model_instance id=44 outcome=failed message="Docker unavailable"' \
+    >>"$recovery_log"
+  if m7e3_docker_runtime_recovered_since \
+    "$recovery_log" 2 "$instance_id" "$container_id"; then
+    printf 'STOP: an unrelated or failed runtime event was accepted\n' >&2
+    exit 1
+  fi
+  printf '%s\n' \
+    'mode=managed-runtime resource=model_instance id=44 outcome=running container_id="0000000000000000000000000000000000000000000000000000000000000000"' \
+    >>"$recovery_log"
+  if m7e3_docker_runtime_recovered_since \
+    "$recovery_log" 4 "$instance_id" "$container_id"; then
+    printf 'STOP: a running event for the wrong container was accepted\n' >&2
+    exit 1
+  fi
+  printf '%s\n' \
+    'mode=managed-runtime resource=model_instance id=44 outcome=noop reason="RUNNING Managed workload is already adopted"' \
+    >>"$recovery_log"
+  m7e3_docker_runtime_recovered_since \
+    "$recovery_log" 4 "$instance_id" "$container_id"
+  printf '%s\n' \
+    "mode=managed-runtime resource=model_instance id=44 outcome=running container_id=\"$container_id\"" \
+    >"$recovery_log"
+  m7e3_docker_runtime_recovered_since \
+    "$recovery_log" 1 "$instance_id" "$container_id"
+  printf 'docker_runtime_recovery_contract=PASS\n'
+  unlink "$recovery_log"
+  trap - EXIT
+) >"$EVIDENCE/docker-runtime-recovery-test.txt"
 (
   heartbeat_file="$(mktemp)"
   trap 'unlink "$heartbeat_file"' EXIT
