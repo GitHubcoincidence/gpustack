@@ -1085,3 +1085,12 @@ M7-E.3和 M7-F仍未授权。
 
 当前状态为 `ready_for_review`。三个健康端点、同一 Python Worker、Server资源、Rust进程/容器、
 端口和双 GPU已恢复基线；M7-E.3和 M7-F仍未授权。
+
+## 2026-11-02 M7-E.2最终验收与凭据退役
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D235 | M7-E.2验收与阶段凭据退役 | 用户接受 attempt 4详细报告。retirement attempt 1因删除前 JSON shape检查错误以外部零变更 STOP，manifest文件 SHA-256为 `09fe39a471dcc97d3a461c101bf774c080a6a2ffeb4757aeb9014db31077644b`；attempt 2精确删除 API Key ID 24并获得DELETE 200，旧 token访问`/v2/workers/5`返回401，只删除`m7e2-operator` Context和 operator token文件。其他 Context、Cluster registration token和 persisted Worker token保持不变；29个0600文件、0 symlink、清单复算、秘密扫描和独立现场审计通过，manifest文件 SHA-256为 `78660c810f862ac9b10bdfe809831e621dbb4cdba828e331ce48dc7275e80a9b` | D233业务门、D234用户审阅门和短期凭据生命周期门现已全部闭合，因此 M7-E.2更新为 `accepted`。删除前 STOP保留为非变更证据，不影响最终退役；post-delete进程正则和零匹配pipefail只是审计观察器修正，没有改变删除对象、权限边界或运行状态。 |
+
+当前状态为 `accepted`。下一项只允许讨论和冻结 M7-E.3；不得从本次验收继承创建凭据、停止
+Python Worker、启动代理、使用 GPU或注入连接故障的权限，M7-F仍未授权。

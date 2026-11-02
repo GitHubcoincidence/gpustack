@@ -4465,6 +4465,29 @@
   `m7e2-operator` Context和 operator token文件并验证旧 token返回401；退役前不得把 M7-E.2标记
   为 `accepted`。M7-E.3和 M7-F未授权。
 
+### 2026-11-02：M7-E.2阶段凭据退役并完成验收
+
+- 用户验收：用户接受 formal attempt 4详细报告，授权只退役 API Key ID 24、
+  `m7e2-operator` Context和 operator token文件；Cluster registration token、persisted Worker
+  token、服务和后续 M7阶段均不在本次授权范围。
+- 删除前 STOP：retirement attempt 1在 API Key、Context和文件删除前，把数组形式的
+  `model list`误读为`.items`并安全停止。Key 24、Context和 token文件均确认仍存在，外部变更为零；
+  11个文件全部0600、无symlink，manifest文件 SHA-256为
+  `09fe39a471dcc97d3a461c101bf774c080a6a2ffeb4757aeb9014db31077644b`。
+- 精确退役：attempt 2重新确认 Key ID 24、名称、`management,inference` scope、active Context和
+  三类 token文件身份；目标测试模型为零。`DELETE /v2/api-keys/24`返回200，内存中的旧 token随后
+  访问`/v2/workers/5`返回401。只删除`m7e2-operator`和
+  `/home/wujiaxing2/.config/gpustack-rust/m7e2-operator-token`，保留 Context排序比较完全一致。
+- 保留与审计：Cluster registration token和 persisted Worker token的 device/inode/mode/owner/
+  link/size/mtime及内容前后不变。post-delete进程正则曾匹配远程 Bash命令行，精确进程名复核为零；
+  秘密扫描的零匹配在`pipefail`下显式处理后通过。attempt 2含29个0600文件、0 symlink，manifest
+  复算和独立现场审计通过，manifest文件 SHA-256为
+  `78660c810f862ac9b10bdfe809831e621dbb4cdba828e331ce48dc7275e80a9b`。
+- 运行基线：Server、Python Worker和 metrics均为200；同一 Python Worker运行，Rust进程/容器/
+  20150/20151监听和GPU计算进程为零，两张GPU均为0 MiB/0%，Git HEAD/远端跟踪一致且工作树干净。
+- 当前停止位置：M7-E.2更新为 `accepted`。下一项只允许讨论和冻结 M7-E.3；不得自动创建凭据、
+  停止 Python Worker、启动故障代理、使用GPU或执行 M7-E.3/M7-F。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

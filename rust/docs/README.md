@@ -225,6 +225,12 @@
   `f83247ca03c22a02efbfb71e87c02fdf354e3f7da8fbaa4401293676d0bcadf8`。当前为
   `ready_for_review`；用户接受报告后才退役阶段 API Key、Context和 operator token并把 M7-E.2
   标记为 `accepted`。M7-E.3和 M7-F仍未授权。
+- 用户已接受 M7-E.2 attempt 4报告。API Key ID 24删除返回200，旧 token返回401；
+  `m7e2-operator` Context和 operator token文件已删除，其他 Context、Cluster registration token
+  和 persisted Worker token保持不变。最终退役证据含29个0600文件、0 symlink，manifest文件
+  SHA-256为 `78660c810f862ac9b10bdfe809831e621dbb4cdba828e331ce48dc7275e80a9b`；独立复核确认服务、
+  Python Worker、容器、进程、端口和双 GPU基线不变。M7-E.2当前为 `accepted`；下一项只允许讨论
+  和冻结 M7-E.3，M7-E.3和 M7-F仍未授权执行。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

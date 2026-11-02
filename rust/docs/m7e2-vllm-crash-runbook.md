@@ -3,11 +3,11 @@
 ## 1. 文档状态
 
 - 阶段：M7-E.2。
-- 状态：`formal_attempt_4_passed / ready_for_review`。
-- 已完成范围：冻结方案、正式工具链、阶段凭据、四次 formal attempt及独立恢复审计；attempt 4
-  已通过全部业务、日志、幂等、cleanup、watchdog和 post-audit门。
-- 当前停止边界：等待用户审阅 attempt 4详细报告；审阅通过后只允许退役 M7-E.2阶段凭据并验证
-  旧 token返回401。不得自动进入 M7-E.3、M7-F或 M8。
+- 状态：`accepted`。
+- 已完成范围：冻结方案、正式工具链、四次 formal attempt、独立恢复审计、用户验收和阶段凭据
+  退役；attempt 4已通过全部业务、日志、幂等、cleanup、watchdog和 post-audit门。
+- 当前停止边界：M7-E.2已经闭环。下一步最多讨论和冻结 M7-E.3；不得自动创建新凭据、进入维护
+  窗口、注入连接故障、执行 M7-F或 M8。
 
 本方案已经由用户接受，但接受不等于授权真实执行。工具链完成后仍须分别取得阶段凭据准备、
 只读 preflight/无写注入和唯一 formal attempt 的精确授权。M7-E.3、M7-F 和 M8 不在本方案的
@@ -380,3 +380,17 @@ formal、watchdog和 post-audit manifest文件 SHA-256分别为
 进程/容器/端口和双 GPU均恢复基线。当前为 `ready_for_review`；用户接受详细报告后才退役
 API Key ID 24、`m7e2-operator` Context和 operator token文件，并验证旧 token返回401。M7-E.3
 和 M7-F仍未授权。
+
+用户随后接受 attempt 4详细报告。凭据退役 attempt 1因删除前把数组形式的 `model list`误读为
+`.items`而在外部零变更时 STOP；11个0600文件的 manifest文件 SHA-256为
+`09fe39a471dcc97d3a461c101bf774c080a6a2ffeb4757aeb9014db31077644b`。attempt 2修正只读检查后
+精确删除 API Key ID 24，DELETE返回200，原 token随后访问`/v2/workers/5`返回401；只删除
+`m7e2-operator` Context和 operator token文件，其他 Context、Cluster registration token和
+persisted Worker token保持不变。
+
+attempt 2的 post-delete进程检查最初匹配了承载远程脚本的 Bash命令行，改用精确进程名后确认
+Rust进程为零；秘密扫描的零匹配在 `pipefail` 下显式按成功处理。29个0600文件、0 symlink、
+manifest复算、秘密扫描和独立现场审计通过，manifest文件 SHA-256为
+`78660c810f862ac9b10bdfe809831e621dbb4cdba828e331ce48dc7275e80a9b`。三个健康端点、同一 Python
+Worker、Server资源、容器、端口和双 GPU保持基线。M7-E.2状态更新为 `accepted`；M7-E.3和
+M7-F仍未授权。

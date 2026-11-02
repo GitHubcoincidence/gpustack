@@ -1068,3 +1068,9 @@ spec和 ownership保持不变。current/previous日志、Server-only与直连推
 容器、进程和双 GPU恢复基线，三套证据清单复算和秘密扫描通过。M7-E.2当前为
 `ready_for_review`；只有用户接受详细报告后才允许退役阶段 API Key、Context和 token文件并验证
 旧 token返回401。M7-E.3和 M7-F仍未授权。
+
+用户接受 attempt 4报告后，阶段凭据完成退役。删除前 STOP 的 attempt 1确认没有外部变更；
+attempt 2精确删除 API Key ID 24，旧 token返回401，`m7e2-operator` Context和 operator token
+文件消失，其他 Context、Cluster registration token和 persisted Worker token保持不变。服务、
+Python Worker、Git、容器、端口和双 GPU基线以及退役证据清单均通过独立复核。M7-E.2更新为
+`accepted`；下一项只允许讨论和冻结 M7-E.3，尚未授权创建凭据或执行连接故障窗口，M7-F也未授权。
