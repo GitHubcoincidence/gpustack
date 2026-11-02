@@ -4572,6 +4572,23 @@
   纳入干净治理HEAD，运行新的只读preflight/错误HEAD注入。真实formal retry仍须新的明确维护
   授权，M7-F未授权。
 
+### 2026-11-02：M7-E.3修复后preflight attempt 3通过
+
+- 执行：代理identity修复和attempt 1失败记录纳入提交
+  `777506c53c66aa75ee41fe9c5c8a0054dc3240b6`并同步三端后，运行全新的只读preflight和错误HEAD
+  无写注入。八组门全部通过，状态为`ready_for_maintenance_authorization`。
+- 新增修复门：静态审计强制executor/watchdog使用`m7e3_wait_for_proxy_identity`，并强制watchdog
+  对可达代理核验已发布identity；此前90仓库外Server/Docker各20次真实循环已证明最终记录的
+  executable为`socat1`且PID=PGID=SID。
+- 证据：preflight/injection分别含65/11个0600文件、0 symlink，manifest复算通过；manifest文件
+  SHA-256分别为`17eb437eb8d75b3469cb28dbc2d1dda4a4a20617e82caa9adba3c8a778d51a04`和
+  `c289aa0c8fd1a5285cec5cf0f9890d759d88114850257794e00f4efef3c64883`。注入结果为预期
+  `STOP/source_head_mismatch/window_entered=0`。
+- 外部不变式：三个健康端点200，无Rust进程/Managed容器/18080监听/Docker代理socket，两张A100
+  为0 MiB/0%。没有停止服务、创建资源、启动代理或使用GPU。
+- 当前停止位置：记录本结果会推进治理HEAD，下一步只允许在最终文档HEAD运行新的attempt 4；
+  通过后才重新进入`ready_for_maintenance_authorization`。formal retry仍须用户重新明确授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

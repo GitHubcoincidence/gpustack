@@ -249,6 +249,9 @@
   精确补救和supplemental recovery audit attempt 2证明现场恢复。工具现等待最终`socat1`identity
   后再发布，并让watchdog拒绝无匹配identity的可达代理；Server/Docker各20次真实循环通过。当前
   为`retry_preflight_pending`，formal retry须重新授权。
+- 修复提交`777506c53c66aa75ee41fe9c5c8a0054dc3240b6`上的preflight/injection attempt 3随后通过，
+  新增代理等待和watchdog身份门、八项测试、双scope、固定输入、错误HEAD无写与外部不变式成立。
+  最终文档HEAD还须运行attempt 4；formal retry仍须新的明确授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

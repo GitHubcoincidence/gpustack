@@ -1108,3 +1108,8 @@ HEAD运行attempt 2；即使再次通过，也只进入`ready_for_maintenance_au
 匹配identity的可达代理和无identity的残留listener/socket。修复通过本地ShellCheck、90 Bash
 语法以及Server/Docker代理各20次真实identity启动/终止循环。当前为`retry_preflight_pending`；
 下一步只运行新HEAD的只读preflight/injection，正式retry必须取得新的维护授权。
+
+修复提交`777506c53c66aa75ee41fe9c5c8a0054dc3240b6`上的preflight/injection attempt 3随后通过：
+65/11个0600文件、零symlink、清单复算、八项恢复测试、双scope、固定identity、新增代理等待/
+watchdog静态门、错误HEAD无写和外部不变式全部成立。记录该结果后还需在最终文档HEAD运行
+attempt 4；通过后状态为`ready_for_maintenance_authorization`，但formal retry授权不会自动继承。

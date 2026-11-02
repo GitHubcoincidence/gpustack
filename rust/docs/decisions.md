@@ -1121,3 +1121,9 @@ attempt 2含26个0600文件、0 symlink，manifest文件SHA-256为
 `8d5589ce89768113730fcc790fc0d2b3c6c6ee41b2f0f483c9678cc2a7ac7093`并复算通过。修复后本地
 ShellCheck通过，90上四脚本Bash语法和Server/Docker各20次真实代理identity循环通过。下一步只
 允许提交同步并在新HEAD运行全新的只读preflight/injection；formal retry须重新明确授权。
+
+## 2026-11-02 M7-E.3修复后preflight attempt 3
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D238 | 代理身份修复后的只读门与下一停止点 | 修复提交`777506c53c66aa75ee41fe9c5c8a0054dc3240b6`上的preflight/injection attempt 3全部通过。preflight包含65个0600文件，manifest文件SHA-256为`17eb437eb8d75b3469cb28dbc2d1dda4a4a20617e82caa9adba3c8a778d51a04`；错误HEAD注入包含11个0600文件，按预期为`STOP/source_head_mismatch/window_entered=0`，manifest文件SHA-256为`c289aa0c8fd1a5285cec5cf0f9890d759d88114850257794e00f4efef3c64883`。两目录均为0700、无symlink且清单复算通过 | 新门证明修复后的脚本identity、locked/offline构建、八项恢复测试、双scope、固定输入、代理exec等待、watchdog失败闭合、错误HEAD无写和外部不变式成立。记录本决定会推进治理HEAD，因此还须在最终文档HEAD运行一次全新preflight；任何formal retry仍须新的明确维护授权。 |

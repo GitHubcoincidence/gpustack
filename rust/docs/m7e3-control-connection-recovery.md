@@ -201,3 +201,8 @@ attempt 2证明现场恢复；原formal和一次补救证据因封存后日志�
 工具已改为等待exec完成后才发布proxy identity，并让watchdog拒绝任何可达但无匹配identity的
 代理。修复通过本地ShellCheck、90 Bash语法和Server/Docker代理各20次真实identity循环。当前为
 `retry_preflight_pending`；attempt 1授权已消费，正式retry仍须重新授权。
+
+修复提交`777506c53c66aa75ee41fe9c5c8a0054dc3240b6`上的preflight/injection attempt 3已通过，新增
+代理等待与watchdog身份门、八项恢复测试、双scope、固定输入、错误HEAD无写和外部不变式成立。
+记录该结果会推进治理HEAD，因此下一步只允许在最终文档HEAD运行attempt 4；formal retry仍须
+新的明确维护授权。
