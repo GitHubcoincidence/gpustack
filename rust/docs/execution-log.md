@@ -4728,6 +4728,28 @@
   injection attempt 9。attempt 4授权已消费；任何formal attempt 5仍须新的明确维护授权，M7-F
   未授权。
 
+### 2026-11-03：M7-E.3 preflight attempt 9因GPU1共享任务停止并修正资源边界
+
+- 安全停止：治理HEAD`f3bbc1c98f6925a232cac471f5776677a1bd3682`上的attempt 9完成源码与
+  脚本identity、locked/offline构建与九项定向测试、阶段凭据双scope以及服务/Docker/GPU/资源基线
+  四组检查；随后外部DiffKV在GPU1启动`humaneval`子任务，第5组旧双GPU空闲断言返回
+  `STOP/fixed_runtime_inputs`。目录为0700，含43个诊断文件、0 symlink、无manifest；错误HEAD
+  injection目录未创建，没有停止Python Worker、启动代理、创建Server资源、容器或使用GPU。
+- 归属证据：attempt 4的冻结容器证据明确记录
+  `DeviceRequests.DeviceIDs=[GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3]`；managed manifest同时记录
+  `gpus=[{host_index:0,uuid:GPU0 UUID}]`。每个故障采样均比较完整容器和manifest，因此可以直接证明
+  workload只使用GPU0，无需要求共享主机的GPU1空闲。
+- 工具修正：提交`8fb4d3e761a045958d72c41ade37ded1bbc8c3c2`保留GPU0预窗口零进程/零显存门和
+  部署后唯一GPU0计算进程门，新增容器GPU0 DeviceRequests及manifest GPU0绑定强校验；移除GPU1
+  活动成败断言，但继续在所有快照中记录GPU1。preflight前后只比较GPU0进程，cleanup/post-audit
+  继续以Rust托管容器、Rust进程、专用监听、全局资源ID和Docker ID证明本实验资源归零。
+- 回归与质量：新增正确GPU0请求通过、GPU1请求拒绝，以及静态禁止GPU1活动硬门；本机正式
+  pre-commit ShellCheck、90四脚本`bash -n`和定向正反测试通过。本次只修实验工具，不修改
+  `rust/crates`产品基线。
+- 当前停止位置：`retry_preflight_pending`。下一步在包含本记录的最终治理HEAD运行全新preflight/
+  injection attempt 10；即使通过也只进入`ready_for_maintenance_authorization`。formal attempt 5
+  仍须新的明确维护授权，M7-F未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

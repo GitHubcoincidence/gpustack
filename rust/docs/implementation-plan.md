@@ -1171,3 +1171,10 @@ preflight/injection。formal attempt 4仍须新的明确授权，M7-F未授权�
 `fb6ff649fe9fa64428ddd13b6cdc2fcdbadc60f9981994a6782e1359e0ea4e67`证明完整双GPU基线恢复。
 下一步在包含最终记录的新治理HEAD运行全新preflight/injection attempt 9；通过后formal attempt 5
 仍须新的明确维护授权，M7-F未授权。
+
+preflight attempt 9在治理HEAD`f3bbc1c98f6925a232cac471f5776677a1bd3682`通过前四组后，因
+外部DiffKV重新占用GPU1而在`fixed_runtime_inputs`安全STOP，未创建injection目录或进入维护窗口。
+提交`8fb4d3e761a045958d72c41ade37ded1bbc8c3c2`把共享主机边界收敛为GPU0排他、GPU1只观测：
+GPU0必须预先空闲，容器DeviceRequests和managed manifest必须精确绑定GPU0 UUID；GPU1活动仅记录，
+不再阻塞预检、cleanup或post-audit。下一步在最终治理HEAD运行全新preflight/injection attempt 10；
+通过后formal attempt 5仍须新的明确维护授权，M7-F未授权。

@@ -1181,3 +1181,14 @@ ID、同一Python Worker、端口、代理、本地实例残留和双GPU，23个
 `fb6ff649fe9fa64428ddd13b6cdc2fcdbadc60f9981994a6782e1359e0ea4e67`；完整恢复基线现为PASS，但
 formal/watchdog/post-audit仍保持FAIL。当前为`retry_preflight_pending`；attempt 4授权已消费，
 M7-F未授权。
+
+## 2026-11-03 M7-E.3共享GPU门禁修正
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D247 | GPU0排他、GPU1只观测 | preflight attempt 9在治理HEAD`f3bbc1c98f6925a232cac471f5776677a1bd3682`通过前四组后，于`fixed_runtime_inputs`因外部DiffKV重新占用GPU1而安全STOP；未创建injection目录或进入维护窗口。提交`8fb4d3e761a045958d72c41ade37ded1bbc8c3c2`把M7-E.3资源边界固定为GPU0排他、GPU1只观测：preflight和executor只要求GPU0预先空闲；容器identity必须且只能请求GPU0 UUID，managed manifest必须精确记录`host_index=0`与GPU0 UUID；所有故障采样继续比较完整容器和manifest，GPU1活动只进入证据而不作为成败门 | 用户冻结的正式范围一直是唯一GPU0、TP=1，且90是共享双卡主机。Docker DeviceRequests和managed manifest已提供比“GPU1整机空闲”更直接的归属证明。错误观察起点、错误实例、失败事件、错误容器、GPU1 device request和两种合法Docker恢复形状均有正反回归；未知Rust资源仍fail closed。 |
+
+attempt 9目录为0700，含43个诊断文件、0 symlink且无manifest；结果保持
+`STOP/fixed_runtime_inputs`，不得作为维护授权证据。当前为`retry_preflight_pending`；下一步只在
+包含D247的最终治理HEAD运行全新preflight/injection attempt 10，formal attempt 5仍须新的明确
+维护授权，M7-F未授权。

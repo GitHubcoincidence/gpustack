@@ -279,3 +279,11 @@ Rust进程、容器和监听清空，不再被无关GPU任务阻塞。formal/wat
 `fb6ff649fe9fa64428ddd13b6cdc2fcdbadc60f9981994a6782e1359e0ea4e67`证明全局资源、同一Python
 Worker、端口、代理、本地残留和双GPU完整恢复。当前为`retry_preflight_pending`；下一步运行全新
 preflight/injection attempt 9，任何formal attempt 5须重新明确授权，M7-F未授权。
+
+preflight attempt 9在治理HEAD`f3bbc1c98f6925a232cac471f5776677a1bd3682`完成前四组后，外部
+DiffKV重新占用GPU1，旧双GPU空闲门在`fixed_runtime_inputs`安全STOP；未创建injection目录或进入
+维护窗口。提交`8fb4d3e761a045958d72c41ade37ded1bbc8c3c2`把资源边界固定为GPU0排他、GPU1
+只观测：GPU0必须预先空闲，唯一Rust容器的Docker DeviceRequests及managed manifest必须精确绑定
+GPU0 UUID，故障期持续比较完整identity；GPU1活动只记录，不作为preflight、cleanup或post-audit
+成败门。下一步在最终治理HEAD运行preflight/injection attempt 10；通过后才能请求formal attempt 5
+维护授权，M7-F未授权。
