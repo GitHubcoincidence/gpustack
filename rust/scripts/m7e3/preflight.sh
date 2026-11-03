@@ -12,7 +12,7 @@ readonly EXPECTED_HEAD="${M7E3_EXPECTED_HEAD:?M7E3_EXPECTED_HEAD is required}"
 readonly PREFLIGHT_ATTEMPT="${M7E3_PREFLIGHT_ATTEMPT:?M7E3_PREFLIGHT_ATTEMPT is required}"
 readonly KEY_ID="${M7E3_KEY_ID:?M7E3_KEY_ID is required}"
 readonly KEY_NAME="${M7E3_KEY_NAME:?M7E3_KEY_NAME is required}"
-readonly PRODUCT_COMMIT='2f72d2bd46bdb6e71ea3f4df7d32fb98e375925c'
+readonly PRODUCT_COMMIT='e842c01ffbe011cda45c6b0e4447e5bea95288ac'
 readonly EXPECTED_LOCK_SHA='90f1aeaa22b4f06dc77e48497f2fe3394ab07ab55441c8ddb3124a67dca07010'
 readonly LIB="$REPO/rust/scripts/m7e3/lib.sh"
 readonly EXECUTOR="$REPO/rust/scripts/m7e3/executor.sh"
@@ -142,6 +142,7 @@ tests=(
   'managed::reconciler::tests::transient_docker_read_failure_preserves_running_route_and_server_state'
   'managed::reconciler::tests::transient_health_probe_failure_preserves_running_route_and_state'
   'managed::reconciler::tests::transient_docker_start_failure_preserves_starting_state_and_recovers'
+  'managed::reconciler::tests::delayed_docker_running_state_does_not_reauthorize_the_started_container'
   'managed::reconciler::tests::deletion_waits_for_server_and_docker_recovery_before_mutation'
   'worker_api::tests::inference_proxy_preserves_a_published_route_while_readiness_is_degraded'
   'control::tests::disconnect_preserves_state_until_full_sync_recovery'
