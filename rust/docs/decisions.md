@@ -1175,5 +1175,9 @@ attempt 4的formal/watchdog分别含215/23个0600文件、0 symlink，manifest�
 0 symlink，manifest文件SHA-256为
 `1fb0e21bfe960578951943dfd3f032c05ba8701483ed42d3050f0302f8d7b04a`；它证明同一Python Worker、
 Server资源、Rust资源、端口和代理已恢复，但因外部DiffKV仍占用GPU1，将完整基线明确标为
-`DEFERRED_EXTERNAL_GPU_ACTIVITY`。当前为`retry_preflight_pending_external_gpu_clear`；attempt 4
-授权已消费，M7-F未授权。
+`DEFERRED_EXTERNAL_GPU_ACTIVITY`。外部任务自然结束后，补充恢复审计重新比较全局资源ID、Docker
+ID、同一Python Worker、端口、代理、本地实例残留和双GPU，23个0600文件、0 symlink、秘密扫描和
+清单复算通过，manifest文件SHA-256为
+`fb6ff649fe9fa64428ddd13b6cdc2fcdbadc60f9981994a6782e1359e0ea4e67`；完整恢复基线现为PASS，但
+formal/watchdog/post-audit仍保持FAIL。当前为`retry_preflight_pending`；attempt 4授权已消费，
+M7-F未授权。

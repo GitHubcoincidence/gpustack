@@ -274,6 +274,8 @@ formal正常cleanup为`cleanup_ok=1`并恢复服务和资源。独立watchdog随
 提交`8427f657940fa80b5326b3e28eda9939445db7dd`把Docker恢复证据限定为同一实例的`running`或
 `noop/already adopted`，随后仍比较容器ID和完整runtime contract；Python Worker回滚只等待本实验
 Rust进程、容器和监听清空，不再被无关GPU任务阻塞。formal/watchdog/post-audit保持FAIL；精确恢复
-审计证明服务与本实验资源恢复，但外部DiffKV仍占GPU1，完整双GPU基线暂缓。当前为
-`retry_preflight_pending_external_gpu_clear`；外部任务自然结束后运行全新preflight/injection
-attempt 9，任何formal attempt 5须重新明确授权，M7-F未授权。
+审计先证明服务与本实验资源恢复。外部DiffKV自然结束后，独立补充审计以23个0600文件、0 symlink
+和manifest文件SHA-256
+`fb6ff649fe9fa64428ddd13b6cdc2fcdbadc60f9981994a6782e1359e0ea4e67`证明全局资源、同一Python
+Worker、端口、代理、本地残留和双GPU完整恢复。当前为`retry_preflight_pending`；下一步运行全新
+preflight/injection attempt 9，任何formal attempt 5须重新明确授权，M7-F未授权。

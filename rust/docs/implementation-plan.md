@@ -1166,6 +1166,8 @@ preflight/injection。formal attempt 4仍须新的明确授权，M7-F未授权�
 
 工具提交`8427f657940fa80b5326b3e28eda9939445db7dd`接受同一实例的两种合法Docker恢复形状，并在
 门后继续比较完整runtime identity；Python Worker回滚改为只等待本实验Rust进程、容器和监听清空，
-不再被无关宿主机GPU任务阻塞。精确恢复已证明服务和本实验资源回到基线；外部DiffKV仍占GPU1，
-完整双GPU审计暂缓。下一步等待外部GPU自然释放，在新的治理HEAD运行全新preflight/injection
-attempt 9；通过后formal attempt 5仍须新的明确维护授权，M7-F未授权。
+不再被无关宿主机GPU任务阻塞。精确恢复先证明服务和本实验资源回到基线；外部DiffKV自然结束后，
+补充审计以manifest文件SHA-256
+`fb6ff649fe9fa64428ddd13b6cdc2fcdbadc60f9981994a6782e1359e0ea4e67`证明完整双GPU基线恢复。
+下一步在包含最终记录的新治理HEAD运行全新preflight/injection attempt 9；通过后formal attempt 5
+仍须新的明确维护授权，M7-F未授权。

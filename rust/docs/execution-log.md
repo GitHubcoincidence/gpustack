@@ -4719,9 +4719,14 @@
   完整runtime contract比较。Python Worker恢复新增Rust进程门并移除对无关GPU进程的全局阻塞。
   preflight新增观察起点、错误实例、失败事件、错误容器和两种成功形状的正反回归；本机正式
   pre-commit ShellCheck、90三脚本`bash -n`及定向回归通过。
-- 当前停止位置：`retry_preflight_pending_external_gpu_clear`。等待外部DiffKV自然结束后，再在包含
-  本记录的新治理HEAD运行全新preflight/injection attempt 9。attempt 4授权已消费；任何formal
-  attempt 5仍须新的明确维护授权，M7-F未授权。
+- 完整恢复审计：外部DiffKV自然结束后，GPU0/GPU1均回到0 MiB且无计算进程。独立补充审计重新
+  比较preflight 8的全局资源ID、Docker ID、同一Python Worker、maintenance、端口、代理、本地
+  实例44残留和双GPU；23个0600文件、0 symlink、秘密扫描和清单复算通过，manifest文件SHA-256为
+  `fb6ff649fe9fa64428ddd13b6cdc2fcdbadc60f9981994a6782e1359e0ea4e67`。该PASS只证明现场完整恢复，
+  formal/watchdog/post-audit仍保持FAIL。
+- 当前停止位置：`retry_preflight_pending`。下一步在包含本记录的新治理HEAD运行全新preflight/
+  injection attempt 9。attempt 4授权已消费；任何formal attempt 5仍须新的明确维护授权，M7-F
+  未授权。
 
 ## 未解决风险与待确认事项
 
