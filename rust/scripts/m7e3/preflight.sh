@@ -266,9 +266,8 @@ jq -e '.version == "v2.2.3" and .git_commit == "1cfcbbf"' \
   "$M7E3_GPU0_UUID" ]]
 [[ "$(awk -F', *' '$1 == 1 {print $2}' "$EVIDENCE/before-gpus.csv")" == \
   "$M7E3_GPU1_UUID" ]]
-[[ "$(m7e3_gpu_memory_used 0)" == '0' && "$(m7e3_gpu_memory_used 1)" == '0' ]]
+[[ "$(m7e3_gpu_memory_used 0)" == '0' ]]
 [[ "$(m7e3_gpu_compute_count "$M7E3_GPU0_UUID")" == '0' ]]
-[[ "$(m7e3_gpu_compute_count "$M7E3_GPU1_UUID")" == '0' ]]
 [[ "$(docker inspect --format '{{.Id}}' "$M7E3_PYTHON_WORKER_ID")" == \
   "$M7E3_PYTHON_WORKER_ID" ]]
 {
@@ -278,6 +277,7 @@ jq -e '.version == "v2.2.3" and .git_commit == "1cfcbbf"' \
   printf 'runner_image=%s\nrunner_image_id=%s\n' "$M7E3_RUNNER_IMAGE" "$M7E3_RUNNER_IMAGE_ID"
   printf 'worker_id=%s\nworker_uuid=%s\ngpu0_uuid=%s\ngpu1_uuid=%s\n' \
     "$M7E3_WORKER_ID" "$M7E3_WORKER_UUID" "$M7E3_GPU0_UUID" "$M7E3_GPU1_UUID"
+  printf 'gpu0_activity_policy=exclusive\ngpu1_activity_policy=observe_only\n'
   printf 'model_path=%s\nmodel_bytes=%s\nmodel_file_baseline_count=%s\n' \
     "$M7E3_MODEL_PATH" "$M7E3_MODEL_BYTES" "$model_file_count"
   printf 'server_proxy_url=%s\ndocker_proxy_socket=%s\n' \
@@ -332,6 +332,8 @@ grep -Fq -- 'server_outage_passed' "$EXECUTOR"
 grep -Fq -- 'docker_outage_passed' "$EXECUTOR"
 grep -Fq -- 'm7e3_validate_owned_container' "$LIB"
 grep -Fq -- 'm7e3_validate_owned_container_identity' "$LIB"
+grep -Fq -- '.device_requests[0].DeviceIDs == [$gpu]' "$LIB"
+grep -Fq -- '.spec.gpus == [{"host_index":0,"uuid":$gpu}]' "$EXECUTOR"
 grep -Fq -- 'm7e3_maintenance_worker_has_new_heartbeat' "$EXECUTOR" "$LIB"
 restore_worker_body="$(sed -n '/^m7e3_restore_python_worker_if_safe() {/,/^}/p' "$LIB")"
 grep -Fq -- "pgrep -af '[g]pustack-rs'" <<<"$restore_worker_body"
@@ -373,6 +375,13 @@ for forbidden in \
   'kill -KILL "$rust_pid"'; do
   if grep -Fq -- "$forbidden" "$EXECUTOR" "$WATCHDOG"; then
     printf 'STOP: forbidden M7-E.3 mutation found: %s\n' "$forbidden" >&2
+    exit 1
+  fi
+done
+for script in "$0" "$EXECUTOR" "$POST_AUDIT"; do
+  if grep -Fq -- 'm7e3_gpu_compute_count "$M7E3_GPU1_UUID"' "$script" ||
+    grep -Fq -- 'm7e3_gpu_memory_used 1' "$script"; then
+    printf 'STOP: GPU1 activity must remain observe-only: %s\n' "$script" >&2
     exit 1
   fi
 done
@@ -484,6 +493,48 @@ done
   trap - EXIT
 ) >"$EVIDENCE/docker-runtime-recovery-test.txt"
 (
+  container_file="$EVIDENCE/.gpu-device-request-test.json"
+  cleanup_gpu_device_request_test() {
+    local path
+    for path in "$container_file" "${container_file}.wrong"; do
+      [[ ! -e "$path" && ! -L "$path" ]] || unlink "$path"
+    done
+  }
+  trap cleanup_gpu_device_request_test EXIT
+  jq -n \
+    --arg image "$M7E3_RUNNER_IMAGE_ID" \
+    --arg uuid "$M7E3_WORKER_UUID" \
+    --arg gpu "$M7E3_GPU0_UUID" '{
+      Id:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      Image:$image,
+      labels:{
+        "io.gpustack.implementation":"rust",
+        "io.gpustack.schema-version":"2",
+        "io.gpustack.mode":"managed",
+        "io.gpustack.owner-id":$uuid,
+        "io.gpustack.component":"vllm",
+        "io.gpustack.worker-uuid":$uuid,
+        "io.gpustack.model-instance-id":"44",
+        "io.gpustack.spec-hash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      device_requests:[{Driver:"nvidia",Count:0,DeviceIDs:[$gpu],Capabilities:[["gpu"]],Options:null}]
+    }' >"$container_file"
+  m7e3_validate_owned_container_identity \
+    "$container_file" 44 \
+    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+  jq --arg gpu "$M7E3_GPU1_UUID" '.device_requests[0].DeviceIDs = [$gpu]' \
+    "$container_file" >"${container_file}.wrong"
+  if m7e3_validate_owned_container_identity \
+    "${container_file}.wrong" 44 \
+    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'; then
+    printf 'STOP: a GPU1 device request was accepted\n' >&2
+    exit 1
+  fi
+  printf 'gpu0_device_request_contract=PASS\ngpu1_device_request_rejected=PASS\n'
+  cleanup_gpu_device_request_test
+  trap - EXIT
+) >"$EVIDENCE/gpu-device-request-test.txt"
+(
   heartbeat_file="$(mktemp)"
   trap 'unlink "$heartbeat_file"' EXIT
   jq -n '{
@@ -540,12 +591,17 @@ announce 8 '前后不变式、秘密扫描与证据封存'
 snapshot after
 for suffix in \
   services.txt docker-ids.txt rust-container-ids.txt python-worker.json \
-  compute-processes.csv listeners.txt rust-processes.txt global-ids.json; do
+  listeners.txt rust-processes.txt global-ids.json; do
   cmp "$EVIDENCE/before-$suffix" "$EVIDENCE/after-$suffix"
 done
-[[ "$(m7e3_gpu_memory_used 0)" == '0' && "$(m7e3_gpu_memory_used 1)" == '0' ]]
+grep -F "$M7E3_GPU0_UUID" "$EVIDENCE/before-compute-processes.csv" \
+  >"$EVIDENCE/before-gpu0-compute-processes.csv" || true
+grep -F "$M7E3_GPU0_UUID" "$EVIDENCE/after-compute-processes.csv" \
+  >"$EVIDENCE/after-gpu0-compute-processes.csv" || true
+cmp "$EVIDENCE/before-gpu0-compute-processes.csv" \
+  "$EVIDENCE/after-gpu0-compute-processes.csv"
+[[ "$(m7e3_gpu_memory_used 0)" == '0' ]]
 [[ "$(m7e3_gpu_compute_count "$M7E3_GPU0_UUID")" == '0' ]]
-[[ "$(m7e3_gpu_compute_count "$M7E3_GPU1_UUID")" == '0' ]]
 [[ -z "$(git status --porcelain)" ]]
 (cd "$M7E3_MODEL_PATH" && sha256sum --check --strict "$M7E3_MODEL_MANIFEST") \
   >"$EVIDENCE/model-manifest-recheck.txt"

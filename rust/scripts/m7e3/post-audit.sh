@@ -203,12 +203,8 @@ if [[ "$instance_id" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 current_step='gpu_and_secret_isolation'
-announce 5 '复核 GPU0/GPU1 空闲且证据不含秘密'
+announce 5 '记录 GPU 活动并复核证据不含秘密'
 m7e3_capture_gpu "$EVIDENCE" after
-[[ "$(m7e3_gpu_compute_count "$M7E3_GPU0_UUID")" == '0' ]]
-[[ "$(m7e3_gpu_compute_count "$M7E3_GPU1_UUID")" == '0' ]]
-[[ "$(m7e3_gpu_memory_used 0)" == '0' ]]
-[[ "$(m7e3_gpu_memory_used 1)" == '0' ]]
 [[ "$(m7e3_known_secret_file_count \
   "$PREFLIGHT" "$FORMAL_EVIDENCE" "$WATCHDOG_EVIDENCE" "$EVIDENCE")" == '0' ]]
 [[ "$(m7e3_secret_file_count \

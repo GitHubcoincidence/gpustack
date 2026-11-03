@@ -448,7 +448,8 @@ m7e3_validate_owned_container_identity() {
     --arg uuid "$M7E3_WORKER_UUID" \
     --arg instance "$instance_id" \
     --arg hash "$spec_hash" \
-    --arg image "$M7E3_RUNNER_IMAGE_ID" '
+    --arg image "$M7E3_RUNNER_IMAGE_ID" \
+    --arg gpu "$M7E3_GPU0_UUID" '
       .Id != null and .Image == $image and
       .labels["io.gpustack.implementation"] == "rust" and
       .labels["io.gpustack.schema-version"] == "2" and
@@ -457,7 +458,11 @@ m7e3_validate_owned_container_identity() {
       .labels["io.gpustack.component"] == "vllm" and
       .labels["io.gpustack.worker-uuid"] == $uuid and
       .labels["io.gpustack.model-instance-id"] == $instance and
-      .labels["io.gpustack.spec-hash"] == $hash
+      .labels["io.gpustack.spec-hash"] == $hash and
+      (.device_requests | length) == 1 and
+      .device_requests[0].Driver == "nvidia" and
+      .device_requests[0].DeviceIDs == [$gpu] and
+      .device_requests[0].Capabilities == [["gpu"]]
     ' "$file" >/dev/null
 }
 

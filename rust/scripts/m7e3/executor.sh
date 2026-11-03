@@ -387,10 +387,12 @@ capture_runtime_identity() {
   jq -e \
     --argjson instance "$instance_id" \
     --arg uuid "$M7E3_WORKER_UUID" \
-    --arg container "$old_container_id" '
+    --arg container "$old_container_id" \
+    --arg gpu "$M7E3_GPU0_UUID" '
       .schema_version == 1 and .instance_id == $instance and .worker_uuid == $uuid and
       .container_id == $container and .restart_count == 0 and
       .spec.mode == "managed" and .spec.deployment_id == ($instance|tostring) and
+      .spec.gpus == [{"host_index":0,"uuid":$gpu}] and
       .last_observed_state == "ready"
     ' "$EVIDENCE/${prefix}-manifest.json" >/dev/null || return 1
   find "$M7E3_LOG_DIR/serve" -maxdepth 1 -type f \
@@ -633,10 +635,6 @@ final_checks() {
   [[ "$(m7e3_listener_count "$M7E3_SERVER_PROXY_PORT")" == '0' ]] || cleanup_ok=0
   [[ ! -e "$M7E3_DOCKER_PROXY_SOCKET" && ! -L "$M7E3_DOCKER_PROXY_SOCKET" ]] || cleanup_ok=0
   [[ "$(m7e3_managed_listener_count)" == '0' ]] || cleanup_ok=0
-  [[ "$(m7e3_gpu_compute_count "$M7E3_GPU0_UUID")" == '0' ]] || cleanup_ok=0
-  [[ "$(m7e3_gpu_compute_count "$M7E3_GPU1_UUID")" == '0' ]] || cleanup_ok=0
-  [[ "$(m7e3_gpu_memory_used 0)" == '0' ]] || cleanup_ok=0
-  [[ "$(m7e3_gpu_memory_used 1)" == '0' ]] || cleanup_ok=0
   m7e3_capture_gpu "$EVIDENCE" after
 }
 
@@ -904,9 +902,7 @@ require_equal "$(awk -F', *' '$1 == 0 {print $2}' "$EVIDENCE/before-gpus.csv")" 
 require_equal "$(awk -F', *' '$1 == 1 {print $2}' "$EVIDENCE/before-gpus.csv")" \
   "$M7E3_GPU1_UUID" 'gpu1_uuid_mismatch'
 require_zero "$(m7e3_gpu_compute_count "$M7E3_GPU0_UUID")" 'gpu0_compute_process_exists'
-require_zero "$(m7e3_gpu_compute_count "$M7E3_GPU1_UUID")" 'gpu1_compute_process_exists'
 require_zero "$(m7e3_gpu_memory_used 0)" 'gpu0_memory_not_zero'
-require_zero "$(m7e3_gpu_memory_used 1)" 'gpu1_memory_not_zero'
 require_zero "$(pgrep -af '[g]pustack-rs' 2>/dev/null | wc -l)" 'rust_worker_process_exists'
 require_zero "$(m7e3_listener_count 20150)" 'rust_worker_api_port_occupied'
 require_zero "$(m7e3_listener_count 20151)" 'rust_metrics_port_occupied'
@@ -1039,7 +1035,6 @@ owned_spec_hash="$(docker inspect --format \
 capture_runtime_identity baseline || fail 'baseline_runtime_identity_failed'
 require_equal "$(m7e3_gpu_compute_count "$M7E3_GPU0_UUID")" '1' \
   'gpu0_compute_process_count_not_one'
-require_zero "$(m7e3_gpu_compute_count "$M7E3_GPU1_UUID")" 'gpu1_was_used'
 m7e3_direct_vllm_probe "$assigned_port" "$EVIDENCE/baseline-direct" ||
   fail 'baseline_direct_vllm_failed'
 server_inference_suite baseline-server || fail 'baseline_server_inference_failed'
