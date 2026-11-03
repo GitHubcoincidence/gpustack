@@ -4680,6 +4680,49 @@
   检查点，在新HEAD运行全新只读preflight/错误HEAD注入；formal attempt 4须重新明确授权，M7-F
   未授权。
 
+### 2026-11-03：M7-E.3 formal attempt 4完成双故障并暴露Docker恢复观察器误判
+
+- 前置门与授权：治理HEAD`027e42aa9bbfea6be21e1711b09578873e6bb1e3`上的preflight attempt 8
+  含68个0600文件、0 symlink，manifest文件SHA-256为
+  `ced62732015f07e45ae15d804a899524a92e3d88eb83e2e4198ca767a1d10c35`；错误HEAD注入含11个
+  0600文件、0 symlink，按预期在`window_entered=0`以`STOP/source_head_mismatch`停止，manifest
+  文件SHA-256为`055492a3f09db6a08fed5952e76ad3e382f40a25bf6e8291564667fcd1455f1d`。用户随后明确授权
+  formal attempt 4维护窗口。
+- 基线：精确停止Python Worker后，双代理和Rust Worker通过身份门。模型ID 29、实例44、
+  ModelFile 23、容器`3e3c8a112948a9010e3dd2e914c09fc7b2d93cb86f667891a4d156db349e6f43`
+  在GPU0、端口40000达到`RUNNING`；GPU1未被本实验使用。
+- Server故障：21:58:20停止唯一Server代理。即时、40秒、70秒的Server-only chat/completion/models
+  和直连vLLM探针全部成功；同一实例、容器和runtime contract保持，21:59:52控制连接恢复门通过，
+  21:59:57独立故障屏障通过。attempt 3暴露的数据面readiness耦合修复因此得到真实70秒验证。
+- Docker故障与误判：21:59:57停止唯一Docker socket代理，2秒协调记录Docker list连接失败，
+  readyz降级为503；故障期直连和Server-only推理继续成功，容器未发生生命周期变化。代理恢复后
+  从22:00:19起同一实例每2秒记录`outcome=noop reason="RUNNING Managed workload is already adopted"`，
+  说明Docker枚举和原容器采用已经恢复；观察器却只搜索`outcome=running container_id=...`，在60秒
+  后以`FAIL/docker_runtime_reenumeration_timeout`停止。后续完整连接证据、三轮幂等和正常cleanup
+  未执行，故不能把该次运行提升为PASS。
+- 回滚与外部漂移：cleanup删除了唯一模型、实例、ModelFile、Rust容器、Worker进程和双代理。
+  同期出现不属于GPUStack/Docker/本项目的DiffKV宿主机任务，先后占用GPU0/GPU1；项目未终止或
+  修改它。旧恢复函数要求整机双GPU空闲，因此formal写出`cleanup_ok=0`，watchdog写出
+  `recovery_ok=0`并未自动启动Python Worker。确认Rust所有物已归零后，只启动精确原容器ID
+  `68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165`；25秒后Server、Python
+  Worker和metrics均为200。
+- 证据：formal含215个0600文件、0 symlink，manifest文件SHA-256为
+  `3208d53fc1eef34001f2ed8aa3a46f86e1c5ba65fdd0bec22fb881f3eb2d251f`；watchdog含23个0600
+  文件、0 symlink，manifest文件SHA-256为
+  `a1fd74f945fd9af018536135eec3500bb3cf62b7ded5b39a35a9a8850543d422`。标准post-audit按预期在
+  `watchdog_recovery=0`证据链门停止，含7个文件、无manifest，三者保持FAIL。精确恢复审计含22个
+  0600文件、0 symlink，manifest文件SHA-256为
+  `1fb0e21bfe960578951943dfd3f032c05ba8701483ed42d3050f0302f8d7b04a`，只证明服务和本实验所有物
+  恢复；因外部GPU任务仍运行，完整基线为`DEFERRED_EXTERNAL_GPU_ACTIVITY`。
+- 工具修复与质量门：提交`8427f657940fa80b5326b3e28eda9939445db7dd`新增按观察起点、实例ID和
+  容器ID判定的Docker恢复契约，接受`running`和`noop/already adopted`两种合法形状，门后继续执行
+  完整runtime contract比较。Python Worker恢复新增Rust进程门并移除对无关GPU进程的全局阻塞。
+  preflight新增观察起点、错误实例、失败事件、错误容器和两种成功形状的正反回归；本机正式
+  pre-commit ShellCheck、90三脚本`bash -n`及定向回归通过。
+- 当前停止位置：`retry_preflight_pending_external_gpu_clear`。等待外部DiffKV自然结束后，再在包含
+  本记录的新治理HEAD运行全新preflight/injection attempt 9。attempt 4授权已消费；任何formal
+  attempt 5仍须新的明确维护授权，M7-F未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

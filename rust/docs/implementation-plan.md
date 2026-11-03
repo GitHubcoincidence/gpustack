@@ -1157,3 +1157,15 @@ preflight/injection。formal attempt 4仍须新的明确授权，M7-F未授权�
 新增数据面连续性和watchdog已退出identity正反门、九项恢复测试、双scope、固定identity、错误HEAD
 无写与外部不变式全部成立。记录结果后只运行最终文档HEAD的attempt 8；即使通过也只进入
 `ready_for_maintenance_authorization`，formal attempt 4仍须新的明确维护授权。
+
+最终治理HEAD`027e42aa9bbfea6be21e1711b09578873e6bb1e3`上的preflight/injection attempt 8
+通过后，用户授权formal attempt 4。Server代理70秒故障与恢复完整通过，三个时点的Server-only和
+直连推理连续；Docker代理故障期readyz按预期降级，推理仍连续。Docker代理恢复后同一实例实际持续
+返回`noop/already adopted`，但观察器只接受`outcome=running`，故formal固定为
+`FAIL/docker_runtime_reenumeration_timeout`，未执行后续完整证据和幂等门。
+
+工具提交`8427f657940fa80b5326b3e28eda9939445db7dd`接受同一实例的两种合法Docker恢复形状，并在
+门后继续比较完整runtime identity；Python Worker回滚改为只等待本实验Rust进程、容器和监听清空，
+不再被无关宿主机GPU任务阻塞。精确恢复已证明服务和本实验资源回到基线；外部DiffKV仍占GPU1，
+完整双GPU审计暂缓。下一步等待外部GPU自然释放，在新的治理HEAD运行全新preflight/injection
+attempt 9；通过后formal attempt 5仍须新的明确维护授权，M7-F未授权。

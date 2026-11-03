@@ -263,3 +263,17 @@ formal正常cleanup为`cleanup_ok=1`并恢复服务和资源。独立watchdog随
 全部通过：新数据面连续性测试、已退出/格式错误Worker identity正反测试、九项恢复测试、脚本静态
 门、固定输入、双scope、错误HEAD无写和外部不变式成立。记录该结果会推进治理HEAD，因此下一步
 只运行最终只读attempt 8；通过后才能请求formal attempt 4的新维护授权。
+
+最终治理HEAD`027e42aa9bbfea6be21e1711b09578873e6bb1e3`上的preflight/injection attempt 8
+通过后，用户授权formal attempt 4。唯一GPU0 workload达到`RUNNING`；Server代理断开70秒期间，
+即时、40秒、70秒的直连与Server-only推理全部成功，恢复屏障通过。Docker代理断开时readyz降级，
+但两条推理路径继续成功且runtime identity不变；代理恢复后同一实例持续返回
+`noop/already adopted`。冻结观察器只接受`outcome=running`，因此formal以
+`docker_runtime_reenumeration_timeout`失败，后续完整证据与幂等门未运行，不能判定阶段通过。
+
+提交`8427f657940fa80b5326b3e28eda9939445db7dd`把Docker恢复证据限定为同一实例的`running`或
+`noop/already adopted`，随后仍比较容器ID和完整runtime contract；Python Worker回滚只等待本实验
+Rust进程、容器和监听清空，不再被无关GPU任务阻塞。formal/watchdog/post-audit保持FAIL；精确恢复
+审计证明服务与本实验资源恢复，但外部DiffKV仍占GPU1，完整双GPU基线暂缓。当前为
+`retry_preflight_pending_external_gpu_clear`；外部任务自然结束后运行全新preflight/injection
+attempt 9，任何formal attempt 5须重新明确授权，M7-F未授权。

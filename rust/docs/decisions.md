@@ -1160,3 +1160,20 @@ preflight/injection attempt 5目录分别含66/11个0600文件、无symlink，ma
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D244 | 数据面与watchdog修复后的只读门 | 治理HEAD`eb10dd63f8f9c636e255686b1a35d5b990076fce`上的preflight/injection attempt 7全部通过。preflight含68个0600文件、0 symlink，manifest文件SHA-256为`2f68debd7207735769e9b08d5d4e05aa675f1dce52c32858dba7a302c01c55a2`；错误HEAD注入含11个0600文件、0 symlink，按预期为`STOP/source_head_mismatch/window_entered=0`，manifest文件SHA-256为`8ee991ed6229138570d5becc712f9487b22556ed5eb09dbb8f4de5a3e9cba812`。两清单独立复算通过 | 门禁证明新`PRODUCT_COMMIT`、九项恢复测试、readiness降级时已发布路由连续、已退出/格式错误identity正反语义、双scope、固定输入、脚本身份、错误HEAD无写和外部不变式成立。记录本决定会推进治理HEAD，故还须在最终文档HEAD运行attempt 8；formal attempt 4仍须新的明确授权。 |
+
+## 2026-11-03 M7-E.3 formal attempt 4判定与Docker恢复门修正
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D245 | 最终只读门与formal attempt 4判定 | 治理HEAD`027e42aa9bbfea6be21e1711b09578873e6bb1e3`上的preflight/injection attempt 8通过，manifest文件SHA-256分别为`ced62732015f07e45ae15d804a899524a92e3d88eb83e2e4198ca767a1d10c35`和`055492a3f09db6a08fed5952e76ad3e382f40a25bf6e8291564667fcd1455f1d`。用户随后授权formal attempt 4。该次运行完成GPU0唯一workload、Server代理70秒故障和恢复屏障；即时、40秒、70秒的Server-only推理及直连推理全部成功。Docker代理故障期readyz降级且直连/Server-only推理继续成功，代理恢复后同一实例每2秒产生`noop/already adopted`并保持原容器，但冻结观察器只接受`outcome=running`，最终以`FAIL/docker_runtime_reenumeration_timeout`停止 | Server子阶段已经满足冻结门，Docker恢复日志也证明运行时重新可见；但正式观察器没有确认其唯一接受的日志形状，且后续连接证据、三轮幂等和正常cleanup未完整执行，因此attempt 4必须保持FAIL，不能由事后解释拼接成M7-E.3通过。 |
+| D246 | Docker恢复证据契约与Python Worker回滚边界 | 提交`8427f657940fa80b5326b3e28eda9939445db7dd`让恢复门接受同一实例的两种合法结果：重新采用时的`running`，或已采用时的`noop/already adopted`；门后仍严格比较容器ID、端口、spec、ownership和完整runtime contract。Python Worker恢复只要求Rust进程、Rust托管容器和专用监听全部消失，不再要求宿主机所有GPU计算进程为零；preflight新增错误观察起点、错误实例、失败事件、错误容器和两种成功形状的正反回归 | Python Worker是宿主机GPU观察者，外部GPU任务不应延长其控制面停机；真正的安全边界是本实验Rust资源全部清除。attempt 4期间外部DiffKV任务进入GPU，旧回滚门因整机GPU非空拒绝启动Python Worker。修订保持未知Rust进程和残留监听fail closed，同时避免把无关GPU任务当成本实验所有物。 |
+
+attempt 4的formal/watchdog分别含215/23个0600文件、0 symlink，manifest文件SHA-256为
+`3208d53fc1eef34001f2ed8aa3a46f86e1c5ba65fdd0bec22fb881f3eb2d251f`和
+`a1fd74f945fd9af018536135eec3500bb3cf62b7ded5b39a35a9a8850543d422`，均保持FAIL。标准post-audit
+在`watchdog_recovery=0`证据链门停止，含7个文件且无manifest。精确恢复审计含22个0600文件、
+0 symlink，manifest文件SHA-256为
+`1fb0e21bfe960578951943dfd3f032c05ba8701483ed42d3050f0302f8d7b04a`；它证明同一Python Worker、
+Server资源、Rust资源、端口和代理已恢复，但因外部DiffKV仍占用GPU1，将完整基线明确标为
+`DEFERRED_EXTERNAL_GPU_ACTIVITY`。当前为`retry_preflight_pending_external_gpu_clear`；attempt 4
+授权已消费，M7-F未授权。
