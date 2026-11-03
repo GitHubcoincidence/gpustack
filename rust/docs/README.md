@@ -252,6 +252,12 @@
 - 修复提交`777506c53c66aa75ee41fe9c5c8a0054dc3240b6`上的preflight/injection attempt 3随后通过，
   新增代理等待和watchdog身份门、八项测试、双scope、固定输入、错误HEAD无写与外部不变式成立。
   最终文档HEAD还须运行attempt 4；formal retry仍须新的明确授权。
+- M7-E.3 formal attempt 5在GPU0创建唯一workload时暴露Docker成功start后的状态滞后竞态：下一轮
+  协调把同容器自己的GPU进程误判为外部占用，故在连接故障前固定为FAIL；watchdog和独立
+  post-audit已恢复完整基线，GPU1外部任务未受影响。产品提交
+  `e842c01ffbe011cda45c6b0e4447e5bea95288ac`持久化成功start授权并新增回归，workspace 216项测试、
+  格式和Clippy通过。当前为`retry_preflight_pending`；下一步只运行全新attempt 12，formal attempt 6
+  仍须新的明确授权，M7-F未授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

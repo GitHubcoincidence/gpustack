@@ -1184,3 +1184,17 @@ GPU1字面量，以`STOP/script_static_audit`结束。提交
 `af8bbf13f84f46606ff85c06399c5dec865c1cac`把该静态扫描限定到executor/post-audit；preflight
 自身继续由GPU0现场门和前后快照动态验证。下一步在最终治理HEAD运行全新attempt 11；formal
 attempt 5仍须独立维护授权。
+
+最终治理HEAD`954b1a393607284c3a1648c0bf2a572fdfc20ad3`上的preflight/injection attempt 11
+通过后，用户授权formal attempt 5。GPU0空闲，GPU1外部DiffKV按只观测策略不阻塞。正式运行完成
+Python Worker停止、双代理和Rust Worker启动，但唯一GPU0容器成功start后，Docker仍短暂报告
+`Created`；下一轮协调重复执行首次GPU空闲授权，把同容器自己的计算进程误判为外部冲突，实例
+两次进入`ERROR`。Server/Docker故障子阶段均未开始，formal保持FAIL；cleanup、watchdog recovery
+和独立post-audit完整恢复基线。
+
+产品提交`e842c01ffbe011cda45c6b0e4447e5bea95288ac`在成功start后持久化manifest
+`last_observed_state=starting`。同一owned容器的Docker状态若暂时滞留`Created`，后续协调只继续
+观察而不重复GPU门或start；真正start失败仍保留`created`并按原路径重试。新回归、30项reconciler
+测试、workspace 216项测试、格式和Clippy通过；M7-E.3 `PRODUCT_COMMIT`及preflight定向测试已推进。
+下一步在包含本记录的新治理HEAD运行全新preflight/injection attempt 12；通过后formal attempt 6
+仍须新的明确维护授权，M7-F未授权。

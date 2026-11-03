@@ -1194,3 +1194,20 @@ attempt 9目录为0700，含43个诊断文件、0 symlink且无manifest；结果
 维护授权，M7-F未授权。
 
 | D248 | attempt 10自指静态门停止与修正 | attempt 10在治理HEAD`1f0653a68da1cc4ccd047545844afb2a99eaa312`通过前五组后，于`script_static_audit`安全STOP；GPU1外部任务活跃时GPU0排他门和固定identity已通过。失败来自preflight扫描自身并匹配到“禁止GPU1硬门”检查语句中的字面量，不是实际GPU1门。提交`af8bbf13f84f46606ff85c06399c5dec865c1cac`把字面量扫描限定到executor/post-audit，preflight自身由第4/5/8组动态验证 | 自指扫描必然误报，不能证明策略回归。限定到被审计的运行与事后脚本保留静态防回退；preflight在GPU1活跃现场已动态证明只检查GPU0。attempt 10含44个诊断文件、0 symlink、无manifest且未创建injection目录，必须保留为STOP。下一次使用全新attempt 11。 |
+
+## 2026-11-03 M7-E.3 formal attempt 5判定与启动重入修复
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D249 | attempt 11与formal attempt 5判定 | 最终治理HEAD`954b1a393607284c3a1648c0bf2a572fdfc20ad3`上的preflight/injection attempt 11通过，manifest文件SHA-256分别为`c90e6e2d4e3f6efa2598aa8f25f7586f242c26790b284341f8525adae396ff1d`和`4435f46889b391a02f638b78efa29f8ab37c995b94079a910ad783e6ed33fa47`。用户随后授权formal attempt 5；GPU0空闲且GPU1外部DiffKV只观测。运行通过源码、外部漂移、Python Worker停止、双代理和Rust Worker启动门，但唯一实例45在首次`STARTING`后两次进入`ERROR`，消息均为`GPU index 0 has active compute processes`。未进入Server或Docker故障子阶段，formal固定为FAIL | 取证显示第一次runtime协调已经成功启动唯一GPU0容器，下一轮在Docker仍短暂报告`Created`时再次执行新部署GPU空闲授权，把该容器自己的GPU进程误判为外部占用。该结果不支持也不反驳连接恢复主张；GPU1从未被请求、停止或清理。formal cleanup、watchdog recovery和独立post-audit分别证明失败闭合及现场恢复，不能把恢复审计提升为正式通过。 |
+| D250 | 成功start的持久授权与新产品基线 | 产品提交`e842c01ffbe011cda45c6b0e4447e5bea95288ac`在Docker `start_container`成功后立即把manifest的`last_observed_state`持久为`starting`。后续若同一完整ownership/spec容器仍短暂显示`Created`且manifest已为`starting`，协调器只继续日志和健康观察，不再次执行GPU空闲授权或Docker start；若第一次start真实失败，manifest仍为`created`，既有恢复路径仍会重新授权并重试。M7-E.3 `PRODUCT_COMMIT`推进到该提交，preflight固定加入该竞态回归 | GPU空闲门只应授权第一次启动，不能把已获授权的同一容器进程当成外部竞争者。持久状态把“start已成功返回”和“start尚未成功”区分开，同时保留外部GPU进程阻止首次创建、未知容器fail closed、Docker start失败可恢复和同一实例唯一容器边界。 |
+
+attempt 5的formal/watchdog/post-audit目录分别含84/23/27个0600文件、0 symlink，manifest文件
+SHA-256分别为`ceda8d49ce881e61edc1681776bb311de458ced092b0ce7de80f94a25e458c86`、
+`f1e23e5fadb17f1a71ca6826ddcad0bc99e9faa701fdc614c7c3ed03369439da`和
+`5f60ac45a7de9830ce8631f5152136b551fc646ef1257bba73f7cc024200bc89`；三份清单、权限和秘密扫描
+均通过。formal为FAIL/cleanup_ok=1，watchdog为FAIL/recovery_ok=1，post-audit为PASS且只证明
+`recovery_baseline=restored`。修复后30项managed reconciler测试、完整workspace 216项测试、
+格式检查和Worker all-targets/all-features Clippy通过。当前为`retry_preflight_pending`；下一步只在
+包含D249/D250的新治理HEAD运行preflight/injection attempt 12，formal attempt 6仍须新的明确
+维护授权，M7-F未授权。

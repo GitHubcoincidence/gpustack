@@ -4766,6 +4766,52 @@
   injection attempt 11；通过后状态最多为`ready_for_maintenance_authorization`。formal attempt 5
   仍须新的明确维护授权，M7-F未授权。
 
+### 2026-11-03：M7-E.3 preflight attempt 11与formal attempt 5启动重入失败
+
+- 只读准备：治理HEAD`954b1a393607284c3a1648c0bf2a572fdfc20ad3`上的preflight attempt 11
+  八组门全部通过；72个0600文件、0 symlink，manifest文件SHA-256为
+  `c90e6e2d4e3f6efa2598aa8f25f7586f242c26790b284341f8525adae396ff1d`。错误HEAD注入含11个
+  0600文件、0 symlink，固定为`STOP/source_head_mismatch/window_entered=0/cleanup_ok=1`，
+  manifest文件SHA-256为
+  `4435f46889b391a02f638b78efa29f8ab37c995b94079a910ad783e6ed33fa47`。两份清单独立复算通过，
+  Server/Python Worker/metrics为200，Rust进程、容器、代理和监听为零。
+- 授权与共享GPU边界：用户在完整维护范围之后回复同意，并确认GPU1已有外部任务。窗口前复核
+  GPU0为0 MiB/0%，GPU1由`diffkv-paper`占用约74.5 GiB；按D247只要求GPU0排他，GPU1全程只
+  观察。三份attempt 5证据路径均未使用，固定Python Worker ID、源码、origin和工作树通过。
+- 正式停止点：formal通过源码构建、最终外部漂移、精确Python Worker停止、双代理和Rust Worker
+  身份门。model 30、instance 45、ModelFile 24依次观察到`pending -> analyzing -> scheduled ->
+  initializing -> downloading -> starting`；随后CLI等待到`ERROR`并以30退出。两次错误消息均为
+  `Managed runtime contract failed: GPU index 0 has active compute processes`，因此未建立健康runtime，
+  也未进入Server或Docker连接故障子阶段。
+- 原因：第一次runtime协调已记录一次`Starting`并启动唯一GPU0容器；Docker在成功start后的短暂
+  窗口仍报告`Created`。下一轮`STARTING`协调再次调用首次启动授权，NVML此时已看到该容器自己的
+  GPU0 Python进程，于是GPU空闲门将其当成外部冲突并写回`ERROR`。自动restart再次遇到相同重入。
+  GPU1外部任务与错误无关，Docker DeviceRequests和GPU查询均未把GPU1交给本实验。
+- 正式判定与恢复：formal为`FAIL/cleanup_ok=1`，84个0600文件、0 symlink，manifest文件SHA-256为
+  `ceda8d49ce881e61edc1681776bb311de458ced092b0ce7de80f94a25e458c86`。watchdog为
+  `FAIL/executor_exit=1/recovery_ok=1`，23个0600文件、0 symlink，manifest文件SHA-256为
+  `f1e23e5fadb17f1a71ca6826ddcad0bc99e9faa701fdc614c7c3ed03369439da`。独立post-audit为
+  `PASS/recovery_baseline=restored`，27个0600文件、0 symlink，manifest文件SHA-256为
+  `5f60ac45a7de9830ce8631f5152136b551fc646ef1257bba73f7cc024200bc89`。同一Python Worker及三个
+  端点恢复，测试Model/Instance/File、Rust容器/进程、代理/socket/端口和GPU0全部清空；GPU1外部
+  任务未被修改。三目录全部0700、文件0600、秘密扫描和清单复算通过。
+
+### 2026-11-03：M7-E.3启动授权持久化修复
+
+- 产品实现：提交`e842c01ffbe011cda45c6b0e4447e5bea95288ac`在Docker start成功返回后把同一
+  Managed manifest的`last_observed_state`写为`starting`。若下一轮仍看到精确owned容器为
+  `Created`，该持久状态证明start已授权，协调器不再重复GPU空闲门和Docker start，只恢复/保持
+  日志采集并继续等待健康。start真实失败时写入不会发生，manifest保持`created`，原重试语义不变。
+- 回归测试：新增延迟Docker状态转换场景，第一次start保持容器`Created`，随后把GPU计算进程设为1；
+  第二轮必须返回同一容器`Starting/adopted`、create count 1、start count 1且Server更新为空。既有
+  `transient_docker_start_failure_preserves_starting_state_and_recovers`继续证明真实start失败可重试。
+- 质量门：90上Rust格式检查通过；30项managed reconciler测试、workspace all-targets/all-features
+  locked/offline共216项测试全部通过；`gpustack-worker` all-targets/all-features Clippy以
+  `-D warnings`通过。没有新增依赖、API、路由、迁移或秘密处理变化。
+- 停止点：M7-E.3 `PRODUCT_COMMIT`推进为`e842c01f...`，preflight新增该回归。下一步提交脚本和
+  治理记录后，只能在新的最终治理HEAD使用全新preflight/injection attempt 12；formal attempt 5
+  授权已消费，attempt 6仍须新的明确维护授权，M7-F未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

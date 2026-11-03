@@ -293,3 +293,24 @@ GPU1字面量，以`STOP/script_static_audit`结束；没有创建injection目�
 `af8bbf13f84f46606ff85c06399c5dec865c1cac`把该扫描限定到executor/post-audit，preflight继续由
 第4/5/8组动态验证GPU0边界。下一步在最终治理HEAD运行全新attempt 11；通过后才能请求formal
 attempt 5维护授权，M7-F未授权。
+
+最终治理HEAD`954b1a393607284c3a1648c0bf2a572fdfc20ad3`上的preflight/injection attempt 11
+通过，manifest文件SHA-256分别为
+`c90e6e2d4e3f6efa2598aa8f25f7586f242c26790b284341f8525adae396ff1d`和
+`4435f46889b391a02f638b78efa29f8ab37c995b94079a910ad783e6ed33fa47`。用户授权formal attempt 5；
+GPU0为空闲排他卡，GPU1外部DiffKV只观测。运行在双代理和Rust Worker启动后创建唯一实例45，
+状态到达`STARTING`，但成功启动的容器仍短暂显示`Created`，下一轮重复首次GPU空闲授权并把同容器
+自己的GPU0进程误判为外部冲突，实例两次进入`ERROR`。未进入任一连接故障子阶段，因此formal
+保持FAIL。
+
+formal/watchdog/post-audit manifest文件SHA-256分别为
+`ceda8d49ce881e61edc1681776bb311de458ced092b0ce7de80f94a25e458c86`、
+`f1e23e5fadb17f1a71ca6826ddcad0bc99e9faa701fdc614c7c3ed03369439da`和
+`5f60ac45a7de9830ce8631f5152136b551fc646ef1257bba73f7cc024200bc89`；formal为FAIL但
+`cleanup_ok=1`，watchdog为FAIL但`recovery_ok=1`，独立post-audit为PASS且只证明恢复基线。
+
+产品提交`e842c01ffbe011cda45c6b0e4447e5bea95288ac`在成功Docker start后立即持久化同一manifest为
+`starting`。若Docker状态仍滞留`Created`，后续协调不再重复GPU空闲授权或start；真正start失败时
+manifest仍为`created`并继续使用既有安全重试。新竞态回归、全部workspace测试、格式和Clippy通过，
+preflight固定加入该回归，`PRODUCT_COMMIT`推进到该提交。当前为`retry_preflight_pending`；下一步
+只在新治理HEAD运行preflight/injection attempt 12，formal attempt 6仍须独立维护授权，M7-F未授权。
