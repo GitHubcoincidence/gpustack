@@ -839,7 +839,7 @@ where
             .runtime
             .create_container(&refreshed.spec.container_spec())
             .await?;
-        let manifest = ManagedRuntimeManifest {
+        let mut manifest = ManagedRuntimeManifest {
             schema_version: MANAGED_MANIFEST_SCHEMA_VERSION,
             instance_id: refreshed.instance.id,
             worker_uuid: self.worker_uuid.clone(),
@@ -856,6 +856,11 @@ where
             ));
         }
         self.authorize_and_start(&refreshed, &created.id).await?;
+        // Docker can still report Created briefly after a successful start. Persisting the
+        // authorization prevents the next reconciliation from treating our own GPU process as
+        // an external conflict and issuing a second start.
+        manifest.last_observed_state = "starting".to_string();
+        self.store.save_manifest(&manifest)?;
         self.ensure_log_capture(
             refreshed.instance.id,
             &created.id,
@@ -907,7 +912,9 @@ where
         )
         .await?;
         if observation.container.state == ContainerState::Created {
-            self.authorize_and_start(&plan, &container_id).await?;
+            if manifest.last_observed_state != "starting" {
+                self.authorize_and_start(&plan, &container_id).await?;
+            }
             self.ensure_log_capture(
                 plan.instance.id,
                 &container_id,
@@ -1502,7 +1509,7 @@ impl ManagedRuntimeError {
 mod tests {
     use std::collections::{BTreeMap, VecDeque};
     use std::fs;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
     use futures_util::stream;
     use gpustack_client::types::{ModelInstanceState, ModelSource, Paginated};
@@ -1594,6 +1601,7 @@ mod tests {
         logs: Vec<RuntimeLogLine>,
         list_failures: usize,
         start_failures: usize,
+        delay_running_state: bool,
     }
 
     #[derive(Default)]
@@ -1617,6 +1625,10 @@ mod tests {
 
         fn fail_next_start(&self) {
             self.state.lock().expect("runtime lock").start_failures += 1;
+        }
+
+        fn delay_running_state(&self) {
+            self.state.lock().expect("runtime lock").delay_running_state = true;
         }
     }
 
@@ -1717,11 +1729,14 @@ mod tests {
                     ));
                 }
                 state.starts += 1;
-                state
+                let delay_running_state = state.delay_running_state;
+                let container = state
                     .containers
                     .get_mut(id)
-                    .ok_or(RuntimeError::NotFound { operation: "start" })?
-                    .state = ContainerState::Running;
+                    .ok_or(RuntimeError::NotFound { operation: "start" })?;
+                if !delay_running_state {
+                    container.state = ContainerState::Running;
+                }
                 Ok(())
             })
         }
@@ -1782,15 +1797,17 @@ mod tests {
         }
     }
 
-    #[derive(Clone)]
-    struct FakeGpuProbe;
+    #[derive(Clone, Default)]
+    struct FakeGpuProbe {
+        running_compute_processes: Arc<AtomicUsize>,
+    }
 
     impl ManagedGpuProbe for FakeGpuProbe {
         fn snapshot(&self) -> Result<Vec<ManagedGpu>, ManagedRuntimeError> {
             Ok(vec![ManagedGpu {
                 host_index: 0,
                 uuid: "GPU-test".to_string(),
-                running_compute_processes: 0,
+                running_compute_processes: self.running_compute_processes.load(Ordering::SeqCst),
             }])
         }
     }
@@ -1811,6 +1828,7 @@ mod tests {
         api: FakeApi,
         runtime: Arc<FakeRuntime>,
         health: Arc<FakeHealth>,
+        gpus: FakeGpuProbe,
         clock: FakeClock,
         registry: Arc<ManagedRuntimeRegistry>,
         desired: DesiredState,
@@ -1893,6 +1911,7 @@ mod tests {
                 }))),
             });
             let clock = FakeClock(Arc::new(AtomicU64::new(10)));
+            let gpus = FakeGpuProbe::default();
             let store = FsManagedRuntimeStore::open(&data_dir, &log_dir).expect("Managed store");
             let registry = Arc::new(ManagedRuntimeRegistry::default());
             let coordinator = ManagedRuntimeCoordinator::new(
@@ -1905,7 +1924,7 @@ mod tests {
                 "1000:1000".to_string(),
                 runtime.clone(),
                 health.clone(),
-                FakeGpuProbe,
+                gpus.clone(),
                 store,
                 clock.clone(),
                 Arc::clone(&registry),
@@ -1923,6 +1942,7 @@ mod tests {
                 api,
                 runtime,
                 health,
+                gpus,
                 clock,
                 registry,
                 desired,
@@ -2011,6 +2031,12 @@ mod tests {
         fn set_health_error(&self, message: &str) {
             *self.health.models.lock().expect("health lock") = Err(message.to_string());
         }
+
+        fn set_running_compute_processes(&self, count: usize) {
+            self.gpus
+                .running_compute_processes
+                .store(count, Ordering::SeqCst);
+        }
     }
 
     #[tokio::test]
@@ -2077,6 +2103,47 @@ mod tests {
         let runtime = fixture.runtime.state.lock().expect("runtime lock");
         assert_eq!(runtime.created_specs.len(), 1);
         assert_eq!(runtime.starts, 1);
+    }
+
+    #[tokio::test]
+    async fn delayed_docker_running_state_does_not_reauthorize_the_started_container() {
+        let fixture = Fixture::new(false);
+        fixture.runtime.delay_running_state();
+
+        let created = fixture.create().await;
+        assert!(matches!(
+            created,
+            ManagedRuntimeOutcome::Starting { created: true, .. }
+        ));
+        fixture.set_running_compute_processes(1);
+
+        let repeated = fixture.create().await;
+
+        assert!(matches!(
+            repeated,
+            ManagedRuntimeOutcome::Starting {
+                created: false,
+                adopted: true,
+                ..
+            }
+        ));
+        let runtime = fixture.runtime.state.lock().expect("runtime lock");
+        assert_eq!(runtime.created_specs.len(), 1);
+        assert_eq!(runtime.starts, 1);
+        assert_eq!(
+            runtime.containers.values().next().expect("container").state,
+            ContainerState::Created
+        );
+        drop(runtime);
+        assert!(
+            fixture
+                .api
+                .state
+                .lock()
+                .expect("API lock")
+                .updates
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -2182,7 +2249,7 @@ mod tests {
             "1000:1000".to_string(),
             runtime.clone(),
             health,
-            FakeGpuProbe,
+            FakeGpuProbe::default(),
             FsManagedRuntimeStore::open(&data_dir, &log_dir).expect("reopen Managed store"),
             clock,
             Arc::clone(&registry),
@@ -2259,7 +2326,7 @@ mod tests {
             "1000:1000".to_string(),
             runtime,
             health,
-            FakeGpuProbe,
+            FakeGpuProbe::default(),
             FsManagedRuntimeStore::open(&data_dir, &worker_log_dir).expect("reopen Managed store"),
             clock,
             Arc::clone(&registry),
