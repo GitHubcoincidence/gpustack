@@ -287,3 +287,9 @@ DiffKV重新占用GPU1，旧双GPU空闲门在`fixed_runtime_inputs`安全STOP�
 GPU0 UUID，故障期持续比较完整identity；GPU1活动只记录，不作为preflight、cleanup或post-audit
 成败门。下一步在最终治理HEAD运行preflight/injection attempt 10；通过后才能请求formal attempt 5
 维护授权，M7-F未授权。
+
+attempt 10在GPU1外部任务活跃时通过前五组，随后因静态审计扫描preflight自身并匹配检查语句里的
+GPU1字面量，以`STOP/script_static_audit`结束；没有创建injection目录或外部变更。提交
+`af8bbf13f84f46606ff85c06399c5dec865c1cac`把该扫描限定到executor/post-audit，preflight继续由
+第4/5/8组动态验证GPU0边界。下一步在最终治理HEAD运行全新attempt 11；通过后才能请求formal
+attempt 5维护授权，M7-F未授权。

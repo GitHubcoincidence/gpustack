@@ -1192,3 +1192,5 @@ attempt 9目录为0700，含43个诊断文件、0 symlink且无manifest；结果
 `STOP/fixed_runtime_inputs`，不得作为维护授权证据。当前为`retry_preflight_pending`；下一步只在
 包含D247的最终治理HEAD运行全新preflight/injection attempt 10，formal attempt 5仍须新的明确
 维护授权，M7-F未授权。
+
+| D248 | attempt 10自指静态门停止与修正 | attempt 10在治理HEAD`1f0653a68da1cc4ccd047545844afb2a99eaa312`通过前五组后，于`script_static_audit`安全STOP；GPU1外部任务活跃时GPU0排他门和固定identity已通过。失败来自preflight扫描自身并匹配到“禁止GPU1硬门”检查语句中的字面量，不是实际GPU1门。提交`af8bbf13f84f46606ff85c06399c5dec865c1cac`把字面量扫描限定到executor/post-audit，preflight自身由第4/5/8组动态验证 | 自指扫描必然误报，不能证明策略回归。限定到被审计的运行与事后脚本保留静态防回退；preflight在GPU1活跃现场已动态证明只检查GPU0。attempt 10含44个诊断文件、0 symlink、无manifest且未创建injection目录，必须保留为STOP。下一次使用全新attempt 11。 |

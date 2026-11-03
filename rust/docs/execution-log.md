@@ -4750,6 +4750,22 @@
   injection attempt 10；即使通过也只进入`ready_for_maintenance_authorization`。formal attempt 5
   仍须新的明确维护授权，M7-F未授权。
 
+### 2026-11-03：M7-E.3 preflight attempt 10自指静态门安全停止
+
+- 结果：治理HEAD`1f0653a68da1cc4ccd047545844afb2a99eaa312`上的attempt 10通过源码/构建、
+  阶段凭据、服务资源基线、固定runtime identity和GPU0排他/GPU1只观测五组门；在GPU1外部任务
+  活跃时仍正确通过第4/5组。第6组扫描`preflight.sh`自身，匹配到静态检查语句里的
+  `m7e3_gpu_compute_count "$M7E3_GPU1_UUID"`字面量，因而以`STOP/script_static_audit`结束。
+- 外部影响：目录为0700，含44个诊断文件、0 symlink、无manifest；未创建错误HEAD injection目录，
+  未停止Python Worker、启动代理、创建Server资源、容器或使用GPU。
+- 修正：提交`af8bbf13f84f46606ff85c06399c5dec865c1cac`只把GPU1字面量静态扫描从
+  `preflight/executor/post-audit`收窄到`executor/post-audit`。preflight自身仍在第4/5组动态验证GPU0
+  空闲和固定UUID，第8组验证GPU0前后计算进程不变；本机ShellCheck、90 Bash语法与静态正向检查
+  通过。
+- 当前停止位置：`retry_preflight_pending`。下一步只在包含本记录的最终治理HEAD运行全新preflight/
+  injection attempt 11；通过后状态最多为`ready_for_maintenance_authorization`。formal attempt 5
+  仍须新的明确维护授权，M7-F未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

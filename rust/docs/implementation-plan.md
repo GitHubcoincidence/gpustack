@@ -1178,3 +1178,9 @@ preflight attempt 9在治理HEAD`f3bbc1c98f6925a232cac471f5776677a1bd3682`通过
 GPU0必须预先空闲，容器DeviceRequests和managed manifest必须精确绑定GPU0 UUID；GPU1活动仅记录，
 不再阻塞预检、cleanup或post-audit。下一步在最终治理HEAD运行全新preflight/injection attempt 10；
 通过后formal attempt 5仍须新的明确维护授权，M7-F未授权。
+
+attempt 10在GPU1外部任务活跃时通过前五组，随后因静态审计扫描preflight自身并匹配检查语句中的
+GPU1字面量，以`STOP/script_static_audit`结束。提交
+`af8bbf13f84f46606ff85c06399c5dec865c1cac`把该静态扫描限定到executor/post-audit；preflight
+自身继续由GPU0现场门和前后快照动态验证。下一步在最终治理HEAD运行全新attempt 11；formal
+attempt 5仍须独立维护授权。
