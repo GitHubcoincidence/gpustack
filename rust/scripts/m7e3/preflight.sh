@@ -378,7 +378,7 @@ for forbidden in \
     exit 1
   fi
 done
-for script in "$0" "$EXECUTOR" "$POST_AUDIT"; do
+for script in "$EXECUTOR" "$POST_AUDIT"; do
   if grep -Fq -- 'm7e3_gpu_compute_count "$M7E3_GPU1_UUID"' "$script" ||
     grep -Fq -- 'm7e3_gpu_memory_used 1' "$script"; then
     printf 'STOP: GPU1 activity must remain observe-only: %s\n' "$script" >&2
