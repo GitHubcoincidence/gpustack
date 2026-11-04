@@ -4890,6 +4890,25 @@
   自动创建新凭据、停止Python Worker、切换maintenance、创建模型或容器、使用GPU或执行真实
   M7-F窗口。
 
+### 2026-11-04：M7-F双GPU TP=2方案冻结并授权离线实现
+
+- 用户决策：接受M7-F产品和验证方案，只授权M7-F.1离线实现；没有授权阶段凭据、90 preflight、
+  停止Python Worker、maintenance变化、真实Server/Docker、容器或GPU操作。
+- 代码现状：CLI ModelCreate已经允许1～2个不同`--gpu`并生成`gpus_per_replica`和
+  `--tensor-parallel-size`，但Worker `WorkloadSpecV2::validate_request`、Managed planner和
+  reconciler仍要求恰好一张GPU/TP=1，因此真实TP=2尚不可执行。
+- 冻结契约：Managed支持1～2张严格递增GPU，TP必须等于GPU数；index逐个解析稳定UUID，首次启动
+  逐卡空闲；完整有序列表进入spec hash、manifest、DeviceRequests和vLLM命令。Lab、单Worker、
+  local Docker、vLLM、local_path、固定Runner及unknown容器fail-closed边界不变。
+- 正式方法：固定Qwen2.5-0.5B、GPU0/GPU1、TP=2和既有vLLM参数，要求两卡活动可归因于唯一
+  owned容器，并通过完整状态链、Server-only推理/日志、三轮幂等、删除零残留、watchdog和独立
+  post-audit。结果不用于性能结论，M8仍须以容器化Worker重跑。
+- 外部状态：方案讨论时Server、Python Worker和metrics为200，GPU0空闲；GPU1由PID 1397808的
+  外部DiffKV占用约73898 MiB。本项目没有操作该进程；它不阻塞离线实现，但在自然结束前会让
+  未来双GPU preflight安全STOP。
+- 当前停止位置：`M7-F.0 accepted / M7-F.1 authorized_offline`。下一步实现和验证离线双GPU
+  产品契约；M7-F.3凭据/preflight和M7-F.4真实窗口均未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

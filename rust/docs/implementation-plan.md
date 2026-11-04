@@ -1217,3 +1217,9 @@ M7-F仍未授权。
 token和其他Context保持不变。32个0600文件、0 symlink的退役证据及独立服务/残留审计通过，
 manifest文件SHA-256为`22e1d453bc4d1a0dd1b43c129ef7b4af450cd92b2f4b8b11d6bd43ff0a2e5161`。
 M7-E.3现为`accepted`；下一项只允许讨论和冻结M7-F双GPU TP=2阶段，真实窗口仍须独立授权。
+
+用户随后接受M7-F方案。产品契约固定为Managed同一Worker 1～2张严格有序GPU、TP等于GPU数量，
+并让WorkloadSpec/spec hash/manifest/Docker DeviceRequests/vLLM命令共享同一GPU顺序；Lab继续
+限制为单GPU。正式输入固定Qwen2.5-0.5B、Runner、GPU0/GPU1、TP=2、max length 2048、GPU memory
+0.5、dtype auto和eager。M7-F依次执行F.1离线实现、F.2离线质量门、F.3独立授权的凭据/只读
+preflight、F.4再次独立授权的双GPU窗口和F.5审阅/退役。当前只授权F.1，不授权真实服务或GPU操作。

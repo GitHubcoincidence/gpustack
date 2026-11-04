@@ -24,6 +24,7 @@
 - [m7e1-worker-crash-runbook.md](m7e1-worker-crash-runbook.md)：已接受的 M7-E.1 Rust Worker 精确 crash、同容器接管、watchdog、验收与回滚协议。
 - [m7e2-vllm-crash-runbook.md](m7e2-vllm-crash-runbook.md)：已接受的 M7-E.2 vLLM 精确 crash、自动重建、日志代际、watchdog、验收与回滚协议。
 - [m7e3-control-connection-recovery.md](m7e3-control-connection-recovery.md)：已冻结的 M7-E.3 Rust Worker专用 Server/Docker代理串行故障、运行时保留、恢复收敛和回滚协议。
+- [m7f-dual-gpu-tp2.md](m7f-dual-gpu-tp2.md)：已冻结的 M7-F 本机双 GPU TP=2产品契约、离线实现门、正式验证和回滚方案。
 
 ## 文档语言
 
@@ -269,6 +270,9 @@
   退役证据含32个0600文件、0 symlink，manifest文件SHA-256为
   `22e1d453bc4d1a0dd1b43c129ef7b4af450cd92b2f4b8b11d6bd43ff0a2e5161`。M7-E.3现为
   `accepted`；下一项只允许讨论和冻结M7-F，尚未授权其真实执行。
+- 用户已接受M7-F方案并只授权M7-F.1离线实现。Managed产品范围扩展为本机1～2张有序GPU，
+  TP必须等于GPU数量；Lab仍为单GPU。正式输入固定Qwen2.5-0.5B、Runner、`[0,1]`和TP=2，
+  但阶段凭据、90只读preflight、服务停止、maintenance、真实Docker/Server和双GPU窗口均未授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

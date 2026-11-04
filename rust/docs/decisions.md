@@ -1238,3 +1238,14 @@ attempt 12的preflight/injection目录分别含73/11个0600文件、0 symlink，
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D253 | M7-E.3验收与阶段凭据退役 | 用户接受formal attempt 6详细报告。精确删除API Key ID 25返回200，删除前保留在内存中的原token访问`/v2/workers/5`返回401；只删除`m7e3-operator` Context和`m7e3-operator-token`文件。Cluster registration token、persisted Worker token和其余Context前后不变。退役证据目录含32个0600文件、0 symlink，manifest文件SHA-256为`22e1d453bc4d1a0dd1b43c129ef7b4af450cd92b2f4b8b11d6bd43ff0a2e5161`，清单、秘密扫描及独立服务/残留复核通过 | D252业务门、用户审阅门和阶段凭据生命周期门已经全部闭合，因此M7-E.3更新为`accepted`。该接受只覆盖Rust Worker专用Server/Docker连接故障恢复，不授权M7-F双GPU TP=2真实窗口；下一步只能讨论和冻结M7-F，任何凭据、服务停止、maintenance变化、Server资源、容器或GPU操作仍须独立授权。 |
+
+## 2026-11-04 M7-F 双GPU TP=2方案冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D254 | Managed双GPU产品契约 | Managed workload支持同一Worker上1～2张GPU；CLI把index规范化为升序，Server assignment必须严格递增且不重复。所有index解析为稳定UUID，首次创建要求全部选中GPU空闲；TP等于GPU数量，显式参数必须一致。WorkloadSpec、spec hash、manifest、Docker DeviceRequests和vLLM命令保存同一有序列表。Lab继续只允许单GPU/TP=1 | 当前CLI wire已可表达两张GPU，但Worker planner、reconciler和WorkloadSpec仍硬编码单GPU。把变化限制在Managed契约并让完整spec承担identity，可实现D200而不放宽Lab、跨Worker或unknown容器边界。顺序规范化避免同一GPU集合产生不同spec hash。 |
+| D255 | M7-F固定输入与正式验收 | 固定Qwen2.5-0.5B revision/local path、Runner digest、GPU0后接GPU1、TP=2、max length 2048、GPU memory utilization 0.5、dtype auto和eager。正式门要求Server assignment、spec、DeviceRequests、两卡可归因计算/显存、完整状态链、Server-only推理/日志、三轮幂等、删除零残留和Python Worker恢复全部通过；本阶段不作性能结论 | 复用已验证模型、镜像和控制面链路，把差异集中到双GPU planner与vLLM TP路径。两卡活动必须映射到唯一owned容器，不能用宿主机无关进程替代。 |
+| D256 | M7-F分段授权 | M7-F.0只冻结文档；M7-F.1/2只允许离线实现和质量门；M7-F.3凭据与只读preflight、M7-F.4真实双GPU窗口分别需要新的明确授权。formal通过后仍需用户审阅和凭据退役才能标记accepted，且不自动进入M8 | GPU1当前有外部DiffKV任务，真实TP=2必须等两卡同时空闲。把离线代码、只读准备和双GPU维护窗口分开，既允许立即推进实现，也避免本次方案确认被解释为可停止外部任务或占用GPU。 |
+
+M7-F.0现为`accepted`，M7-F.1离线实现已获授权。下一步只允许修改Rust产品代码、fixture/tests和
+治理记录并运行不接触真实Server/Docker/GPU的质量门；M7-F.3和M7-F.4均未授权。
