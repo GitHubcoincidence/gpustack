@@ -1216,3 +1216,19 @@ SHA-256分别为`ceda8d49ce881e61edc1681776bb311de458ced092b0ce7de80f94a25e458c8
 
 D251记录后治理HEAD会推进，因此attempt 12必须使用包含该纠偏的最终HEAD；此前未创建attempt 12
 目录或执行任何预检步骤。formal attempt 6仍须attempt 12通过后的新维护授权。
+
+## 2026-11-04 M7-E.3 formal attempt 6通过与审阅边界
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D252 | attempt 12与formal attempt 6判定 | 治理HEAD`cd24ac93e218c09de9bb2fe70d2cfff4e21647fa`上的preflight/injection attempt 12通过后，用户明确授权formal attempt 6。唯一GPU0 workload达到健康`RUNNING`；Server代理中断70秒并恢复，独立屏障通过后Docker代理中断20秒并恢复。全程同一实例46、容器`a9eab8be38788148a8f8e7dec4cfc1b2049249262da4a993a10cd97fda01b332`、端口40000、spec和ownership保持，restart count为0、last restart为空、ModelInstance watch只见`RUNNING`、Docker生命周期事件为零，直连与Server-only推理持续成功，三轮后置协调幂等。formal、watchdog和post-audit分别为PASS/cleanup_ok=1、PASS/recovery_ok=1和PASS/recovery_baseline=restored | attempt 6逐项满足冻结的Server/Docker连接故障时长、数据面连续、同容器恢复、GPU0归属、无重启/无生命周期变化、幂等和完整回滚门。GPU1外部DiffKV在前后保持同一PID、进程名和显存，只作为观察证据。该结果支持M7-E.3可证伪主张，但按照凭据生命周期协议仍先进入`ready_for_review`；只有用户接受报告并完成阶段凭据退役后才标记`accepted`，且不自动授权M7-F。 |
+
+attempt 12的preflight/injection目录分别含73/11个0600文件、0 symlink，manifest文件SHA-256为
+`06dd06441c1a737c7b999283d3e722f4fc4d4cf90093480d21ace0b8420f071e`和
+`5e055ef42949cdc408dbb5b2577721c65d69693c0c6de1799a0b64cec240388e`。formal/watchdog/post-audit
+目录分别含280/8/27个0600文件、0 symlink，manifest文件SHA-256为
+`5107479bbee63b56a7e2f205ad1381bbb0723475c2146b76e2f1f0806330f4f3`、
+`8fdeddf319ad5f679a7301c840accd20641cc0915fdac8139ca848b398795462`和
+`3bc303086e1557188d25542914eecf1409d6b09905671f18f3461e060e32a208`；三套清单、权限和秘密扫描
+均通过。当前停止位置为`ready_for_review`，API Key ID 25、Context和operator token在用户接受前
+保持不变。

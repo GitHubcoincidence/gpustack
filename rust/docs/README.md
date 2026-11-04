@@ -258,6 +258,12 @@
   `e842c01ffbe011cda45c6b0e4447e5bea95288ac`持久化成功start授权并新增回归，workspace 216项测试、
   格式和Clippy通过。当前为`retry_preflight_pending`；下一步只运行全新attempt 12，formal attempt 6
   仍须新的明确授权，M7-F未授权。
+- 治理HEAD`cd24ac93e218c09de9bb2fe70d2cfff4e21647fa`上的preflight/injection attempt 12通过后，
+  用户授权formal attempt 6。GPU0唯一Qwen2.5-0.5B workload在同一实例、容器和端口上完整通过
+  70秒Server代理故障、恢复屏障、20秒Docker代理故障、恢复屏障及三轮幂等；直连和Server-only
+  推理连续，restart count为0，Docker生命周期事件为零。formal、watchdog和独立post-audit均为
+  PASS，同一Python Worker及三个端点恢复，本实验资源和GPU0归零，GPU1外部任务未受影响。当前为
+  `ready_for_review`；用户接受后才退役阶段凭据并把M7-E.3标记为`accepted`，M7-F未授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

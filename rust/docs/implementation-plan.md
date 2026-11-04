@@ -1198,3 +1198,16 @@ Python Worker停止、双代理和Rust Worker启动，但唯一GPU0容器成功s
 测试、workspace 216项测试、格式和Clippy通过；M7-E.3 `PRODUCT_COMMIT`及preflight定向测试已推进。
 下一步在包含本记录的新治理HEAD运行全新preflight/injection attempt 12；通过后formal attempt 6
 仍须新的明确维护授权，M7-F未授权。
+
+治理HEAD`cd24ac93e218c09de9bb2fe70d2cfff4e21647fa`上的preflight/injection attempt 12
+通过后，用户明确授权formal attempt 6。唯一GPU0 workload达到健康`RUNNING`；Server代理70秒
+故障及恢复屏障、Docker代理20秒故障及恢复屏障、完整连接证据和三轮幂等全部通过。全程保持同一
+实例46、容器`a9eab8be38788148a8f8e7dec4cfc1b2049249262da4a993a10cd97fda01b332`、端口
+40000、spec、ownership和restart count 0，ModelInstance watch只见`RUNNING`，Docker生命周期
+事件为零，直连与Server-only推理连续。GPU0为唯一容器请求设备，GPU1外部任务只观测且前后不变。
+
+formal、watchdog和独立post-audit分别为PASS/cleanup_ok=1、PASS/recovery_ok=1和
+PASS/recovery_baseline=restored；同一Python Worker和三个健康端点恢复，本实验Server资源、Rust
+容器/进程、代理、socket、端口和GPU0计算进程归零。当前为`ready_for_review`：只有用户接受报告
+后才能退役API Key ID 25、`m7e3-operator` Context和operator token并把M7-E.3标记为`accepted`。
+M7-F仍未授权。

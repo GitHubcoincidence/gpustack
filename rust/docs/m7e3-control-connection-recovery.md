@@ -315,3 +315,30 @@ formal/watchdog/post-audit manifest文件SHA-256分别为
 manifest仍为`created`并继续使用既有安全重试。新竞态回归、全部workspace测试、格式和Clippy通过，
 preflight固定加入该回归，`PRODUCT_COMMIT`推进到该提交。当前为`retry_preflight_pending`；下一步
 只在新治理HEAD运行preflight/injection attempt 12，formal attempt 6仍须独立维护授权，M7-F未授权。
+
+治理HEAD`cd24ac93e218c09de9bb2fe70d2cfff4e21647fa`上的preflight/injection attempt 12
+随后通过。preflight含73个0600文件，manifest文件SHA-256为
+`06dd06441c1a737c7b999283d3e722f4fc4d4cf90093480d21ace0b8420f071e`；错误HEAD注入含11个
+0600文件，按预期为`STOP/source_head_mismatch/window_entered=0/cleanup_ok=1`，manifest文件
+SHA-256为`5e055ef42949cdc408dbb5b2577721c65d69693c0c6de1799a0b64cec240388e`。两目录均为
+0700、无symlink，清单、秘密扫描、GPU0空闲和GPU1只观测边界通过。用户随后明确授权formal
+attempt 6。
+
+formal attempt 6完整通过两个串行故障子阶段。唯一Model 31、Instance 46、ModelFile 25和GPU0
+容器`a9eab8be38788148a8f8e7dec4cfc1b2049249262da4a993a10cd97fda01b332`在端口40000达到
+健康`RUNNING`。Server代理中断70秒、恢复屏障、Docker代理中断20秒和恢复屏障全部通过；全程
+ModelInstance只观测到`RUNNING`，restart count保持0，容器ID、端口、spec、ownership和generation
+0不变，直连及Server-only推理连续，Docker生命周期事件为零，三轮后置协调幂等。容器
+DeviceRequests和managed manifest只绑定GPU0；GPU1外部DiffKV进程在前后保持同一PID和显存，未被
+本实验操作。
+
+formal、watchdog和独立post-audit分别为`PASS/cleanup_ok=1`、`PASS/recovery_ok=1`和
+`PASS/recovery_baseline=restored`；三目录分别含280/8/27个0600文件、0 symlink，manifest文件
+SHA-256分别为`5107479bbee63b56a7e2f205ad1381bbb0723475c2146b76e2f1f0806330f4f3`、
+`8fdeddf319ad5f679a7301c840accd20641cc0915fdac8139ca848b398795462`和
+`3bc303086e1557188d25542914eecf1409d6b09905671f18f3461e060e32a208`。同一Python Worker和三个
+健康端点已恢复，测试资源、Rust进程/容器、代理、socket、监听和GPU0计算进程全部清空。
+
+当前状态为`ready_for_review`，不是`accepted`。下一步只允许用户审阅并接受或拒绝attempt 6报告；
+接受后才能删除API Key ID 25、`m7e3-operator` Context和operator token文件，验证旧token为401，
+再把M7-E.3标记为`accepted`。M7-F仍未授权。

@@ -4822,6 +4822,49 @@
   attempt 12目录仍未创建；下一步在包含本纠偏的新治理HEAD运行attempt 12，formal attempt 6
   仍须预检通过后的独立维护授权。
 
+### 2026-11-04：M7-E.3 preflight attempt 12与formal attempt 6完整通过
+
+- 最终准备门：治理HEAD`cd24ac93e218c09de9bb2fe70d2cfff4e21647fa`上的preflight attempt 12
+  八组门全部通过；73个0600文件、0 symlink，manifest文件SHA-256为
+  `06dd06441c1a737c7b999283d3e722f4fc4d4cf90093480d21ace0b8420f071e`。错误HEAD注入含11个
+  0600文件、0 symlink，以`STOP/source_head_mismatch/window_entered=0/cleanup_ok=1`封存，
+  manifest文件SHA-256为`5e055ef42949cdc408dbb5b2577721c65d69693c0c6de1799a0b64cec240388e`。
+  两份清单、秘密扫描、阶段双scope凭据、固定输入、十项恢复测试和外部不变式通过。
+- 授权与窗口前门：用户明确授权formal attempt 6。最终门确认源码/origin为同一治理HEAD、工作树
+  干净、三份证据路径未使用、同一Python Worker和三个端点健康、Rust进程/容器/代理/监听为零、
+  GPU0为0 MiB且无计算进程。GPU1由PID 1397808的`diffkv-paper fp16 mmlu [1/5]`占用73898 MiB，
+  按D247只观察、不阻塞也不操作。
+- 健康基线：精确停止Python Worker后，双代理和Rust Worker通过身份门。Model 31、Instance 46、
+  ModelFile 25和容器`a9eab8be38788148a8f8e7dec4cfc1b2049249262da4a993a10cd97fda01b332`
+  在GPU0、端口40000达到健康`RUNNING`。容器DeviceRequests只含GPU0 UUID，managed manifest同样
+  只记录`host_index=0`和GPU0 UUID；served name为`m7e3-qwen25-05b-gpu0`，spec hash为
+  `e898211fe911030fed6c53b42f2771635e6d275566301b98b4e7662ccafbef10`。
+- Server连接故障：10:08:47停止唯一Server代理，故障持续70秒。即时、约40秒和约70秒的直连及
+  Server-only models/chat/completion持续成功；实例保持`RUNNING`、restart count 0、last restart
+  为空，同一容器、端口、manifest、spec、ownership和generation 0日志不变。10:10:20恢复门通过，
+  10:10:25独立故障屏障通过。
+- Docker连接故障：10:10:25停止唯一Docker代理，故障持续20秒；真实Docker和Server保持健康，
+  本地runtime失败/ready降级得到记录，但直连和Server-only推理持续成功。10:10:48恢复门确认同一
+  容器重新可见；完整runtime contract仍为实例46、`RUNNING`、restart count 0、端口40000。
+- 后置与归属：ModelInstance watch只观测到`RUNNING`，连接故障区间Docker生命周期事件文件为0
+  字节；三轮幂等协调均保持同一容器和runtime contract。GPU1进程在正式前后保持同一PID、进程名
+  和73898 MiB显存，未被调度、停止或清理。
+- 正式结论：formal结果为`PASS/server_and_docker_connection_outages_preserved_runtime_and_reconverged`，
+  `server_outage_passed=1`、`docker_outage_passed=1`、`recovery_passed=1`、`cleanup_ok=1`。
+  watchdog为`PASS/executor_exit=0/recovery_ok=1`；独立post-audit为
+  `PASS/recovery_baseline=restored`。
+- 证据与恢复：formal/watchdog/post-audit目录分别含280/8/27个0600文件、0 symlink，目录为0700，
+  manifest文件SHA-256分别为
+  `5107479bbee63b56a7e2f205ad1381bbb0723475c2146b76e2f1f0806330f4f3`、
+  `8fdeddf319ad5f679a7301c840accd20641cc0915fdac8139ca848b398795462`和
+  `3bc303086e1557188d25542914eecf1409d6b09905671f18f3461e060e32a208`。清单复算和秘密扫描通过；
+  同一Python Worker ID恢复运行，Server/Worker/metrics均为200，测试Model/Instance/File、Rust
+  容器/进程、代理/socket/监听和GPU0计算进程全部清空。
+- 当前停止位置：`ready_for_review`。该正式结果已满足技术验收门，但尚未由用户接受，阶段凭据也
+  尚未退役。下一步只允许用户审阅并接受或拒绝报告；接受后删除API Key ID 25、
+  `m7e3-operator` Context和operator token文件，验证旧token为401，再把M7-E.3标记为`accepted`。
+  M7-F仍未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
