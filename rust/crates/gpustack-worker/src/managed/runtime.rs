@@ -159,10 +159,8 @@ impl ManagedWorkloadPlanner {
             .as_deref()
             .ok_or_else(|| contract("Managed Model requires a Runner image"))?;
         require_immutable_digest(image)?;
-        let vllm = parse_vllm_parameters(
-            model.backend_parameters.as_deref(),
-            tensor_parallel_size,
-        )?;
+        let vllm =
+            parse_vllm_parameters(model.backend_parameters.as_deref(), tensor_parallel_size)?;
 
         WorkloadSpecV2::build(WorkloadBuildRequest {
             mode: WorkloadMode::Managed,
@@ -343,8 +341,7 @@ pub(super) fn managed_gpu_indexes_in_scope(indexes: Option<&[u32]>) -> bool {
     let Some(indexes) = indexes else {
         return false;
     };
-    (1..=2).contains(&indexes.len())
-        && indexes.windows(2).all(|pair| pair[0] < pair[1])
+    (1..=2).contains(&indexes.len()) && indexes.windows(2).all(|pair| pair[0] < pair[1])
 }
 
 fn parse_positive_u32(flag: &str, value: Option<&str>) -> Result<u32, ManagedRuntimePlanError> {
@@ -494,7 +491,8 @@ mod tests {
 
         fn use_dual_gpu(&mut self) {
             self.instance.gpu_indexes = Some(vec![0, 1]);
-            self.instance.gpu_addresses = Some(vec!["worker:0".to_string(), "worker:1".to_string()]);
+            self.instance.gpu_addresses =
+                Some(vec!["worker:0".to_string(), "worker:1".to_string()]);
             self.model.backend_parameters = Some(vec![
                 "--tensor-parallel-size=2".to_string(),
                 "--max-model-len=2048".to_string(),

@@ -2060,8 +2060,7 @@ mod tests {
                 let model = api.model.clone();
                 let instance = api.instance.as_mut().expect("instance");
                 instance.gpu_indexes = Some(vec![0, 1]);
-                instance.gpu_addresses =
-                    Some(vec!["worker:0".to_string(), "worker:1".to_string()]);
+                instance.gpu_addresses = Some(vec!["worker:0".to_string(), "worker:1".to_string()]);
                 (model, instance.clone())
             };
             self.desired.models.insert(model.id, model);

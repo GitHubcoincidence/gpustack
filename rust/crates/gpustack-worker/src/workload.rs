@@ -969,11 +969,18 @@ mod tests {
         request.tensor_parallel_size = 2;
         let spec = WorkloadSpecV2::build(request).expect("dual-GPU Managed workload");
 
-        assert_eq!(spec.gpus.iter().map(|gpu| gpu.host_index).collect::<Vec<_>>(), [0, 1]);
-        assert!(spec
-            .vllm_command()
-            .windows(2)
-            .any(|pair| pair == ["--tensor-parallel-size", "2"]));
+        assert_eq!(
+            spec.gpus
+                .iter()
+                .map(|gpu| gpu.host_index)
+                .collect::<Vec<_>>(),
+            [0, 1]
+        );
+        assert!(
+            spec.vllm_command()
+                .windows(2)
+                .any(|pair| pair == ["--tensor-parallel-size", "2"])
+        );
         assert_eq!(
             spec.container_spec()
                 .gpu_request
