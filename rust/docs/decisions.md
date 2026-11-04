@@ -1232,3 +1232,9 @@ attempt 12的preflight/injection目录分别含73/11个0600文件、0 symlink，
 `3bc303086e1557188d25542914eecf1409d6b09905671f18f3461e060e32a208`；三套清单、权限和秘密扫描
 均通过。当前停止位置为`ready_for_review`，API Key ID 25、Context和operator token在用户接受前
 保持不变。
+
+## 2026-11-04 M7-E.3验收与阶段凭据退役
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D253 | M7-E.3验收与阶段凭据退役 | 用户接受formal attempt 6详细报告。精确删除API Key ID 25返回200，删除前保留在内存中的原token访问`/v2/workers/5`返回401；只删除`m7e3-operator` Context和`m7e3-operator-token`文件。Cluster registration token、persisted Worker token和其余Context前后不变。退役证据目录含32个0600文件、0 symlink，manifest文件SHA-256为`22e1d453bc4d1a0dd1b43c129ef7b4af450cd92b2f4b8b11d6bd43ff0a2e5161`，清单、秘密扫描及独立服务/残留复核通过 | D252业务门、用户审阅门和阶段凭据生命周期门已经全部闭合，因此M7-E.3更新为`accepted`。该接受只覆盖Rust Worker专用Server/Docker连接故障恢复，不授权M7-F双GPU TP=2真实窗口；下一步只能讨论和冻结M7-F，任何凭据、服务停止、maintenance变化、Server资源、容器或GPU操作仍须独立授权。 |

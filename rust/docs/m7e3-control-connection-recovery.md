@@ -342,3 +342,16 @@ SHA-256分别为`5107479bbee63b56a7e2f205ad1381bbb0723475c2146b76e2f1f0806330f4f
 当前状态为`ready_for_review`，不是`accepted`。下一步只允许用户审阅并接受或拒绝attempt 6报告；
 接受后才能删除API Key ID 25、`m7e3-operator` Context和operator token文件，验证旧token为401，
 再把M7-E.3标记为`accepted`。M7-F仍未授权。
+
+用户随后接受attempt 6报告并授权退役阶段凭据。API Key ID 25的DELETE返回200，删除前保留在
+内存中的原token随后访问`/v2/workers/5`返回401；只删除`m7e3-operator` Context和
+`/home/wujiaxing2/.config/gpustack-rust/m7e3-operator-token`。Cluster registration token、
+persisted Worker token和`rust-worker-demo` Context的身份及内容保持不变。
+
+退役证据目录`m7e3-credential-retirement-attempt-1`含32个0600文件、0 symlink，目录为0700，
+manifest复算和秘密扫描通过，manifest文件SHA-256为
+`22e1d453bc4d1a0dd1b43c129ef7b4af450cd92b2f4b8b11d6bd43ff0a2e5161`。独立复核确认同一Python
+Worker和三个健康端点保持200，Rust进程/容器/监听为零，GPU0为空；GPU1外部任务未被操作。
+
+M7-E.3现为`accepted`。下一步只允许讨论和冻结M7-F双GPU TP=2阶段，不能自动创建新凭据、停止
+Python Worker、切换maintenance、创建workload、使用GPU0/GPU1或执行M7-F真实窗口。

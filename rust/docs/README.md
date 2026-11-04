@@ -264,6 +264,11 @@
   推理连续，restart count为0，Docker生命周期事件为零。formal、watchdog和独立post-audit均为
   PASS，同一Python Worker及三个端点恢复，本实验资源和GPU0归零，GPU1外部任务未受影响。当前为
   `ready_for_review`；用户接受后才退役阶段凭据并把M7-E.3标记为`accepted`，M7-F未授权。
+- 用户随后接受attempt 6报告。API Key ID 25删除返回200，原token返回401；`m7e3-operator`
+  Context和operator token文件已删除，Cluster/persisted Worker token和其他Context保持不变。
+  退役证据含32个0600文件、0 symlink，manifest文件SHA-256为
+  `22e1d453bc4d1a0dd1b43c129ef7b4af450cd92b2f4b8b11d6bd43ff0a2e5161`。M7-E.3现为
+  `accepted`；下一项只允许讨论和冻结M7-F，尚未授权其真实执行。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

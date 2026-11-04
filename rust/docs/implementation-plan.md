@@ -1211,3 +1211,9 @@ PASS/recovery_baseline=restored；同一Python Worker和三个健康端点恢复
 容器/进程、代理、socket、端口和GPU0计算进程归零。当前为`ready_for_review`：只有用户接受报告
 后才能退役API Key ID 25、`m7e3-operator` Context和operator token并把M7-E.3标记为`accepted`。
 M7-F仍未授权。
+
+用户随后接受attempt 6报告。API Key ID 25删除返回200，原token随后返回401；
+`m7e3-operator` Context和operator token文件已删除，Cluster registration token、persisted Worker
+token和其他Context保持不变。32个0600文件、0 symlink的退役证据及独立服务/残留审计通过，
+manifest文件SHA-256为`22e1d453bc4d1a0dd1b43c129ef7b4af450cd92b2f4b8b11d6bd43ff0a2e5161`。
+M7-E.3现为`accepted`；下一项只允许讨论和冻结M7-F双GPU TP=2阶段，真实窗口仍须独立授权。
