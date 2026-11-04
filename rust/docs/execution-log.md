@@ -4812,6 +4812,16 @@
   治理记录后，只能在新的最终治理HEAD使用全新preflight/injection attempt 12；formal attempt 5
   授权已消费，attempt 6仍须新的明确维护授权，M7-F未授权。
 
+### 2026-11-04：M7-E.3协议正文GPU边界纠偏
+
+- 恢复审计发现协议5.1、5.5和cleanup步骤仍保留早于D247的“双GPU空闲/无GPU1活动”文本，而
+  D247、正式脚本和已执行现场均已固定为GPU0排他、GPU1只观测。
+- 只修正文档：窗口前只要求GPU0空闲；容器DeviceRequests和managed manifest必须始终只绑定
+  GPU0；GPU1活动完整记录但不参与调度、容器、清理、Python Worker恢复或formal成败。
+- 本纠偏不改变代码、产品提交、故障时长、推理连续性、同容器identity、GPU0安全门或证据判定。
+  attempt 12目录仍未创建；下一步在包含本纠偏的新治理HEAD运行attempt 12，formal attempt 6
+  仍须预检通过后的独立维护授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

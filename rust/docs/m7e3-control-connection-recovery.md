@@ -39,7 +39,7 @@ TP=2或容器化Worker；这些不在M7-E.3范围内。
 | 模型 | `Qwen2.5-0.5B-Instruct`，999,604,126字节，固定全文件manifest |
 | Runner | 固定`quay.io/gpustack/runner` digest |
 | workload | GPU0、TP=1、固定Managed端口池和spec |
-| 禁止GPU | GPU1 |
+| GPU资源边界 | GPU0排他；GPU1只观测，不进入调度、容器请求或清理 |
 | Worker API/metrics | 20150/20151 |
 | Server代理故障时间 | 至少70秒 |
 | Docker代理故障时间 | 至少20秒 |
@@ -86,7 +86,7 @@ Server代理停止后，真实`127.0.0.1:80`必须继续返回200；Docker代理
 - Server、Python Worker和metrics为200；
 -目标model/instance/Rust容器/Managed端口/Rust进程为零；
 - 18080未监听，Docker代理socket不存在；
-- GPU0/GPU1均无显存和compute进程；
+- GPU0无显存和compute进程；GPU1活动完整记录但不作为成败门；
 -固定模型、Runner、Worker/Python Worker/GPU identity不漂移；
 -阶段API Key、Context和三种token权限、模式、owner、link count及秘密扫描通过；
 -错误HEAD注入在`window_entered=0`安全停止，前后现场完全不变。
@@ -143,7 +143,8 @@ Server-only日志重新可读。
 -整个连接故障区间Docker生命周期事件文件必须为空；
 -同一容器ID、StartedAt、端口、spec、ownership、restart count 0和generation 0保持不变；
 -连续三轮协调及最后一次直连/Server-only推理和日志通过；
--无第二个容器、无第二代日志、无GPU1活动。
+-无第二个容器、无第二代日志，且容器DeviceRequests和managed manifest始终只绑定GPU0；GPU1
+  宿主机活动仅记录，不归因于本实验。
 
 ## 6. watchdog、cleanup与失败语义
 
@@ -156,7 +157,7 @@ Server-only日志重新可读。
 5. 仅对完整ownership/spec匹配的遗留容器执行fallback cleanup；
 6. 停止两个专用代理，删除精确Docker代理socket和空目录；
 7. 删除本阶段新增且`cleanup_on_delete != true`的ModelFile元数据；
-8. 确认容器、端口和双GPU为空后恢复同一Python Worker。
+8. 确认容器、端口和GPU0上的本实验进程为空后恢复同一Python Worker；GPU1活动不阻塞恢复。
 
 正常cleanup执行同样的安全顺序。未知进程、未知容器、多于允许数量的owned容器、身份不匹配或
 无法归因的代理均fail closed，不得按名称或宽标签清理。

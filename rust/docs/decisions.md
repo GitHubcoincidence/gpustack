@@ -1211,3 +1211,8 @@ SHA-256分别为`ceda8d49ce881e61edc1681776bb311de458ced092b0ce7de80f94a25e458c8
 格式检查和Worker all-targets/all-features Clippy通过。当前为`retry_preflight_pending`；下一步只在
 包含D249/D250的新治理HEAD运行preflight/injection attempt 12，formal attempt 6仍须新的明确
 维护授权，M7-F未授权。
+
+| D251 | M7-E.3协议正文GPU边界纠偏 | 协议正文中遗留的“双GPU均空闲”“无GPU1活动”和“恢复前双GPU为空”表述统一修正为D247已接受的GPU0排他、GPU1只观测：GPU0必须在窗口前空闲，唯一容器DeviceRequests和managed manifest必须只绑定GPU0；GPU1宿主机活动只记录，不参与调度、容器、清理或Python Worker恢复门 | D247、formal工具和attempt 11现场已经采用该边界，旧正文会让后续操作者误以为外部GPU1任务能阻塞或归属于实验。本修正消除文档矛盾，不改变产品、故障变量、GPU0安全门、归属证据或formal验收结论。 |
+
+D251记录后治理HEAD会推进，因此attempt 12必须使用包含该纠偏的最终HEAD；此前未创建attempt 12
+目录或执行任何预检步骤。formal attempt 6仍须attempt 12通过后的新维护授权。
