@@ -1800,15 +1800,27 @@ mod tests {
     #[derive(Clone, Default)]
     struct FakeGpuProbe {
         running_compute_processes: Arc<AtomicUsize>,
+        second_running_compute_processes: Arc<AtomicUsize>,
     }
 
     impl ManagedGpuProbe for FakeGpuProbe {
         fn snapshot(&self) -> Result<Vec<ManagedGpu>, ManagedRuntimeError> {
-            Ok(vec![ManagedGpu {
-                host_index: 0,
-                uuid: "GPU-test".to_string(),
-                running_compute_processes: self.running_compute_processes.load(Ordering::SeqCst),
-            }])
+            Ok(vec![
+                ManagedGpu {
+                    host_index: 0,
+                    uuid: "GPU-test".to_string(),
+                    running_compute_processes: self
+                        .running_compute_processes
+                        .load(Ordering::SeqCst),
+                },
+                ManagedGpu {
+                    host_index: 1,
+                    uuid: "GPU-test-second".to_string(),
+                    running_compute_processes: self
+                        .second_running_compute_processes
+                        .load(Ordering::SeqCst),
+                },
+            ])
         }
     }
 
@@ -2037,6 +2049,24 @@ mod tests {
                 .running_compute_processes
                 .store(count, Ordering::SeqCst);
         }
+
+        fn use_dual_gpu(&mut self) {
+            let (model, instance) = {
+                let mut api = self.api.state.lock().expect("API lock");
+                api.model.backend_parameters = Some(vec![
+                    "--tensor-parallel-size=2".to_string(),
+                    "--enforce-eager".to_string(),
+                ]);
+                let model = api.model.clone();
+                let instance = api.instance.as_mut().expect("instance");
+                instance.gpu_indexes = Some(vec![0, 1]);
+                instance.gpu_addresses =
+                    Some(vec!["worker:0".to_string(), "worker:1".to_string()]);
+                (model, instance.clone())
+            };
+            self.desired.models.insert(model.id, model);
+            self.desired.model_instances.insert(instance.id, instance);
+        }
     }
 
     #[tokio::test]
@@ -2082,6 +2112,30 @@ mod tests {
             fs::read_to_string(log)
                 .expect("read log")
                 .contains("stdout ready")
+        );
+    }
+
+    #[tokio::test]
+    async fn dual_gpu_assignment_reaches_the_container_create_spec() {
+        let mut fixture = Fixture::new(false);
+        fixture.use_dual_gpu();
+
+        let outcome = fixture.create().await;
+
+        assert!(matches!(
+            outcome,
+            ManagedRuntimeOutcome::Starting { created: true, .. }
+        ));
+        let runtime = fixture.runtime.state.lock().expect("runtime lock");
+        let spec = runtime.created_specs.first().expect("created spec");
+        assert_eq!(
+            spec.gpu_request.as_ref().expect("GPU request").device_ids,
+            ["GPU-test", "GPU-test-second"]
+        );
+        assert!(
+            spec.command
+                .windows(2)
+                .any(|pair| pair == ["--tensor-parallel-size", "2"])
         );
     }
 

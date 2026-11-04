@@ -115,24 +115,33 @@ impl ManagedWorkloadPlanner {
             ));
         }
 
-        let gpu_index = instance
+        let gpu_indexes = instance
             .gpu_indexes
             .as_deref()
-            .and_then(|indexes| indexes.first().copied())
-            .ok_or_else(|| contract("Managed R1 requires exactly one GPU index"))?;
-        let gpu = self
-            .gpus
-            .iter()
-            .find(|gpu| gpu.host_index == gpu_index)
-            .ok_or_else(|| contract(format!("GPU index {gpu_index} is absent from inventory")))?;
-        if require_idle_gpu && gpu.running_compute_processes != 0 {
-            return Err(contract(format!(
-                "GPU index {gpu_index} has active compute processes"
-            )));
+            .ok_or_else(|| contract("Managed workloads require one or two GPU indexes"))?;
+        let mut workload_gpus = Vec::with_capacity(gpu_indexes.len());
+        for &gpu_index in gpu_indexes {
+            let gpu = self
+                .gpus
+                .iter()
+                .find(|gpu| gpu.host_index == gpu_index)
+                .ok_or_else(|| {
+                    contract(format!("GPU index {gpu_index} is absent from inventory"))
+                })?;
+            if require_idle_gpu && gpu.running_compute_processes != 0 {
+                return Err(contract(format!(
+                    "GPU index {gpu_index} has active compute processes"
+                )));
+            }
+            if !gpu.uuid.starts_with("GPU-") {
+                return Err(contract("Managed GPU must have a stable NVIDIA UUID"));
+            }
+            workload_gpus.push(WorkloadGpu {
+                uuid: gpu.uuid.clone(),
+                host_index: gpu.host_index,
+            });
         }
-        if !gpu.uuid.starts_with("GPU-") {
-            return Err(contract("Managed GPU must have a stable NVIDIA UUID"));
-        }
+        let tensor_parallel_size = workload_gpus.len() as u32;
 
         let port = instance
             .port
@@ -150,7 +159,10 @@ impl ManagedWorkloadPlanner {
             .as_deref()
             .ok_or_else(|| contract("Managed Model requires a Runner image"))?;
         require_immutable_digest(image)?;
-        let vllm = parse_vllm_parameters(model.backend_parameters.as_deref())?;
+        let vllm = parse_vllm_parameters(
+            model.backend_parameters.as_deref(),
+            tensor_parallel_size,
+        )?;
 
         WorkloadSpecV2::build(WorkloadBuildRequest {
             mode: WorkloadMode::Managed,
@@ -162,13 +174,10 @@ impl ManagedWorkloadPlanner {
             served_model_name: model.name.clone(),
             requested_image: image.to_string(),
             resolved_image_digest: image.to_string(),
-            gpus: vec![WorkloadGpu {
-                uuid: gpu.uuid.clone(),
-                host_index: gpu.host_index,
-            }],
+            gpus: workload_gpus,
             service_host: self.worker_ip.to_string(),
             service_port: port,
-            tensor_parallel_size: 1,
+            tensor_parallel_size,
             container_user: self.container_user.clone(),
             vllm,
             environment: BTreeMap::new(),
@@ -236,12 +245,10 @@ impl ManagedWorkloadPlanner {
                 "ModelInstance Worker IP does not match this Worker",
             ));
         }
-        if instance
-            .gpu_indexes
-            .as_ref()
-            .is_none_or(|indexes| indexes.len() != 1)
-        {
-            return Err(contract("Managed R1 requires exactly one GPU index"));
+        if !managed_gpu_indexes_in_scope(instance.gpu_indexes.as_deref()) {
+            return Err(contract(
+                "Managed workloads require one or two strictly increasing GPU indexes",
+            ));
         }
         if model
             .env
@@ -267,6 +274,7 @@ impl ManagedWorkloadPlanner {
 
 fn parse_vllm_parameters(
     parameters: Option<&[String]>,
+    tensor_parallel_size: u32,
 ) -> Result<VllmOptions, ManagedRuntimePlanError> {
     let mut options = VllmOptions::default();
     let mut seen = BTreeSet::new();
@@ -288,8 +296,10 @@ fn parse_vllm_parameters(
         }
         match flag {
             "--tensor-parallel-size" => {
-                if value != Some("1") {
-                    return Err(contract("Managed R1 requires tensor parallel size 1"));
+                if parse_positive_u32(flag, value)? != tensor_parallel_size {
+                    return Err(contract(
+                        "tensor parallel size must equal the assigned GPU count",
+                    ));
                 }
             }
             "--max-model-len" => {
@@ -327,6 +337,14 @@ fn parse_vllm_parameters(
         }
     }
     Ok(options)
+}
+
+pub(super) fn managed_gpu_indexes_in_scope(indexes: Option<&[u32]>) -> bool {
+    let Some(indexes) = indexes else {
+        return false;
+    };
+    (1..=2).contains(&indexes.len())
+        && indexes.windows(2).all(|pair| pair[0] < pair[1])
 }
 
 fn parse_positive_u32(flag: &str, value: Option<&str>) -> Result<u32, ManagedRuntimePlanError> {
@@ -466,6 +484,30 @@ mod tests {
                 .plan(&self.model, &self.instance)
                 .expect("managed plan")
         }
+
+        fn spec_error(&self) -> String {
+            self.planner
+                .plan(&self.model, &self.instance)
+                .expect_err("Managed plan must fail")
+                .to_string()
+        }
+
+        fn use_dual_gpu(&mut self) {
+            self.instance.gpu_indexes = Some(vec![0, 1]);
+            self.instance.gpu_addresses = Some(vec!["worker:0".to_string(), "worker:1".to_string()]);
+            self.model.backend_parameters = Some(vec![
+                "--tensor-parallel-size=2".to_string(),
+                "--max-model-len=2048".to_string(),
+                "--gpu-memory-utilization=0.5".to_string(),
+                "--dtype=auto".to_string(),
+                "--enforce-eager".to_string(),
+            ]);
+            self.planner.gpus.push(ManagedGpu {
+                host_index: 1,
+                uuid: "GPU-second".to_string(),
+                running_compute_processes: 0,
+            });
+        }
     }
 
     #[derive(Default)]
@@ -581,6 +623,63 @@ mod tests {
             Some("301")
         );
         assert_eq!(spec.spec_hash.len(), 64);
+    }
+
+    #[test]
+    fn planner_maps_the_complete_dual_gpu_assignment_to_tp2() {
+        let mut fixture = Fixture::new();
+        fixture.use_dual_gpu();
+
+        let spec = fixture.spec();
+
+        assert_eq!(
+            spec.gpus,
+            [
+                WorkloadGpu {
+                    host_index: 0,
+                    uuid: "GPU-example".to_string(),
+                },
+                WorkloadGpu {
+                    host_index: 1,
+                    uuid: "GPU-second".to_string(),
+                },
+            ]
+        );
+        assert_eq!(spec.tensor_parallel_size, 2);
+        assert_eq!(
+            spec.container_spec()
+                .gpu_request
+                .expect("GPU request")
+                .device_ids,
+            ["GPU-example", "GPU-second"]
+        );
+    }
+
+    #[test]
+    fn planner_rejects_noncanonical_assignments_and_tp_mismatch() {
+        let mut reversed = Fixture::new();
+        reversed.use_dual_gpu();
+        reversed.instance.gpu_indexes = Some(vec![1, 0]);
+        assert!(reversed.spec_error().contains("strictly increasing"));
+
+        let mut duplicate = Fixture::new();
+        duplicate.instance.gpu_indexes = Some(vec![0, 0]);
+        assert!(duplicate.spec_error().contains("strictly increasing"));
+
+        let mut mismatch = Fixture::new();
+        mismatch.use_dual_gpu();
+        mismatch.model.backend_parameters = Some(vec!["--tensor-parallel-size=1".to_string()]);
+        assert!(mismatch.spec_error().contains("assigned GPU count"));
+
+        let mut missing = Fixture::new();
+        missing.use_dual_gpu();
+        missing.planner.gpus.pop();
+        assert!(missing.spec_error().contains("absent from inventory"));
+
+        let mut busy = Fixture::new();
+        busy.use_dual_gpu();
+        busy.planner.gpus[1].running_compute_processes = 1;
+        assert!(busy.spec_error().contains("active compute"));
     }
 
     #[test]

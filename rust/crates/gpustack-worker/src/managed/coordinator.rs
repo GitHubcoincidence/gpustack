@@ -18,6 +18,7 @@ use crate::control::DesiredState;
 
 use super::model_file::{LocalModelResolver, ResolveError, ResolvedModelFile};
 use super::port::{ManagedPortAllocator, PortAllocationError, PortProbe};
+use super::runtime::managed_gpu_indexes_in_scope;
 
 const PUBLIC_MESSAGE_LIMIT: usize = 512;
 
@@ -363,10 +364,7 @@ impl<A: ManagedApi, P: PortProbe> ManagedCoordinator<A, P> {
                 // The Server represents an absent LoRA selection as an empty array.
                 loras.as_array().is_none_or(|items| !items.is_empty())
             })
-            || instance
-                .gpu_indexes
-                .as_ref()
-                .is_none_or(|indexes| indexes.len() != 1)
+            || !managed_gpu_indexes_in_scope(instance.gpu_indexes.as_deref())
         {
             return Some(ManagedOutcome::Noop {
                 reason: "ModelInstance is outside the R1 Managed scope",
@@ -761,6 +759,62 @@ mod tests {
         let state = api.state.lock().expect("fake lock");
         assert_eq!(state.instance_updates.len(), 1);
         assert_eq!(state.instance_updates[0].state.0, "initializing");
+    }
+
+    #[tokio::test]
+    async fn initializes_an_instance_with_a_canonical_dual_gpu_assignment() {
+        let root = tempfile::tempdir().expect("model root");
+        let (mut instance, model_file) = fixtures();
+        instance.local_path = Some(root.path().to_string_lossy().into_owned());
+        instance.gpu_indexes = Some(vec![0, 1]);
+        instance.gpu_addresses = Some(vec!["worker:0".to_string(), "worker:1".to_string()]);
+        let api = FakeApi::new(instance, model_file);
+        let worker = coordinator(api.clone(), root.path().to_path_buf(), 40_000..=40_003);
+
+        let result = worker
+            .reconcile_targets([ManagedTarget::ModelInstance(301)])
+            .await;
+
+        assert_eq!(
+            result[0].outcome,
+            ManagedOutcome::InstanceInitialized {
+                port: 40_000,
+                reused: false
+            }
+        );
+        assert_eq!(
+            api.state.lock().expect("fake lock").instance_updates[0].gpu_indexes,
+            Some(vec![0, 1])
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_a_noncanonical_dual_gpu_assignment() {
+        let root = tempfile::tempdir().expect("model root");
+        let (mut instance, model_file) = fixtures();
+        instance.local_path = Some(root.path().to_string_lossy().into_owned());
+        instance.gpu_indexes = Some(vec![1, 0]);
+        instance.gpu_addresses = Some(vec!["worker:1".to_string(), "worker:0".to_string()]);
+        let api = FakeApi::new(instance, model_file);
+        let worker = coordinator(api.clone(), root.path().to_path_buf(), 40_000..=40_003);
+
+        let result = worker
+            .reconcile_targets([ManagedTarget::ModelInstance(301)])
+            .await;
+
+        assert_eq!(
+            result[0].outcome,
+            ManagedOutcome::Noop {
+                reason: "ModelInstance is outside the R1 Managed scope"
+            }
+        );
+        assert!(
+            api.state
+                .lock()
+                .expect("fake lock")
+                .instance_updates
+                .is_empty()
+        );
     }
 
     #[tokio::test]

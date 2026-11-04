@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use gpustack_runtime::docker::{
@@ -352,6 +352,7 @@ impl WorkloadSpecV2 {
         if self.schema_version != WORKLOAD_SCHEMA_VERSION {
             return invalid("workload schema version is unsupported");
         }
+        validate_gpu_contract(self.mode, &self.gpus, self.tensor_parallel_size)?;
         let required = [
             (LABEL_IMPLEMENTATION, "rust".to_string()),
             (LABEL_SCHEMA_VERSION, WORKLOAD_SCHEMA_VERSION.to_string()),
@@ -494,12 +495,7 @@ fn validate_request(request: &WorkloadBuildRequest) -> Result<(), WorkloadError>
         return invalid("requested image must be non-empty");
     }
     validate_digest(&request.resolved_image_digest)?;
-    if request.gpus.len() != 1 || request.tensor_parallel_size != 1 {
-        return invalid("R1 requires exactly one GPU and tensor parallel size 1");
-    }
-    if !request.gpus[0].uuid.starts_with("GPU-") {
-        return invalid("GPU identity must use a stable NVIDIA UUID");
-    }
+    validate_gpu_contract(request.mode, &request.gpus, request.tensor_parallel_size)?;
     if request.service_port == 0 {
         return invalid("service port must be greater than zero");
     }
@@ -550,6 +546,48 @@ fn validate_request(request: &WorkloadBuildRequest) -> Result<(), WorkloadError>
     }
     for argument in &request.vllm.extra_args {
         validate_extra_arg(argument)?;
+    }
+    Ok(())
+}
+
+fn validate_gpu_contract(
+    mode: WorkloadMode,
+    gpus: &[WorkloadGpu],
+    tensor_parallel_size: u32,
+) -> Result<(), WorkloadError> {
+    match mode {
+        WorkloadMode::Lab if gpus.len() != 1 || tensor_parallel_size != 1 => {
+            return invalid("Lab workloads require exactly one GPU and tensor parallel size 1");
+        }
+        WorkloadMode::Managed
+            if !(1..=2).contains(&gpus.len()) || tensor_parallel_size != gpus.len() as u32 =>
+        {
+            return invalid(
+                "Managed workloads require one or two GPUs and matching tensor parallel size",
+            );
+        }
+        _ => {}
+    }
+
+    let mut uuids = BTreeSet::new();
+    let mut host_indexes = BTreeSet::new();
+    for gpu in gpus {
+        if !gpu.uuid.starts_with("GPU-") {
+            return invalid("GPU identity must use a stable NVIDIA UUID");
+        }
+        if !uuids.insert(gpu.uuid.as_str()) {
+            return invalid("GPU UUIDs must be distinct");
+        }
+        if !host_indexes.insert(gpu.host_index) {
+            return invalid("GPU host indexes must be distinct");
+        }
+    }
+    // A canonical order keeps the manifest, Docker request, and spec hash deterministic.
+    if gpus
+        .windows(2)
+        .any(|pair| pair[0].host_index >= pair[1].host_index)
+    {
+        return invalid("GPU host indexes must be strictly increasing");
     }
     Ok(())
 }
@@ -708,6 +746,14 @@ mod tests {
                 ("A_KEY".to_string(), "a".to_string()),
             ]),
         }
+    }
+
+    fn managed_request() -> WorkloadBuildRequest {
+        let mut request = request();
+        request.mode = WorkloadMode::Managed;
+        request.managed_worker_uuid = Some("worker-uuid-1".to_string());
+        request.service_host = "10.213.80.90".to_string();
+        request
     }
 
     #[test]
@@ -891,7 +937,7 @@ mod tests {
     }
 
     #[test]
-    fn m5_rejects_relative_paths_mutable_images_and_multiple_gpus() {
+    fn lab_rejects_relative_paths_mutable_images_and_multiple_gpus() {
         let mut relative = request();
         relative.model_path = PathBuf::from("models/Qwen-7B");
         assert!(WorkloadSpecV2::build(relative).is_err());
@@ -914,11 +960,96 @@ mod tests {
     }
 
     #[test]
+    fn managed_dual_gpu_contract_reaches_vllm_docker_and_workload_identity() {
+        let mut request = managed_request();
+        request.gpus.push(WorkloadGpu {
+            uuid: "GPU-b1f89e65-e9c4-26f5-a306-8a520df07708".to_string(),
+            host_index: 1,
+        });
+        request.tensor_parallel_size = 2;
+        let spec = WorkloadSpecV2::build(request).expect("dual-GPU Managed workload");
+
+        assert_eq!(spec.gpus.iter().map(|gpu| gpu.host_index).collect::<Vec<_>>(), [0, 1]);
+        assert!(spec
+            .vllm_command()
+            .windows(2)
+            .any(|pair| pair == ["--tensor-parallel-size", "2"]));
+        assert_eq!(
+            spec.container_spec()
+                .gpu_request
+                .expect("GPU request")
+                .device_ids,
+            [
+                "GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3",
+                "GPU-b1f89e65-e9c4-26f5-a306-8a520df07708",
+            ]
+        );
+        spec.verify_integrity().expect("dual-GPU integrity");
+
+        let mut reordered = spec.clone();
+        reordered.gpus.reverse();
+        assert_ne!(
+            reordered.compute_spec_hash().expect("reordered hash"),
+            spec.spec_hash
+        );
+        assert!(reordered.verify_integrity().is_err());
+
+        let mut changed_uuid = spec.clone();
+        changed_uuid.gpus[1].uuid = "GPU-other".to_string();
+        assert_ne!(
+            changed_uuid.compute_spec_hash().expect("changed UUID hash"),
+            spec.spec_hash
+        );
+
+        let mut changed_tp = spec.clone();
+        changed_tp.tensor_parallel_size = 1;
+        assert_ne!(
+            changed_tp.compute_spec_hash().expect("changed TP hash"),
+            spec.spec_hash
+        );
+        assert!(changed_tp.verify_integrity().is_err());
+    }
+
+    #[test]
+    fn managed_gpu_contract_rejects_duplicates_reverse_order_and_tp_mismatch() {
+        let second = WorkloadGpu {
+            uuid: "GPU-second".to_string(),
+            host_index: 1,
+        };
+
+        let mut duplicate_uuid = managed_request();
+        duplicate_uuid.gpus.push(WorkloadGpu {
+            uuid: duplicate_uuid.gpus[0].uuid.clone(),
+            host_index: 1,
+        });
+        duplicate_uuid.tensor_parallel_size = 2;
+        assert!(WorkloadSpecV2::build(duplicate_uuid).is_err());
+
+        let mut duplicate_index = managed_request();
+        duplicate_index.gpus.push(WorkloadGpu {
+            uuid: "GPU-second".to_string(),
+            host_index: 0,
+        });
+        duplicate_index.tensor_parallel_size = 2;
+        assert!(WorkloadSpecV2::build(duplicate_index).is_err());
+
+        let mut reverse_order = managed_request();
+        reverse_order.gpus[0].host_index = 1;
+        reverse_order.gpus.push(WorkloadGpu {
+            host_index: 0,
+            ..second.clone()
+        });
+        reverse_order.tensor_parallel_size = 2;
+        assert!(WorkloadSpecV2::build(reverse_order).is_err());
+
+        let mut mismatch = managed_request();
+        mismatch.gpus.push(second);
+        assert!(WorkloadSpecV2::build(mismatch).is_err());
+    }
+
+    #[test]
     fn managed_mode_adds_worker_and_model_instance_labels() {
-        let mut request = request();
-        request.mode = WorkloadMode::Managed;
-        request.managed_worker_uuid = Some("worker-uuid-1".to_string());
-        request.service_host = "10.213.80.90".to_string();
+        let request = managed_request();
         let spec = WorkloadSpecV2::build(request).expect("managed workload");
 
         assert_eq!(

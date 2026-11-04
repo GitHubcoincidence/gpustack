@@ -701,16 +701,18 @@ fn build_model_create(arguments: ModelDeployArgs) -> Result<ModelCreate, Managed
             "--image must be non-empty without surrounding whitespace".to_owned(),
         ));
     }
-    let unique: BTreeSet<u32> = arguments.gpu_indexes.iter().copied().collect();
-    if unique.len() != arguments.gpu_indexes.len() || !(1..=2).contains(&unique.len()) {
+    let mut gpu_indexes = arguments.gpu_indexes.clone();
+    gpu_indexes.sort_unstable();
+    let unique: BTreeSet<u32> = gpu_indexes.iter().copied().collect();
+    if unique.len() != gpu_indexes.len() || !(1..=2).contains(&unique.len()) {
         return Err(ManagedError::InvalidArgument(
             "R1 requires one or two distinct --gpu indexes".to_owned(),
         ));
     }
     let tensor_parallel_size = arguments
         .tensor_parallel_size
-        .unwrap_or(arguments.gpu_indexes.len() as u32);
-    if tensor_parallel_size != arguments.gpu_indexes.len() as u32 {
+        .unwrap_or(gpu_indexes.len() as u32);
+    if tensor_parallel_size != gpu_indexes.len() as u32 {
         return Err(ManagedError::InvalidArgument(
             "--tensor-parallel-size must equal the number of selected GPUs".to_owned(),
         ));
@@ -741,8 +743,7 @@ fn build_model_create(arguments: ModelDeployArgs) -> Result<ModelCreate, Managed
         backend_parameters.push("--enforce-eager".to_owned());
     }
 
-    let gpu_ids = arguments
-        .gpu_indexes
+    let gpu_ids = gpu_indexes
         .iter()
         .map(|index| format!("{}:cuda:{index}", arguments.worker))
         .collect();
@@ -2038,6 +2039,8 @@ mod tests {
             "--image",
             "runner@sha256:aaaa",
             "--gpu",
+            "1",
+            "--gpu",
             "0",
             "--max-model-len",
             "2048",
@@ -2072,12 +2075,16 @@ mod tests {
         assert_eq!(body["cluster_id"], 7);
         assert_eq!(body["source"], "local_path");
         assert_eq!(body["worker_selector"]["worker-name"], "rust-worker");
-        assert_eq!(body["gpu_selector"]["gpu_ids"][0], "rust-worker:cuda:0");
+        assert_eq!(
+            body["gpu_selector"]["gpu_ids"],
+            json!(["rust-worker:cuda:0", "rust-worker:cuda:1"])
+        );
+        assert_eq!(body["gpu_selector"]["gpus_per_replica"], 2);
         assert_eq!(body["enable_model_route"], true);
         assert_eq!(
             body["backend_parameters"],
             json!([
-                "--tensor-parallel-size=1",
+                "--tensor-parallel-size=2",
                 "--max-model-len=2048",
                 "--enforce-eager"
             ])
