@@ -4930,6 +4930,19 @@
 - 当前停止位置：`M7-F.1/M7-F.2 ready_for_review`。用户接受详细实现报告后，下一步只能讨论并
   单独授权M7-F.3阶段凭据和只读preflight；M7-F.4真实双GPU维护窗口仍须之后再次明确授权。
 
+### 2026-11-04：M7-F.1/M7-F.2离线阶段验收
+
+- 用户验收：用户接受M7-F.1产品实现和M7-F.2离线质量报告，确认双GPU契约、223项workspace
+  回归、Clippy和locked/offline build结果可作为离线阶段检查点。
+- 阶段状态：M7-F.1与M7-F.2由`ready_for_review`更新为`accepted`；产品提交、格式提交和治理
+  提交分别为`240a5409fee2abde1f8f798148edfe4856784e8f`、
+  `5f0318d2b694b2c9491d823dcbddd670407cbea3`和
+  `d080e1ee44f91c3c9b9ac6724e306ccf101e087e`。
+- 授权边界：本次接受不授权创建M7-F阶段API Key/Context/token文件，不授权执行90只读preflight，
+  也不授权停止Python Worker、切换maintenance、创建真实模型/容器或使用GPU0/GPU1。
+- 当前停止位置：`M7-F.1/M7-F.2 accepted / M7-F.3 discussion_only`。下一步先冻结M7-F.3凭据、
+  只读门、错误HEAD注入和证据结构；冻结后仍须用户单独明确授权才能实际执行。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

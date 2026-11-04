@@ -1249,3 +1249,12 @@ attempt 12的preflight/injection目录分别含73/11个0600文件、0 symlink，
 
 M7-F.0现为`accepted`，M7-F.1离线实现已获授权。下一步只允许修改Rust产品代码、fixture/tests和
 治理记录并运行不接触真实Server/Docker/GPU的质量门；M7-F.3和M7-F.4均未授权。
+
+## 2026-11-04 M7-F离线阶段验收
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D257 | M7-F离线阶段验收 | 用户接受M7-F.1产品实现与M7-F.2离线质量报告。提交`240a5409fee2abde1f8f798148edfe4856784e8f`贯通CLI、WorkloadSpec、Managed planner、调度前置条件和runtime的同Worker双GPU TP=2契约；223项workspace测试、Rustfmt、Clippy `-D warnings`和locked/offline build通过 | 离线代码与质量门已经满足D254/D256的阶段条件，可标记`accepted`。本决定只接受fake边界证据，不把它提升为真实双GPU部署结论，也不授权M7-F.3凭据/preflight或M7-F.4维护窗口。 |
+
+M7-F.1与M7-F.2现为`accepted`。下一步只允许讨论并冻结M7-F.3方案；创建阶段凭据和执行90只读
+preflight仍须新的明确授权，真实双GPU维护窗口另须之后再次授权。

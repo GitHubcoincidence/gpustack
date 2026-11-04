@@ -1224,8 +1224,8 @@ M7-E.3现为`accepted`；下一项只允许讨论和冻结M7-F双GPU TP=2阶段�
 0.5、dtype auto和eager。M7-F依次执行F.1离线实现、F.2离线质量门、F.3独立授权的凭据/只读
 preflight、F.4再次独立授权的双GPU窗口和F.5审阅/退役。当前只授权F.1，不授权真实服务或GPU操作。
 
-M7-F.1产品实现和M7-F.2离线质量门现已完成并进入`ready_for_review`。Managed的1～2张严格递增
+M7-F.1产品实现和M7-F.2离线质量门已经由用户验收并标记为`accepted`。Managed的1～2张严格递增
 GPU assignment已贯通CLI、WorkloadSpec/spec hash、planner、调度前置条件、Docker DeviceRequests
 和vLLM TP命令；Lab仍为单GPU。90上格式、223项workspace测试、Clippy `-D warnings`及locked/
-offline build全部通过，测试只使用fake边界。下一步必须先由用户接受详细实现报告，再单独决定是否
-授权M7-F.3凭据与只读preflight；M7-F.4真实双GPU窗口仍未授权。
+offline build全部通过，测试只使用fake边界。下一步只讨论并冻结M7-F.3凭据与只读preflight；
+实际创建凭据和运行preflight仍需单独授权，M7-F.4真实双GPU窗口也仍未授权。
