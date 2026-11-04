@@ -97,6 +97,12 @@ cleanup/watchdog/post-audit失败，都使formal attempt失败；部分状态链
 
 ## 6. 当前停止点
 
-用户已接受本方案并授权M7-F.1离线实现。当前只允许修改Rust源码、离线fixture/tests和治理文档，
-运行不接触真实Server/Docker/GPU的质量门。尚未授权阶段凭据、90只读preflight、停止Python
-Worker、切换maintenance、创建真实模型/容器或使用GPU0/GPU1。
+M7-F.1产品实现和M7-F.2离线质量门已完成，状态为`ready_for_review`。实现提交
+`240a5409fee2abde1f8f798148edfe4856784e8f`让CLI、WorkloadSpec、Managed planner、调度前置条件
+和runtime协调器贯通同Worker双GPU TP=2，同时保留Lab单GPU边界；格式修正提交为
+`5f0318d2b694b2c9491d823dcbddd670407cbea3`。
+
+90上的Rustfmt、全部workspace all-targets locked/offline测试、Clippy `-D warnings`和workspace
+locked/offline build均通过；workspace测试共223项、0失败。所有新增测试使用fake Server/runtime/
+GPU/filesystem，没有访问真实Server、Docker socket或GPU。尚未授权M7-F.3阶段凭据与只读preflight、
+M7-F.4停止Python Worker、切换maintenance、创建真实模型/容器或使用GPU0/GPU1。

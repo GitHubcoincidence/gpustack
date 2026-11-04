@@ -4909,6 +4909,27 @@
 - 当前停止位置：`M7-F.0 accepted / M7-F.1 authorized_offline`。下一步实现和验证离线双GPU
   产品契约；M7-F.3凭据/preflight和M7-F.4真实窗口均未授权。
 
+### 2026-11-04：M7-F.1双GPU产品实现与M7-F.2离线质量门完成
+
+- 产品实现：提交`240a5409fee2abde1f8f798148edfe4856784e8f`泛化Managed workload为同一
+  Worker的1～2张严格递增GPU。CLI先按index升序规范化ModelCreate；planner逐个解析Server
+  assignment到稳定UUID并逐卡执行首次启动空闲门；显式TP必须与GPU数一致，缺省TP由GPU数推导。
+- 身份与安全：完整有序GPU列表进入WorkloadSpec、spec hash、managed manifest、Docker
+  DeviceRequests和vLLM命令。持久化spec再次执行同一GPU契约校验；重复UUID/index、逆序、TP不匹配、
+  库存缺卡、任一选中GPU繁忙均fail closed。Lab继续严格限制为单GPU、TP=1，跨Worker边界不变。
+- 状态机覆盖：调度前置条件接受规范化的1～2张本机GPU；fake runtime端到端证明双GPU assignment
+  最终生成两个UUID和`--tensor-parallel-size 2`的ContainerSpec。既有接管、restart、删除和完整
+  ownership/spec路径继续复用同一WorkloadSpec；格式提交为
+  `5f0318d2b694b2c9491d823dcbddd670407cbea3`。
+- 质量证据：90上`cargo fmt --all -- --check`通过；目标正反测试通过；
+  `cargo test --workspace --all-targets --locked --offline`共223项、0失败；
+  `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`和
+  `cargo build --workspace --locked --offline`通过。没有新增依赖、API路由、迁移或秘密处理变化。
+- 外部影响：测试只使用fake Server/runtime/GPU/filesystem；未访问真实Server或Docker socket，未
+  创建凭据、停止服务、改变maintenance、创建模型/容器或读取/占用GPU0/GPU1。
+- 当前停止位置：`M7-F.1/M7-F.2 ready_for_review`。用户接受详细实现报告后，下一步只能讨论并
+  单独授权M7-F.3阶段凭据和只读preflight；M7-F.4真实双GPU维护窗口仍须之后再次明确授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
