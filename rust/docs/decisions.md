@@ -1258,3 +1258,9 @@ M7-F.0现为`accepted`，M7-F.1离线实现已获授权。下一步只允许修�
 
 M7-F.1与M7-F.2现为`accepted`。下一步只允许讨论并冻结M7-F.3方案；创建阶段凭据和执行90只读
 preflight仍须新的明确授权，真实双GPU维护窗口另须之后再次授权。
+
+## 2026-11-06 M7-F.3凭据与只读preflight
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D258 | M7-F.3阶段凭据与停止点 | 用户授权创建最长7天的`management,inference`阶段Key、Context和受保护token文件，并运行只读preflight及错误HEAD无写注入，不授权M7-F.4。创建API Key ID 26、名称`rust-worker-m7f-operator-20261106`、生命周期604,800秒；错误HEAD注入为`STOP/source_head_mismatch/window_entered=0`且外部状态不变。正式preflight attempt 1在`before_snapshot`安全STOP：Server 200，Python Worker/metrics均为000 | 固定Python Worker容器仍要求`runtime=nvidia`，但2026-11-05重启后的Docker daemon只注册`runc`，daemon配置只含镜像源；NVIDIA toolkit二进制本身完整。preflight不得绕过恢复基线，也不能把凭据授权解释成修改root配置、reload Docker或启动容器的权限。M7-F.3标记`baseline_repair_required`，M7-F.4仍未授权。 |

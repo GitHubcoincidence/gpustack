@@ -104,6 +104,19 @@ cleanup/watchdog/post-audit失败，都使formal attempt失败；部分状态链
 
 90上的Rustfmt、全部workspace all-targets locked/offline测试、Clippy `-D warnings`和workspace
 locked/offline build均通过；workspace测试共223项、0失败。所有新增测试使用fake Server/runtime/
-GPU/filesystem，没有访问真实Server、Docker socket或GPU。下一步只允许讨论M7-F.3的凭据与只读
-preflight方案；尚未授权创建凭据或执行preflight，也未授权M7-F.4停止Python Worker、切换
-maintenance、创建真实模型/容器或使用GPU0/GPU1。
+GPU/filesystem，没有访问真实Server、Docker socket或GPU。
+
+用户随后授权M7-F.3凭据、只读preflight和错误HEAD无写注入，但未授权M7-F.4。工具提交
+`bced313496ab1fe93525b7ff1e2a1e25d8618195`增加凭据准备、preflight、formal executor、watchdog和
+独立post-audit。90的五脚本`bash -n`通过；独立错误HEAD注入以`source_head_mismatch`、
+`window_entered=0`停止，外部状态前后不变。
+
+API Key ID 26、名称`rust-worker-m7f-operator-20261106`、scope`management,inference`、生命周期
+604,800秒已创建；完整token只保存在90的0600单硬链接文件，active Context为`m7f-operator`。
+credential证据清单文件SHA-256为`5a35aa8744e86125ddbf313b9a3500a8f71b8100e3beeba663bbd53942438e6a`。
+
+只读preflight attempt 1在`before_snapshot`安全STOP：Server为200，但固定Python Worker和metrics
+端点均不可达。只读诊断证明固定容器仍声明`runtime=nvidia`，而2026-11-05重新启动的Docker daemon
+只注册`runc`；`/etc/docker/daemon.json`缺少`runtimes.nvidia`，尽管NVIDIA Container Toolkit
+1.20.0二进制完整。M7-F.3当前为`baseline_repair_required`。修复Docker runtime、reload daemon和
+启动固定Python Worker属于新的系统写操作，未包含在本次授权中；M7-F.4仍未授权。

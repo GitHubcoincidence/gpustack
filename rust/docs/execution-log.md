@@ -4943,6 +4943,33 @@
 - 当前停止位置：`M7-F.1/M7-F.2 accepted / M7-F.3 discussion_only`。下一步先冻结M7-F.3凭据、
   只读门、错误HEAD注入和证据结构；冻结后仍须用户单独明确授权才能实际执行。
 
+### 2026-11-06：M7-F.3凭据完成，preflight因Python Worker基线安全停止
+
+- 授权边界：用户授权创建最长7天的临时`management,inference` API Key、Context和受保护token
+  文件，并运行只读preflight与错误HEAD无写注入；没有授权M7-F.4、服务停止、maintenance变化、
+  模型/容器创建或GPU使用。
+- 工具检查点：提交`bced313496ab1fe93525b7ff1e2a1e25d8618195`增加五个分责脚本。90上全部
+  `bash -n`通过。错误HEAD独立注入以`source_head_mismatch`停止，`window_entered=0`，固定Python
+  Worker状态、Rust managed容器集合和双GPU显存前后不变；证据清单文件SHA-256为
+  `de6d790e8042464a2a729ce9b063d1da9d646d6d3d3db9db484bc6afa6b9f76a`。
+- 阶段凭据：使用既有受保护管理凭据调用正式Server API，创建Key ID 26、名称
+  `rust-worker-m7f-operator-20261106`、双scope、生命周期604,800秒。完整值只写入90的
+  `/home/wujiaxing2/.config/gpustack-rust/m7f-operator-token`，mode 0600、owner
+  `wujiaxing2:wujiaxing2`、单硬链接；active Context为`m7f-operator`。9个证据文件均为0600、
+  0 symlink、秘密扫描通过，manifest文件SHA-256为
+  `5a35aa8744e86125ddbf313b9a3500a8f71b8100e3beeba663bbd53942438e6a`。
+- preflight attempt 1：源码、脚本、凭据和双scope门通过，在`before_snapshot`以STOP结束；Server
+  health为200，Python Worker health与metrics均为000，injection目录未创建，也没有进入窗口。
+- 根因诊断：固定Python Worker容器ID
+  `68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165`仍声明
+  `runtime=nvidia`，但2026-11-05 15:18:28 CST启动的Docker daemon只注册`runc`，容器错误为
+  `unknown or invalid runtime name: nvidia`。`/etc/docker/daemon.json`只含三个registry mirror；
+  `nvidia-ctk`、`nvidia-container-runtime`和`nvidia-container-cli` 1.20.0均存在，dry-run只需补回
+  `runtimes.nvidia`，无需改变镜像源。
+- 当前停止位置：`M7-F.3 baseline_repair_required / M7-F.4 not_authorized`。修改root拥有的Docker
+  配置、reload daemon和启动固定Python Worker是新的系统写操作，须单独授权；修复后在新治理HEAD
+  运行全新preflight attempt 2，不能复用attempt 1或自动进入formal窗口。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的
