@@ -81,8 +81,13 @@ seal_evidence() {
   local status="$1"
   local reason="$2"
 
-  printf 'status=%s\nstage=M7-F.3-credential\nreason=%s\nfailed_step=%s\ncleanup_ok=%s\n' \
-    "$status" "$reason" "$current_step" "$cleanup_ok" >"$EVIDENCE/result.txt"
+  if [[ "$status" == 'PASS' ]]; then
+    printf 'status=%s\nstage=M7-F.3-credential\nreason=%s\ncompleted_step=%s\ncleanup_ok=%s\n' \
+      "$status" "$reason" "$current_step" "$cleanup_ok" >"$EVIDENCE/result.txt"
+  else
+    printf 'status=%s\nstage=M7-F.3-credential\nreason=%s\nfailed_step=%s\ncleanup_ok=%s\n' \
+      "$status" "$reason" "$current_step" "$cleanup_ok" >"$EVIDENCE/result.txt"
+  fi
   find "$EVIDENCE" -maxdepth 1 -type f -exec chmod 0600 {} +
   if grep -REIl \
     'gpustack_[[:alnum:]]{20,}|BEGIN [A-Z ]*PRIVATE KEY|Authorization:[[:space:]]*Bearer[[:space:]]+[[:alnum:]_]' \
