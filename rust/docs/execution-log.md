@@ -4995,6 +4995,26 @@
   运行全新只读preflight/injection attempt 3；通过后进入`ready_for_maintenance_authorization`。
   M7-F.4真实双GPU窗口仍未授权。
 
+### 2026-11-09：M7-F.4授权后因GPU1外部任务在窗口前停止
+
+- 授权：用户明确授权formal attempt 1，允许停止/恢复精确Python Worker、启动宿主机Rust Worker、
+  临时解除并最终恢复maintenance、创建/删除唯一TP=2资源和owned容器、只使用GPU0+GPU1并由
+  watchdog回滚。
+- 证据identity修正：进入窗口前发现post-audit要求preflight和formal使用同一attempt编号，而当前
+  preflight为3、formal应为1。提交`942ec5a8a17d7f07365f688858f02c7527c5fa6c`把
+  `M7F_PREFLIGHT_ATTEMPT`和`M7F_FORMAL_ATTEMPT`分离；业务流程、模型、GPU、TP、watchdog、cleanup
+  和验收标准均未改变。新HEAD五个formal脚本`bash -n`通过。
+- preflight attempt 4：源码、凭据、三端点和完整只读外部基线通过，在`fixed_runtime_inputs`安全
+  STOP。采样时GPU0为0 MiB；GPU1为42013 MiB、利用率61%，存在外部用户`jeff`的PID 2807639，
+  进程`/home/jeff/miniconda3/envs/vllmcb/bin/python example/routekv_recompute.py`，使用约41996 MiB。
+  后续只读复核中GPU1仍为约42 GiB和91%利用率。injection目录未创建，没有停止Python Worker、
+  改变maintenance、启动Rust Worker、创建Server资源/容器或使用GPU。
+- 判定：该STOP正确执行D255的双卡同时空闲门。外部进程不属于本项目，不得停止、发送信号、重新
+  调度或计入实验活动；也不得把冻结目标改为单GPU。formal attempt 1的授权尚未消费。
+- 当前停止位置：本记录生成新治理HEAD后，等待GPU1自然释放；随后运行全新preflight/injection，
+  通过后可继续已授权的formal attempt 1。API Key ID 26于2026-11-13约09:39 CST到期，若届时仍
+  未进入窗口，须重新走凭据生命周期门。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

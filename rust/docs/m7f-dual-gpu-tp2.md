@@ -135,3 +135,10 @@ preflight和injection清单文件SHA-256分别为
 `a8813c82ed7e542fe222b045e2f0473bc29f756bc48c7c4d49ad1054432e50a3`。现场三端点200、无Rust
 进程/容器、双GPU为空。记录本里程碑会产生新治理HEAD，因此下一步只在新HEAD运行全新只读
 preflight attempt 3；通过后才是`ready_for_maintenance_authorization`。M7-F.4仍未授权。
+
+用户随后授权M7-F.4 formal attempt 1。正式窗口前发现post-audit把preflight重试编号与formal编号
+错误绑定，提交`942ec5a8a17d7f07365f688858f02c7527c5fa6c`只分离两类证据identity；没有改变业务步骤、
+输入或验收门。新HEAD上的preflight attempt 4在`fixed_runtime_inputs`安全STOP：GPU1由外部用户
+`jeff`的PID 2807639占用约41 GiB，命令为`routekv_recompute.py`，GPU0仍为空。injection未开始，
+Python Worker和三个健康端点保持正常，formal窗口没有进入。本项目不停止、调度或归因该进程。
+formal attempt 1授权尚未消费；记录本停止点后，待GPU1自然释放再在新治理HEAD运行全新preflight。
