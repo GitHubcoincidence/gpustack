@@ -13,7 +13,8 @@ readonly EXPECTED_HEAD="${M7F_EXPECTED_HEAD:?M7F_EXPECTED_HEAD is required}"
 readonly EXPECTED_PREFLIGHT_MANIFEST_SHA="${M7F_PREFLIGHT_MANIFEST_SHA:?M7F_PREFLIGHT_MANIFEST_SHA is required}"
 readonly EXPECTED_FORMAL_MANIFEST_SHA="${M7F_FORMAL_MANIFEST_SHA:?M7F_FORMAL_MANIFEST_SHA is required}"
 readonly EXPECTED_WATCHDOG_MANIFEST_SHA="${M7F_WATCHDOG_MANIFEST_SHA:?M7F_WATCHDOG_MANIFEST_SHA is required}"
-readonly ATTEMPT="${M7F_ATTEMPT:?M7F_ATTEMPT is required}"
+readonly PREFLIGHT_ATTEMPT="${M7F_PREFLIGHT_ATTEMPT:?M7F_PREFLIGHT_ATTEMPT is required}"
+readonly FORMAL_ATTEMPT="${M7F_FORMAL_ATTEMPT:?M7F_FORMAL_ATTEMPT is required}"
 readonly BINARY="$REPO/rust/target/debug/gpustack-rs"
 readonly CONTEXT='m7f-operator'
 readonly TARGET_MODEL='m7f-qwen25-05b-tp2'
@@ -21,8 +22,12 @@ readonly PYTHON_WORKER_ID='68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dca
 readonly GPU0_UUID='GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3'
 readonly GPU1_UUID='GPU-b1f89e65-e9c4-26f5-a306-8a520df07708'
 
-if [[ ! "$ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
-  printf 'STOP: M7F_ATTEMPT must be a positive integer\n' >&2
+if [[ ! "$PREFLIGHT_ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'STOP: M7F_PREFLIGHT_ATTEMPT must be a positive integer\n' >&2
+  exit 88
+fi
+if [[ ! "$FORMAL_ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'STOP: M7F_FORMAL_ATTEMPT must be a positive integer\n' >&2
   exit 89
 fi
 if [[ -e "$EVIDENCE" || -L "$EVIDENCE" ]]; then
@@ -67,11 +72,11 @@ verify_manifest "$PREFLIGHT" "$EXPECTED_PREFLIGHT_MANIFEST_SHA" preflight
 verify_manifest "$FORMAL" "$EXPECTED_FORMAL_MANIFEST_SHA" formal
 verify_manifest "$WATCHDOG" "$EXPECTED_WATCHDOG_MANIFEST_SHA" watchdog
 [[ "$(sed -n 's/^status=//p' "$PREFLIGHT/preflight-result.txt")" == 'PASS' ]]
-[[ "$(sed -n 's/^attempt=//p' "$PREFLIGHT/preflight-result.txt")" == "$ATTEMPT" ]]
-[[ "$(sed -n 's/^attempt=//p' "$FORMAL/result.txt")" == "$ATTEMPT" ]]
+[[ "$(sed -n 's/^attempt=//p' "$PREFLIGHT/preflight-result.txt")" == "$PREFLIGHT_ATTEMPT" ]]
+[[ "$(sed -n 's/^attempt=//p' "$FORMAL/result.txt")" == "$FORMAL_ATTEMPT" ]]
 [[ "$(sed -n 's/^status=//p' "$FORMAL/result.txt")" == 'PASS' ]]
 [[ "$(sed -n 's/^cleanup_ok=//p' "$FORMAL/result.txt")" == '1' ]]
-[[ "$(sed -n 's/^attempt=//p' "$WATCHDOG/result.txt")" == "$ATTEMPT" ]]
+[[ "$(sed -n 's/^attempt=//p' "$WATCHDOG/result.txt")" == "$FORMAL_ATTEMPT" ]]
 [[ "$(sed -n 's/^status=//p' "$WATCHDOG/result.txt")" == 'PASS' ]]
 if [[ -f "$WATCHDOG/recovery-result.txt" ]]; then
   [[ "$(sed -n 's/^recovery_ok=//p' "$WATCHDOG/recovery-result.txt")" == '1' ]]
@@ -134,8 +139,8 @@ if grep -REIl 'gpustack_[[:alnum:]]{20,}|BEGIN [A-Z ]*PRIVATE KEY|Authorization:
   exit 1
 fi
 printf 'secret_scan=PASS\n' >"$EVIDENCE/secret-scan.txt"
-printf 'status=PASS\nstage=M7-F.5-post-audit\nattempt=%s\nrecovery_baseline=restored\n' \
-  "$ATTEMPT" >"$EVIDENCE/result.txt"
+printf 'status=PASS\nstage=M7-F.5-post-audit\npreflight_attempt=%s\nformal_attempt=%s\nrecovery_baseline=restored\n' \
+  "$PREFLIGHT_ATTEMPT" "$FORMAL_ATTEMPT" >"$EVIDENCE/result.txt"
 find "$EVIDENCE" -maxdepth 1 -type f -exec chmod 0600 {} +
 find "$EVIDENCE" -maxdepth 1 -type f ! -name manifest.sha256 -print0 |
   sort -z | xargs -0 sha256sum >"$EVIDENCE/manifest.sha256"
