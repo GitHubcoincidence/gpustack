@@ -1229,3 +1229,10 @@ GPU assignment已贯通CLI、WorkloadSpec/spec hash、planner、调度前置条�
 和vLLM TP命令；Lab仍为单GPU。90上格式、223项workspace测试、Clippy `-D warnings`及locked/
 offline build全部通过，测试只使用fake边界。下一步只讨论并冻结M7-F.3凭据与只读preflight；
 实际创建凭据和运行preflight仍需单独授权，M7-F.4真实双GPU窗口也仍未授权。
+
+治理HEAD`c5ae5e3c52d1cae0c2da37cb8ca88841d4891e62`上的M7-F preflight/injection attempt 5
+通过后，获授权的formal attempt 1完成双GPU TP=2唯一workload、完整状态链、Server-only推理/日志、
+三轮幂等和精确cleanup，formal与watchdog均为PASS。独立post-audit attempt 3在语义不变的awk
+局部变量兼容修复后通过，固定Python Worker、三端点、Server资源、Rust容器/进程/端口和双GPU均
+恢复基线。M7-F当前为`ready_for_review`；下一步只允许用户审阅，接受后退役API Key ID 26、
+`m7f-operator` Context和阶段token并证明旧token返回401，随后才能标记`accepted`。不得自动进入M8。

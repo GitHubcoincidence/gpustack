@@ -5015,6 +5015,44 @@
   通过后可继续已授权的formal attempt 1。API Key ID 26于2026-11-13约09:39 CST到期，若届时仍
   未进入窗口，须重新走凭据生命周期门。
 
+### 2026-11-09：M7-F.4 formal attempt 1通过并完成独立恢复审计
+
+- 窗口前门：治理HEAD`c5ae5e3c52d1cae0c2da37cb8ca88841d4891e62`上的preflight attempt 5
+  与错误HEAD injection attempt 5通过；manifest文件SHA-256分别为
+  `d33b7d4f2bfd6335f7e5e096983fb9baaf9fabb0c153e5db7ccb226b5afec6a3`和
+  `ee481ceb8f4ba4206cf8b910aead34bc841049aa7650c217bd2881471eac335b`。Server、固定Python
+  Worker、Runner、模型、双A100、凭据、端口、恢复材料和源码无漂移，错误HEAD在窗口前无写停止。
+- 正式结果：用户已授权的formal attempt 1完成唯一Model 33、ModelInstance 48、ModelFile 27、
+  端口40000和Rust-owned容器
+  `08f08af0f977165dffc130eff63d5e0e425a3a02fd9114d4e677c8d3a934bf1a`。状态链
+  `pending -> analyzing -> scheduled -> initializing -> downloading -> starting -> running`完整；
+  assignment、WorkloadSpec、manifest、Docker DeviceRequests和vLLM命令一致绑定GPU0后接GPU1、
+  `tensor_parallel_size=2`。加载时两卡各约42.4 GiB且受控推理活动可归因于唯一容器。
+- 用户路径与幂等：Server-only models、buffered/streaming chat、completion和current logs全部成功，
+  错误模型被拒绝；三轮协调保持同一Model/Instance/File、容器、端口、spec和日志generation，未
+  创建第二容器或发生状态回退。formal结果为
+  `PASS/managed_runtime_inference_idempotency_and_cleanup_passed`，`state_chain_complete=1`、
+  `inference_passed=1`、`idempotency_passed=1`、`cleanup_ok=1`。
+- 正常恢复：唯一测试模型、实例、文件和owned容器删除；Rust进程、managed容器和20150/20151/
+  40000-40063监听归零；maintenance恢复，同一固定Python Worker重新运行，Server/Worker/metrics
+  均为200。formal和watchdog清单文件SHA-256分别为
+  `e72d6dba97899ab1bc3dc1e801f10e4e2602ae3b5a68c6f31b98249fb92f177b`和
+  `cbd4aa2988f891773b17487217558d07584ab3178b64c6b908252b2c0eef0ef7`，清单复算和秘密扫描通过。
+- 独立审计判定：post-audit attempt 1在formal cleanup已证明双卡归零后，因外部用户`jeff`新进程
+  占用GPU1而以`STOP/external_gpu1_compute_process`封存，manifest文件SHA-256为
+  `4454383d60bae693d45b807c0ddf9d17716b9e856611335d21dcd34b860fd881`；该环境事件不改变formal
+  PASS。attempt 2到达GPU归零门后暴露awk变量名`index`与内置函数冲突，保留为非评分工具失败。
+  兼容修复只把局部变量改名为`gpu_index`，不改变验收逻辑，修复工具SHA-256为
+  `da939f9aa3e6aad55ab432fed481d64ae8744c476b9811898929b0ad3ffcb9d0`。
+- 最终post-audit：GPU1自然释放后，attempt 3以
+  `PASS/recovery_baseline=restored`完成三段证据链、冻结HEAD/origin、干净工作树、同一Python Worker、
+  三端点、目标模型缺席、Rust资源/端口零残留和双GPU 0 MiB/0进程复核。12项证据文件清单重新
+  验签通过，manifest文件SHA-256为
+  `7dbba49d28326f07219ac3474c5156cfa1712c44b47608e15ecc42604e6cb9ce`。
+- 当前停止位置：`M7-F ready_for_review`，不是`accepted`。下一步只允许用户审阅详细报告；接受后
+  精确删除API Key ID 26、`m7f-operator` Context和阶段token文件，验证旧token返回401并封存退役
+  证据。凭据生命周期闭合前不得把M7-F标记为`accepted`，也不得自动进入M8。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

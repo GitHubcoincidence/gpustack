@@ -142,3 +142,26 @@ preflight attempt 3；通过后才是`ready_for_maintenance_authorization`。M7-
 `jeff`的PID 2807639占用约41 GiB，命令为`routekv_recompute.py`，GPU0仍为空。injection未开始，
 Python Worker和三个健康端点保持正常，formal窗口没有进入。本项目不停止、调度或归因该进程。
 formal attempt 1授权尚未消费；记录本停止点后，待GPU1自然释放再在新治理HEAD运行全新preflight。
+
+治理HEAD`c5ae5e3c52d1cae0c2da37cb8ca88841d4891e62`上的preflight attempt 5和错误HEAD
+injection attempt 5随后通过；清单文件SHA-256分别为
+`d33b7d4f2bfd6335f7e5e096983fb9baaf9fabb0c153e5db7ccb226b5afec6a3`和
+`ee481ceb8f4ba4206cf8b910aead34bc841049aa7650c217bd2881471eac335b`。用户已明确授权的formal
+attempt 1完成Model 33、ModelInstance 48、ModelFile 27和端口40000的唯一双GPU workload。
+完整状态链、双UUID/TP=2 spec与容器契约、两卡可归因活动、Server-only models/chat/completion/
+logs、错误模型拒绝和三轮幂等全部通过；cleanup删除唯一资源和容器，恢复同一Python Worker、
+maintenance、三个健康端点和双GPU零占用。formal与watchdog清单文件SHA-256分别为
+`e72d6dba97899ab1bc3dc1e801f10e4e2602ae3b5a68c6f31b98249fb92f177b`和
+`cbd4aa2988f891773b17487217558d07584ab3178b64c6b908252b2c0eef0ef7`，结果均为PASS。
+
+第一次独立post-audit因cleanup后外部用户`jeff`重新占用GPU1而以环境STOP封存，不改变formal
+PASS；第二次审计暴露工具把awk内置名`index`用作变量的兼容性错误。该工具仅将局部变量改名为
+`gpu_index`，不改变任何门禁或判断，修复工具SHA-256为
+`da939f9aa3e6aad55ab432fed481d64ae8744c476b9811898929b0ad3ffcb9d0`。GPU1自然释放后，独立
+post-audit attempt 3通过全部证据链、源码、服务、固定Python Worker、资源/端口零残留和双GPU
+归零门，清单文件SHA-256为
+`7dbba49d28326f07219ac3474c5156cfa1712c44b47608e15ecc42604e6cb9ce`。
+
+M7-F当前为`ready_for_review`，不是`accepted`。下一步只允许用户审阅正式结果；接受后精确退役
+API Key ID 26、`m7f-operator` Context和阶段token文件，并验证旧token返回401。完成凭据退役证据
+后才能把M7-F标记为`accepted`；不得自动进入M8。

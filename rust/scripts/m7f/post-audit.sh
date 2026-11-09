@@ -62,9 +62,9 @@ gpu_compute_count() {
 }
 
 gpu_memory_used() {
-  local index="$1"
+  local gpu_index="$1"
   nvidia-smi --query-gpu=index,memory.used --format=csv,noheader,nounits |
-    awk -F', *' -v index="$index" '$1 == index {print $2}'
+    awk -F', *' -v gpu_index="$gpu_index" '$1 == gpu_index {print $2}'
 }
 
 announce 1 '验证三段证据链和执行结果'

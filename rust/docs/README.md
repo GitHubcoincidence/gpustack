@@ -274,6 +274,10 @@
   `nvidia` runtime后，本项目精确启动同一Python Worker，治理HEAD`525de611fd3bfecf4cc42cad45508931dd64b039`
   上的preflight/injection attempt 2通过。记录该结果会产生新治理HEAD，因此下一步在新HEAD重跑
   attempt 3；M7-F.4服务停止、maintenance、真实模型/容器和双GPU窗口仍未授权。
+- M7-F formal attempt 1已通过双GPU TP=2完整状态链、双卡可归因活动、Server-only推理/日志、
+  三轮幂等和精确cleanup；watchdog与独立post-audit确认同一Python Worker、三端点、资源、容器、
+  进程、端口和双GPU恢复基线。当前为`ready_for_review`；用户接受报告并退役API Key ID 26、
+  `m7f-operator` Context和阶段token、验证旧token返回401后，才能标记`accepted`，且不自动进入M8。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
