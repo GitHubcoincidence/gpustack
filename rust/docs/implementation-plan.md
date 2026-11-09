@@ -1236,3 +1236,9 @@ offline build全部通过，测试只使用fake边界。下一步只讨论并冻
 局部变量兼容修复后通过，固定Python Worker、三端点、Server资源、Rust容器/进程/端口和双GPU均
 恢复基线。M7-F当前为`ready_for_review`；下一步只允许用户审阅，接受后退役API Key ID 26、
 `m7f-operator` Context和阶段token并证明旧token返回401，随后才能标记`accepted`。不得自动进入M8。
+
+用户已接受M7-F报告。API Key ID 26删除后旧token返回401，`m7f-operator` Context和阶段token
+文件已精确删除；管理、Cluster registration和persisted Worker三类保留凭据及其他Context保持不变。
+27个0600文件、0 symlink的退役证据完成清单复算、秘密扫描和独立状态审计，manifest文件SHA-256
+为`75602c50d11aa578c6d7888654ec869f73996bafeac6b73295b406a0c96b7653`。M7-F现为
+`accepted`，M7宿主机Worker阶段完成；下一步只讨论和冻结M8容器化Worker，不自动授权真实部署。

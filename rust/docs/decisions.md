@@ -1273,3 +1273,9 @@ preflight仍须新的明确授权，真实双GPU维护窗口另须之后再次�
 |---|---|---|---|
 | D261 | M7-F formal attempt 1判定 | 治理HEAD`c5ae5e3c52d1cae0c2da37cb8ca88841d4891e62`上的preflight/injection attempt 5通过后，用户已授权的formal attempt 1完成唯一Model 33、Instance 48、ModelFile 27、端口40000和双GPU TP=2容器。完整七状态链、两个固定UUID的spec/DeviceRequests/vLLM命令、两卡可归因活动、Server-only models/chat/completion/logs、错误模型拒绝、三轮幂等和精确cleanup全部通过；formal/watchdog均为PASS | 结果逐项满足D254/D255的双GPU可证伪门，且没有用外部进程替代实验活动。cleanup恢复同一Python Worker、maintenance、三端点和双GPU基线，因此该formal是有效业务PASS，但仍须独立post-audit、用户审阅和凭据退役。 |
 | D262 | post-audit工具兼容与最终判定 | post-audit attempt 1因formal结束后外部用户新占用GPU1而环境STOP；attempt 2暴露awk局部变量`index`与内置函数冲突。只把该变量改名为`gpu_index`，门禁、输入和判断完全不变；兼容工具SHA-256为`da939f9aa3e6aad55ab432fed481d64ae8744c476b9811898929b0ad3ffcb9d0`。GPU1释放后attempt 3通过证据链、冻结源码、服务、固定Python Worker、资源/端口零残留及双GPU归零，manifest文件SHA-256为`7dbba49d28326f07219ac3474c5156cfa1712c44b47608e15ecc42604e6cb9ce` | 外部任务不能被本项目停止，也不能把formal PASS改判；工具命名冲突同样不是Worker失败。语义不变的兼容修复保留原验收逻辑并使独立恢复门真实执行。M7-F当前只进入`ready_for_review`；用户接受并退役Key ID 26、Context和token、证明旧token 401后才能标记`accepted`，且不自动授权M8。 |
+
+## 2026-11-09 M7-F验收与阶段凭据退役
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D263 | M7-F验收与阶段凭据退役 | 用户接受formal attempt 1详细报告。精确删除API Key ID 26后，旧token访问`/v2/workers/5`返回401；只删除`m7f-operator` Context和身份再次匹配的阶段token文件。管理token、Cluster registration token、persisted Worker token和其他Context前后不变。退役证据含27个0600文件、0 symlink，manifest文件SHA-256为`75602c50d11aa578c6d7888654ec869f73996bafeac6b73295b406a0c96b7653`，清单、秘密扫描和独立状态复核通过 | D261业务门、D262独立审计、用户审阅和阶段凭据生命周期现已全部闭合，因此M7-F更新为`accepted`。该接受完成宿主机Rust Worker的M7验证，但不自动授权M8；容器化Worker的镜像、权限、部署与真实GPU回归须另行讨论、冻结和授权。 |

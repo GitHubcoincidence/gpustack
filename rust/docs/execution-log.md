@@ -5053,6 +5053,34 @@
   精确删除API Key ID 26、`m7f-operator` Context和阶段token文件，验证旧token返回401并封存退役
   证据。凭据生命周期闭合前不得把M7-F标记为`accepted`，也不得自动进入M8。
 
+### 2026-11-09：M7-F阶段凭据退役并完成验收
+
+- 用户验收：用户接受formal attempt 1详细报告，授权按冻结生命周期只退役API Key ID 26、
+  `m7f-operator` Context和受保护阶段token文件；管理token、Cluster registration token、persisted
+  Worker token、其他Context、服务、模型文件、容器和外部GPU任务不在删除范围。
+- 删除前门：仓库HEAD/origin均为`4399a9452af2a403dca71171fcd6613383eaba9c`且工作树干净；
+  accepted post-audit manifest保持
+  `7dbba49d28326f07219ac3474c5156cfa1712c44b47608e15ecc42604e6cb9ce`。Key 26名称为
+  `rust-worker-m7f-operator-20261106`、scope为`management,inference`；Context active且精确指向
+  预期0600、owner正确、单硬链接token文件。旧token删除前访问`/v2/workers/5`返回200。
+- 精确退役：使用保留的管理凭据精确删除Key 26，Server再次查询目标ID/名称数量为0；内存中的旧
+  M7-F token访问同一Worker接口返回401。CLI只删除`m7f-operator` Context，并在device/inode/
+  mode/owner/link/size和内容SHA-256再次匹配后unlink目标token文件。保留的`rust-worker-demo`
+  Context前后排序内容一致。
+- 保留与运行基线：管理token、Cluster registration token和persisted Worker token的device/
+  inode/mode/owner/link/size/mtime及内容SHA-256前后完全一致。Server、同一Python Worker和metrics
+  均为200，Rust进程和Rust managed容器为零；本操作没有停止服务、修改模型资源、访问Docker
+  lifecycle或调度/停止外部GPU任务。
+- 证据：本次实际执行的一次性退役工具SHA-256为
+  `7b91f780ae1e8a940b2175f82362fe1fe49347f6ba50b25cae4700cfcf6f81a7`。证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m7f-credential-retirement-attempt-1`
+  为0700，含27个0600文件、0 symlink；manifest复算、精确/通用秘密扫描和独立Server/本地状态
+  复核通过，manifest文件SHA-256为
+  `75602c50d11aa578c6d7888654ec869f73996bafeac6b73295b406a0c96b7653`。
+- 当前停止位置：M7-F更新为`accepted`，阶段凭据生命周期闭合。M7的宿主机Rust Worker验证阶段
+  已完成；下一步只允许讨论和冻结M8容器化Rust Worker方案，不自动授权构建镜像、停止Python
+  Worker、部署容器化Rust Worker、创建模型/容器或使用GPU。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

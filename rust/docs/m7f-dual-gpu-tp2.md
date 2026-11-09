@@ -165,3 +165,15 @@ post-audit attempt 3通过全部证据链、源码、服务、固定Python Worke
 M7-F当前为`ready_for_review`，不是`accepted`。下一步只允许用户审阅正式结果；接受后精确退役
 API Key ID 26、`m7f-operator` Context和阶段token文件，并验证旧token返回401。完成凭据退役证据
 后才能把M7-F标记为`accepted`；不得自动进入M8。
+
+用户已接受formal attempt 1详细报告。退役工具先复核accepted post-audit、Key ID 26的名称与
+`management,inference` scope、active Context和0600单硬链接token文件，再精确删除该Key；内存
+保留的旧token访问`/v2/workers/5`返回401。随后只删除`m7f-operator` Context和同一inode的
+`m7f-operator-token`文件，其他Context排序内容保持不变。
+
+管理token、Cluster registration token和persisted Worker token的device/inode/mode/owner/link/
+size/mtime及内容SHA-256前后完全一致。退役证据目录含27个0600文件、0 symlink，目录为0700，
+清单、秘密扫描和独立现场审计通过，manifest文件SHA-256为
+`75602c50d11aa578c6d7888654ec869f73996bafeac6b73295b406a0c96b7653`。Server、同一Python
+Worker和metrics均为200，Rust进程/managed容器保持为零。M7-F现为`accepted`；本结果不自动
+授权M8，下一步只能讨论和冻结容器化Rust Worker阶段的范围与验收方案。

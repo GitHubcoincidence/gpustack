@@ -278,6 +278,10 @@
   三轮幂等和精确cleanup；watchdog与独立post-audit确认同一Python Worker、三端点、资源、容器、
   进程、端口和双GPU恢复基线。当前为`ready_for_review`；用户接受报告并退役API Key ID 26、
   `m7f-operator` Context和阶段token、验证旧token返回401后，才能标记`accepted`，且不自动进入M8。
+- 用户已接受M7-F报告。API Key ID 26、`m7f-operator` Context和阶段token完成精确退役，旧token
+  返回401，三类保留凭据和其他Context保持不变；退役证据manifest文件SHA-256为
+  `75602c50d11aa578c6d7888654ec869f73996bafeac6b73295b406a0c96b7653`。M7-F现为
+  `accepted`；下一步只允许讨论和冻结M8容器化Worker方案，不自动授权真实部署或GPU操作。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。
