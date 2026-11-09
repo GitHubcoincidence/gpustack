@@ -433,9 +433,27 @@ CLI > environment > YAML file > defaults
 
 ## R1 容器化拓扑
 
-正式 R1 拓扑为：Rust Worker 运行在容器中，通过宿主机 Docker Engine 管理同级 Runner 容器。预期基线包括 host network、Docker socket、NVML 访问、持久化 Worker 状态与日志 volume，以及路径相同的模型根目录 mount。准确的 Compose 参数与 user/group 权限在 M1 盘点后冻结。
+正式 R1 拓扑为：Rust Worker 运行在独立容器中，通过宿主机 Docker Engine 管理同级
+Runner 容器。Worker 镜像不包含 Python、CUDA、vLLM 或模型；固定 Runner 镜像继续承载
+Python/CUDA/vLLM。Worker 镜像使用固定 Rust 工具链与 `Cargo.lock` 多阶段构建，运行层只保留
+`gpustack-rs`、CA 证书及其动态链接运行库，并用 OCI label 记录源码 revision 和版本身份。
+现有 Python/Server `pack/Dockerfile` 不作为 Rust Worker 运行镜像的基础。
 
-在第一次单 GPU 冒烟测试完成前，允许把 Worker 作为宿主机进程运行。所有正式 R1 恢复测试与双 GPU 证据都必须使用 Worker 容器重新执行。
+容器运行契约固定为 host network、宿主机 Docker socket、NVIDIA runtime/NVML、
+`unless-stopped` 重启策略以及持久化 Worker 状态和日志。候选容器首先以宿主机开发用户的
+UID/GID 和 Docker socket 的 supplementary GID 非特权运行；Docker socket 仍按等价宿主机
+高权限控制面处理，非 root 只收紧文件所有权而不被解释成安全隔离。若非特权 NVML 访问失败，
+必须先停止并审阅准确的设备/权限缺口，不能静默退回 `--privileged`。
+
+Worker 状态和日志目录以读写方式挂载，Cluster 注册 token 以只读方式挂载，模型根目录优先
+只读挂载。所有 bind source 在宿主机和 Worker 容器中保持相同绝对路径，因为同级 Runner 的
+bind source 最终由宿主机 Docker daemon 解释。Worker 容器自身使用与 Managed workload 不同的
+固定名称和标签，不能被 workload 枚举或清理逻辑识别为 Runner。
+
+在 M7 结束前允许把 Worker 作为宿主机进程运行。M8 必须先验证容器中的 CPU、内存、文件系统
+与 GPU 上报语义，再依次重跑单 GPU Managed、Worker 容器重启接管、Runner 故障恢复、控制连接
+中断恢复和双 GPU TP=2。Worker 崩溃证据必须来自候选容器的精确重启，而不是再次运行宿主机
+进程；所有正式窗口继续由容器外 watchdog 恢复精确 Python Worker。
 
 ## 可观测性与恢复记录
 

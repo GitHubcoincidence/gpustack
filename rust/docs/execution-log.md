@@ -5094,3 +5094,21 @@
 - Rust 容器最终 user/group 仍需在 M8 根据 Docker socket、NVML 与持久化目录要求验证；宿主机开发用户已确认具备 `docker` group 权限。
 - 90 主机到 GitHub 的小规模 fetch/push 可用，但大对象传输吞吐过低；bootstrap 和发布 tag 增量 bundle 是当前已验证的补充路径。
 - 90 主机 `127.0.0.1:17897` 与 `[::1]:17897` 曾存在未归因监听，M3-C 完成核验时已无监听；本项目没有停止它。未来复用或处置同端口监听前仍须确认所有者，自动化 SSH 命令继续显式使用 `ClearAllForwardings=yes`，避免自动创建额外转发。
+
+### 2026-11-09：M8-0容器化Rust Worker方案冻结
+
+- 用户决定：接受M8从简单到复杂的分段方案。Rust Worker使用独立多阶段小镜像，继续通过宿主
+  Docker Engine管理同级固定vLLM Runner；Worker镜像不包含Python、CUDA、vLLM或模型，也不
+  修改现有Python/Server `pack/Dockerfile`。
+- 运行契约：host network、Docker socket、NVIDIA runtime/NVML、相同绝对路径mount、持久状态/
+  日志和`unless-stopped`；首先采用宿主UID/GID加socket supplementary GID的非特权模式。
+  Docker socket继续按宿主机高权限边界审计，NVML权限失败不得静默退回`--privileged`。
+- 阶段门：M8-A离线Dockerfile/受保护脚本与测试；M8-B 90镜像和只读契约；M8-C maintenance
+  控制面/资源语义；M8-D GPU0单卡Managed；M8-E三个独立恢复窗口；M8-F GPU0/GPU1 TP=2；
+  M8-G镜像、性能、残留、Python回滚和凭据最终审计。M8-C～F分别要求精确授权。
+- 固定输入：Server v2.2.3、固定Runner digest、Qwen2.5-0.5B本地模型、GPU0单卡和GPU0后接
+  GPU1双卡不变；不增加Kubernetes、Podman、其他后端/GPU厂商或跨Worker分布式推理。
+- 漂移审计：目标仍是用容器化Rust Worker形成R1 candidate；M7宿主机证据只作为对照，不被
+  提升为发布证据。没有引入新产品能力、修改成功标准或用诊断结果替代正式门，结论为`aligned`。
+- 当前停止位置：M8-0为`accepted`。下一步只允许在用户另行同意后执行M8-A离线实现；当前未
+  授权90镜像构建、Python Worker停机、候选容器部署、Server写入、Runner/模型创建或GPU使用。

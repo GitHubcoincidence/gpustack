@@ -1279,3 +1279,12 @@ preflight仍须新的明确授权，真实双GPU维护窗口另须之后再次�
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D263 | M7-F验收与阶段凭据退役 | 用户接受formal attempt 1详细报告。精确删除API Key ID 26后，旧token访问`/v2/workers/5`返回401；只删除`m7f-operator` Context和身份再次匹配的阶段token文件。管理token、Cluster registration token、persisted Worker token和其他Context前后不变。退役证据含27个0600文件、0 symlink，manifest文件SHA-256为`75602c50d11aa578c6d7888654ec869f73996bafeac6b73295b406a0c96b7653`，清单、秘密扫描和独立状态复核通过 | D261业务门、D262独立审计、用户审阅和阶段凭据生命周期现已全部闭合，因此M7-F更新为`accepted`。该接受完成宿主机Rust Worker的M7验证，但不自动授权M8；容器化Worker的镜像、权限、部署与真实GPU回归须另行讨论、冻结和授权。 |
+
+## 2026-11-09 M8-0容器化Worker方案冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D264 | M8容器化边界与门禁 | 使用独立多阶段Rust Worker镜像，不修改Python/Server `pack/Dockerfile`，镜像不包含Python/CUDA/vLLM/模型；以host network、宿主机Docker socket、NVIDIA runtime/NVML、相同绝对路径mount、持久状态/日志和`unless-stopped`运行。候选首先采用宿主UID/GID加socket supplementary GID的非特权模式；失败不得静默退回`--privileged`。M8按0/A/B/C/D/E/F/G推进，容器化重跑资源语义、单GPU、三类恢复和双GPU，最后完成镜像/性能/回滚/凭据审计 | 把最终部署形态和宿主机阶段证据明确分开，并把差异集中在Worker容器边界。独立小镜像维持Worker与Runner职责；相同路径保证宿主Docker daemon可正确挂载模型；分段授权避免设计接受被解释为可以构建、停服务或使用GPU。Docker socket仍视为宿主机高权限能力，非root只改善文件权限而不虚构隔离。 |
+
+M8-0现为`accepted`。下一步只允许在另获用户同意后执行M8-A离线容器化实现；本决定不授权在90
+构建镜像、停止Python Worker、启动容器化Rust Worker、修改Server、创建模型/Runner或使用GPU。

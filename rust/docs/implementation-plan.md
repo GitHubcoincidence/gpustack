@@ -320,6 +320,56 @@ M7-A～C 每个实现阶段继续执行完整 workspace fmt、Clippy、test 和 
 结果、watchdog、独立事后审计、凭据退役和用户审阅；部分状态链、仅恢复成功或仅 cleanup
 成功不能替代阶段通过。
 
+## M8 Worker 容器与 R1 candidate 门禁
+
+M8 把 M7 已接受的宿主机 Rust Worker 封装为正式 Worker 容器，并用该容器重新取得最终 R1
+证据。M8 不增加产品能力：仍固定 GPUStack Server v2.2.3、本地 Docker、固定 vLLM Runner、
+Qwen2.5-0.5B 本地模型、单 Worker、GPU0 单卡及 GPU0/GPU1 有序双卡 TP=2；Kubernetes、
+Podman、其他后端、其他 GPU 厂商和跨 Worker 分布式推理继续排除。
+
+容器化实现使用独立的 Rust Worker 多阶段 Dockerfile 和受保护部署脚本，不修改现有大型
+Python/Server `pack/Dockerfile`。首个候选先冻结并证明 Dockerfile 与动态 UID/GID/socket GID
+脚本契约；Compose 模板只能在运行契约通过后补充，不能成为未经验证的第二套权威定义。
+
+M8 分为八个独立门禁：
+
+1. **M8-0 方案冻结**：冻结镜像边界、运行身份、Docker socket/NVML/host network、持久化与
+   相同绝对路径、资源语义、容器重启恢复、证据身份、分段授权和回滚规则。只修改治理文档，
+   不构建镜像、不停止 Python Worker、不部署候选容器、不创建 workload 或使用 GPU。
+2. **M8-A 离线容器化实现**：实现专用多阶段 Dockerfile、源码与版本 label、直接 entrypoint、
+   受保护的启动/停止定义以及 UID/GID、socket GID、mount、标签、重启策略和参数检查。补齐
+   不访问真实 Server、Docker、数据库或 GPU 的离线测试，并执行完整 Rust 质量门。本阶段不在
+   90 构建镜像或启动容器。
+3. **M8-B 镜像与只读能力验证**：在 Python Worker 保持运行时于 90 构建固定 candidate，记录
+   source commit、`Cargo.lock`、release binary、Dockerfile、基础镜像和最终 image ID/digest。
+   只运行 version/config、非 root 文件权限、Docker socket 可达性、相同路径和 NVML inventory
+   检查；不注册第二个正式 Worker、不创建 Runner、不写 Server 或使用 GPU 计算。
+4. **M8-C 容器控制面与资源集成**：另获维护窗口授权后精确停止 Python Worker，以 maintenance
+   启动候选并验证稳定 Worker identity、heartbeat/API/metrics、NVML、Docker inventory、持久
+   状态、优雅重启和 Web/API 资源语义。CPU、内存、根文件系统和 GPU 的容器视角必须与固定
+   Python Worker oracle 或明确的宿主机语义对齐；不部署模型。
+5. **M8-D 容器化单 GPU Managed 基线**：只使用 GPU0 重跑固定 Qwen2.5-0.5B 的完整状态链、
+   Server-only models/chat/completion/logs、三轮幂等和 CLI delete/零残留。不得使用 GPU1。
+6. **M8-E 容器化恢复套件**：在三个独立维护窗口中分别证明 Worker 容器精确崩溃后由
+   `unless-stopped` 重启并接管同一健康 Runner、owned Runner 崩溃后的 restart/backoff/日志
+   代际，以及只中断 Rust Worker 自身 Server/Docker 连接后的保留与重新收敛。真实 Server 和
+   Docker daemon 不作为故障注入对象。
+7. **M8-F 容器化双 GPU TP=2**：在 GPU0/GPU1 同时空闲后重跑 M7-F 的固定 workload、完整
+   状态链、两卡可归因活动、Server-only 推理/日志、幂等和删除零残留。外部 GPU 任务不得被
+   停止或重新调度。
+8. **M8-G R1 candidate 审计**：复核镜像和代码身份，记录 idle memory、startup time、
+   reconciliation latency 与 control-plane overhead，完成全量秘密/所有权/残留审计，恢复精确
+   Python Worker并退役阶段凭据。性能数据是特征描述，不设置 Rust 必须快于 Python 的阈值。
+
+每个真实阶段都使用独立 preflight、窗口外 watchdog、正常 cleanup 和独立 post-audit。M8-C～F
+分别需要精确授权；前一阶段通过不能自动授权下一阶段。非特权 NVML 失败时必须停在诊断边界，
+不得静默加入 `--privileged`。Docker socket 能力按宿主机高权限边界审计，Worker 容器不得带有
+Managed Runner ownership label，也不得清理未知、Python、Lab 或不同 scope 的容器。
+
+M8-G 只有在容器化单/双 GPU、三类恢复、镜像身份、性能描述、Python Worker 回滚、凭据退役和
+用户审阅全部通过后才能标记 `accepted` 并形成 R1 candidate。M7 的宿主机证据只作为对照，
+不能替代上述容器化证据。
+
 ## 验证策略
 
 ### 本地自动化检查
