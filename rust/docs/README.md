@@ -270,9 +270,10 @@
   退役证据含32个0600文件、0 symlink，manifest文件SHA-256为
   `22e1d453bc4d1a0dd1b43c129ef7b4af450cd92b2f4b8b11d6bd43ff0a2e5161`。M7-E.3现为
   `accepted`；下一项只允许讨论和冻结M7-F，尚未授权其真实执行。
-- 用户已接受M7-F方案并只授权M7-F.1离线实现。Managed产品范围扩展为本机1～2张有序GPU，
-  TP必须等于GPU数量；Lab仍为单GPU。正式输入固定Qwen2.5-0.5B、Runner、`[0,1]`和TP=2，
-  但阶段凭据、90只读preflight、服务停止、maintenance、真实Docker/Server和双GPU窗口均未授权。
+- 用户已接受M7-F.1/2离线阶段并授权M7-F.3。API Key ID 26与Context已就绪；外部恢复Docker
+  `nvidia` runtime后，本项目精确启动同一Python Worker，治理HEAD`525de611fd3bfecf4cc42cad45508931dd64b039`
+  上的preflight/injection attempt 2通过。记录该结果会产生新治理HEAD，因此下一步在新HEAD重跑
+  attempt 3；M7-F.4服务停止、maintenance、真实模型/容器和双GPU窗口仍未授权。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

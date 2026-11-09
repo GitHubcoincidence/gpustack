@@ -4970,6 +4970,31 @@
   配置、reload daemon和启动固定Python Worker是新的系统写操作，须单独授权；修复后在新治理HEAD
   运行全新preflight attempt 2，不能复用attempt 1或自动进入formal窗口。
 
+### 2026-11-09：Python Worker恢复与M7-F.3 preflight attempt 2通过
+
+- sudo尝试：用户按说明以`wujiaxing2`执行root修复脚本，sudo在脚本启动前返回“不在sudoers”；
+  repair证据目录和固定备份路径均未创建，Docker配置未由该脚本修改，因此该尝试不计为修复证据。
+- 外部状态变化：后续只读复核发现Docker已注册`nvidia-container-runtime`，原固定Python Worker
+  为`exited`且旧runtime错误已清空。该配置变化发生在本项目脚本之外，来源未知，本项目不作归因。
+- 精确恢复：提交`525de611fd3bfecf4cc42cad45508931dd64b039`增加非root恢复脚本，只允许启动容器ID
+  `68cd9a516eb2d002a97e5d645f84162125774cc86cc5fa00b6dcae47b87ae165`，并验证同一Server、
+  `runtime=nvidia`和三个健康端点；失败只停止本次启动对象。恢复为PASS，13个0600文件、0 symlink、
+  秘密扫描和清单复算通过，manifest文件SHA-256为
+  `31049979d2c849f505ebae558b430935fa6b0d55ce402b6b26aa8e0394126958`。
+- preflight attempt 2：治理HEAD`525de611fd3bfecf4cc42cad45508931dd64b039`上九组门全部通过，
+  包含locked/offline workspace build、13个定向失败边界测试、固定Server/Runner/模型/Worker/
+  Python Worker/双GPU身份、执行器静态审计和before/after不变式。preflight目录含65个0600文件、
+  0 symlink，manifest文件SHA-256为
+  `130d57bb216cb1f1ee5a8f0395ad46b61adf987b4fa61f7605284a2c100b110f`。
+- 错误HEAD注入：attempt 2为`STOP/source_head_mismatch/window_entered=0/cleanup_ok=1`；10个0600
+  文件、0 symlink，manifest文件SHA-256为
+  `a8813c82ed7e542fe222b045e2f0473bc29f756bc48c7c4d49ad1054432e50a3`。
+- 独立现场复核：三套manifest复算通过；Server、同一Python Worker和metrics均为200；无Rust进程、
+  Rust managed容器或GPU计算进程；两张固定A100均为0 MiB。仓库HEAD/origin一致且工作树干净。
+- 当前停止位置：记录本里程碑会生成新治理HEAD，attempt 2不能供该新HEAD的formal使用。下一步只
+  运行全新只读preflight/injection attempt 3；通过后进入`ready_for_maintenance_authorization`。
+  M7-F.4真实双GPU窗口仍未授权。
+
 ## 未解决风险与待确认事项
 
 - 固定 Runner v0.25.1 与 Qwen-7B 的不兼容失败继续保留；D084 选择的

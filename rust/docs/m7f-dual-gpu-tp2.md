@@ -120,3 +120,18 @@ credential证据清单文件SHA-256为`5a35aa8744e86125ddbf313b9a3500a8f71b8100e
 只注册`runc`；`/etc/docker/daemon.json`缺少`runtimes.nvidia`，尽管NVIDIA Container Toolkit
 1.20.0二进制完整。M7-F.3当前为`baseline_repair_required`。修复Docker runtime、reload daemon和
 启动固定Python Worker属于新的系统写操作，未包含在本次授权中；M7-F.4仍未授权。
+
+2026-11-09用户尝试执行root修复脚本时，`wujiaxing2`在sudo权限检查阶段被拒绝，脚本未启动且
+没有创建证据、备份或修改配置。随后只读复核发现Docker已由本项目之外的操作重新注册
+`nvidia-container-runtime`；该变化来源不归因于本项目。提交
+`525de611fd3bfecf4cc42cad45508931dd64b039`增加非root、精确容器ID的恢复脚本，只启动既有Python
+Worker并在失败时停止本次启动对象。恢复成功，同一容器、Server和三个健康端点均通过，证据清单
+文件SHA-256为`31049979d2c849f505ebae558b430935fa6b0d55ce402b6b26aa8e0394126958`。
+
+治理HEAD`525de611fd3bfecf4cc42cad45508931dd64b039`上的preflight attempt 2九组门全部通过，13个
+定向失败边界测试通过；错误HEAD注入为`STOP/source_head_mismatch/window_entered=0/cleanup_ok=1`。
+preflight和injection清单文件SHA-256分别为
+`130d57bb216cb1f1ee5a8f0395ad46b61adf987b4fa61f7605284a2c100b110f`和
+`a8813c82ed7e542fe222b045e2f0473bc29f756bc48c7c4d49ad1054432e50a3`。现场三端点200、无Rust
+进程/容器、双GPU为空。记录本里程碑会产生新治理HEAD，因此下一步只在新HEAD运行全新只读
+preflight attempt 3；通过后才是`ready_for_maintenance_authorization`。M7-F.4仍未授权。
