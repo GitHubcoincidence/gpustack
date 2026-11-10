@@ -84,10 +84,22 @@ where
         NvmlManagedGpuProbe,
         store,
         SystemManagedClock,
-        registry,
+        Arc::clone(&registry),
     );
+    registry.set_available(true);
+    let _availability = RuntimeAvailabilityGuard(registry);
     coordinator.run(desired, shutdown, observe).await;
     Ok(())
+}
+
+struct RuntimeAvailabilityGuard(Arc<ManagedRuntimeRegistry>);
+
+impl Drop for RuntimeAvailabilityGuard {
+    fn drop(&mut self) {
+        self.0.set_coordinated(false);
+        self.0.set_ready(false);
+        self.0.set_available(false);
+    }
 }
 
 #[cfg(unix)]
@@ -396,12 +408,14 @@ where
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             if *shutdown.borrow() {
+                self.registry.set_coordinated(false);
                 self.registry.set_ready(false);
                 return;
             }
             let snapshot = desired.borrow().clone();
             // Revision zero is the local empty seed, not proof that Server desires no workloads.
             if snapshot.revision == 0 {
+                self.registry.set_coordinated(false);
                 self.registry.set_ready(false);
                 tokio::select! {
                     _ = interval.tick() => {}
@@ -424,12 +438,14 @@ where
                 results = &mut reconciliation => results,
                 changed = shutdown.changed() => {
                     if changed.is_err() || *shutdown.borrow() {
+                        self.registry.set_coordinated(false);
                         self.registry.set_ready(false);
                         return;
                     }
                     continue;
                 }
             };
+            self.registry.set_coordinated(true);
             self.registry.set_ready(
                 !results
                     .iter()
@@ -442,12 +458,14 @@ where
                 _ = interval.tick() => {}
                 changed = desired.changed() => {
                     if changed.is_err() {
+                        self.registry.set_coordinated(false);
                         self.registry.set_ready(false);
                         return;
                     }
                 }
                 changed = shutdown.changed() => {
                     if changed.is_err() || *shutdown.borrow() {
+                        self.registry.set_coordinated(false);
                         self.registry.set_ready(false);
                         return;
                     }
@@ -3038,8 +3056,10 @@ mod tests {
         })
         .await
         .expect("coordinator readiness");
+        assert!(fixture.registry.is_coordinated());
         shutdown_tx.send_replace(true);
         run.await;
+        assert!(!fixture.registry.is_coordinated());
         assert!(!fixture.registry.is_ready());
     }
 
@@ -3063,6 +3083,7 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(1), &mut run)
             .await
             .expect("runtime coordinator shutdown timeout");
+        assert!(!fixture.registry.is_coordinated());
         assert!(!fixture.registry.is_ready());
     }
 

@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::future::{Future, IntoFuture};
+use std::future::IntoFuture;
 use std::io;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
@@ -32,10 +32,12 @@ use crate::managed::{
     ManagedTarget, ResolveError, run_production_managed_runtime,
 };
 use crate::metrics::{MetricIdentity, MetricsState, router as metrics_router};
+use crate::readiness::{ReadinessGate, WorkerReadiness};
 use crate::resources::{
     CollectedResources, NvmlGpuProbe, ResourceCollector, ResourceError, SysinfoProbe,
 };
 use crate::signal::{ShutdownSignal, wait_for_shutdown};
+use crate::supervisor::{SupervisedTaskExit, WorkerSupervisor};
 use crate::worker_api::{WorkerApiBuildError, WorkerApiState, router as worker_api_router};
 
 pub const RESOURCE_API_ONLY_MODE: &str = "resource-api-only";
@@ -676,6 +678,11 @@ struct SurfaceSummary {
     runtime: ManagedRuntimeStats,
 }
 
+enum SurfaceTermination {
+    Signal(ShutdownSignal),
+    Failure(ResourceApiRunError),
+}
+
 /// Runs the M4 Worker surface while keeping every scheduling/runtime path disabled.
 pub async fn run_resource_api_only<F>(
     config: &WorkerConfig,
@@ -684,7 +691,7 @@ pub async fn run_resource_api_only<F>(
 where
     F: FnMut(&ResourceApiEvent),
 {
-    let summary = run_worker_surface(config, WorkerSurfaceMode::ResourceApiOnly, |event| {
+    let summary = run_worker_surface(config, WorkerSurfaceMode::ResourceApiOnly, None, |event| {
         let event = match event {
             SurfaceEvent::Listening {
                 worker_address,
@@ -720,7 +727,7 @@ pub async fn run_managed_file_only<F>(
 where
     F: FnMut(&ManagedFileEvent),
 {
-    let summary = run_worker_surface(config, WorkerSurfaceMode::ManagedFileOnly, |event| {
+    let summary = run_worker_surface(config, WorkerSurfaceMode::ManagedFileOnly, None, |event| {
         let event = match event {
             SurfaceEvent::Listening {
                 worker_address,
@@ -780,38 +787,67 @@ where
 /// Runs the complete Managed file and runtime coordinators behind an explicit mode gate.
 pub async fn run_managed_runtime<F>(
     config: &WorkerConfig,
+    observe: F,
+) -> Result<ManagedRuntimeSummary, ResourceApiRunError>
+where
+    F: FnMut(&ManagedRuntimeEvent),
+{
+    run_managed_runtime_inner(config, None, observe).await
+}
+
+/// Runs the complete Worker through the unified production lifecycle.
+pub async fn run_worker<F>(
+    config: &WorkerConfig,
+    observe: F,
+) -> Result<ManagedRuntimeSummary, ResourceApiRunError>
+where
+    F: FnMut(&ManagedRuntimeEvent),
+{
+    run_managed_runtime_inner(config, Some(Arc::new(WorkerReadiness::default())), observe).await
+}
+
+async fn run_managed_runtime_inner<F>(
+    config: &WorkerConfig,
+    readiness: Option<Arc<WorkerReadiness>>,
     mut observe: F,
 ) -> Result<ManagedRuntimeSummary, ResourceApiRunError>
 where
     F: FnMut(&ManagedRuntimeEvent),
 {
-    let summary = run_worker_surface(config, WorkerSurfaceMode::ManagedRuntime, |event| {
-        let event = match event {
-            SurfaceEvent::Listening {
-                worker_address,
-                metrics_address,
-            } => ManagedRuntimeEvent::Listening {
-                worker_address: *worker_address,
-                metrics_address: *metrics_address,
-            },
-            SurfaceEvent::IdentityEstablished {
-                worker_id,
-                worker_name,
-            } => ManagedRuntimeEvent::IdentityEstablished {
-                worker_id: *worker_id,
-                worker_name: worker_name.clone(),
-            },
-            SurfaceEvent::Running { gpu_count } => ManagedRuntimeEvent::Running {
-                gpu_count: *gpu_count,
-            },
-            SurfaceEvent::Reconciled(result) => ManagedRuntimeEvent::FileReconciled(result.clone()),
-            SurfaceEvent::RuntimeReconciled(result) => {
-                ManagedRuntimeEvent::RuntimeReconciled(result.clone())
-            }
-            SurfaceEvent::Stopping { signal } => ManagedRuntimeEvent::Stopping { signal },
-        };
-        observe(&event);
-    })
+    let summary = run_worker_surface(
+        config,
+        WorkerSurfaceMode::ManagedRuntime,
+        readiness,
+        |event| {
+            let event = match event {
+                SurfaceEvent::Listening {
+                    worker_address,
+                    metrics_address,
+                } => ManagedRuntimeEvent::Listening {
+                    worker_address: *worker_address,
+                    metrics_address: *metrics_address,
+                },
+                SurfaceEvent::IdentityEstablished {
+                    worker_id,
+                    worker_name,
+                } => ManagedRuntimeEvent::IdentityEstablished {
+                    worker_id: *worker_id,
+                    worker_name: worker_name.clone(),
+                },
+                SurfaceEvent::Running { gpu_count } => ManagedRuntimeEvent::Running {
+                    gpu_count: *gpu_count,
+                },
+                SurfaceEvent::Reconciled(result) => {
+                    ManagedRuntimeEvent::FileReconciled(result.clone())
+                }
+                SurfaceEvent::RuntimeReconciled(result) => {
+                    ManagedRuntimeEvent::RuntimeReconciled(result.clone())
+                }
+                SurfaceEvent::Stopping { signal } => ManagedRuntimeEvent::Stopping { signal },
+            };
+            observe(&event);
+        },
+    )
     .await?;
     let resource = summary.resource;
     let file = ManagedFileSummary {
@@ -857,6 +893,7 @@ where
 async fn run_worker_surface<F>(
     config: &WorkerConfig,
     mode: WorkerSurfaceMode,
+    readiness: Option<Arc<WorkerReadiness>>,
     mut observe: F,
 ) -> Result<SurfaceSummary, ResourceApiRunError>
 where
@@ -881,6 +918,7 @@ where
     let initial_resources = collector.collect()?;
     verify_m4_gpu_inventory(&initial_resources)?;
     verify_model_root_mounts(config, &initial_resources)?;
+    set_readiness(&readiness, ReadinessGate::Resources, true);
 
     // Both listeners are reserved before contacting Server so a partial bind
     // cannot publish an unreachable Worker status.
@@ -915,6 +953,8 @@ where
             }
         })?,
     });
+    set_readiness(&readiness, ReadinessGate::WorkerApi, true);
+    set_readiness(&readiness, ReadinessGate::Metrics, true);
 
     let transport = ReqwestTransport::new()?;
     let client = ServerClient::new(profile.server_url.clone(), transport.clone())?;
@@ -945,24 +985,35 @@ where
         worker_id: identity.id,
         worker_name: identity.name.clone(),
     });
+    set_readiness(&readiness, ReadinessGate::Identity, true);
 
     let runtime_registry = Arc::new(ManagedRuntimeRegistry::default());
     let api_state = if mode.executes_managed_runtime() {
-        WorkerApiState::new_managed(
-            config,
-            identity.token.clone(),
-            managed_inference_token.ok_or(ResourceApiRunError::SafetyInvariant(
-                "Managed inference credential was not loaded",
-            ))?,
-            Arc::clone(&runtime_registry),
-        )?
+        let managed_inference_token = managed_inference_token.ok_or(
+            ResourceApiRunError::SafetyInvariant("Managed inference credential was not loaded"),
+        )?;
+        match &readiness {
+            Some(readiness) => WorkerApiState::new_worker(
+                config,
+                identity.token.clone(),
+                managed_inference_token,
+                Arc::clone(&runtime_registry),
+                Arc::clone(readiness),
+            )?,
+            None => WorkerApiState::new_managed(
+                config,
+                identity.token.clone(),
+                managed_inference_token,
+                Arc::clone(&runtime_registry),
+            )?,
+        }
     } else {
         WorkerApiState::new(config, identity.token.clone())?
     };
     let (resources_tx, resources_rx) = watch::channel(initial_resources.clone());
     let (status_tx, status_rx) =
         watch::channel(profile.status_report(identity.worker_uuid.clone(), &initial_resources));
-    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let mut supervisor = WorkerSupervisor::new();
     let (control, control_handle) = WorkerControlPlane::new(
         client,
         identity.token.clone(),
@@ -972,26 +1023,45 @@ where
     let desired_summary = control_handle.desired_state();
     let desired_managed = control_handle.desired_state();
     let desired_runtime = control_handle.desired_state();
-    let control_health = control_handle.health();
-    let control_future = control.run(status_rx, shutdown_rx.clone());
-    let api_future = axum::serve(worker_listener, worker_api_router(api_state))
-        .with_graceful_shutdown(shutdown_requested(shutdown_rx.clone()))
-        .into_future();
-    let metrics_future = axum::serve(
-        metrics_listener,
-        metrics_router(MetricsState {
-            mode: profile.mode.metric_name(),
-            identity: MetricIdentity {
-                instance: profile.worker_ip.to_string(),
-                worker_id: identity.id,
-                worker_name: identity.name.clone(),
-            },
-            resources: resources_rx,
-            control: control_health.clone(),
-        }),
-    )
-    .with_graceful_shutdown(shutdown_requested(shutdown_rx))
-    .into_future();
+    let mut control_health = control_handle.health();
+    let control_shutdown = supervisor.subscribe();
+    supervisor.add("control_plane", async move {
+        control.run(status_rx, control_shutdown).await;
+        Ok::<(), ResourceApiRunError>(())
+    });
+    let api_shutdown = supervisor.subscribe();
+    supervisor.add("worker_api", async move {
+        axum::serve(worker_listener, worker_api_router(api_state))
+            .with_graceful_shutdown(shutdown_requested(api_shutdown))
+            .into_future()
+            .await
+            .map_err(|error| ResourceApiRunError::EndpointServe("Worker API", error))
+    });
+    let metrics_mode = profile.mode.metric_name();
+    let metric_identity = MetricIdentity {
+        instance: profile.worker_ip.to_string(),
+        worker_id: identity.id,
+        worker_name: identity.name.clone(),
+    };
+    let metrics_control = control_health.clone();
+    let metrics_readiness = readiness.clone();
+    let metrics_shutdown = supervisor.subscribe();
+    supervisor.add("metrics", async move {
+        axum::serve(
+            metrics_listener,
+            metrics_router(MetricsState {
+                mode: metrics_mode,
+                identity: metric_identity,
+                resources: resources_rx,
+                control: metrics_control,
+                readiness: metrics_readiness,
+            }),
+        )
+        .with_graceful_shutdown(shutdown_requested(metrics_shutdown))
+        .into_future()
+        .await
+        .map_err(|error| ResourceApiRunError::EndpointServe("metrics", error))
+    });
     let coordinator = managed_client.zip(resolver).map(|(client, resolver)| {
         ManagedCoordinator::new(
             client,
@@ -1003,8 +1073,8 @@ where
         )
     });
     let (managed_tx, mut managed_rx) = mpsc::unbounded_channel();
-    let managed_shutdown = shutdown_tx.subscribe();
-    let managed_future = async move {
+    let managed_shutdown = supervisor.subscribe();
+    supervisor.add("managed_files", async move {
         if let Some(coordinator) = coordinator {
             coordinator
                 .run(desired_managed, managed_shutdown, |result| {
@@ -1014,16 +1084,17 @@ where
         } else {
             shutdown_requested(managed_shutdown).await;
         }
-    };
+        Ok(())
+    });
     let (runtime_tx, mut runtime_rx) = mpsc::unbounded_channel();
-    let runtime_shutdown = shutdown_tx.subscribe();
+    let runtime_shutdown = supervisor.subscribe();
     let runtime_config = config.clone();
     let runtime_token = identity.token.clone();
     let runtime_worker_uuid = identity.worker_uuid.clone();
     let runtime_worker_ip = profile.worker_ip;
     let runtime_worker_id = identity.id;
-    let runtime_registry = Arc::clone(&runtime_registry);
-    let runtime_future = async move {
+    let runtime_registry_for_task = Arc::clone(&runtime_registry);
+    supervisor.add("managed_runtime", async move {
         if let Some(client) = runtime_client {
             run_production_managed_runtime(
                 client,
@@ -1034,22 +1105,19 @@ where
                 runtime_config,
                 desired_runtime,
                 runtime_shutdown,
-                runtime_registry,
+                runtime_registry_for_task,
                 |result| {
                     let _ = runtime_tx.send(result);
                 },
             )
-            .await
+            .await?;
         } else {
             shutdown_requested(runtime_shutdown).await;
-            Ok(())
         }
-    };
-    tokio::pin!(control_future);
-    tokio::pin!(api_future);
-    tokio::pin!(metrics_future);
-    tokio::pin!(managed_future);
-    tokio::pin!(runtime_future);
+        Ok(())
+    });
+    let mut runtime_available = runtime_registry.subscribe_available();
+    let mut runtime_coordinated = runtime_registry.subscribe_coordinated();
     let shutdown_signal = wait_for_shutdown();
     tokio::pin!(shutdown_signal);
     let mut refresh = tokio::time::interval(RESOURCE_REFRESH_INTERVAL);
@@ -1064,39 +1132,20 @@ where
     let mut managed_stats = ManagedStats::default();
     let mut runtime_stats = ManagedRuntimeStats::default();
 
-    let signal = loop {
+    let termination = loop {
         tokio::select! {
             signal = &mut shutdown_signal => {
-                break signal.map_err(ResourceApiRunError::ShutdownSignal)?;
-            }
-            result = &mut api_future => {
-                shutdown_tx.send_replace(true);
-                return Err(match result {
-                    Ok(()) => ResourceApiRunError::EndpointStopped("Worker API"),
-                    Err(error) => ResourceApiRunError::EndpointServe("Worker API", error),
-                });
-            }
-            result = &mut metrics_future => {
-                shutdown_tx.send_replace(true);
-                return Err(match result {
-                    Ok(()) => ResourceApiRunError::EndpointStopped("metrics"),
-                    Err(error) => ResourceApiRunError::EndpointServe("metrics", error),
-                });
-            }
-            () = &mut control_future => {
-                shutdown_tx.send_replace(true);
-                return Err(ResourceApiRunError::ControlPlaneStopped);
-            }
-            () = &mut managed_future => {
-                shutdown_tx.send_replace(true);
-                return Err(ResourceApiRunError::ManagedCoordinatorStopped);
-            }
-            result = &mut runtime_future => {
-                shutdown_tx.send_replace(true);
-                return match result {
-                    Ok(()) => Err(ResourceApiRunError::ManagedRuntimeCoordinatorStopped),
-                    Err(error) => Err(error.into()),
+                break match signal {
+                    Ok(signal) => SurfaceTermination::Signal(signal),
+                    Err(error) => SurfaceTermination::Failure(
+                        ResourceApiRunError::ShutdownSignal(error),
+                    ),
                 };
+            }
+            exit = supervisor.next_exit() => {
+                break SurfaceTermination::Failure(unexpected_task_exit(
+                    exit.expect("Worker supervisor always owns critical tasks"),
+                ));
             }
             Some(result) = managed_rx.recv() => {
                 managed_stats.record(&result.outcome);
@@ -1106,10 +1155,58 @@ where
                 runtime_stats.record(&result.outcome);
                 observe(&SurfaceEvent::RuntimeReconciled(result));
             }
+            changed = control_health.changed(), if readiness.is_some() => {
+                if changed.is_err() {
+                    break SurfaceTermination::Failure(
+                        ResourceApiRunError::ControlPlaneStopped,
+                    );
+                }
+                set_readiness(
+                    &readiness,
+                    ReadinessGate::FullSync,
+                    control_health.borrow().full_sync_ok,
+                );
+            }
+            changed = runtime_available.changed(), if readiness.is_some() => {
+                if changed.is_err() {
+                    break SurfaceTermination::Failure(
+                        ResourceApiRunError::ManagedRuntimeCoordinatorStopped,
+                    );
+                }
+                set_readiness(
+                    &readiness,
+                    ReadinessGate::Docker,
+                    *runtime_available.borrow(),
+                );
+            }
+            changed = runtime_coordinated.changed(), if readiness.is_some() => {
+                if changed.is_err() {
+                    break SurfaceTermination::Failure(
+                        ResourceApiRunError::ManagedRuntimeCoordinatorStopped,
+                    );
+                }
+                set_readiness(
+                    &readiness,
+                    ReadinessGate::Runtime,
+                    *runtime_coordinated.borrow(),
+                );
+            }
             _ = refresh.tick() => {
-                let resources = collector.collect()?;
-                verify_m4_gpu_inventory(&resources)?;
-                verify_model_root_mounts(config, &resources)?;
+                let resources = match collector
+                    .collect()
+                    .map_err(ResourceApiRunError::from)
+                    .and_then(|resources| {
+                        verify_m4_gpu_inventory(&resources)?;
+                        verify_model_root_mounts(config, &resources)?;
+                        Ok(resources)
+                    })
+                {
+                    Ok(resources) => resources,
+                    Err(error) => {
+                        break SurfaceTermination::Failure(error);
+                    }
+                };
+                set_readiness(&readiness, ReadinessGate::Resources, true);
                 resources_tx.send_replace(resources.clone());
                 status_tx.send_replace(profile.status_report(
                     identity.worker_uuid.clone(),
@@ -1119,23 +1216,33 @@ where
         }
     };
 
-    observe(&SurfaceEvent::Stopping {
-        signal: shutdown_signal_name(signal),
-    });
-    shutdown_tx.send_replace(true);
-    let (api_result, metrics_result, (), (), runtime_result) = join_surface_tasks(
-        SURFACE_SHUTDOWN_GRACE,
-        &mut api_future,
-        &mut metrics_future,
-        &mut control_future,
-        &mut managed_future,
-        &mut runtime_future,
-    )
-    .await
-    .map_err(|_| ResourceApiRunError::ShutdownTimeout(SURFACE_SHUTDOWN_GRACE))?;
-    api_result.map_err(|error| ResourceApiRunError::EndpointServe("Worker API", error))?;
-    metrics_result.map_err(|error| ResourceApiRunError::EndpointServe("metrics", error))?;
-    runtime_result?;
+    let signal = match termination {
+        SurfaceTermination::Signal(signal) => {
+            observe(&SurfaceEvent::Stopping {
+                signal: shutdown_signal_name(signal),
+            });
+            Some(signal)
+        }
+        SurfaceTermination::Failure(error) => {
+            reset_readiness(&readiness);
+            supervisor.request_shutdown();
+            supervisor
+                .shutdown(SURFACE_SHUTDOWN_GRACE)
+                .await
+                .map_err(|_| ResourceApiRunError::ShutdownTimeout(SURFACE_SHUTDOWN_GRACE))?;
+            return Err(error);
+        }
+    };
+    reset_readiness(&readiness);
+    supervisor.request_shutdown();
+    let exits = supervisor
+        .shutdown(SURFACE_SHUTDOWN_GRACE)
+        .await
+        .map_err(|_| ResourceApiRunError::ShutdownTimeout(SURFACE_SHUTDOWN_GRACE))?;
+    if let Some(error) = first_task_error(exits) {
+        return Err(error);
+    }
+    let signal = signal.expect("successful Worker termination requires a signal");
     let health = control_health.borrow().clone();
     let desired = desired_summary.borrow().clone();
     Ok(SurfaceSummary {
@@ -1170,25 +1277,36 @@ async fn shutdown_requested(mut shutdown: watch::Receiver<bool>) {
     }
 }
 
-async fn join_surface_tasks<A, B, C, D, E>(
-    grace: Duration,
-    api: A,
-    metrics: B,
-    control: C,
-    managed: D,
-    runtime: E,
-) -> Result<(A::Output, B::Output, C::Output, D::Output, E::Output), tokio::time::error::Elapsed>
-where
-    A: Future,
-    B: Future,
-    C: Future,
-    D: Future,
-    E: Future,
-{
-    tokio::time::timeout(grace, async {
-        tokio::join!(api, metrics, control, managed, runtime)
-    })
-    .await
+fn set_readiness(readiness: &Option<Arc<WorkerReadiness>>, gate: ReadinessGate, ready: bool) {
+    if let Some(readiness) = readiness {
+        readiness.set(gate, ready);
+    }
+}
+
+fn reset_readiness(readiness: &Option<Arc<WorkerReadiness>>) {
+    if let Some(readiness) = readiness {
+        readiness.reset();
+    }
+}
+
+fn unexpected_task_exit(exit: SupervisedTaskExit<ResourceApiRunError>) -> ResourceApiRunError {
+    match exit.result {
+        Err(error) => error,
+        Ok(()) => match exit.name {
+            "worker_api" => ResourceApiRunError::EndpointStopped("Worker API"),
+            "metrics" => ResourceApiRunError::EndpointStopped("metrics"),
+            "control_plane" => ResourceApiRunError::ControlPlaneStopped,
+            "managed_files" => ResourceApiRunError::ManagedCoordinatorStopped,
+            "managed_runtime" => ResourceApiRunError::ManagedRuntimeCoordinatorStopped,
+            _ => ResourceApiRunError::SafetyInvariant("unknown critical Worker task stopped"),
+        },
+    }
+}
+
+fn first_task_error(
+    exits: Vec<SupervisedTaskExit<ResourceApiRunError>>,
+) -> Option<ResourceApiRunError> {
+    exits.into_iter().find_map(|exit| exit.result.err())
 }
 
 fn verify_m4_gpu_inventory(resources: &CollectedResources) -> Result<(), ResourceApiRunError> {
@@ -1481,23 +1599,5 @@ mod tests {
         assert!(verify_model_root_mounts(&config, &resources).is_err());
         resources.status.filesystem.as_mut().expect("filesystems")[0].mount_point = "/".to_owned();
         verify_model_root_mounts(&config, &resources).expect("root mount covers model path");
-    }
-
-    #[tokio::test]
-    async fn surface_shutdown_join_has_a_hard_deadline() {
-        let completed = async { 1_u8 };
-        let blocked = std::future::pending::<u8>();
-
-        let result = join_surface_tasks(
-            Duration::from_millis(10),
-            completed,
-            async { 2_u8 },
-            async { 3_u8 },
-            async { 4_u8 },
-            blocked,
-        )
-        .await;
-
-        assert!(result.is_err());
     }
 }

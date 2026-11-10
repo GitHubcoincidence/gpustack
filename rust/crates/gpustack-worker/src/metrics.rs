@@ -1,6 +1,7 @@
 //! Prometheus exposition for the typed Worker resource snapshot.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, AtomicU64};
 
 use gpustack_client::types::{GpuDeviceInfo, MountPointInfo, WorkerResourceStatus};
@@ -20,6 +21,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
 use crate::control::ControlPlaneHealth;
+use crate::readiness::WorkerReadiness;
 use crate::resources::CollectedResources;
 
 type Labels = Vec<(String, String)>;
@@ -44,6 +46,7 @@ pub struct MetricsState {
     pub identity: MetricIdentity,
     pub resources: watch::Receiver<CollectedResources>,
     pub control: watch::Receiver<ControlPlaneHealth>,
+    pub readiness: Option<Arc<WorkerReadiness>>,
 }
 
 pub fn router(state: MetricsState) -> Router {
@@ -55,7 +58,17 @@ pub fn router(state: MetricsState) -> Router {
 async fn metrics_handler(State(state): State<MetricsState>) -> Response {
     let resources = state.resources.borrow().clone();
     let control = state.control.borrow().clone();
-    match render_metrics(state.mode, &state.identity, &resources.status, &control) {
+    let ready = state
+        .readiness
+        .as_ref()
+        .is_some_and(|readiness| readiness.is_ready());
+    match render_metrics(
+        state.mode,
+        &state.identity,
+        &resources.status,
+        &control,
+        ready,
+    ) {
         Ok(body) => ([(CONTENT_TYPE, "text/plain; version=0.0.4")], body).into_response(),
         Err(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -71,11 +84,12 @@ pub fn render_metrics(
     identity: &MetricIdentity,
     resources: &WorkerResourceStatus,
     control: &ControlPlaneHealth,
+    worker_ready: bool,
 ) -> Result<String, MetricsError> {
     let mut registry = Registry::default();
     let mut gauges = GaugeFamilies::default();
     register_resource_metrics(&mut gauges, identity, resources);
-    register_control_metrics(&mut gauges, &mut registry, mode, control);
+    register_control_metrics(&mut gauges, &mut registry, mode, control, worker_ready);
     gauges.register(&mut registry);
     let mut output = String::new();
     encode(&mut output, &registry)?;
@@ -291,6 +305,7 @@ fn register_control_metrics(
     prometheus_registry: &mut Registry,
     mode: &'static str,
     control: &ControlPlaneHealth,
+    worker_ready: bool,
 ) {
     set_gauge(
         registry,
@@ -300,7 +315,7 @@ fn register_control_metrics(
         1.0,
     );
     for (name, value) in [
-        ("gpustack:rust_worker_ready", false),
+        ("gpustack:rust_worker_ready", worker_ready),
         (
             "gpustack:rust_worker_server_connected",
             control.heartbeat_ok || control.status_ok || control.full_sync_ok,
@@ -495,8 +510,14 @@ mod tests {
             reconnect_attempts: 3,
         };
 
-        let text = render_metrics("resource_api_only", &identity, &resources(), &control)
-            .expect("render metrics");
+        let text = render_metrics(
+            "resource_api_only",
+            &identity,
+            &resources(),
+            &control,
+            false,
+        )
+        .expect("render metrics");
 
         for name in [
             "gpustack:worker_node_os_info",
@@ -521,5 +542,25 @@ mod tests {
         assert!(!text.contains("token"));
         assert!(text.contains("gpustack:rust_worker_ready 0"));
         assert!(text.contains("mode=\"resource_api_only\""));
+    }
+
+    #[test]
+    fn complete_worker_readiness_is_exported() {
+        let identity = MetricIdentity {
+            instance: "127.0.0.1".to_owned(),
+            worker_id: 42,
+            worker_name: "rust-worker".to_owned(),
+        };
+
+        let text = render_metrics(
+            "managed_runtime",
+            &identity,
+            &resources(),
+            &ControlPlaneHealth::default(),
+            true,
+        )
+        .expect("render metrics");
+
+        assert!(text.contains("gpustack:rust_worker_ready 1"));
     }
 }

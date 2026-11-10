@@ -8,11 +8,13 @@ pub mod identity;
 pub mod lab;
 pub mod managed;
 pub mod metrics;
+pub mod readiness;
 pub mod resource_run;
 pub mod resources;
 pub mod run;
 pub mod runtime_core;
 pub mod signal;
+mod supervisor;
 pub mod worker_api;
 pub mod workload;
 
@@ -26,7 +28,7 @@ pub use resource_run::{
     MANAGED_FILE_ONLY_MODE, MANAGED_RUNTIME_MODE, ManagedFileEvent, ManagedFileSummary,
     ManagedRuntimeEvent, ManagedRuntimeSummary, RESOURCE_API_ONLY_MODE, ResourceApiEvent,
     ResourceApiRunError, ResourceApiSummary, run_managed_file_only, run_managed_runtime,
-    run_resource_api_only,
+    run_resource_api_only, run_worker,
 };
 pub use run::{
     CONTROL_PLANE_ONLY_MODE, ControlPlaneOnlyEvent, ControlPlaneOnlySummary, WorkerRunError,

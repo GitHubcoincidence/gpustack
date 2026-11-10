@@ -34,6 +34,7 @@ use thiserror::Error;
 
 use crate::config::WorkerConfig;
 use crate::managed::ManagedRuntimeRegistry;
+use crate::readiness::WorkerReadiness;
 use crate::resources::unix_seconds_to_rfc3339;
 
 const MAX_MODEL_CONFIG_BYTES: u64 = 16 * 1024 * 1024;
@@ -86,8 +87,24 @@ pub struct WorkerApiState {
 #[derive(Clone)]
 struct ManagedApiState {
     registry: Arc<ManagedRuntimeRegistry>,
+    readiness: ManagedReadiness,
     proxy: Arc<dyn ManagedInferenceProxy>,
     worker_ip: IpAddr,
+}
+
+#[derive(Clone)]
+enum ManagedReadiness {
+    LegacyRegistry(Arc<ManagedRuntimeRegistry>),
+    Worker(Arc<WorkerReadiness>),
+}
+
+impl ManagedReadiness {
+    fn is_ready(&self) -> bool {
+        match self {
+            Self::LegacyRegistry(registry) => registry.is_ready(),
+            Self::Worker(readiness) => readiness.is_ready(),
+        }
+    }
 }
 
 impl WorkerApiState {
@@ -118,6 +135,38 @@ impl WorkerApiState {
         managed_inference_token: SecretToken,
         registry: Arc<ManagedRuntimeRegistry>,
     ) -> Result<Self, WorkerApiBuildError> {
+        Self::new_managed_with_readiness(
+            config,
+            token,
+            managed_inference_token,
+            Arc::clone(&registry),
+            ManagedReadiness::LegacyRegistry(registry),
+        )
+    }
+
+    pub fn new_worker(
+        config: &WorkerConfig,
+        token: SecretToken,
+        managed_inference_token: SecretToken,
+        registry: Arc<ManagedRuntimeRegistry>,
+        readiness: Arc<WorkerReadiness>,
+    ) -> Result<Self, WorkerApiBuildError> {
+        Self::new_managed_with_readiness(
+            config,
+            token,
+            managed_inference_token,
+            registry,
+            ManagedReadiness::Worker(readiness),
+        )
+    }
+
+    fn new_managed_with_readiness(
+        config: &WorkerConfig,
+        token: SecretToken,
+        managed_inference_token: SecretToken,
+        registry: Arc<ManagedRuntimeRegistry>,
+        readiness: ManagedReadiness,
+    ) -> Result<Self, WorkerApiBuildError> {
         let mut state = Self::new(config, token)?;
         let worker_ip = config
             .worker_ip
@@ -128,6 +177,7 @@ impl WorkerApiState {
             .map_err(WorkerApiBuildError::InferenceClient)?;
         state.managed = Some(ManagedApiState {
             registry,
+            readiness,
             proxy: Arc::new(ReqwestManagedInferenceProxy { client }),
             worker_ip,
         });
@@ -175,7 +225,7 @@ async fn healthz() -> Json<&'static str> {
 
 async fn readyz(State(state): State<Arc<WorkerApiState>>) -> Response {
     match &state.managed {
-        Some(managed) if managed.registry.is_ready() => Json("ok").into_response(),
+        Some(managed) if managed.readiness.is_ready() => Json("ok").into_response(),
         Some(_) => ApiError::managed_service_unavailable().into_response(),
         None => ApiError::service_unavailable().into_response(),
     }
@@ -1123,6 +1173,7 @@ mod tests {
             roots: Arc::new(Vec::new()),
             log_dir: PathBuf::new(),
             managed: Some(ManagedApiState {
+                readiness: ManagedReadiness::LegacyRegistry(Arc::clone(&registry)),
                 registry,
                 proxy,
                 worker_ip: "10.213.80.90".parse().expect("test Worker IP"),
@@ -1290,6 +1341,40 @@ mod tests {
         assert_eq!(
             readyz(State(Arc::new(state))).await.status(),
             StatusCode::SERVICE_UNAVAILABLE
+        );
+    }
+
+    #[tokio::test]
+    async fn production_readiness_requires_the_complete_worker_lifecycle() {
+        let proxy = Arc::new(FakeInferenceProxy {
+            request: Mutex::new(None),
+            status: StatusCode::OK,
+            headers: HeaderMap::new(),
+            chunks: Vec::new(),
+        });
+        let mut state = managed_state(proxy);
+        let readiness = Arc::new(WorkerReadiness::default());
+        state.managed.as_mut().expect("Managed API").readiness =
+            ManagedReadiness::Worker(Arc::clone(&readiness));
+
+        assert_eq!(
+            readyz(State(Arc::new(state.clone()))).await.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        for gate in [
+            crate::readiness::ReadinessGate::Resources,
+            crate::readiness::ReadinessGate::Docker,
+            crate::readiness::ReadinessGate::WorkerApi,
+            crate::readiness::ReadinessGate::Metrics,
+            crate::readiness::ReadinessGate::Identity,
+            crate::readiness::ReadinessGate::FullSync,
+            crate::readiness::ReadinessGate::Runtime,
+        ] {
+            readiness.set(gate, true);
+        }
+        assert_eq!(
+            readyz(State(Arc::new(state))).await.status(),
+            StatusCode::OK
         );
     }
 
