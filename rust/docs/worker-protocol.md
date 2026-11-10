@@ -96,6 +96,18 @@ resource-api-only 没有 Docker 和 reconciler，所以 `/readyz` 固定为 503�
 
 未来完整 Managed 只有 Docker 与 NVML 可用、注册成功、已发布初始状态、已获得权威 Model、ModelInstance 和当前 Worker ModelFile 快照且第一次协调完成，readiness 才为 true。持续的 Server 失联或不可恢复的 runtime 故障会使 readiness 变为 false，但 liveness 可以保持 true。
 
+M8 将上述“未来完整 Managed”收敛为普通 `worker run` 的唯一生产语义。readiness 由统一状态
+聚合器根据资源、Docker、listener、身份、首次 full sync 和首次 runtime 协调计算，不再由公开
+启动模式决定。supervisor 统一管理 Worker API、metrics、控制面、资源刷新、文件协调器和
+runtime协调器；任一关键任务意外停止都触发有界的全局 shutdown，而不是让残缺 Worker继续
+报告 READY。正常进程退出不得删除健康 Runner。
+
+首次注册、持久身份恢复和缺失 per-Worker token 的原身份恢复继续使用同一类型化 identity
+协议。最终入口不强制已有身份或预先 maintenance；它尊重 Server 返回的 maintenance，且不
+自动解除该字段。初始化阶段以非空 state message 和 false readiness 阻止调度，完整收敛后才
+清空启动原因。阶段性的空 GPU、无 runtime、强制 maintenance 和 `mode`/`stage` label 不属于
+最终 wire contract。
+
 ## 事件与协调契约
 
 ModelInstance watch event 把实例标记为 dirty，并触发按 key 协调；ModelFile watch event 更新当前 Worker 的文件准备队列。ModelFile 准备完成后由 Server 推进 ModelInstance，并通过独立的 ModelInstance watch 通知 Worker。每次重连都触发一次权威全量 list，周期性权威 sync 作为最后兜底。清理决策绝不能来自临时空 cache、失败请求或不完整分页。

@@ -61,6 +61,27 @@ gpustack-rs worker config get --output table|json
 
 M4-C 只运行 `worker gpu list --output json` 与 `nvidia-smi` 做宿主机只读对比，不读取 Worker token、不连接 Server、不绑定正式 API 端口。启动 `--resource-api-only` 会更新真实 Server status，只能在 M4-D 的独立维护窗口授权后执行。
 
+## M8 R1 统一 Worker 启动
+
+M3～M7 的 `--control-plane-only`、`--resource-api-only`、`--managed-file-only` 和
+`--managed-runtime` 只属于对应历史验证阶段。R1 正式 CLI 只支持：
+
+```text
+gpustack-rs worker run [--config <path>]
+```
+
+该命令固定启动 R1 完整 Worker，不接受运行能力模式参数，也不能在 NVML、Docker、身份或首次
+权威协调失败时静默降级。旧模式参数从公开 grammar 删除；阶段证据继续由其冻结提交和 runbook
+解释，不要求新二进制兼容旧实验命令。
+
+模式移除不减少诊断能力。无需启动长期 Worker 的检查继续使用 `worker doctor`、
+`worker validate-config`、`worker gpu list`、`worker runtime info` 和 `worker config get`。
+Lab 命令仍是隔离的本地诊断/演示工作流，不是第二种 Worker daemon，也不因本次统一而删除。
+
+CLI 重构只把 Worker 本地命令 grammar、执行和渲染适度移入独立模块；Context、Model、
+Inference、Lab 的稳定参数、JSON、退出码和 Server调用语义不借机改变。容器最终使用普通
+`worker run` 作为 CMD，不把任何历史阶段 flag 固化到部署定义。
+
 ## Managed 模型命令
 
 M6-A 先实现 `context add/use/list/remove`、`model deploy/list/get/status/delete`、

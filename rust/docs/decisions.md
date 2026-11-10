@@ -1288,3 +1288,12 @@ preflight仍须新的明确授权，真实双GPU维护窗口另须之后再次�
 
 M8-0现为`accepted`。下一步只允许在另获用户同意后执行M8-A离线容器化实现；本决定不授权在90
 构建镜像、停止Python Worker、启动容器化Rust Worker、修改Server、创建模型/Runner或使用GPU。
+
+## 2026-11-10 M8-A生产启动收敛方案冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D265 | 统一启动与防回归迁移 | R1公开Worker daemon只保留普通`worker run`，删除四个阶段模式参数；在容器打包前按A.1特征测试、A.2统一bootstrap/supervisor/readiness、A.3首次注册与maintenance、A.4 CLI切换/适度拆分、A.5删除旧编排/完整回归、A.6离线容器打包推进。迁移期先新增统一入口并保留旧入口作离线对照，CLI切换后才删除旧实现；不借机重写Server协议、WorkloadSpec、ownership、GPU/TP、reconciler、恢复策略或Lab | 四个模式是M3～M7隔离副作用的实验门而非产品能力，直接固化进镜像会形成错误部署接口。启动编排、任务生命周期、readiness、身份和maintenance共同决定容器PID 1与Server调度安全，必须在打包前收敛；分提交、先保护不变量、后切换再删除，可把中高风险重构限制在离线门内。 |
+
+M8-A方案修订现为`accepted`，但尚未授权产品实现。下一步只允许在用户另行同意后执行
+M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfile、90镜像构建或真实服务/GPU操作。

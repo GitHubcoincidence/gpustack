@@ -82,7 +82,7 @@ RUNNING -> STOPPED
 
 `gpustack-rs worker run --resource-api-only` 是 M4 的显式受限启动配置。它复用已持久化的 Server Worker 身份和 per-Worker token，继续注册或恢复为 maintenance；启用 NVML/系统资源盘点、完整 M4 Worker HTTP API 和独立 metrics listener，但不构造 Docker client、ModelFile manager、ModelInstance reconciler 或 vLLM runtime，也不发送任何模型状态更新。
 
-五个运行配置的能力边界如下：
+开发阶段五个运行配置的能力边界如下：
 
 | 启动配置 | 资源上报 | Worker API | metrics | Docker/vLLM | 调度状态 |
 |---|---|---|---|---|---|
@@ -115,6 +115,35 @@ Worker 推理代理。它与前三种受限模式互斥，不改变它们已经�
 `managed-runtime` 的 `/readyz` 只有在资源采集、Docker 先决条件和首次权威 runtime 收敛
 完成后返回 200；单个模型未部署或进入 ERROR 不等同于 Worker 未就绪。运维人员仍须通过
 CLI 显式解除 maintenance，Worker不能为了获取任务自行切换该字段。
+
+### M8 生产启动收敛
+
+M3～M7 的四个显式模式是逐阶段隔离真实副作用的验证门，不是 R1 对外支持的四种 Worker。
+M8 在构建容器镜像前把生产入口收敛为唯一的 `gpustack-rs worker run`；最终 CLI 删除
+`--control-plane-only`、`--resource-api-only`、`--managed-file-only` 和 `--managed-runtime`。
+只读诊断继续由 `worker doctor`、`worker validate-config`、`worker gpu list`、
+`worker runtime info` 和 `worker config get` 提供，完整 Worker不能因局部先决条件失败而静默
+降级为阶段模式。
+
+生产入口固定组装身份、资源采集、Worker API、metrics、控制面、Managed 文件协调和 runtime
+协调。启动编排从领域实现中分离为 bootstrap、supervisor、统一事件/摘要和 readiness 状态；
+supervisor 负责关键任务意外退出、统一取消、优雅停止和有界 shutdown。Worker进程退出继续
+保留健康的 owned Runner，只有 Server 权威删除和完整 ownership tuple 才能授权 workload清理。
+
+readiness 只有在 NVML/系统资源、Docker 先决条件、API/metrics listener、Worker身份、首次
+权威 full sync 和首次 runtime 协调全部成功后才为 true。单个模型状态不决定 Worker readiness；
+不可恢复的本地先决条件失败必须 fail closed，持续控制连接失败按既定恢复策略使 readiness
+降级但不把 liveness 伪装成失败。
+
+正常入口同时支持使用 Cluster registration token 的首次注册、完整持久身份恢复，以及 identity
+record 存在但 per-Worker token缺失时的原身份恢复；任何歧义都必须 fail closed，不能创建重复
+Worker。阶段实现中强制已有身份、强制启动时 maintenance 和写入 `mode`/`stage` label 的约束不
+进入最终产品。Worker尊重 Server 权威 maintenance，不为获取任务自行修改它；初始化期间依靠
+readiness/state message阻止过早调度。
+
+迁移采用新增统一入口、保留旧入口作离线对照、切换 CLI、最后删除旧编排的顺序。期间不重写
+已经接受的 Server协议、WorkloadSpec/spec hash、Docker ownership、GPU/TP planner、Managed
+reconciler、恢复/backoff、推理代理或 Lab状态机。
 
 ## 状态所有权
 

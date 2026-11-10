@@ -336,10 +336,10 @@ M8 分为八个独立门禁：
 1. **M8-0 方案冻结**：冻结镜像边界、运行身份、Docker socket/NVML/host network、持久化与
    相同绝对路径、资源语义、容器重启恢复、证据身份、分段授权和回滚规则。只修改治理文档，
    不构建镜像、不停止 Python Worker、不部署候选容器、不创建 workload 或使用 GPU。
-2. **M8-A 离线容器化实现**：实现专用多阶段 Dockerfile、源码与版本 label、直接 entrypoint、
-   受保护的启动/停止定义以及 UID/GID、socket GID、mount、标签、重启策略和参数检查。补齐
-   不访问真实 Server、Docker、数据库或 GPU 的离线测试，并执行完整 Rust 质量门。本阶段不在
-   90 构建镜像或启动容器。
+2. **M8-A 生产启动收敛与离线容器化**：先把阶段性 Worker模式收敛为普通 `worker run`，
+   拆分 bootstrap/supervisor/readiness 并完成身份、maintenance、CLI 和生命周期回归；通过后
+   再实现专用多阶段 Dockerfile、直接 entrypoint 和受保护部署定义。本阶段只使用 mock/fake
+   与离线构建，不在90构建镜像或启动容器。
 3. **M8-B 镜像与只读能力验证**：在 Python Worker 保持运行时于 90 构建固定 candidate，记录
    source commit、`Cargo.lock`、release binary、Dockerfile、基础镜像和最终 image ID/digest。
    只运行 version/config、非 root 文件权限、Docker socket 可达性、相同路径和 NVML inventory
@@ -360,6 +360,32 @@ M8 分为八个独立门禁：
 8. **M8-G R1 candidate 审计**：复核镜像和代码身份，记录 idle memory、startup time、
    reconciliation latency 与 control-plane overhead，完成全量秘密/所有权/残留审计，恢复精确
    Python Worker并退役阶段凭据。性能数据是特征描述，不设置 Rust 必须快于 Python 的阈值。
+
+M8-A 按下列六个子门禁顺序推进，不能合并成一次大范围重构：
+
+1. **M8-A.1 现有行为特征测试**：先冻结 Server wire、七状态链、ModelFile、WorkloadSpec/spec
+   hash、GPU顺序/TP、ownership、接管/backoff、推理认证、日志代际和权威删除清理等 M7 已接受
+   不变量。只增加 fixture/fake/characterization测试，不改变生产行为。
+2. **M8-A.2 统一 bootstrap/supervisor/readiness**：新增唯一内部 `run_worker`，固定组装资源、
+   API、metrics、控制面、Managed文件和 runtime；引入统一任务取消、优雅停止和 readiness。
+   旧入口暂时保留作离线对照，不能同时启动两套协调器。
+3. **M8-A.3 首次注册与 maintenance**：让新入口支持首次注册、完整持久身份恢复和缺失
+   per-Worker token时的原身份恢复；删除生产路径对“已有身份且预先maintenance”的阶段假设。
+   Worker尊重而不修改Server权威maintenance，以readiness/state message阻止过早调度。
+4. **M8-A.4 CLI切换与适度拆分**：公开语法只保留普通 `worker run`，删除四个阶段模式参数；
+   Worker本地命令可机械移入独立CLI模块。Context、Model、Inference、Lab、稳定JSON和退出码
+   不作无关重构。
+5. **M8-A.5 删除旧编排与完整离线回归**：新入口通过后才删除四个旧run函数、模式枚举、阶段
+   label/message和重复事件/摘要；执行workspace fmt、Clippy、test、locked/offline build、
+   secret/关键注释审阅，并在聊天中交付详细实现报告。不得修改reconciler、WorkloadSpec、
+   Docker ownership、GPU/TP planner、Server协议或Lab状态机来迁就重构。
+6. **M8-A.6 离线容器打包**：只有A.1～A.5获接受后才实现独立多阶段Dockerfile、固定镜像身份、
+   普通`worker run` CMD、动态UID/GID/socket GID、mount/label/restart校验和受保护启动/停止定义。
+   Compose仍延后到运行契约通过后。
+
+每个M8-A子门禁都使用独立提交和完整相关回归；旧路径只作为迁移期离线oracle，不能继续成为
+最终公开接口。A.1～A.5不会访问真实Server、Docker或GPU；A.6只做离线Dockerfile/脚本检查，
+在90真实build/run仍属于M8-B，必须另行授权。
 
 每个真实阶段都使用独立 preflight、窗口外 watchdog、正常 cleanup 和独立 post-audit。M8-C～F
 分别需要精确授权；前一阶段通过不能自动授权下一阶段。非特权 NVML 失败时必须停在诊断边界，

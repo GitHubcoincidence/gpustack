@@ -5112,3 +5112,21 @@
   提升为发布证据。没有引入新产品能力、修改成功标准或用诊断结果替代正式门，结论为`aligned`。
 - 当前停止位置：M8-0为`accepted`。下一步只允许在用户另行同意后执行M8-A离线实现；当前未
   授权90镜像构建、Python Worker停机、候选容器部署、Server写入、Runner/模型创建或GPU使用。
+
+### 2026-11-10：M8-A生产启动收敛方案冻结
+
+- 只读审计：当前公开`worker run`必须四选一使用`control-plane-only`、`resource-api-only`、
+  `managed-file-only`或`managed-runtime`；前者单独位于`run.rs`，后三者共享`resource_run.rs`
+  的surface supervisor。crate和identity/control/resources/API/managed/runtime/Lab领域边界总体
+  合理，主要技术债集中在阶段模式、启动编排、生命周期/readiness和CLI分发。
+- 用户决定：最终R1只保留普通`worker run`，并在容器化前一起完成启动/领域拆分、统一生命周期
+  与readiness、首次注册/maintenance语义和最小CLI拆分；但不得用一次大提交同时替换所有行为。
+- 防回归顺序：A.1先以特征测试固定M7不变量；A.2新增统一入口且旧路径仅作离线对照；A.3单独
+  收敛身份和maintenance；A.4再切CLI；A.5最后删除旧编排并跑完整质量门；A.6才离线打包镜像。
+- 保持不变：固定Server v2.2.3、状态所有权、WorkloadSpec/spec hash、Docker ownership、GPU/TP、
+  reconciler、恢复/backoff、推理认证、日志代际、Lab与R1范围不因结构整理改变。历史runbook和
+  冻结提交继续解释四种模式，不要求新二进制兼容旧实验命令。
+- 漂移审计：原架构已把普通`worker run`列为最终目标，D152也明确未提前决定最终默认行为；
+  本修订实现该预留接口且不扩大能力或提升旧证据，结论为`aligned`。
+- 当前停止位置：M8-A方案修订为`accepted`，产品代码未修改。下一步只允许另获同意后执行
+  M8-A.1离线特征测试；尚未授权A.2～A.6、90构建/运行、服务切换、Server写入、Docker或GPU。
