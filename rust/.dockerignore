@@ -1,0 +1,11 @@
+target/
+.idea/
+docs/
+fixtures/
+scripts/
+**/*.log
+**/*.pid
+**/*.sock
+**/*token*
+**/*secret*
+**/.env
