@@ -82,7 +82,7 @@ RUNNING -> STOPPED
 
 `gpustack-rs worker run --resource-api-only` 是 M4 的显式受限启动配置。它复用已持久化的 Server Worker 身份和 per-Worker token，继续注册或恢复为 maintenance；启用 NVML/系统资源盘点、完整 M4 Worker HTTP API 和独立 metrics listener，但不构造 Docker client、ModelFile manager、ModelInstance reconciler 或 vLLM runtime，也不发送任何模型状态更新。
 
-开发阶段五个运行配置的能力边界如下：
+M3～M7历史验证配置及M8统一入口的能力边界如下。前四行只描述冻结证据，不是当前CLI：
 
 | 启动配置 | 资源上报 | Worker API | metrics | Docker/vLLM | 调度状态 |
 |---|---|---|---|---|---|
@@ -90,7 +90,7 @@ RUNNING -> STOPPED
 | `--resource-api-only` | 真实系统/NVML | M4 完整只读 API | `20151` | 禁用 | maintenance |
 | `--managed-file-only` | 真实系统/NVML | M4 完整只读 API | `20151` | 禁用 | 运维显式控制 |
 | `--managed-runtime` | 真实系统/NVML | 完整 R1 API 与推理代理 | `20151` | 单 GPU vLLM | 运维显式控制 |
-| 未来普通 `worker run` | 真实系统/NVML | 完整 R1 API | 启用 | 启用 | 首次收敛后按 Managed 状态 |
+| M8普通 `worker run` | 真实系统/NVML | 完整 R1 API | 启用 | 启用 | 首次收敛后按 Managed 状态 |
 
 resource-api-only 使用 Worker API `10.213.80.90:20150`、metrics `10.213.80.90:20151` 和模型根目录 `/home/wujiaxing2/flowscale-system-validation/models`。`/healthz` 只证明 listener 存活；该模式缺少 Docker 和协调器，因此 `/readyz` 固定返回 503。完整 Managed 的 readiness 仍遵循下述生命周期。M4 不能修改 control-plane-only 的空 GPU、无 metrics 和最小 API 语义。
 
@@ -119,7 +119,7 @@ CLI 显式解除 maintenance，Worker不能为了获取任务自行切换该字�
 ### M8 生产启动收敛
 
 M3～M7 的四个显式模式是逐阶段隔离真实副作用的验证门，不是 R1 对外支持的四种 Worker。
-M8 在构建容器镜像前把生产入口收敛为唯一的 `gpustack-rs worker run`；最终 CLI 删除
+M8-A.1～A.5已在构建容器镜像前把生产入口收敛为唯一的 `gpustack-rs worker run`；当前CLI已删除
 `--control-plane-only`、`--resource-api-only`、`--managed-file-only` 和 `--managed-runtime`。
 只读诊断继续由 `worker doctor`、`worker validate-config`、`worker gpu list`、
 `worker runtime info` 和 `worker config get` 提供，完整 Worker不能因局部先决条件失败而静默
@@ -141,7 +141,7 @@ Worker。阶段实现中强制已有身份、强制启动时 maintenance 和写�
 进入最终产品。Worker尊重 Server 权威 maintenance，不为获取任务自行修改它；初始化期间依靠
 readiness/state message阻止过早调度。
 
-迁移采用新增统一入口、保留旧入口作离线对照、切换 CLI、最后删除旧编排的顺序。期间不重写
+迁移已经按新增统一入口、保留旧入口作离线对照、切换 CLI、最后删除旧编排的顺序完成。期间没有重写
 已经接受的 Server协议、WorkloadSpec/spec hash、Docker ownership、GPU/TP planner、Managed
 reconciler、恢复/backoff、推理代理或 Lab状态机。
 

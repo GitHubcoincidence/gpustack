@@ -5227,3 +5227,34 @@
 - 当前停止位置：`M8-A.4 ready_for_review`，不是`accepted`。下一步只允许用户审阅本阶段详细
   报告；接受后才可另行进入M8-A.5删除旧编排和完整离线回归。A.6、90镜像构建、服务切换、
   Server写入、Docker生命周期操作和GPU使用仍未授权。
+
+### 2026-11-10：M8-A.4验收与M8-A.5旧编排删除完成
+
+- 验收与范围：用户接受M8-A.4详细报告并授权A.5。产品提交
+  `ca768794c99ced09eab37fcc79ffc6a2622e163d`删除四个旧run函数、旧模式枚举/常量、阶段
+  label/message和重复事件/摘要；没有修改依赖或`Cargo.lock`，也没有进入A.6。
+- 唯一编排：删除独立`resource_run.rs`，由`gpustack-worker/src/run.rs`唯一拥有
+  `run_worker`、`WorkerEvent`、`WorkerSummary`和`WorkerRunError`。启动无条件组装真实资源、
+  Worker API、metrics、控制面、Managed文件和runtime；旧restricted/production分支、旧入口导出
+  和旧maintenance检查不再存在。
+- 身份与状态语义：统一入口始终把受保护Cluster registration token交给既有identity bootstrap，
+  首次注册、完整恢复和缺token恢复继续使用A.3语义；注册只携带`implementation=rust`，不写
+  `mode/stage`，也不修改或要求Server maintenance。事件记录真实identity source，最终摘要扁平
+  合并文件/runtime/控制面计数，CLI table/JSON不再暴露阶段mode。
+- 正式节点范围：删除“验证主机至少两张GPU”的阶段假设；完整身份字段仍fail-closed，但一张完整
+  GPU即可启动，保持R1已验收的单GPU和双GPU范围。Worker API遗留的resource-only错误消息同步
+  改为统一Worker表述，fixture和契约文档一起更新。
+- 回归变化：删除五项只验证control-plane-only旧入口的测试；旧resource编排11项测试收敛为统一
+  编排10项测试，并新增一项CLI统一摘要测试，所以workspace总数从A.4的231项回到A.1基线的226项。
+  identity模块既有首次注册/恢复正反测试、M8-A.1三项单/双GPU特征测试及全部Managed/Lab测试继续
+  执行，不是以减少测试绕过产品能力。
+- 质量门：90服务器上workspace 226项all-targets/all-features locked/offline测试通过；
+  `cargo fmt --check`、全workspace/all-targets/all-features Clippy `-D warnings`、locked/offline build
+  和doc-tests通过；`git diff --check`、改动文件秘密扫描及新增关键注释审阅通过。90未安装
+  ShellCheck，因此没有宣称该项通过；两个旧脚本只机械更新已移动测试的模块路径，shell逻辑未变。
+- 漂移审计：Server协议、WorkloadSpec/spec hash、Docker ownership、GPU/TP planner、Managed
+  reconciler、恢复/backoff、推理代理和Lab状态机均未修改；A.1特征测试全部通过，结论为
+  `aligned`。本阶段没有连接真实Server、访问Docker/NVML、停止服务或使用GPU。
+- 当前停止位置：`M8-A.5 ready_for_review`，不是`accepted`。下一步只允许用户审阅本阶段详细
+  报告；接受后才可另行授权M8-A.6离线容器打包。90镜像构建/运行、服务切换、Server写入、
+  Docker生命周期操作和GPU使用仍未授权。
