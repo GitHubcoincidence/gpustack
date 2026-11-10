@@ -14,7 +14,7 @@ use gpustack_client::types::{
     ProxyMode, SERVER_BASELINE_GIT_COMMIT, SERVER_BASELINE_VERSION, SystemReserved, WorkerCreate,
     WorkerMaintenance, WorkerPublic, WorkerStatusReport,
 };
-use gpustack_client::{ClientError, ServerClient};
+use gpustack_client::{ClientError, SecretToken, ServerClient};
 use serde::Serialize;
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -24,7 +24,7 @@ use crate::config::WorkerConfig;
 use crate::control::{ControlLoopConfig, ControlLoopConfigError, DesiredState, WorkerControlPlane};
 use crate::identity::{
     CredentialStore, IdentityBootstrap, IdentityError, IdentityRecordStore, IdentitySource,
-    worker_credential_path, worker_identity_path,
+    WorkerIdentity, worker_credential_path, worker_identity_path,
 };
 use crate::managed::{
     LocalModelResolver, ManagedCoordinator, ManagedOutcome, ManagedPortAllocator, ManagedResult,
@@ -48,6 +48,7 @@ const MANAGED_MAINTENANCE_MESSAGE: &str =
     "Rust M6-A managed file preparation; runtime execution disabled";
 const MANAGED_RUNTIME_MAINTENANCE_MESSAGE: &str =
     "Rust M6-B managed runtime; scheduling controlled by operator";
+const PRODUCTION_NOT_READY_MESSAGE: &str = "Rust Worker initialization is incomplete";
 const UNASSIGNED_WORKER_UUID: &str = "00000000-0000-4000-8000-000000000000";
 const RESOURCE_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 const SURFACE_SHUTDOWN_GRACE: Duration = Duration::from_secs(15);
@@ -113,6 +114,7 @@ impl WorkerSurfaceMode {
 #[derive(Debug, Clone)]
 struct ResourceApiProfile {
     mode: WorkerSurfaceMode,
+    production: bool,
     server_url: url::Url,
     worker_name: String,
     worker_hostname: String,
@@ -127,12 +129,14 @@ impl ResourceApiProfile {
     fn from_config(
         config: &WorkerConfig,
         mode: WorkerSurfaceMode,
+        production: bool,
     ) -> Result<Self, ResourceApiRunError> {
         if config.model_roots.is_empty() {
             return Err(ResourceApiRunError::MissingConfiguration("model_roots"));
         }
         Ok(Self {
             mode,
+            production,
             server_url: config
                 .server_url
                 .clone()
@@ -167,6 +171,26 @@ impl ResourceApiProfile {
     }
 
     fn registration_request(&self, resources: &CollectedResources) -> WorkerCreate {
+        let (labels, maintenance, state_message) = if self.production {
+            (
+                BTreeMap::from([("implementation".to_owned(), "rust".to_owned())]),
+                None,
+                Some(PRODUCTION_NOT_READY_MESSAGE.to_owned()),
+            )
+        } else {
+            (
+                BTreeMap::from([
+                    ("implementation".to_owned(), "rust".to_owned()),
+                    ("mode".to_owned(), self.mode.name().to_owned()),
+                    ("stage".to_owned(), self.mode.stage().to_owned()),
+                ]),
+                Some(WorkerMaintenance {
+                    enabled: true,
+                    message: Some(self.mode.maintenance_message().to_owned()),
+                }),
+                Some(self.mode.maintenance_message().to_owned()),
+            )
+        };
         WorkerCreate {
             advertise_address: None,
             cluster_id: None,
@@ -174,22 +198,15 @@ impl ResourceApiProfile {
             hostname: self.worker_hostname.clone(),
             ifname: self.worker_ifname.clone(),
             ip: self.worker_ip.to_string(),
-            labels: BTreeMap::from([
-                ("implementation".to_owned(), "rust".to_owned()),
-                ("mode".to_owned(), self.mode.name().to_owned()),
-                ("stage".to_owned(), self.mode.stage().to_owned()),
-            ]),
+            labels,
             machine_id: resources.machine_id.clone(),
-            maintenance: Some(WorkerMaintenance {
-                enabled: true,
-                message: Some(self.mode.maintenance_message().to_owned()),
-            }),
+            maintenance,
             metrics_port: Some(self.metrics_port),
             name: self.worker_name.clone(),
             owner_principal_id: None,
             port: self.worker_port,
             proxy_mode: ProxyMode::Worker,
-            state_message: Some(self.mode.maintenance_message().to_owned()),
+            state_message,
             status: Some(resources.status.clone()),
             system_reserved: Some(SystemReserved::default()),
             worker_uuid: UNASSIGNED_WORKER_UUID.to_owned(),
@@ -201,6 +218,7 @@ impl ResourceApiProfile {
         &self,
         worker_uuid: String,
         resources: &CollectedResources,
+        ready: bool,
     ) -> WorkerStatusReport {
         WorkerStatusReport {
             advertise_address: None,
@@ -212,7 +230,11 @@ impl ResourceApiProfile {
             metrics_port: Some(self.metrics_port),
             port: self.worker_port,
             proxy_mode: ProxyMode::Worker,
-            state_message: self.mode.status_message().map(str::to_owned),
+            state_message: if self.production {
+                (!ready).then(|| PRODUCTION_NOT_READY_MESSAGE.to_owned())
+            } else {
+                self.mode.status_message().map(str::to_owned)
+            },
             status: Some(resources.status.clone()),
             system_reserved: Some(SystemReserved::default()),
             worker_uuid,
@@ -899,8 +921,9 @@ async fn run_worker_surface<F>(
 where
     F: FnMut(&SurfaceEvent),
 {
-    let profile = ResourceApiProfile::from_config(config, mode)?;
-    let managed_inference_token = if mode.executes_managed_runtime() {
+    let production = readiness.is_some();
+    let profile = ResourceApiProfile::from_config(config, mode, production)?;
+    let registration_token = if mode.executes_managed_runtime() {
         let token_file = config
             .token_file
             .as_ref()
@@ -972,15 +995,22 @@ where
         IdentityRecordStore::new(worker_identity_path(&profile.data_dir)),
     );
     let identity = bootstrap
-        .establish(None, &profile.registration_request(&initial_resources))
+        .establish(
+            bootstrap_registration_token(production, registration_token.as_ref()),
+            &profile.registration_request(&initial_resources),
+        )
         .await?;
-    if identity.source != IdentitySource::Persisted {
+    if !production && identity.source != IdentitySource::Persisted {
         return Err(ResourceApiRunError::SafetyInvariant(
             "restricted resource modes require an already persisted per-Worker identity",
         ));
     }
     let current_worker = client.me(&identity.token).await?;
-    verify_maintenance_worker(&current_worker)?;
+    if production {
+        verify_production_worker(&current_worker, &identity)?;
+    } else {
+        verify_maintenance_worker(&current_worker)?;
+    }
     observe(&SurfaceEvent::IdentityEstablished {
         worker_id: identity.id,
         worker_name: identity.name.clone(),
@@ -989,7 +1019,7 @@ where
 
     let runtime_registry = Arc::new(ManagedRuntimeRegistry::default());
     let api_state = if mode.executes_managed_runtime() {
-        let managed_inference_token = managed_inference_token.ok_or(
+        let managed_inference_token = registration_token.ok_or(
             ResourceApiRunError::SafetyInvariant("Managed inference credential was not loaded"),
         )?;
         match &readiness {
@@ -1010,9 +1040,16 @@ where
     } else {
         WorkerApiState::new(config, identity.token.clone())?
     };
+    let initial_status =
+        profile.status_report(identity.worker_uuid.clone(), &initial_resources, false);
+    if production {
+        // Publish the scheduling barrier before full sync can expose desired work.
+        client
+            .report_status(&identity.token, &initial_status)
+            .await?;
+    }
     let (resources_tx, resources_rx) = watch::channel(initial_resources.clone());
-    let (status_tx, status_rx) =
-        watch::channel(profile.status_report(identity.worker_uuid.clone(), &initial_resources));
+    let (status_tx, status_rx) = watch::channel(initial_status);
     let mut supervisor = WorkerSupervisor::new();
     let (control, control_handle) = WorkerControlPlane::new(
         client,
@@ -1166,6 +1203,13 @@ where
                     ReadinessGate::FullSync,
                     control_health.borrow().full_sync_ok,
                 );
+                publish_status_report(
+                    &profile,
+                    &identity.worker_uuid,
+                    &resources_tx,
+                    &status_tx,
+                    &readiness,
+                );
             }
             changed = runtime_available.changed(), if readiness.is_some() => {
                 if changed.is_err() {
@@ -1178,6 +1222,13 @@ where
                     ReadinessGate::Docker,
                     *runtime_available.borrow(),
                 );
+                publish_status_report(
+                    &profile,
+                    &identity.worker_uuid,
+                    &resources_tx,
+                    &status_tx,
+                    &readiness,
+                );
             }
             changed = runtime_coordinated.changed(), if readiness.is_some() => {
                 if changed.is_err() {
@@ -1189,6 +1240,13 @@ where
                     &readiness,
                     ReadinessGate::Runtime,
                     *runtime_coordinated.borrow(),
+                );
+                publish_status_report(
+                    &profile,
+                    &identity.worker_uuid,
+                    &resources_tx,
+                    &status_tx,
+                    &readiness,
                 );
             }
             _ = refresh.tick() => {
@@ -1211,6 +1269,9 @@ where
                 status_tx.send_replace(profile.status_report(
                     identity.worker_uuid.clone(),
                     &resources,
+                    readiness
+                        .as_ref()
+                        .is_some_and(|readiness| readiness.is_ready()),
                 ));
             }
         }
@@ -1281,6 +1342,37 @@ fn set_readiness(readiness: &Option<Arc<WorkerReadiness>>, gate: ReadinessGate, 
     if let Some(readiness) = readiness {
         readiness.set(gate, ready);
     }
+}
+
+fn publish_status_report(
+    profile: &ResourceApiProfile,
+    worker_uuid: &str,
+    resources: &watch::Sender<CollectedResources>,
+    status: &watch::Sender<WorkerStatusReport>,
+    readiness: &Option<Arc<WorkerReadiness>>,
+) {
+    let report = profile.status_report(
+        worker_uuid.to_owned(),
+        &resources.borrow(),
+        readiness
+            .as_ref()
+            .is_some_and(|readiness| readiness.is_ready()),
+    );
+    status.send_if_modified(|current| {
+        if *current == report {
+            false
+        } else {
+            *current = report;
+            true
+        }
+    });
+}
+
+fn bootstrap_registration_token(
+    production: bool,
+    registration_token: Option<&SecretToken>,
+) -> Option<&SecretToken> {
+    production.then_some(registration_token).flatten()
 }
 
 fn reset_readiness(readiness: &Option<Arc<WorkerReadiness>>) {
@@ -1377,6 +1469,18 @@ fn verify_maintenance_worker(worker: &WorkerPublic) -> Result<(), ResourceApiRun
     Ok(())
 }
 
+fn verify_production_worker(
+    worker: &WorkerPublic,
+    identity: &WorkerIdentity,
+) -> Result<(), ResourceApiRunError> {
+    if worker.me != Some(true) || worker.id != identity.id || worker.name != identity.name {
+        return Err(ResourceApiRunError::SafetyInvariant(
+            "Server current Worker differs from the established identity",
+        ));
+    }
+    Ok(())
+}
+
 fn shutdown_signal_name(signal: ShutdownSignal) -> &'static str {
     match signal {
         ShutdownSignal::Interrupt => "interrupt",
@@ -1388,7 +1492,7 @@ fn shutdown_signal_name(signal: ShutdownSignal) -> &'static str {
 mod tests {
     use std::net::{IpAddr, Ipv4Addr};
 
-    use gpustack_client::types::WorkerResourceStatus;
+    use gpustack_client::types::{Paginated, WorkerResourceStatus};
 
     use super::*;
 
@@ -1415,6 +1519,7 @@ mod tests {
         let profile = ResourceApiProfile::from_config(
             &config(directory.path().to_path_buf()),
             WorkerSurfaceMode::ResourceApiOnly,
+            false,
         )
         .expect("resource profile");
         let status: WorkerResourceStatus = serde_json::from_slice(include_bytes!(
@@ -1430,7 +1535,7 @@ mod tests {
 
         verify_m4_gpu_inventory(&resources).expect("valid dual GPU fixture");
         let create = profile.registration_request(&resources);
-        let report = profile.status_report("contract-uuid".to_owned(), &resources);
+        let report = profile.status_report("contract-uuid".to_owned(), &resources, false);
 
         assert!(create.maintenance.is_some_and(|value| value.enabled));
         assert_eq!(create.metrics_port, Some(20151));
@@ -1448,6 +1553,7 @@ mod tests {
         let profile = ResourceApiProfile::from_config(
             &config(directory.path().to_path_buf()),
             WorkerSurfaceMode::ManagedFileOnly,
+            false,
         )
         .expect("managed profile");
         let status: WorkerResourceStatus = serde_json::from_slice(include_bytes!(
@@ -1462,7 +1568,7 @@ mod tests {
         };
 
         let create = profile.registration_request(&resources);
-        let report = profile.status_report("contract-uuid".to_owned(), &resources);
+        let report = profile.status_report("contract-uuid".to_owned(), &resources, false);
 
         assert_eq!(
             create.labels.get("mode").map(String::as_str),
@@ -1478,6 +1584,77 @@ mod tests {
         assert_eq!(report.state_message, None);
         assert_eq!(create.system_reserved, Some(SystemReserved::default()));
         assert_eq!(report.system_reserved, Some(SystemReserved::default()));
+    }
+
+    #[test]
+    fn production_profile_uses_readiness_without_overriding_maintenance() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let profile = ResourceApiProfile::from_config(
+            &config(directory.path().to_path_buf()),
+            WorkerSurfaceMode::ManagedRuntime,
+            true,
+        )
+        .expect("production profile");
+        let status: WorkerResourceStatus = serde_json::from_slice(include_bytes!(
+            "../../../fixtures/server-v2.2.3/worker-status-resource.request.json"
+        ))
+        .map(|value: serde_json::Value| serde_json::from_value(value["status"].clone()))
+        .expect("fixture envelope")
+        .expect("fixture status");
+        let resources = CollectedResources {
+            machine_id: Some("contract-machine-id".to_owned()),
+            status,
+        };
+
+        let create = profile.registration_request(&resources);
+        let initializing = profile.status_report("contract-uuid".to_owned(), &resources, false);
+        let ready = profile.status_report("contract-uuid".to_owned(), &resources, true);
+
+        assert_eq!(
+            create.labels,
+            BTreeMap::from([("implementation".to_owned(), "rust".to_owned())])
+        );
+        assert_eq!(create.maintenance, None);
+        assert_eq!(
+            create.state_message.as_deref(),
+            Some(PRODUCTION_NOT_READY_MESSAGE)
+        );
+        assert_eq!(
+            initializing.state_message.as_deref(),
+            Some(PRODUCTION_NOT_READY_MESSAGE)
+        );
+        assert_eq!(ready.state_message, None);
+    }
+
+    #[test]
+    fn production_identity_accepts_server_authoritative_maintenance() {
+        let mut worker = serde_json::from_slice::<Paginated<WorkerPublic>>(include_bytes!(
+            "../../../fixtures/server-v2.2.3/worker-maintenance-me.response.json"
+        ))
+        .expect("maintenance Worker fixture")
+        .items
+        .remove(0);
+        let identity = WorkerIdentity {
+            id: worker.id,
+            name: worker.name.clone(),
+            worker_uuid: "contract-uuid".to_owned(),
+            token: SecretToken::new("worker-secret").expect("valid token"),
+            source: IdentitySource::Persisted,
+        };
+
+        verify_production_worker(&worker, &identity).expect("maintenance is Server-owned");
+        worker.maintenance = None;
+        verify_production_worker(&worker, &identity).expect("non-maintenance Worker");
+        worker.name = "different-worker".to_owned();
+        assert!(verify_production_worker(&worker, &identity).is_err());
+    }
+
+    #[test]
+    fn only_production_startup_receives_the_registration_token() {
+        let token = SecretToken::new("registration-secret").expect("valid token");
+
+        assert!(bootstrap_registration_token(true, Some(&token)).is_some());
+        assert!(bootstrap_registration_token(false, Some(&token)).is_none());
     }
 
     #[test]
@@ -1576,7 +1753,7 @@ mod tests {
         config.model_roots.clear();
 
         assert!(matches!(
-            ResourceApiProfile::from_config(&config, WorkerSurfaceMode::ResourceApiOnly),
+            ResourceApiProfile::from_config(&config, WorkerSurfaceMode::ResourceApiOnly, false,),
             Err(ResourceApiRunError::MissingConfiguration("model_roots"))
         ));
     }

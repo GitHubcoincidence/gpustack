@@ -359,7 +359,7 @@ async fn run_status_loop<A: ControlPlaneApi>(
     worker_token: SecretToken,
     interval: Duration,
     health_tx: watch::Sender<ControlPlaneHealth>,
-    status: watch::Receiver<WorkerStatusReport>,
+    mut status: watch::Receiver<WorkerStatusReport>,
     mut shutdown: watch::Receiver<bool>,
 ) {
     let mut tick = tokio::time::interval(interval);
@@ -368,6 +368,14 @@ async fn run_status_loop<A: ControlPlaneApi>(
     loop {
         tokio::select! {
             _ = tick.tick() => {
+                let current = status.borrow().clone();
+                let ok = api.report_status(&worker_token, &current).await.is_ok();
+                health_tx.send_modify(|health| health.status_ok = ok);
+            }
+            changed = status.changed() => {
+                if changed.is_err() {
+                    return;
+                }
                 let current = status.borrow().clone();
                 let ok = api.report_status(&worker_token, &current).await.is_ok();
                 health_tx.send_modify(|health| health.status_ok = ok);
@@ -956,6 +964,44 @@ mod tests {
         let state = api.state.lock().expect("mock state lock");
         assert!(state.heartbeat_calls >= 4);
         assert!(state.status_calls >= 2);
+    }
+
+    #[tokio::test]
+    async fn status_changes_are_reported_without_waiting_for_the_periodic_tick() {
+        let api = MockApi::default();
+        let (health_tx, _health) = watch::channel(ControlPlaneHealth::default());
+        let (status_tx, status) = watch::channel(status_fixture());
+        let (shutdown_tx, shutdown) = watch::channel(false);
+        let task = tokio::spawn(run_status_loop(
+            Arc::new(api.clone()),
+            SecretToken::new("worker-secret").expect("valid token"),
+            Duration::from_secs(3_600),
+            health_tx,
+            status,
+            shutdown,
+        ));
+
+        wait_for_status_calls(&api, 1).await;
+        status_tx.send_modify(|status| {
+            status.state_message = Some("initialization completed".to_owned());
+        });
+        wait_for_status_calls(&api, 2).await;
+
+        shutdown_tx.send(true).expect("request shutdown");
+        task.await.expect("status task");
+    }
+
+    async fn wait_for_status_calls(api: &MockApi, expected: u64) {
+        tokio::time::timeout(Duration::from_millis(200), async {
+            loop {
+                if api.state.lock().expect("mock state lock").status_calls >= expected {
+                    return;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("status report timeout");
     }
 
     #[tokio::test]
