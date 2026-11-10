@@ -5,32 +5,33 @@ use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand, ValueEnum};
 use gpustack_client::http::ReqwestTransport;
 use gpustack_client::{ClientError, ContextStore, ServerClient, load_context_token};
 use gpustack_runtime::docker::{ContainerRuntime, DockerDaemonInfo, DockerRuntime, RuntimeError};
 use gpustack_worker::lab::{
-    LabCleanupPlan, LabDeployRequest, LabEnvironment, LabError, LabInferRequest, LabInferenceKind,
+    LabCleanupPlan, LabDeployRequest, LabEnvironment, LabError, LabInferRequest,
     LabInferenceResponse, LabLogLine, LabState, LabStatus,
 };
 use gpustack_worker::resources::{ResourceError, collect_gpu_inventory};
 use gpustack_worker::worker_api::public_config_view;
-use gpustack_worker::workload::{VllmDtype, VllmExtraArg, VllmOptions};
+use gpustack_worker::workload::{VllmExtraArg, VllmOptions};
 use gpustack_worker::{
-    ConfigError, ConfigOverrides, ControlPlaneOnlySummary, DoctorReport, ManagedFileSummary,
-    ManagedRuntimeSummary, ResourceApiRunError, ResourceApiSummary, WorkerConfig, WorkerRunError,
-    load_config, run_control_plane_only, run_doctor, run_managed_file_only, run_managed_runtime,
-    run_resource_api_only,
+    ConfigError, DoctorReport, ManagedFileSummary, ManagedRuntimeSummary, ResourceApiRunError,
+    WorkerConfig, load_config, run_doctor, run_worker,
 };
 use serde::Serialize;
 use thiserror::Error;
 
 mod managed;
+mod worker;
+
+pub use worker::*;
 
 use managed::{
     ContextArgs, ContextSubcommand, InferenceArgs, ManagedError, ModelArgs, ModelFileArgs,
     ModelFileSubcommand, ModelSubcommand, ServerStreamSink, WorkerMaintenanceArgs,
-    WorkerMaintenanceSubcommand, WorkerSelectorArgs, run_context_command, run_inference_command,
+    WorkerMaintenanceSubcommand, run_context_command, run_inference_command,
     run_model_command_with_stream, run_worker_get_command, run_worker_maintenance_command,
 };
 
@@ -79,279 +80,6 @@ pub enum Command {
     Worker(Box<WorkerArgs>),
 }
 
-#[derive(Debug, Args)]
-pub struct WorkerArgs {
-    #[command(flatten)]
-    pub overrides: WorkerConfigArgs,
-    #[command(subcommand)]
-    pub command: WorkerCommand,
-}
-
-#[derive(Debug, Args, Default)]
-pub struct WorkerConfigArgs {
-    #[arg(long, global = true)]
-    pub server_url: Option<String>,
-    #[arg(long, global = true)]
-    pub worker_name: Option<String>,
-    #[arg(long, global = true)]
-    pub worker_hostname: Option<String>,
-    #[arg(long, global = true)]
-    pub worker_ip: Option<String>,
-    #[arg(long, global = true)]
-    pub worker_ifname: Option<String>,
-    #[arg(long, global = true)]
-    pub worker_port: Option<u16>,
-    #[arg(long, global = true)]
-    pub metrics_port: Option<u16>,
-    #[arg(long, global = true)]
-    pub token_file: Option<PathBuf>,
-    #[arg(long, global = true)]
-    pub data_dir: Option<PathBuf>,
-    #[arg(long, global = true)]
-    pub log_dir: Option<PathBuf>,
-    #[arg(long = "model-root", global = true)]
-    pub model_roots: Vec<PathBuf>,
-    #[arg(long, global = true)]
-    pub docker_socket: Option<PathBuf>,
-}
-
-impl From<WorkerConfigArgs> for ConfigOverrides {
-    fn from(value: WorkerConfigArgs) -> Self {
-        Self {
-            server_url: value.server_url,
-            worker_name: value.worker_name,
-            worker_hostname: value.worker_hostname,
-            worker_ip: value.worker_ip,
-            worker_ifname: value.worker_ifname,
-            worker_port: value.worker_port,
-            metrics_port: value.metrics_port,
-            token_file: value.token_file,
-            data_dir: value.data_dir,
-            log_dir: value.log_dir,
-            model_roots: (!value.model_roots.is_empty()).then_some(value.model_roots),
-            docker_socket: value.docker_socket,
-        }
-    }
-}
-
-impl WorkerConfigArgs {
-    fn has_explicit_runtime_override(&self) -> bool {
-        self.server_url.is_some()
-            || self.worker_name.is_some()
-            || self.worker_hostname.is_some()
-            || self.worker_ip.is_some()
-            || self.worker_ifname.is_some()
-            || self.worker_port.is_some()
-            || self.metrics_port.is_some()
-            || self.token_file.is_some()
-            || self.data_dir.is_some()
-            || self.log_dir.is_some()
-            || !self.model_roots.is_empty()
-            || self.docker_socket.is_some()
-    }
-}
-
-#[derive(Debug, Subcommand)]
-pub enum WorkerCommand {
-    Config(WorkerConfigCommand),
-    Doctor,
-    /// Get one Server Worker by numeric ID or exact name.
-    Get(WorkerSelectorArgs),
-    Gpu(WorkerGpuCommand),
-    Lab(WorkerLabCommand),
-    /// Change the exact Worker's scheduling maintenance state through Server.
-    Maintenance(WorkerMaintenanceArgs),
-    Runtime(WorkerRuntimeCommand),
-    Run(WorkerRunArgs),
-    ValidateConfig,
-}
-
-#[derive(Debug, Args)]
-pub struct WorkerRuntimeCommand {
-    #[command(subcommand)]
-    pub command: WorkerRuntimeSubcommand,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum WorkerRuntimeSubcommand {
-    Info,
-}
-
-#[derive(Debug, Args)]
-pub struct WorkerLabCommand {
-    #[command(subcommand)]
-    pub command: WorkerLabSubcommand,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum WorkerLabSubcommand {
-    Deploy(LabDeployArgs),
-    List,
-    Status(LabNameArgs),
-    Logs(LabLogsArgs),
-    Infer(LabInferArgs),
-    Stop(LabNameArgs),
-    Remove(LabRemoveArgs),
-    Cleanup(LabCleanupArgs),
-}
-
-#[derive(Debug, Args)]
-pub struct LabDeployArgs {
-    pub name: String,
-    #[arg(long)]
-    pub model_path: PathBuf,
-    #[arg(long)]
-    pub image: String,
-    #[arg(long)]
-    pub gpu: String,
-    #[arg(long)]
-    pub port: Option<u16>,
-    #[arg(long)]
-    pub served_model_name: Option<String>,
-    #[arg(long)]
-    pub max_model_len: Option<u32>,
-    #[arg(long)]
-    pub gpu_memory_utilization: Option<f64>,
-    #[arg(long, value_enum)]
-    pub dtype: Option<CliVllmDtype>,
-    #[arg(long)]
-    pub trust_remote_code: bool,
-    #[arg(long)]
-    pub enforce_eager: bool,
-    #[arg(long = "vllm-extra-arg", allow_hyphen_values = true)]
-    pub extra_args: Vec<String>,
-}
-
-#[derive(Debug, Args)]
-pub struct LabNameArgs {
-    pub name: String,
-}
-
-#[derive(Debug, Args)]
-pub struct LabLogsArgs {
-    pub name: String,
-    #[arg(long, default_value = "100")]
-    pub tail: String,
-    #[arg(long, default_value_t = 0)]
-    pub since: i32,
-    #[arg(long)]
-    pub follow: bool,
-}
-
-#[derive(Debug, Args)]
-pub struct LabInferArgs {
-    pub name: String,
-    #[arg(long, value_enum, default_value_t = CliInferenceKind::Chat)]
-    pub kind: CliInferenceKind,
-    #[arg(long)]
-    pub prompt: String,
-    #[arg(long)]
-    pub max_tokens: Option<u32>,
-}
-
-#[derive(Debug, Args)]
-pub struct LabRemoveArgs {
-    pub name: String,
-    #[arg(long)]
-    pub yes: bool,
-}
-
-#[derive(Debug, Args)]
-pub struct LabCleanupArgs {
-    #[arg(long)]
-    pub execute: bool,
-    #[arg(long, requires = "execute")]
-    pub yes: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum CliInferenceKind {
-    Chat,
-    Completion,
-}
-
-impl From<CliInferenceKind> for LabInferenceKind {
-    fn from(value: CliInferenceKind) -> Self {
-        match value {
-            CliInferenceKind::Chat => Self::Chat,
-            CliInferenceKind::Completion => Self::Completion,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum CliVllmDtype {
-    Auto,
-    Half,
-    Float16,
-    Bfloat16,
-    Float,
-    Float32,
-}
-
-impl From<CliVllmDtype> for VllmDtype {
-    fn from(value: CliVllmDtype) -> Self {
-        match value {
-            CliVllmDtype::Auto => Self::Auto,
-            CliVllmDtype::Half => Self::Half,
-            CliVllmDtype::Float16 => Self::Float16,
-            CliVllmDtype::Bfloat16 => Self::Bfloat16,
-            CliVllmDtype::Float => Self::Float,
-            CliVllmDtype::Float32 => Self::Float32,
-        }
-    }
-}
-
-#[derive(Debug, Args)]
-pub struct WorkerConfigCommand {
-    #[command(subcommand)]
-    pub command: WorkerConfigSubcommand,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum WorkerConfigSubcommand {
-    Get,
-}
-
-#[derive(Debug, Args)]
-pub struct WorkerGpuCommand {
-    #[command(subcommand)]
-    pub command: WorkerGpuSubcommand,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum WorkerGpuSubcommand {
-    List,
-}
-
-#[derive(Debug, Args)]
-pub struct WorkerRunArgs {
-    /// Run only identity, heartbeat, status, and desired-state control loops.
-    #[arg(
-        long,
-        conflicts_with_all = ["resource_api_only", "managed_file_only", "managed_runtime"]
-    )]
-    pub control_plane_only: bool,
-    /// Add host resources, the read-only Worker API, and metrics without reconciliation.
-    #[arg(
-        long,
-        conflicts_with_all = ["control_plane_only", "managed_file_only", "managed_runtime"]
-    )]
-    pub resource_api_only: bool,
-    /// Prepare assigned local model files and stop before container or inference startup.
-    #[arg(
-        long,
-        conflicts_with_all = ["control_plane_only", "resource_api_only", "managed_runtime"]
-    )]
-    pub managed_file_only: bool,
-    /// Enable Server-authoritative single-GPU Managed Docker and vLLM reconciliation.
-    #[arg(
-        long,
-        conflicts_with_all = ["control_plane_only", "resource_api_only", "managed_file_only"]
-    )]
-    pub managed_runtime: bool,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum OutputFormat {
     Table,
@@ -368,16 +96,10 @@ pub struct Execution {
 pub enum CliError {
     #[error("{0}")]
     Config(#[from] ConfigError),
-    #[error(
-        "worker run requires exactly one of --control-plane-only, --resource-api-only, --managed-file-only, or --managed-runtime"
-    )]
-    WorkerModeRequired,
     #[error(transparent)]
     Resource(#[from] ResourceError),
     #[error(transparent)]
     ResourceRun(#[from] ResourceApiRunError),
-    #[error(transparent)]
-    WorkerRun(#[from] WorkerRunError),
     #[error(transparent)]
     Lab(#[from] LabError),
     #[error(transparent)]
@@ -399,11 +121,9 @@ impl CliError {
     pub const fn exit_code(&self) -> u8 {
         match self {
             Self::Config(_)
-            | Self::WorkerModeRequired
             | Self::InvalidArgument(_)
             | Self::ConfirmationRequired
             | Self::ConfirmationIo(_) => EXIT_CONFIG,
-            Self::WorkerRun(_) => EXIT_CONTROL_PLANE,
             Self::Resource(_) => EXIT_RUNTIME,
             Self::ResourceRun(_) => EXIT_CONTROL_PLANE,
             Self::Lab(_) | Self::Runtime(_) => EXIT_RUNTIME,
@@ -568,47 +288,14 @@ async fn execute_inner(
                             )
                             .await?
                         }
-                        WorkerCommand::Run(arguments) => {
-                            if !arguments.control_plane_only
-                                && !arguments.resource_api_only
-                                && !arguments.managed_file_only
-                                && !arguments.managed_runtime
-                            {
-                                return Err(CliError::WorkerModeRequired);
-                            }
-                            if arguments.managed_runtime {
-                                let summary = run_managed_runtime(&loaded.config, |event| {
-                                    if !quiet {
-                                        eprintln!("{event}");
-                                    }
-                                })
-                                .await?;
-                                render_managed_runtime_summary(output_format, &summary)?
-                            } else if arguments.managed_file_only {
-                                let summary = run_managed_file_only(&loaded.config, |event| {
-                                    if !quiet {
-                                        eprintln!("{event}");
-                                    }
-                                })
-                                .await?;
-                                render_managed_file_summary(output_format, &summary)?
-                            } else if arguments.resource_api_only {
-                                let summary = run_resource_api_only(&loaded.config, |event| {
-                                    if !quiet {
-                                        eprintln!("{event}");
-                                    }
-                                })
-                                .await?;
-                                render_resource_api_summary(output_format, &summary)?
-                            } else {
-                                let summary = run_control_plane_only(&loaded.config, |event| {
-                                    if !quiet {
-                                        eprintln!("{event}");
-                                    }
-                                })
-                                .await?;
-                                render_control_plane_summary(output_format, &summary)?
-                            }
+                        WorkerCommand::Run => {
+                            let summary = run_worker(&loaded.config, |event| {
+                                if !quiet {
+                                    eprintln!("{event}");
+                                }
+                            })
+                            .await?;
+                            render_managed_runtime_summary(output_format, &summary)?
                         }
                     }
                 }
@@ -1224,106 +911,6 @@ fn render_doctor(
     })
 }
 
-fn render_control_plane_summary(
-    output_format: OutputFormat,
-    summary: &ControlPlaneOnlySummary,
-) -> Result<Execution, CliError> {
-    let output = match output_format {
-        OutputFormat::Json => to_json(summary)?,
-        OutputFormat::Table => format!(
-            concat!(
-                "mode: {}\n",
-                "server_version: {}\n",
-                "server_git_commit: {}\n",
-                "worker_id: {}\n",
-                "worker_name: {}\n",
-                "worker_uuid: {}\n",
-                "identity_source: {}\n",
-                "health_address: {}\n",
-                "shutdown_signal: {}\n",
-                "desired_models: {}\n",
-                "desired_model_instances: {}\n",
-                "desired_model_files: {}\n",
-                "desired_revision: {}\n",
-                "heartbeat_ok: {}\n",
-                "status_ok: {}\n",
-                "full_sync_ok: {}\n",
-                "watch_connected: {}\n",
-                "reconnect_attempts: {}\n"
-            ),
-            summary.mode,
-            summary.server_version,
-            summary.server_git_commit,
-            summary.worker_id,
-            summary.worker_name,
-            summary.worker_uuid,
-            summary.identity_source,
-            summary.health_address,
-            summary.shutdown_signal,
-            summary.desired_models,
-            summary.desired_model_instances,
-            summary.desired_model_files,
-            summary.desired_revision,
-            summary.heartbeat_ok,
-            summary.status_ok,
-            summary.full_sync_ok,
-            summary.watch_connected,
-            summary.reconnect_attempts,
-        ),
-    };
-    Ok(Execution {
-        output,
-        exit_code: EXIT_SUCCESS,
-    })
-}
-
-fn render_resource_api_summary(
-    output_format: OutputFormat,
-    summary: &ResourceApiSummary,
-) -> Result<Execution, CliError> {
-    let output = match output_format {
-        OutputFormat::Json => to_json(summary)?,
-        OutputFormat::Table => format!(
-            concat!(
-                "mode: {}\n",
-                "server_version: {}\n",
-                "server_git_commit: {}\n",
-                "worker_id: {}\n",
-                "worker_name: {}\n",
-                "worker_uuid: {}\n",
-                "worker_address: {}\n",
-                "metrics_address: {}\n",
-                "gpu_count: {}\n",
-                "shutdown_signal: {}\n",
-                "heartbeat_ok: {}\n",
-                "status_ok: {}\n",
-                "full_sync_ok: {}\n",
-                "watch_connected: {}\n",
-                "reconnect_attempts: {}\n"
-            ),
-            summary.mode,
-            summary.server_version,
-            summary.server_git_commit,
-            summary.worker_id,
-            summary.worker_name,
-            summary.worker_uuid,
-            summary.worker_address,
-            summary.metrics_address,
-            summary.gpu_count,
-            summary.shutdown_signal,
-            summary.heartbeat_ok,
-            summary.status_ok,
-            summary.full_sync_ok,
-            summary.watch_connected,
-            summary.reconnect_attempts,
-        ),
-    };
-    Ok(Execution {
-        output,
-        exit_code: EXIT_SUCCESS,
-    })
-}
-
 fn render_managed_file_summary(
     output_format: OutputFormat,
     summary: &ManagedFileSummary,
@@ -1502,20 +1089,26 @@ mod tests {
     }
 
     #[test]
-    fn worker_gpu_list_and_resource_mode_are_explicit_commands() {
+    fn worker_gpu_list_and_unified_run_are_explicit_commands() {
         Cli::try_parse_from(["gpustack-rs", "worker", "gpu", "list"]).expect("parse GPU list");
-        Cli::try_parse_from(["gpustack-rs", "worker", "run", "--resource-api-only"])
-            .expect("parse resource mode");
-        assert!(
-            Cli::try_parse_from([
-                "gpustack-rs",
-                "worker",
-                "run",
-                "--control-plane-only",
-                "--resource-api-only",
-            ])
-            .is_err()
-        );
+        let cli = Cli::try_parse_from(["gpustack-rs", "worker", "run"])
+            .expect("parse unified Worker run");
+        let Command::Worker(worker) = cli.command else {
+            panic!("worker command")
+        };
+        assert!(matches!(worker.command, WorkerCommand::Run));
+
+        for removed_mode in [
+            "--control-plane-only",
+            "--resource-api-only",
+            "--managed-file-only",
+            "--managed-runtime",
+        ] {
+            assert!(
+                Cli::try_parse_from(["gpustack-rs", "worker", "run", removed_mode]).is_err(),
+                "{removed_mode} must not remain in the public CLI"
+            );
+        }
     }
 
     #[test]
@@ -1652,83 +1245,5 @@ mod tests {
             serde_json::from_str(&execution.output).expect("parse JSON output");
         assert_eq!(value["name"], "gpustack-rs");
         assert_eq!(value["rust_toolchain"], "1.99.1");
-    }
-
-    #[tokio::test]
-    async fn worker_run_requires_an_explicit_mode() {
-        let cli = Cli::try_parse_from(["gpustack-rs", "worker", "run"]).expect("parse CLI");
-
-        let error = execute(cli).await.expect_err("restricted mode is required");
-
-        assert!(matches!(error, CliError::WorkerModeRequired));
-        assert_eq!(error.exit_code(), EXIT_CONFIG);
-    }
-
-    #[test]
-    fn managed_file_only_is_explicit_and_mutually_exclusive() {
-        let cli = Cli::try_parse_from(["gpustack-rs", "worker", "run", "--managed-file-only"])
-            .expect("parse managed-file-only");
-        let Command::Worker(worker) = cli.command else {
-            panic!("worker command")
-        };
-        let WorkerCommand::Run(arguments) = worker.command else {
-            panic!("run command")
-        };
-        assert!(arguments.managed_file_only);
-        assert!(!arguments.control_plane_only);
-        assert!(!arguments.resource_api_only);
-        assert!(!arguments.managed_runtime);
-
-        for conflicting in [
-            "--control-plane-only",
-            "--resource-api-only",
-            "--managed-runtime",
-        ] {
-            assert!(
-                Cli::try_parse_from([
-                    "gpustack-rs",
-                    "worker",
-                    "run",
-                    "--managed-file-only",
-                    conflicting,
-                ])
-                .is_err(),
-                "{conflicting} must conflict with --managed-file-only"
-            );
-        }
-    }
-
-    #[test]
-    fn managed_runtime_is_explicit_and_mutually_exclusive() {
-        let cli = Cli::try_parse_from(["gpustack-rs", "worker", "run", "--managed-runtime"])
-            .expect("parse managed-runtime");
-        let Command::Worker(worker) = cli.command else {
-            panic!("worker command")
-        };
-        let WorkerCommand::Run(arguments) = worker.command else {
-            panic!("run command")
-        };
-        assert!(arguments.managed_runtime);
-        assert!(!arguments.control_plane_only);
-        assert!(!arguments.resource_api_only);
-        assert!(!arguments.managed_file_only);
-
-        for conflicting in [
-            "--control-plane-only",
-            "--resource-api-only",
-            "--managed-file-only",
-        ] {
-            assert!(
-                Cli::try_parse_from([
-                    "gpustack-rs",
-                    "worker",
-                    "run",
-                    "--managed-runtime",
-                    conflicting,
-                ])
-                .is_err(),
-                "{conflicting} must conflict with --managed-runtime"
-            );
-        }
     }
 }
