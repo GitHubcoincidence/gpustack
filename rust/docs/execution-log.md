@@ -5130,3 +5130,22 @@
   本修订实现该预留接口且不扩大能力或提升旧证据，结论为`aligned`。
 - 当前停止位置：M8-A方案修订为`accepted`，产品代码未修改。下一步只允许另获同意后执行
   M8-A.1离线特征测试；尚未授权A.2～A.6、90构建/运行、服务切换、Server写入、Docker或GPU。
+
+### 2026-11-10：M8-A.1离线特征测试完成
+
+- 实现范围：提交`580346b9c9946021f27b9544436fd132def6dae0`只新增
+  `gpustack-worker`集成测试，没有修改产品源码、依赖或`Cargo.lock`，也没有访问真实Server、
+  Docker、NVML或GPU。
+- 冻结契约：单GPU与双GPU用例固定M7已验收Runner digest、Qwen2.5-0.5B本地路径、GPU顺序、
+  tensor parallel、端口、宿主网络、非特权用户、安全选项和ownership labels；规范spec hash分别为
+  `c22d8080422c02c03dd3ddc10e6531e0add4b819c61b6ae06c4bce7f36e1a8ea`和
+  `8582284d89546a20ba3d4d96b4d9946eed1de105b897f3726983418f7b915b0f`。
+- 失败边界：错误owner、缺失spec hash、GPU顺序反转和tensor parallel漂移均被拒绝，确保后续
+  启动编排重构不能绕过容器归属或改变已验收WorkloadSpec。
+- 质量门：90服务器上的定向测试3/3通过；workspace共226项测试通过；`cargo fmt --check`、
+  全workspace/all-targets/all-features Clippy `-D warnings`和locked/offline build全部通过，源码工作树
+  在提交后干净。
+- 漂移审计：本阶段只建立重构前回归基线，不新增产品能力、不提升M7证据、不改变M8成功标准，
+  结论为`aligned`。
+- 当前停止位置：`M8-A.1 ready_for_review`，不是`accepted`。用户验收前不得进入M8-A.2，
+  也不得执行90镜像构建、服务切换、Server写入、Docker生命周期操作或GPU使用。
