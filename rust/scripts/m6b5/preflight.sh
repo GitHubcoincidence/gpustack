@@ -265,7 +265,7 @@ printf 'binary_sha256=%s\n' "$(sha256sum "$BINARY" | awk '{print $1}')" \
 current_step='failure_injection_tests'
 announce 6 'Managed runtime 关键失败边界离线注入'
 tests=(
-  'resource_run::tests::missing_model_roots_fails_before_any_runtime_or_network_work'
+  'run::tests::missing_model_roots_fails_before_any_runtime_or_network_work'
   'managed::reconciler::tests::input_drift_before_create_prevents_every_runtime_mutation'
   'managed::reconciler::tests::state_drift_before_running_writeback_preserves_server_authority'
   'managed::reconciler::tests::readiness_timeout_reports_error_and_preserves_container'

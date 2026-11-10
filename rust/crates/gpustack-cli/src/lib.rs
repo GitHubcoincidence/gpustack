@@ -17,8 +17,8 @@ use gpustack_worker::resources::{ResourceError, collect_gpu_inventory};
 use gpustack_worker::worker_api::public_config_view;
 use gpustack_worker::workload::{VllmExtraArg, VllmOptions};
 use gpustack_worker::{
-    ConfigError, DoctorReport, ManagedFileSummary, ManagedRuntimeSummary, ResourceApiRunError,
-    WorkerConfig, load_config, run_doctor, run_worker,
+    ConfigError, DoctorReport, WorkerConfig, WorkerRunError, WorkerSummary, load_config,
+    run_doctor, run_worker,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -99,7 +99,7 @@ pub enum CliError {
     #[error(transparent)]
     Resource(#[from] ResourceError),
     #[error(transparent)]
-    ResourceRun(#[from] ResourceApiRunError),
+    WorkerRun(#[from] WorkerRunError),
     #[error(transparent)]
     Lab(#[from] LabError),
     #[error(transparent)]
@@ -125,7 +125,7 @@ impl CliError {
             | Self::ConfirmationRequired
             | Self::ConfirmationIo(_) => EXIT_CONFIG,
             Self::Resource(_) => EXIT_RUNTIME,
-            Self::ResourceRun(_) => EXIT_CONTROL_PLANE,
+            Self::WorkerRun(_) => EXIT_CONTROL_PLANE,
             Self::Lab(_) | Self::Runtime(_) => EXIT_RUNTIME,
             Self::Managed(ManagedError::Serialization(_)) => EXIT_INTERNAL,
             Self::Managed(error) if error.is_control_plane() => EXIT_CONTROL_PLANE,
@@ -295,7 +295,7 @@ async fn execute_inner(
                                 }
                             })
                             .await?;
-                            render_managed_runtime_summary(output_format, &summary)?
+                            render_worker_summary(output_format, &summary)?
                         }
                     }
                 }
@@ -911,20 +911,20 @@ fn render_doctor(
     })
 }
 
-fn render_managed_file_summary(
+fn render_worker_summary(
     output_format: OutputFormat,
-    summary: &ManagedFileSummary,
+    summary: &WorkerSummary,
 ) -> Result<Execution, CliError> {
     let output = match output_format {
         OutputFormat::Json => to_json(summary)?,
         OutputFormat::Table => format!(
             concat!(
-                "mode: {}\n",
                 "server_version: {}\n",
                 "server_git_commit: {}\n",
                 "worker_id: {}\n",
                 "worker_name: {}\n",
                 "worker_uuid: {}\n",
+                "identity_source: {}\n",
                 "worker_address: {}\n",
                 "metrics_address: {}\n",
                 "gpu_count: {}\n",
@@ -933,25 +933,32 @@ fn render_managed_file_summary(
                 "desired_model_instances: {}\n",
                 "desired_model_files: {}\n",
                 "desired_revision: {}\n",
-                "reconciliations: {}\n",
+                "file_reconciliations: {}\n",
                 "initialized_instances: {}\n",
                 "errored_instances: {}\n",
                 "ready_model_files: {}\n",
                 "errored_model_files: {}\n",
-                "noops: {}\n",
-                "failures: {}\n",
+                "file_noops: {}\n",
+                "file_failures: {}\n",
+                "runtime_reconciliations: {}\n",
+                "runtime_starting: {}\n",
+                "runtime_running: {}\n",
+                "runtime_errored: {}\n",
+                "runtime_deleted: {}\n",
+                "runtime_noops: {}\n",
+                "runtime_failures: {}\n",
                 "heartbeat_ok: {}\n",
                 "status_ok: {}\n",
                 "full_sync_ok: {}\n",
                 "watch_connected: {}\n",
                 "reconnect_attempts: {}\n"
             ),
-            summary.mode,
             summary.server_version,
             summary.server_git_commit,
             summary.worker_id,
             summary.worker_name,
             summary.worker_uuid,
+            summary.identity_source,
             summary.worker_address,
             summary.metrics_address,
             summary.gpu_count,
@@ -960,56 +967,26 @@ fn render_managed_file_summary(
             summary.desired_model_instances,
             summary.desired_model_files,
             summary.desired_revision,
-            summary.reconciliations,
+            summary.file_reconciliations,
             summary.initialized_instances,
             summary.errored_instances,
             summary.ready_model_files,
             summary.errored_model_files,
-            summary.noops,
-            summary.failures,
+            summary.file_noops,
+            summary.file_failures,
+            summary.runtime_reconciliations,
+            summary.runtime_starting,
+            summary.runtime_running,
+            summary.runtime_errored,
+            summary.runtime_deleted,
+            summary.runtime_noops,
+            summary.runtime_failures,
             summary.heartbeat_ok,
             summary.status_ok,
             summary.full_sync_ok,
             summary.watch_connected,
             summary.reconnect_attempts,
         ),
-    };
-    Ok(Execution {
-        output,
-        exit_code: EXIT_SUCCESS,
-    })
-}
-
-fn render_managed_runtime_summary(
-    output_format: OutputFormat,
-    summary: &ManagedRuntimeSummary,
-) -> Result<Execution, CliError> {
-    let output = match output_format {
-        OutputFormat::Json => to_json(summary)?,
-        OutputFormat::Table => {
-            let mut output = render_managed_file_summary(output_format, &summary.file)?.output;
-            write!(
-                output,
-                concat!(
-                    "runtime_reconciliations: {}\n",
-                    "runtime_starting: {}\n",
-                    "runtime_running: {}\n",
-                    "runtime_errored: {}\n",
-                    "runtime_deleted: {}\n",
-                    "runtime_noops: {}\n",
-                    "runtime_failures: {}\n"
-                ),
-                summary.runtime_reconciliations,
-                summary.runtime_starting,
-                summary.runtime_running,
-                summary.runtime_errored,
-                summary.runtime_deleted,
-                summary.runtime_noops,
-                summary.runtime_failures,
-            )
-            .expect("writing to String cannot fail");
-            output
-        }
     };
     Ok(Execution {
         output,
@@ -1030,6 +1007,58 @@ mod tests {
     #[test]
     fn command_definition_is_valid() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn worker_summary_has_one_mode_free_rendering_contract() {
+        let summary = WorkerSummary {
+            server_version: "v2.2.3".to_owned(),
+            server_git_commit: "1cfcbbf".to_owned(),
+            worker_id: 7,
+            worker_name: "rust-worker".to_owned(),
+            worker_uuid: "worker-uuid".to_owned(),
+            identity_source: "persisted".to_owned(),
+            worker_address: "127.0.0.1:10150".to_owned(),
+            metrics_address: "127.0.0.1:10151".to_owned(),
+            gpu_count: 1,
+            shutdown_signal: "interrupt".to_owned(),
+            desired_models: 1,
+            desired_model_instances: 1,
+            desired_model_files: 1,
+            desired_revision: 3,
+            file_reconciliations: 4,
+            initialized_instances: 1,
+            errored_instances: 0,
+            ready_model_files: 1,
+            errored_model_files: 0,
+            file_noops: 2,
+            file_failures: 0,
+            runtime_reconciliations: 2,
+            runtime_starting: 1,
+            runtime_running: 1,
+            runtime_errored: 0,
+            runtime_deleted: 0,
+            runtime_noops: 0,
+            runtime_failures: 0,
+            heartbeat_ok: true,
+            status_ok: true,
+            full_sync_ok: true,
+            watch_connected: true,
+            reconnect_attempts: 0,
+        };
+
+        let table = render_worker_summary(OutputFormat::Table, &summary)
+            .expect("table summary")
+            .output;
+        let json = render_worker_summary(OutputFormat::Json, &summary)
+            .expect("JSON summary")
+            .output;
+
+        assert!(table.contains("identity_source: persisted"));
+        assert!(table.contains("file_reconciliations: 4"));
+        assert!(table.contains("runtime_reconciliations: 2"));
+        assert!(!table.contains("mode:"));
+        assert!(!json.contains("\"mode\""));
     }
 
     #[test]

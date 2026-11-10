@@ -327,7 +327,7 @@ printf 'binary_sha256=%s\n' "$(sha256sum "$BINARY" | awk '{print $1}')" \
 current_step='failure_injection_tests'
 announce 6 'Managed runtime 关键失败边界离线注入'
 tests=(
-  'resource_run::tests::missing_model_roots_fails_before_any_runtime_or_network_work'
+  'run::tests::missing_model_roots_fails_before_any_runtime_or_network_work'
   'workload::tests::managed_dual_gpu_contract_reaches_vllm_docker_and_workload_identity'
   'workload::tests::managed_gpu_contract_rejects_duplicates_reverse_order_and_tp_mismatch'
   'managed::runtime::tests::planner_maps_the_complete_dual_gpu_assignment_to_tp2'

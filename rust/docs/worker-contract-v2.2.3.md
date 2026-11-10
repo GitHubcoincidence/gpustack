@@ -100,8 +100,8 @@ M4-B 必须固定下列分类和通用消息；错误不得回显用户提供的
 | 安全根目录内目标不存在 | 404 | `NotFound` | `Resource not found` |
 | model config 超过 16 MiB | 413 | `PayloadTooLarge` | `Model config file is too large` |
 | query/body 校验失败 | 422 | `Invalid` | `Request validation failed` |
-| resource-api-only readiness | 503 | `ServiceUnavailable` | `Worker runtime is not ready in resource-api-only mode` |
-| 容器日志请求 | 501 | `NotSupported` | `Container logs are unavailable in resource-api-only mode` |
+| Worker 尚未满足统一 readiness | 503 | `ServiceUnavailable` | `Worker runtime is not ready` |
+| 当前 Worker endpoint 不提供容器日志 | 501 | `NotSupported` | `Container logs are unavailable for this Worker endpoint` |
 | `PUT /v2/config` | 405 | `MethodNotAllowed` | `Method not allowed` |
 
 `file-exists` 是例外：安全根目录内尚不存在的路径返回 200，并将 `exists`、

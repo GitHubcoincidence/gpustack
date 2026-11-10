@@ -1076,7 +1076,7 @@ impl ApiError {
         Self::new(
             StatusCode::NOT_IMPLEMENTED,
             "NotSupported",
-            "Container logs are unavailable in resource-api-only mode",
+            "Container logs are unavailable for this Worker endpoint",
         )
     }
 
@@ -1084,7 +1084,7 @@ impl ApiError {
         Self::new(
             StatusCode::SERVICE_UNAVAILABLE,
             "ServiceUnavailable",
-            "Worker runtime is not ready in resource-api-only mode",
+            "Worker runtime is not ready",
         )
     }
 

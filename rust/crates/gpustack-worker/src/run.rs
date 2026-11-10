@@ -1,49 +1,67 @@
-//! Restricted Worker process orchestration for control-plane validation.
+//! Unified Worker startup, lifecycle supervision, and operational events.
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::future::Future;
+use std::future::IntoFuture;
 use std::io;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 
-use gpustack_client::http::{ReqwestTransport, Transport, TransportError};
+use gpustack_client::http::{ReqwestTransport, TransportError};
 use gpustack_client::types::{
     ProxyMode, SERVER_BASELINE_GIT_COMMIT, SERVER_BASELINE_VERSION, SystemReserved, WorkerCreate,
-    WorkerMaintenance, WorkerPublic, WorkerResourceStatus, WorkerStatusReport,
+    WorkerPublic, WorkerStatusReport,
 };
-use gpustack_client::{ClientError, SecretToken, ServerClient};
+use gpustack_client::{ClientError, ServerClient};
 use serde::Serialize;
 use thiserror::Error;
-use tokio::sync::watch;
+use tokio::net::TcpListener;
+use tokio::sync::{mpsc, watch};
 
 use crate::config::WorkerConfig;
 use crate::control::{ControlLoopConfig, ControlLoopConfigError, WorkerControlPlane};
-use crate::health::{HealthServer, LivenessServer};
 use crate::identity::{
     CredentialStore, IdentityBootstrap, IdentityError, IdentityRecordStore, IdentitySource,
-    worker_credential_path, worker_identity_path,
+    WorkerIdentity, worker_credential_path, worker_identity_path,
+};
+use crate::managed::{
+    LocalModelResolver, ManagedCoordinator, ManagedOutcome, ManagedPortAllocator, ManagedResult,
+    ManagedRuntimeError, ManagedRuntimeOutcome, ManagedRuntimeRegistry, ManagedRuntimeResult,
+    ManagedTarget, ResolveError, run_production_managed_runtime,
+};
+use crate::metrics::{MetricIdentity, MetricsState, router as metrics_router};
+use crate::readiness::{ReadinessGate, WorkerReadiness};
+use crate::resources::{
+    CollectedResources, NvmlGpuProbe, ResourceCollector, ResourceError, SysinfoProbe,
 };
 use crate::signal::{ShutdownSignal, wait_for_shutdown};
+use crate::supervisor::{SupervisedTaskExit, WorkerSupervisor};
+use crate::worker_api::{WorkerApiBuildError, WorkerApiState, router as worker_api_router};
 
-pub const CONTROL_PLANE_ONLY_MODE: &str = "control-plane-only";
-const MAINTENANCE_MESSAGE: &str = "Rust M3-D control-plane validation; scheduling disabled";
+const PRODUCTION_NOT_READY_MESSAGE: &str = "Rust Worker initialization is incomplete";
 const UNASSIGNED_WORKER_UUID: &str = "00000000-0000-4000-8000-000000000000";
+const RESOURCE_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
+const WORKER_SHUTDOWN_GRACE: Duration = Duration::from_secs(15);
 
 #[derive(Debug, Clone)]
-struct ControlPlaneOnlyProfile {
+struct WorkerProfile {
     server_url: url::Url,
     worker_name: String,
     worker_hostname: String,
     worker_ip: IpAddr,
     worker_ifname: String,
     worker_port: u16,
-    token_file: PathBuf,
+    metrics_port: u16,
     data_dir: PathBuf,
 }
 
-impl ControlPlaneOnlyProfile {
+impl WorkerProfile {
     fn from_config(config: &WorkerConfig) -> Result<Self, WorkerRunError> {
+        if config.model_roots.is_empty() {
+            return Err(WorkerRunError::MissingConfiguration("model_roots"));
+        }
         Ok(Self {
             server_url: config
                 .server_url
@@ -65,24 +83,20 @@ impl ControlPlaneOnlyProfile {
                 .clone()
                 .ok_or(WorkerRunError::MissingConfiguration("worker_ifname"))?,
             worker_port: config.worker_port,
-            token_file: config
-                .token_file
-                .clone()
-                .ok_or(WorkerRunError::MissingConfiguration("token_file"))?,
+            metrics_port: config.metrics_port,
             data_dir: config.data_dir.clone(),
         })
     }
 
-    fn listen_address(&self) -> SocketAddr {
+    fn worker_address(&self) -> SocketAddr {
         SocketAddr::new(self.worker_ip, self.worker_port)
     }
 
-    fn registration_request(&self) -> WorkerCreate {
-        let labels = BTreeMap::from([
-            ("implementation".to_owned(), "rust".to_owned()),
-            ("mode".to_owned(), CONTROL_PLANE_ONLY_MODE.to_owned()),
-            ("stage".to_owned(), "m3d".to_owned()),
-        ]);
+    fn metrics_address(&self) -> SocketAddr {
+        SocketAddr::new(self.worker_ip, self.metrics_port)
+    }
+
+    fn registration_request(&self, resources: &CollectedResources) -> WorkerCreate {
         WorkerCreate {
             advertise_address: None,
             cluster_id: None,
@@ -90,82 +104,76 @@ impl ControlPlaneOnlyProfile {
             hostname: self.worker_hostname.clone(),
             ifname: self.worker_ifname.clone(),
             ip: self.worker_ip.to_string(),
-            labels,
-            machine_id: None,
-            maintenance: Some(WorkerMaintenance {
-                enabled: true,
-                message: Some(MAINTENANCE_MESSAGE.to_owned()),
-            }),
-            metrics_port: None,
+            labels: BTreeMap::from([("implementation".to_owned(), "rust".to_owned())]),
+            machine_id: resources.machine_id.clone(),
+            maintenance: None,
+            metrics_port: Some(self.metrics_port),
             name: self.worker_name.clone(),
             owner_principal_id: None,
             port: self.worker_port,
             proxy_mode: ProxyMode::Worker,
-            state_message: Some(MAINTENANCE_MESSAGE.to_owned()),
-            status: Some(empty_resource_status()),
+            state_message: Some(PRODUCTION_NOT_READY_MESSAGE.to_owned()),
+            status: Some(resources.status.clone()),
             system_reserved: Some(SystemReserved::default()),
-            // v2.2.3 replaces this value on first registration. Recovery uses
-            // the persisted Server UUID instead of trusting this placeholder.
             worker_uuid: UNASSIGNED_WORKER_UUID.to_owned(),
             worker_version: SERVER_BASELINE_VERSION.to_owned(),
         }
     }
 
-    fn status_report(&self, worker_uuid: String) -> WorkerStatusReport {
+    fn status_report(
+        &self,
+        worker_uuid: String,
+        resources: &CollectedResources,
+        ready: bool,
+    ) -> WorkerStatusReport {
         WorkerStatusReport {
             advertise_address: None,
             gateway_endpoint: None,
             hostname: self.worker_hostname.clone(),
             ifname: self.worker_ifname.clone(),
             ip: self.worker_ip.to_string(),
-            machine_id: None,
-            metrics_port: None,
+            machine_id: resources.machine_id.clone(),
+            metrics_port: Some(self.metrics_port),
             port: self.worker_port,
             proxy_mode: ProxyMode::Worker,
-            state_message: Some(MAINTENANCE_MESSAGE.to_owned()),
-            status: Some(empty_resource_status()),
+            state_message: (!ready).then(|| PRODUCTION_NOT_READY_MESSAGE.to_owned()),
+            status: Some(resources.status.clone()),
             system_reserved: Some(SystemReserved::default()),
             worker_uuid,
         }
     }
 }
 
-fn empty_resource_status() -> WorkerResourceStatus {
-    WorkerResourceStatus {
-        cpu: None,
-        filesystem: None,
-        gpu_devices: Some(Vec::new()),
-        kernel: None,
-        memory: None,
-        os: None,
-        rpc_servers: None,
-        swap: None,
-        uptime: None,
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ControlPlaneOnlyEvent {
+pub enum WorkerEvent {
     Listening {
-        address: SocketAddr,
+        worker_address: SocketAddr,
+        metrics_address: SocketAddr,
     },
     IdentityEstablished {
         worker_id: i64,
         worker_name: String,
         identity_source: &'static str,
     },
-    Running,
+    Running {
+        gpu_count: usize,
+    },
+    FileReconciled(ManagedResult),
+    RuntimeReconciled(ManagedRuntimeResult),
     Stopping {
         signal: &'static str,
     },
 }
 
-impl fmt::Display for ControlPlaneOnlyEvent {
+impl fmt::Display for WorkerEvent {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Listening { address } => write!(
+            Self::Listening {
+                worker_address,
+                metrics_address,
+            } => write!(
                 formatter,
-                "mode={CONTROL_PLANE_ONLY_MODE} health_listen={address}"
+                "state=listening worker_api={worker_address} metrics={metrics_address}"
             ),
             Self::IdentityEstablished {
                 worker_id,
@@ -173,34 +181,141 @@ impl fmt::Display for ControlPlaneOnlyEvent {
                 identity_source,
             } => write!(
                 formatter,
-                "worker_id={worker_id} worker_name={worker_name} identity_source={identity_source}"
+                "state=identity_established worker_id={worker_id} worker_name={worker_name:?} identity_source={identity_source}"
             ),
-            Self::Running => write!(
-                formatter,
-                "mode={CONTROL_PLANE_ONLY_MODE} state=running scheduling=disabled gpu_devices=0"
-            ),
-            Self::Stopping { signal } => {
-                write!(formatter, "state=stopping signal={signal}")
+            Self::Running { gpu_count } => {
+                write!(formatter, "state=running gpu_devices={gpu_count}")
             }
+            Self::FileReconciled(result) => render_managed_result(formatter, result),
+            Self::RuntimeReconciled(result) => render_managed_runtime_result(formatter, result),
+            Self::Stopping { signal } => write!(formatter, "state=stopping signal={signal}"),
+        }
+    }
+}
+
+fn render_managed_result(
+    formatter: &mut fmt::Formatter<'_>,
+    result: &ManagedResult,
+) -> fmt::Result {
+    let (resource, id) = match result.target {
+        ManagedTarget::ModelInstance(id) => ("model_instance", id),
+        ManagedTarget::ModelFile(id) => ("model_file", id),
+    };
+    write!(
+        formatter,
+        "component=managed_file resource={resource} id={id} observed_state={:?}",
+        result.observed_state.as_deref().unwrap_or("unknown")
+    )?;
+    match &result.outcome {
+        ManagedOutcome::InstanceInitialized { port, reused } => {
+            write!(
+                formatter,
+                " outcome=initialized port={port} reused={reused}"
+            )
+        }
+        ManagedOutcome::InstanceErrored { message } => {
+            write!(formatter, " outcome=error message={message:?}")
+        }
+        ManagedOutcome::ModelFileReady { path_count, size } => write!(
+            formatter,
+            " outcome=ready path_count={path_count} size_bytes={size}"
+        ),
+        ManagedOutcome::ModelFileErrored { message } => {
+            write!(formatter, " outcome=error message={message:?}")
+        }
+        ManagedOutcome::Noop { reason } => {
+            write!(formatter, " outcome=noop reason={reason:?}")
+        }
+        ManagedOutcome::Failed { message } => {
+            write!(formatter, " outcome=failed message={message:?}")
+        }
+    }
+}
+
+fn render_managed_runtime_result(
+    formatter: &mut fmt::Formatter<'_>,
+    result: &ManagedRuntimeResult,
+) -> fmt::Result {
+    write!(
+        formatter,
+        "component=managed_runtime resource=model_instance id={} ",
+        result.instance_id
+    )?;
+    match &result.outcome {
+        ManagedRuntimeOutcome::Starting {
+            container_id,
+            created,
+            adopted,
+        } => write!(
+            formatter,
+            "outcome=starting container_id={container_id:?} created={created} adopted={adopted}"
+        ),
+        ManagedRuntimeOutcome::Running {
+            container_id,
+            health_ready_at_unix_nanos,
+        } => {
+            write!(
+                formatter,
+                "outcome=running container_id={container_id:?} health_ready_at_unix_nanos={health_ready_at_unix_nanos}"
+            )
+        }
+        ManagedRuntimeOutcome::Errored { message } => {
+            write!(formatter, "outcome=error message={message:?}")
+        }
+        ManagedRuntimeOutcome::RestartPending {
+            delay_secs,
+            remaining_secs,
+        } => write!(
+            formatter,
+            "outcome=restart_pending delay_secs={delay_secs} remaining_secs={remaining_secs}"
+        ),
+        ManagedRuntimeOutcome::RestartScheduled { restart_count } => write!(
+            formatter,
+            "outcome=restart_scheduled restart_count={restart_count}"
+        ),
+        ManagedRuntimeOutcome::Deleted { container_removed } => write!(
+            formatter,
+            "outcome=deleted container_removed={container_removed}"
+        ),
+        ManagedRuntimeOutcome::Noop { reason } => {
+            write!(formatter, "outcome=noop reason={reason:?}")
+        }
+        ManagedRuntimeOutcome::Failed { message } => {
+            write!(formatter, "outcome=failed message={message:?}")
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ControlPlaneOnlySummary {
-    pub mode: String,
+pub struct WorkerSummary {
     pub server_version: String,
     pub server_git_commit: String,
     pub worker_id: i64,
     pub worker_name: String,
     pub worker_uuid: String,
     pub identity_source: String,
-    pub health_address: String,
+    pub worker_address: String,
+    pub metrics_address: String,
+    pub gpu_count: usize,
     pub shutdown_signal: String,
     pub desired_models: usize,
     pub desired_model_instances: usize,
     pub desired_model_files: usize,
     pub desired_revision: u64,
+    pub file_reconciliations: u64,
+    pub initialized_instances: u64,
+    pub errored_instances: u64,
+    pub ready_model_files: u64,
+    pub errored_model_files: u64,
+    pub file_noops: u64,
+    pub file_failures: u64,
+    pub runtime_reconciliations: u64,
+    pub runtime_starting: u64,
+    pub runtime_running: u64,
+    pub runtime_errored: u64,
+    pub runtime_deleted: u64,
+    pub runtime_noops: u64,
+    pub runtime_failures: u64,
     pub heartbeat_ok: bool,
     pub status_ok: bool,
     pub full_sync_ok: bool,
@@ -210,24 +325,35 @@ pub struct ControlPlaneOnlySummary {
 
 #[derive(Debug, Error)]
 pub enum WorkerRunError {
-    #[error("control-plane-only mode requires configuration field {0}")]
+    #[error("Worker requires configuration field {0}")]
     MissingConfiguration(&'static str),
-    #[error("failed to bind Worker liveness endpoint {address}: {source}")]
-    HealthBind {
+    #[error("failed to bind {service} endpoint {address}: {source}")]
+    Bind {
+        service: &'static str,
         address: SocketAddr,
         #[source]
         source: io::Error,
     },
-    #[error("Worker liveness endpoint failed: {0}")]
-    HealthServe(#[source] io::Error),
-    #[error("Worker liveness endpoint stopped unexpectedly")]
-    HealthStopped,
+    #[error("{0} endpoint stopped unexpectedly")]
+    EndpointStopped(&'static str),
+    #[error("{0} endpoint failed: {1}")]
+    EndpointServe(&'static str, #[source] io::Error),
     #[error("Worker control plane stopped unexpectedly")]
     ControlPlaneStopped,
-    #[error("control-plane-only safety invariant failed: {0}")]
+    #[error("Managed coordinator stopped unexpectedly")]
+    ManagedCoordinatorStopped,
+    #[error("Managed runtime coordinator stopped unexpectedly")]
+    ManagedRuntimeCoordinatorStopped,
+    #[error("Worker safety invariant failed: {0}")]
     SafetyInvariant(&'static str),
     #[error("failed to wait for shutdown signal: {0}")]
     ShutdownSignal(#[source] io::Error),
+    #[error("Worker tasks did not stop within {0:?} after shutdown")]
+    ShutdownTimeout(Duration),
+    #[error(transparent)]
+    Resource(#[from] ResourceError),
+    #[error(transparent)]
+    WorkerApi(#[from] WorkerApiBuildError),
     #[error(transparent)]
     Transport(#[from] TransportError),
     #[error(transparent)]
@@ -236,200 +362,480 @@ pub enum WorkerRunError {
     Identity(#[from] IdentityError),
     #[error(transparent)]
     ControlConfiguration(#[from] ControlLoopConfigError),
+    #[error(transparent)]
+    Resolve(#[from] ResolveError),
+    #[error(transparent)]
+    ManagedRuntime(#[from] ManagedRuntimeError),
 }
 
-/// Runs the restricted Worker until SIGINT or SIGTERM without enabling runtime work.
-pub async fn run_control_plane_only<F>(
-    config: &WorkerConfig,
-    mut observe: F,
-) -> Result<ControlPlaneOnlySummary, WorkerRunError>
-where
-    F: FnMut(&ControlPlaneOnlyEvent),
-{
-    let profile = ControlPlaneOnlyProfile::from_config(config)?;
-    let address = profile.listen_address();
-    // Bind before credential or Server work so a port collision cannot create a
-    // registered Worker that this process is unable to expose for probing.
-    let health = HealthServer::bind(address)
-        .await
-        .map_err(|source| WorkerRunError::HealthBind { address, source })?;
-    observe(&ControlPlaneOnlyEvent::Listening {
-        address: health.local_addr(),
-    });
-
-    // A complete Worker identity recovers without retaining the cluster-wide
-    // bootstrap secret; only registration paths require this optional token.
-    let registration_token = CredentialStore::new(&profile.token_file).load_optional()?;
-    let transport = ReqwestTransport::new()?;
-    let client = ServerClient::new(profile.server_url.clone(), transport)?;
-    run_control_plane_only_session(
-        profile,
-        client,
-        health,
-        registration_token,
-        wait_for_shutdown(),
-        &mut observe,
-    )
-    .await
+#[derive(Debug, Default)]
+struct ManagedStats {
+    reconciliations: u64,
+    initialized_instances: u64,
+    errored_instances: u64,
+    ready_model_files: u64,
+    errored_model_files: u64,
+    noops: u64,
+    failures: u64,
 }
 
-async fn run_control_plane_only_session<T, L, S, F>(
-    profile: ControlPlaneOnlyProfile,
-    client: ServerClient<T>,
-    health: L,
-    registration_token: Option<SecretToken>,
-    shutdown_signal: S,
-    observe: &mut F,
-) -> Result<ControlPlaneOnlySummary, WorkerRunError>
-where
-    T: Transport + 'static,
-    L: LivenessServer,
-    S: Future<Output = io::Result<ShutdownSignal>>,
-    F: FnMut(&ControlPlaneOnlyEvent),
-{
-    let health_address = health.local_addr();
-    let (shutdown_tx, shutdown_rx) = watch::channel(false);
-    let health_future = health.serve(shutdown_rx.clone());
-    tokio::pin!(health_future);
+#[derive(Debug, Default)]
+struct ManagedRuntimeStats {
+    reconciliations: u64,
+    starting: u64,
+    running: u64,
+    errored: u64,
+    deleted: u64,
+    noops: u64,
+    failures: u64,
+}
 
-    let registration_request = profile.registration_request();
-    let identity_result = {
-        let bootstrap = IdentityBootstrap::new(
-            &client,
-            CredentialStore::new(worker_credential_path(&profile.data_dir)),
-            IdentityRecordStore::new(worker_identity_path(&profile.data_dir)),
-        );
-        let establish = bootstrap.establish(registration_token.as_ref(), &registration_request);
-        tokio::pin!(establish);
-        tokio::select! {
-            result = &mut health_future => {
-                return Err(match result {
-                    Ok(()) => WorkerRunError::HealthStopped,
-                    Err(error) => WorkerRunError::HealthServe(error),
-                });
+impl ManagedRuntimeStats {
+    fn record(&mut self, outcome: &ManagedRuntimeOutcome) {
+        self.reconciliations = self.reconciliations.saturating_add(1);
+        match outcome {
+            ManagedRuntimeOutcome::Starting { .. } => {
+                self.starting = self.starting.saturating_add(1);
             }
-            result = &mut establish => result,
-        }
-    };
-    let identity = match identity_result {
-        Ok(identity) => identity,
-        Err(error) => {
-            shutdown_tx.send_replace(true);
-            let _ = (&mut health_future).await;
-            return Err(error.into());
-        }
-    };
-    let current_worker_result = {
-        let current_worker = client.me(&identity.token);
-        tokio::pin!(current_worker);
-        tokio::select! {
-            result = &mut health_future => {
-                return Err(match result {
-                    Ok(()) => WorkerRunError::HealthStopped,
-                    Err(error) => WorkerRunError::HealthServe(error),
-                });
+            ManagedRuntimeOutcome::Running { .. } => {
+                self.running = self.running.saturating_add(1);
             }
-            result = &mut current_worker => result,
+            ManagedRuntimeOutcome::Errored { .. } => {
+                self.errored = self.errored.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::RestartPending { .. } => {
+                self.noops = self.noops.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::RestartScheduled { .. } => {
+                self.starting = self.starting.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::Deleted { .. } => {
+                self.deleted = self.deleted.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::Noop { .. } => {
+                self.noops = self.noops.saturating_add(1);
+            }
+            ManagedRuntimeOutcome::Failed { .. } => {
+                self.failures = self.failures.saturating_add(1);
+            }
         }
-    };
-    let current_worker = match current_worker_result {
-        Ok(worker) => worker,
-        Err(error) => {
-            shutdown_tx.send_replace(true);
-            let _ = (&mut health_future).await;
-            return Err(error.into());
-        }
-    };
-    if let Err(error) = verify_control_plane_only_worker(&current_worker) {
-        shutdown_tx.send_replace(true);
-        let _ = (&mut health_future).await;
-        return Err(error);
     }
+}
+
+impl ManagedStats {
+    fn record(&mut self, outcome: &ManagedOutcome) {
+        self.reconciliations = self.reconciliations.saturating_add(1);
+        match outcome {
+            ManagedOutcome::InstanceInitialized { .. } => {
+                self.initialized_instances = self.initialized_instances.saturating_add(1);
+            }
+            ManagedOutcome::InstanceErrored { .. } => {
+                self.errored_instances = self.errored_instances.saturating_add(1);
+            }
+            ManagedOutcome::ModelFileReady { .. } => {
+                self.ready_model_files = self.ready_model_files.saturating_add(1);
+            }
+            ManagedOutcome::ModelFileErrored { .. } => {
+                self.errored_model_files = self.errored_model_files.saturating_add(1);
+            }
+            ManagedOutcome::Noop { .. } => {
+                self.noops = self.noops.saturating_add(1);
+            }
+            ManagedOutcome::Failed { .. } => {
+                self.failures = self.failures.saturating_add(1);
+            }
+        }
+    }
+}
+
+enum WorkerTermination {
+    Signal(ShutdownSignal),
+    Failure(WorkerRunError),
+}
+
+/// Runs the complete Worker through the unified production lifecycle.
+pub async fn run_worker<F>(
+    config: &WorkerConfig,
+    observe: F,
+) -> Result<WorkerSummary, WorkerRunError>
+where
+    F: FnMut(&WorkerEvent),
+{
+    run_worker_inner(config, Arc::new(WorkerReadiness::default()), observe).await
+}
+
+async fn run_worker_inner<F>(
+    config: &WorkerConfig,
+    readiness: Arc<WorkerReadiness>,
+    mut observe: F,
+) -> Result<WorkerSummary, WorkerRunError>
+where
+    F: FnMut(&WorkerEvent),
+{
+    let profile = WorkerProfile::from_config(config)?;
+    let token_file = config
+        .token_file
+        .as_ref()
+        .ok_or(WorkerRunError::MissingConfiguration("token_file"))?;
+    let registration_token = CredentialStore::new(token_file).load()?;
+    // Canonicalizing roots before network setup keeps unsafe model paths fail-closed.
+    let resolver = LocalModelResolver::new(config.model_roots.clone())?;
+    let mut collector = ResourceCollector::new(SysinfoProbe::new(), NvmlGpuProbe::new()?);
+    let initial_resources = collector.collect()?;
+    verify_gpu_inventory(&initial_resources)?;
+    verify_model_root_mounts(config, &initial_resources)?;
+    set_readiness(&readiness, ReadinessGate::Resources, true);
+
+    // Both listeners are reserved before contacting Server so a partial bind
+    // cannot publish an unreachable Worker status.
+    let worker_listener = TcpListener::bind(profile.worker_address())
+        .await
+        .map_err(|source| WorkerRunError::Bind {
+            service: "Worker API",
+            address: profile.worker_address(),
+            source,
+        })?;
+    let metrics_listener =
+        TcpListener::bind(profile.metrics_address())
+            .await
+            .map_err(|source| WorkerRunError::Bind {
+                service: "metrics",
+                address: profile.metrics_address(),
+                source,
+            })?;
+    observe(&WorkerEvent::Listening {
+        worker_address: worker_listener
+            .local_addr()
+            .map_err(|source| WorkerRunError::Bind {
+                service: "Worker API",
+                address: profile.worker_address(),
+                source,
+            })?,
+        metrics_address: metrics_listener
+            .local_addr()
+            .map_err(|source| WorkerRunError::Bind {
+                service: "metrics",
+                address: profile.metrics_address(),
+                source,
+            })?,
+    });
+    set_readiness(&readiness, ReadinessGate::WorkerApi, true);
+    set_readiness(&readiness, ReadinessGate::Metrics, true);
+
+    let transport = ReqwestTransport::new()?;
+    let client = ServerClient::new(profile.server_url.clone(), transport.clone())?;
+    let managed_client = ServerClient::new(profile.server_url.clone(), transport.clone())?;
+    let runtime_client = ServerClient::new(profile.server_url.clone(), transport)?;
+    let bootstrap = IdentityBootstrap::new(
+        &client,
+        CredentialStore::new(worker_credential_path(&profile.data_dir)),
+        IdentityRecordStore::new(worker_identity_path(&profile.data_dir)),
+    );
+    let identity = bootstrap
+        .establish(
+            Some(&registration_token),
+            &profile.registration_request(&initial_resources),
+        )
+        .await?;
+    let current_worker = client.me(&identity.token).await?;
+    verify_production_worker(&current_worker, &identity)?;
     let identity_source = identity_source_name(&identity.source);
-    observe(&ControlPlaneOnlyEvent::IdentityEstablished {
+    observe(&WorkerEvent::IdentityEstablished {
         worker_id: identity.id,
         worker_name: identity.name.clone(),
         identity_source,
     });
+    set_readiness(&readiness, ReadinessGate::Identity, true);
 
-    let status = profile.status_report(identity.worker_uuid.clone());
-    let (_status_tx, status_rx) = watch::channel(status);
-    let (control, handle) = match WorkerControlPlane::new(
+    let runtime_registry = Arc::new(ManagedRuntimeRegistry::default());
+    let api_state = WorkerApiState::new_worker(
+        config,
+        identity.token.clone(),
+        registration_token,
+        Arc::clone(&runtime_registry),
+        Arc::clone(&readiness),
+    )?;
+    let initial_status =
+        profile.status_report(identity.worker_uuid.clone(), &initial_resources, false);
+    // Publish the scheduling barrier before full sync can expose desired work.
+    client
+        .report_status(&identity.token, &initial_status)
+        .await?;
+    let (resources_tx, resources_rx) = watch::channel(initial_resources.clone());
+    let (status_tx, status_rx) = watch::channel(initial_status);
+    let mut supervisor = WorkerSupervisor::new();
+    let (control, control_handle) = WorkerControlPlane::new(
         client,
         identity.token.clone(),
         identity.id,
         ControlLoopConfig::default(),
-    ) {
-        Ok(value) => value,
-        Err(error) => {
-            shutdown_tx.send_replace(true);
-            let _ = (&mut health_future).await;
-            return Err(error.into());
-        }
+    )?;
+    let desired_summary = control_handle.desired_state();
+    let desired_managed = control_handle.desired_state();
+    let desired_runtime = control_handle.desired_state();
+    let mut control_health = control_handle.health();
+    let control_shutdown = supervisor.subscribe();
+    supervisor.add("control_plane", async move {
+        control.run(status_rx, control_shutdown).await;
+        Ok::<(), WorkerRunError>(())
+    });
+    let api_shutdown = supervisor.subscribe();
+    supervisor.add("worker_api", async move {
+        axum::serve(worker_listener, worker_api_router(api_state))
+            .with_graceful_shutdown(shutdown_requested(api_shutdown))
+            .into_future()
+            .await
+            .map_err(|error| WorkerRunError::EndpointServe("Worker API", error))
+    });
+    let metrics_mode = "worker";
+    let metric_identity = MetricIdentity {
+        instance: profile.worker_ip.to_string(),
+        worker_id: identity.id,
+        worker_name: identity.name.clone(),
     };
-    let desired_state = handle.desired_state();
-    let control_health = handle.health();
-    let control_future = control.run(status_rx, shutdown_rx);
-    tokio::pin!(control_future);
+    let metrics_control = control_health.clone();
+    let metrics_readiness = Some(Arc::clone(&readiness));
+    let metrics_shutdown = supervisor.subscribe();
+    supervisor.add("metrics", async move {
+        axum::serve(
+            metrics_listener,
+            metrics_router(MetricsState {
+                mode: metrics_mode,
+                identity: metric_identity,
+                resources: resources_rx,
+                control: metrics_control,
+                readiness: metrics_readiness,
+            }),
+        )
+        .with_graceful_shutdown(shutdown_requested(metrics_shutdown))
+        .into_future()
+        .await
+        .map_err(|error| WorkerRunError::EndpointServe("metrics", error))
+    });
+    let coordinator = ManagedCoordinator::new(
+        managed_client,
+        identity.token.clone(),
+        identity.id,
+        profile.worker_ip,
+        resolver,
+        ManagedPortAllocator::production(),
+    );
+    let (managed_tx, mut managed_rx) = mpsc::unbounded_channel();
+    let managed_shutdown = supervisor.subscribe();
+    supervisor.add("managed_files", async move {
+        coordinator
+            .run(desired_managed, managed_shutdown, |result| {
+                let _ = managed_tx.send(result);
+            })
+            .await;
+        Ok(())
+    });
+    let (runtime_tx, mut runtime_rx) = mpsc::unbounded_channel();
+    let runtime_shutdown = supervisor.subscribe();
+    let runtime_config = config.clone();
+    let runtime_token = identity.token.clone();
+    let runtime_worker_uuid = identity.worker_uuid.clone();
+    let runtime_worker_ip = profile.worker_ip;
+    let runtime_worker_id = identity.id;
+    let runtime_registry_for_task = Arc::clone(&runtime_registry);
+    supervisor.add("managed_runtime", async move {
+        run_production_managed_runtime(
+            runtime_client,
+            runtime_token,
+            runtime_worker_id,
+            runtime_worker_uuid,
+            runtime_worker_ip,
+            runtime_config,
+            desired_runtime,
+            runtime_shutdown,
+            runtime_registry_for_task,
+            |result| {
+                let _ = runtime_tx.send(result);
+            },
+        )
+        .await?;
+        Ok(())
+    });
+    let mut runtime_available = runtime_registry.subscribe_available();
+    let mut runtime_coordinated = runtime_registry.subscribe_coordinated();
+    let shutdown_signal = wait_for_shutdown();
     tokio::pin!(shutdown_signal);
-    observe(&ControlPlaneOnlyEvent::Running);
+    let mut refresh = tokio::time::interval(RESOURCE_REFRESH_INTERVAL);
+    refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    refresh.tick().await;
+    let gpu_count = initial_resources
+        .status
+        .gpu_devices
+        .as_ref()
+        .map_or(0, Vec::len);
+    observe(&WorkerEvent::Running { gpu_count });
+    let mut managed_stats = ManagedStats::default();
+    let mut runtime_stats = ManagedRuntimeStats::default();
 
-    enum Termination {
-        Signal(io::Result<ShutdownSignal>),
-        Health(io::Result<()>),
-        Control,
-    }
-
-    let termination = tokio::select! {
-        signal = &mut shutdown_signal => Termination::Signal(signal),
-        result = &mut health_future => Termination::Health(result),
-        () = &mut control_future => Termination::Control,
+    let termination = loop {
+        tokio::select! {
+            signal = &mut shutdown_signal => {
+                break match signal {
+                    Ok(signal) => WorkerTermination::Signal(signal),
+                    Err(error) => WorkerTermination::Failure(
+                        WorkerRunError::ShutdownSignal(error),
+                    ),
+                };
+            }
+            exit = supervisor.next_exit() => {
+                break WorkerTermination::Failure(unexpected_task_exit(
+                    exit.expect("Worker supervisor always owns critical tasks"),
+                ));
+            }
+            Some(result) = managed_rx.recv() => {
+                managed_stats.record(&result.outcome);
+                observe(&WorkerEvent::FileReconciled(result));
+            }
+            Some(result) = runtime_rx.recv() => {
+                runtime_stats.record(&result.outcome);
+                observe(&WorkerEvent::RuntimeReconciled(result));
+            }
+            changed = control_health.changed() => {
+                if changed.is_err() {
+                    break WorkerTermination::Failure(
+                        WorkerRunError::ControlPlaneStopped,
+                    );
+                }
+                set_readiness(
+                    &readiness,
+                    ReadinessGate::FullSync,
+                    control_health.borrow().full_sync_ok,
+                );
+                publish_status_report(
+                    &profile,
+                    &identity.worker_uuid,
+                    &resources_tx,
+                    &status_tx,
+                    &readiness,
+                );
+            }
+            changed = runtime_available.changed() => {
+                if changed.is_err() {
+                    break WorkerTermination::Failure(
+                        WorkerRunError::ManagedRuntimeCoordinatorStopped,
+                    );
+                }
+                set_readiness(
+                    &readiness,
+                    ReadinessGate::Docker,
+                    *runtime_available.borrow(),
+                );
+                publish_status_report(
+                    &profile,
+                    &identity.worker_uuid,
+                    &resources_tx,
+                    &status_tx,
+                    &readiness,
+                );
+            }
+            changed = runtime_coordinated.changed() => {
+                if changed.is_err() {
+                    break WorkerTermination::Failure(
+                        WorkerRunError::ManagedRuntimeCoordinatorStopped,
+                    );
+                }
+                set_readiness(
+                    &readiness,
+                    ReadinessGate::Runtime,
+                    *runtime_coordinated.borrow(),
+                );
+                publish_status_report(
+                    &profile,
+                    &identity.worker_uuid,
+                    &resources_tx,
+                    &status_tx,
+                    &readiness,
+                );
+            }
+            _ = refresh.tick() => {
+                let resources = match collector
+                    .collect()
+                    .map_err(WorkerRunError::from)
+                    .and_then(|resources| {
+                        verify_gpu_inventory(&resources)?;
+                        verify_model_root_mounts(config, &resources)?;
+                        Ok(resources)
+                    })
+                {
+                    Ok(resources) => resources,
+                    Err(error) => {
+                        break WorkerTermination::Failure(error);
+                    }
+                };
+                set_readiness(&readiness, ReadinessGate::Resources, true);
+                resources_tx.send_replace(resources.clone());
+                status_tx.send_replace(profile.status_report(
+                    identity.worker_uuid.clone(),
+                    &resources,
+                    readiness.is_ready(),
+                ));
+            }
+        }
     };
 
     let signal = match termination {
-        Termination::Signal(signal) => {
-            let signal = signal.map_err(WorkerRunError::ShutdownSignal)?;
-            observe(&ControlPlaneOnlyEvent::Stopping {
+        WorkerTermination::Signal(signal) => {
+            observe(&WorkerEvent::Stopping {
                 signal: shutdown_signal_name(signal),
             });
-            shutdown_tx.send_replace(true);
-            let (health_result, ()) = tokio::join!(&mut health_future, &mut control_future);
-            health_result.map_err(WorkerRunError::HealthServe)?;
-            signal
+            Some(signal)
         }
-        Termination::Health(result) => {
-            shutdown_tx.send_replace(true);
-            (&mut control_future).await;
-            return Err(match result {
-                Ok(()) => WorkerRunError::HealthStopped,
-                Err(error) => WorkerRunError::HealthServe(error),
-            });
-        }
-        Termination::Control => {
-            shutdown_tx.send_replace(true);
-            (&mut health_future)
+        WorkerTermination::Failure(error) => {
+            reset_readiness(&readiness);
+            supervisor.request_shutdown();
+            supervisor
+                .shutdown(WORKER_SHUTDOWN_GRACE)
                 .await
-                .map_err(WorkerRunError::HealthServe)?;
-            return Err(WorkerRunError::ControlPlaneStopped);
+                .map_err(|_| WorkerRunError::ShutdownTimeout(WORKER_SHUTDOWN_GRACE))?;
+            return Err(error);
         }
     };
-
-    let desired = desired_state.borrow().clone();
+    reset_readiness(&readiness);
+    supervisor.request_shutdown();
+    let exits = supervisor
+        .shutdown(WORKER_SHUTDOWN_GRACE)
+        .await
+        .map_err(|_| WorkerRunError::ShutdownTimeout(WORKER_SHUTDOWN_GRACE))?;
+    if let Some(error) = first_task_error(exits) {
+        return Err(error);
+    }
+    let signal = signal.expect("successful Worker termination requires a signal");
     let health = control_health.borrow().clone();
-    Ok(ControlPlaneOnlySummary {
-        mode: CONTROL_PLANE_ONLY_MODE.to_owned(),
+    let desired = desired_summary.borrow().clone();
+    Ok(WorkerSummary {
         server_version: SERVER_BASELINE_VERSION.to_owned(),
         server_git_commit: SERVER_BASELINE_GIT_COMMIT.to_owned(),
         worker_id: identity.id,
         worker_name: identity.name,
         worker_uuid: identity.worker_uuid,
         identity_source: identity_source.to_owned(),
-        health_address: health_address.to_string(),
+        worker_address: profile.worker_address().to_string(),
+        metrics_address: profile.metrics_address().to_string(),
+        gpu_count,
         shutdown_signal: shutdown_signal_name(signal).to_owned(),
         desired_models: desired.models.len(),
         desired_model_instances: desired.model_instances.len(),
         desired_model_files: desired.model_files.len(),
         desired_revision: desired.revision,
+        file_reconciliations: managed_stats.reconciliations,
+        initialized_instances: managed_stats.initialized_instances,
+        errored_instances: managed_stats.errored_instances,
+        ready_model_files: managed_stats.ready_model_files,
+        errored_model_files: managed_stats.errored_model_files,
+        file_noops: managed_stats.noops,
+        file_failures: managed_stats.failures,
+        runtime_reconciliations: runtime_stats.reconciliations,
+        runtime_starting: runtime_stats.starting,
+        runtime_running: runtime_stats.running,
+        runtime_errored: runtime_stats.errored,
+        runtime_deleted: runtime_stats.deleted,
+        runtime_noops: runtime_stats.noops,
+        runtime_failures: runtime_stats.failures,
         heartbeat_ok: health.heartbeat_ok,
         status_ok: health.status_ok,
         full_sync_ok: health.full_sync_ok,
@@ -438,25 +844,134 @@ where
     })
 }
 
+async fn shutdown_requested(mut shutdown: watch::Receiver<bool>) {
+    loop {
+        if *shutdown.borrow() || shutdown.changed().await.is_err() {
+            return;
+        }
+    }
+}
+
+fn set_readiness(readiness: &WorkerReadiness, gate: ReadinessGate, ready: bool) {
+    readiness.set(gate, ready);
+}
+
+fn publish_status_report(
+    profile: &WorkerProfile,
+    worker_uuid: &str,
+    resources: &watch::Sender<CollectedResources>,
+    status: &watch::Sender<WorkerStatusReport>,
+    readiness: &WorkerReadiness,
+) {
+    let report = profile.status_report(
+        worker_uuid.to_owned(),
+        &resources.borrow(),
+        readiness.is_ready(),
+    );
+    status.send_if_modified(|current| {
+        if *current == report {
+            false
+        } else {
+            *current = report;
+            true
+        }
+    });
+}
+
+fn reset_readiness(readiness: &WorkerReadiness) {
+    readiness.reset();
+}
+
+fn unexpected_task_exit(exit: SupervisedTaskExit<WorkerRunError>) -> WorkerRunError {
+    match exit.result {
+        Err(error) => error,
+        Ok(()) => match exit.name {
+            "worker_api" => WorkerRunError::EndpointStopped("Worker API"),
+            "metrics" => WorkerRunError::EndpointStopped("metrics"),
+            "control_plane" => WorkerRunError::ControlPlaneStopped,
+            "managed_files" => WorkerRunError::ManagedCoordinatorStopped,
+            "managed_runtime" => WorkerRunError::ManagedRuntimeCoordinatorStopped,
+            _ => WorkerRunError::SafetyInvariant("unknown critical Worker task stopped"),
+        },
+    }
+}
+
+fn first_task_error(exits: Vec<SupervisedTaskExit<WorkerRunError>>) -> Option<WorkerRunError> {
+    exits.into_iter().find_map(|exit| exit.result.err())
+}
+
+fn verify_gpu_inventory(resources: &CollectedResources) -> Result<(), WorkerRunError> {
+    if resources.machine_id.as_deref().is_none_or(str::is_empty) {
+        return Err(WorkerRunError::SafetyInvariant(
+            "resource snapshot must contain a machine ID",
+        ));
+    }
+    let gpus = resources
+        .status
+        .gpu_devices
+        .as_deref()
+        .ok_or(WorkerRunError::SafetyInvariant(
+            "resource snapshot must contain GPU devices",
+        ))?;
+    if gpus.is_empty() {
+        return Err(WorkerRunError::SafetyInvariant(
+            "resource snapshot must contain at least one GPU",
+        ));
+    }
+    if gpus.iter().any(|gpu| {
+        gpu.name.is_empty()
+            || gpu.uuid.as_deref().is_none_or(str::is_empty)
+            || gpu
+                .memory
+                .as_ref()
+                .and_then(|memory| memory.total)
+                .is_none()
+            || gpu.compute_capability.as_deref().is_none_or(str::is_empty)
+    }) {
+        return Err(WorkerRunError::SafetyInvariant(
+            "GPU identity fields must be complete",
+        ));
+    }
+    Ok(())
+}
+
+fn verify_model_root_mounts(
+    config: &WorkerConfig,
+    resources: &CollectedResources,
+) -> Result<(), WorkerRunError> {
+    let filesystems = resources.status.filesystem.as_deref().unwrap_or_default();
+    let all_roots_covered = config.model_roots.iter().all(|root| {
+        filesystems.iter().any(|filesystem| {
+            let mount = std::path::Path::new(&filesystem.mount_point);
+            root.starts_with(mount)
+        })
+    });
+    if !all_roots_covered {
+        return Err(WorkerRunError::SafetyInvariant(
+            "resource snapshot must cover every configured model root mount",
+        ));
+    }
+    Ok(())
+}
+
+fn verify_production_worker(
+    worker: &WorkerPublic,
+    identity: &WorkerIdentity,
+) -> Result<(), WorkerRunError> {
+    if worker.me != Some(true) || worker.id != identity.id || worker.name != identity.name {
+        return Err(WorkerRunError::SafetyInvariant(
+            "Server current Worker differs from the established identity",
+        ));
+    }
+    Ok(())
+}
+
 fn identity_source_name(source: &IdentitySource) -> &'static str {
     match source {
         IdentitySource::Persisted => "persisted",
         IdentitySource::Registered => "registered",
         IdentitySource::Recovered => "recovered",
     }
-}
-
-fn verify_control_plane_only_worker(worker: &WorkerPublic) -> Result<(), WorkerRunError> {
-    if !worker
-        .maintenance
-        .as_ref()
-        .is_some_and(|maintenance| maintenance.enabled)
-    {
-        return Err(WorkerRunError::SafetyInvariant(
-            "Server Worker maintenance must remain enabled",
-        ));
-    }
-    Ok(())
 }
 
 fn shutdown_signal_name(signal: ShutdownSignal) -> &'static str {
@@ -468,410 +983,259 @@ fn shutdown_signal_name(signal: ShutdownSignal) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-    use std::sync::{Arc, Mutex};
+    use std::net::{IpAddr, Ipv4Addr};
 
-    use futures_util::stream;
-    use gpustack_client::http::{
-        HttpRequest, HttpResponse, Method, StreamResponse, TransportError,
-    };
-    use serde_json::Value;
-    use tokio::sync::Notify;
-    use url::Url;
+    use gpustack_client::SecretToken;
+    use gpustack_client::types::{Paginated, WorkerResourceStatus};
 
     use super::*;
 
-    #[derive(Clone)]
-    struct MockTransport {
-        requests: Arc<Mutex<Vec<HttpRequest>>>,
-        stream_count: Arc<AtomicUsize>,
-        heartbeat_seen: Arc<AtomicBool>,
-        status_seen: Arc<AtomicBool>,
-        control_plane_ready: Arc<Notify>,
-    }
-
-    impl MockTransport {
-        fn new() -> Self {
-            Self {
-                requests: Arc::new(Mutex::new(Vec::new())),
-                stream_count: Arc::new(AtomicUsize::new(0)),
-                heartbeat_seen: Arc::new(AtomicBool::new(false)),
-                status_seen: Arc::new(AtomicBool::new(false)),
-                control_plane_ready: Arc::new(Notify::new()),
-            }
-        }
-
-        fn requests(&self) -> Vec<HttpRequest> {
-            self.requests.lock().expect("request lock").clone()
-        }
-
-        fn notify_if_ready(&self) {
-            if self.stream_count.load(Ordering::SeqCst) >= 3
-                && self.heartbeat_seen.load(Ordering::SeqCst)
-                && self.status_seen.load(Ordering::SeqCst)
-            {
-                self.control_plane_ready.notify_one();
-            }
-        }
-    }
-
-    impl Transport for MockTransport {
-        async fn execute(&self, request: HttpRequest) -> Result<HttpResponse, TransportError> {
-            let path = request.url.path().to_owned();
-            let method = request.method;
-            self.requests.lock().expect("request lock").push(request);
-            if path == "/v2/worker-heartbeat" {
-                self.heartbeat_seen.store(true, Ordering::SeqCst);
-            }
-            if path == "/v2/worker-status" {
-                self.status_seen.store(true, Ordering::SeqCst);
-            }
-            self.notify_if_ready();
-            let response = match (method, path.as_str()) {
-                (Method::Get, "/version") => json_response(include_bytes!(
-                    "../../../fixtures/server-v2.2.3/live-version.response.json"
-                )),
-                (Method::Get, "/v2/workers") => json_response(include_bytes!(
-                    "../../../fixtures/server-v2.2.3/worker-maintenance-me.response.json"
-                )),
-                (Method::Post, "/v2/workers") => json_response(include_bytes!(
-                    "../../../fixtures/server-v2.2.3/worker-register.response.json"
-                )),
-                (Method::Post, "/v2/worker-heartbeat" | "/v2/worker-status") => HttpResponse {
-                    status: 204,
-                    content_type: None,
-                    body: Vec::new(),
-                },
-                (Method::Get, "/v2/models") => json_response(include_bytes!(
-                    "../../../fixtures/server-v2.2.3/models-full-sync.response.json"
-                )),
-                (Method::Get, "/v2/model-instances") => json_response(include_bytes!(
-                    "../../../fixtures/server-v2.2.3/model-instances-full-sync.response.json"
-                )),
-                (Method::Get, "/v2/model-files") => json_response(include_bytes!(
-                    "../../../fixtures/server-v2.2.3/model-files-full-sync.response.json"
-                )),
-                _ => {
-                    return Err(TransportError::Request(format!(
-                        "unexpected mock request {method:?} {path}"
-                    )));
-                }
-            };
-            Ok(response)
-        }
-
-        async fn open_stream(
-            &self,
-            request: HttpRequest,
-        ) -> Result<StreamResponse, TransportError> {
-            self.requests.lock().expect("request lock").push(request);
-            self.stream_count.fetch_add(1, Ordering::SeqCst);
-            self.notify_if_ready();
-            Ok(StreamResponse {
-                status: 200,
-                content_type: Some("text/event-stream".to_owned()),
-                chunks: Box::pin(stream::pending()),
-                error_body: None,
-            })
-        }
-    }
-
-    struct MockLivenessServer {
-        address: SocketAddr,
-        started: Arc<AtomicBool>,
-        stopped: Arc<AtomicBool>,
-    }
-
-    impl LivenessServer for MockLivenessServer {
-        fn local_addr(&self) -> SocketAddr {
-            self.address
-        }
-
-        fn serve(self, mut shutdown: watch::Receiver<bool>) -> crate::health::LivenessFuture {
-            Box::pin(async move {
-                self.started.store(true, Ordering::SeqCst);
-                while !*shutdown.borrow() {
-                    if shutdown.changed().await.is_err() {
-                        break;
-                    }
-                }
-                self.stopped.store(true, Ordering::SeqCst);
-                Ok(())
-            })
-        }
-    }
-
-    fn json_response(body: &[u8]) -> HttpResponse {
-        HttpResponse {
-            status: 200,
-            content_type: Some("application/json".to_owned()),
-            body: body.to_vec(),
-        }
-    }
-
-    fn test_config(data_dir: PathBuf) -> WorkerConfig {
+    fn config(directory: PathBuf) -> WorkerConfig {
         WorkerConfig {
-            server_url: Some(Url::parse("http://127.0.0.1").expect("test URL")),
-            worker_name: Some("rust-m3d-r760xa".to_owned()),
-            worker_hostname: Some("r760xa".to_owned()),
-            worker_ip: Some("127.0.0.1".parse().expect("test IP")),
+            server_url: Some("http://127.0.0.1/".parse().expect("server URL")),
+            worker_name: Some("rust-worker".to_owned()),
+            worker_hostname: Some("contract-host".to_owned()),
+            worker_ip: Some(IpAddr::V4(Ipv4Addr::LOCALHOST)),
             worker_ifname: Some("lo".to_owned()),
             worker_port: 20150,
             metrics_port: 20151,
-            token_file: Some(data_dir.join("registration-token")),
-            data_dir,
-            log_dir: PathBuf::from("/tmp/gpustack-rust-test-logs"),
-            model_roots: Vec::new(),
+            token_file: None,
+            data_dir: directory.clone(),
+            log_dir: directory.join("logs"),
+            model_roots: vec![directory.join("models")],
             docker_socket: PathBuf::from("/var/run/docker.sock"),
         }
     }
 
     #[test]
-    fn profile_requires_every_control_plane_identity_field() {
-        let directory = tempfile::tempdir().expect("temporary directory");
-        let mut config = test_config(directory.path().to_path_buf());
-        config.worker_ifname = None;
+    fn profile_reports_typed_resources_and_readiness_without_stage_labels() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let profile = WorkerProfile::from_config(&config(directory.path().to_path_buf()))
+            .expect("Worker profile");
+        let status: WorkerResourceStatus = serde_json::from_slice(include_bytes!(
+            "../../../fixtures/server-v2.2.3/worker-status-resource.request.json"
+        ))
+        .map(|value: serde_json::Value| serde_json::from_value(value["status"].clone()))
+        .expect("fixture envelope")
+        .expect("fixture status");
+        let resources = CollectedResources {
+            machine_id: Some("contract-machine-id".to_owned()),
+            status,
+        };
 
-        let error = ControlPlaneOnlyProfile::from_config(&config).expect_err("missing interface");
+        verify_gpu_inventory(&resources).expect("valid GPU fixture");
+        let create = profile.registration_request(&resources);
+        let initializing = profile.status_report("contract-uuid".to_owned(), &resources, false);
+        let ready = profile.status_report("contract-uuid".to_owned(), &resources, true);
+
+        assert_eq!(
+            create.labels,
+            BTreeMap::from([("implementation".to_owned(), "rust".to_owned())])
+        );
+        assert_eq!(create.maintenance, None);
+        assert_eq!(create.metrics_port, Some(20151));
+        assert_eq!(initializing.metrics_port, Some(20151));
+        assert_eq!(initializing.status, Some(resources.status));
+        assert_eq!(
+            create.state_message.as_deref(),
+            Some(PRODUCTION_NOT_READY_MESSAGE)
+        );
+        assert_eq!(
+            initializing.state_message.as_deref(),
+            Some(PRODUCTION_NOT_READY_MESSAGE)
+        );
+        assert_eq!(ready.state_message, None);
+        assert_eq!(create.system_reserved, Some(SystemReserved::default()));
+        assert_eq!(
+            initializing.system_reserved,
+            Some(SystemReserved::default())
+        );
+    }
+
+    #[test]
+    fn production_identity_accepts_server_authoritative_maintenance() {
+        let mut worker = serde_json::from_slice::<Paginated<WorkerPublic>>(include_bytes!(
+            "../../../fixtures/server-v2.2.3/worker-maintenance-me.response.json"
+        ))
+        .expect("maintenance Worker fixture")
+        .items
+        .remove(0);
+        let identity = WorkerIdentity {
+            id: worker.id,
+            name: worker.name.clone(),
+            worker_uuid: "contract-uuid".to_owned(),
+            token: SecretToken::new("worker-secret").expect("valid token"),
+            source: IdentitySource::Persisted,
+        };
+
+        verify_production_worker(&worker, &identity).expect("maintenance is Server-owned");
+        worker.maintenance = None;
+        verify_production_worker(&worker, &identity).expect("non-maintenance Worker");
+        worker.name = "different-worker".to_owned();
+        assert!(verify_production_worker(&worker, &identity).is_err());
+    }
+
+    #[test]
+    fn managed_event_reports_starting_as_a_structured_noop() {
+        let event = WorkerEvent::FileReconciled(ManagedResult {
+            target: ManagedTarget::ModelInstance(301),
+            observed_state: Some("starting".to_owned()),
+            outcome: ManagedOutcome::Noop {
+                reason: "ModelInstance state is not scheduled",
+            },
+        });
+
+        let line = event.to_string();
+
+        assert!(line.contains("resource=model_instance"));
+        assert!(line.contains("id=301"));
+        assert!(line.contains("observed_state=\"starting\""));
+        assert!(line.contains("outcome=noop"));
+        assert!(!line.contains("token"));
+    }
+
+    #[test]
+    fn file_events_report_the_component_without_a_stage_mode() {
+        let event = WorkerEvent::FileReconciled(ManagedResult {
+            target: ManagedTarget::ModelInstance(301),
+            observed_state: Some("starting".to_owned()),
+            outcome: ManagedOutcome::Noop {
+                reason: "ModelInstance state is not scheduled",
+            },
+        });
+
+        let line = event.to_string();
+
+        assert!(line.contains("component=managed_file"));
+        assert!(!line.contains("mode="));
+        assert!(!line.contains("stage="));
+    }
+
+    #[test]
+    fn managed_runtime_running_event_carries_the_pre_writeback_health_time() {
+        let event = WorkerEvent::RuntimeReconciled(ManagedRuntimeResult {
+            instance_id: 301,
+            outcome: ManagedRuntimeOutcome::Running {
+                container_id: "container-1".to_owned(),
+                health_ready_at_unix_nanos: 1_793_190_027_650_000_000,
+            },
+        });
+
+        let line = event.to_string();
+
+        assert!(line.contains("outcome=running"));
+        assert!(line.contains("container_id=\"container-1\""));
+        assert!(line.contains("health_ready_at_unix_nanos=1793190027650000000"));
+    }
+
+    #[test]
+    fn managed_summary_counters_classify_every_outcome() {
+        let outcomes = [
+            ManagedOutcome::InstanceInitialized {
+                port: 40_000,
+                reused: false,
+            },
+            ManagedOutcome::InstanceErrored {
+                message: "port unavailable".to_owned(),
+            },
+            ManagedOutcome::ModelFileReady {
+                path_count: 1,
+                size: 7,
+            },
+            ManagedOutcome::ModelFileErrored {
+                message: "invalid model".to_owned(),
+            },
+            ManagedOutcome::Noop { reason: "starting" },
+            ManagedOutcome::Failed {
+                message: "request failed".to_owned(),
+            },
+        ];
+        let mut stats = ManagedStats::default();
+
+        for outcome in &outcomes {
+            stats.record(outcome);
+        }
+
+        assert_eq!(stats.reconciliations, 6);
+        assert_eq!(stats.initialized_instances, 1);
+        assert_eq!(stats.errored_instances, 1);
+        assert_eq!(stats.ready_model_files, 1);
+        assert_eq!(stats.errored_model_files, 1);
+        assert_eq!(stats.noops, 1);
+        assert_eq!(stats.failures, 1);
+    }
+
+    #[test]
+    fn a_single_complete_gpu_is_a_valid_worker_inventory() {
+        let status: WorkerResourceStatus = serde_json::from_slice(include_bytes!(
+            "../../../fixtures/server-v2.2.3/worker-status-resource.request.json"
+        ))
+        .map(|value: serde_json::Value| serde_json::from_value(value["status"].clone()))
+        .expect("fixture envelope")
+        .expect("fixture status");
+        let mut resources = CollectedResources {
+            machine_id: Some("contract-machine-id".to_owned()),
+            status,
+        };
+        let gpus = resources.status.gpu_devices.as_mut().expect("GPU devices");
+        gpus.truncate(1);
+
+        verify_gpu_inventory(&resources).expect("one complete GPU is supported");
+
+        resources
+            .status
+            .gpu_devices
+            .as_mut()
+            .expect("GPU devices")
+            .clear();
+        assert!(verify_gpu_inventory(&resources).is_err());
+    }
+
+    #[test]
+    fn missing_model_roots_fails_before_any_runtime_or_network_work() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let mut config = config(directory.path().to_path_buf());
+        config.model_roots.clear();
 
         assert!(matches!(
-            error,
-            WorkerRunError::MissingConfiguration("worker_ifname")
+            WorkerProfile::from_config(&config),
+            Err(WorkerRunError::MissingConfiguration("model_roots"))
         ));
     }
 
     #[test]
-    fn profile_rejects_a_server_worker_without_maintenance() {
-        let page: gpustack_client::types::Paginated<WorkerPublic> = serde_json::from_slice(
-            include_bytes!("../../../fixtures/server-v2.2.3/workers-me.response.json"),
-        )
-        .expect("Worker fixture");
-
-        let error = verify_control_plane_only_worker(&page.items[0])
-            .expect_err("maintenance is a scheduling safety invariant");
-
-        assert!(matches!(error, WorkerRunError::SafetyInvariant(_)));
-    }
-
-    #[tokio::test]
-    async fn session_is_maintenance_only_and_stops_cleanly() {
-        let directory = tempfile::tempdir().expect("temporary directory");
-        let profile =
-            ControlPlaneOnlyProfile::from_config(&test_config(directory.path().to_path_buf()))
-                .expect("complete profile");
-        let transport = MockTransport::new();
-        let requests = transport.clone();
-        let control_plane_ready = Arc::clone(&transport.control_plane_ready);
-        let client = ServerClient::new(profile.server_url.clone(), transport).expect("client");
-        let started = Arc::new(AtomicBool::new(false));
-        let stopped = Arc::new(AtomicBool::new(false));
-        let health = MockLivenessServer {
-            address: profile.listen_address(),
-            started: Arc::clone(&started),
-            stopped: Arc::clone(&stopped),
-        };
-        let registration_token = SecretToken::new("registration-token").expect("secret token");
-        let mut events = Vec::new();
-        let shutdown = async move {
-            control_plane_ready.notified().await;
-            // The third stream becomes visible inside the mock before
-            // WorkerControlPlane publishes its connected health snapshot.
-            tokio::task::yield_now().await;
-            Ok(ShutdownSignal::Interrupt)
-        };
-
-        let summary = run_control_plane_only_session(
-            profile.clone(),
-            client,
-            health,
-            Some(registration_token),
-            shutdown,
-            &mut |event| events.push(event.clone()),
-        )
-        .await
-        .expect("control-plane-only session");
-
-        assert!(started.load(Ordering::SeqCst));
-        assert!(stopped.load(Ordering::SeqCst));
-        assert_eq!(summary.mode, CONTROL_PLANE_ONLY_MODE);
-        assert_eq!(summary.identity_source, "registered");
-        assert_eq!(summary.shutdown_signal, "interrupt");
-        assert!(summary.heartbeat_ok);
-        assert!(summary.status_ok);
-        assert!(summary.full_sync_ok);
-        assert!(summary.watch_connected);
-        assert!(summary.desired_models > 0);
-        assert!(worker_identity_path(directory.path()).exists());
-        assert!(worker_credential_path(directory.path()).exists());
-        assert!(events.contains(&ControlPlaneOnlyEvent::Running));
-
-        let recorded = requests.requests();
-        let registration: Value = serde_json::from_slice(
-            recorded
-                .iter()
-                .find(|request| {
-                    request.method == Method::Post && request.url.path() == "/v2/workers"
-                })
-                .and_then(|request| request.body.as_deref())
-                .expect("registration body"),
-        )
-        .expect("registration JSON");
-        assert_eq!(registration["maintenance"]["enabled"], true);
-        assert_eq!(registration["metrics_port"], Value::Null);
-        assert_eq!(registration["status"]["gpu_devices"], serde_json::json!([]));
-        assert_eq!(registration["labels"]["mode"], CONTROL_PLANE_ONLY_MODE);
-
-        let status: Value = serde_json::from_slice(
-            recorded
-                .iter()
-                .find(|request| {
-                    request.method == Method::Post && request.url.path() == "/v2/worker-status"
-                })
-                .and_then(|request| request.body.as_deref())
-                .expect("status body"),
-        )
-        .expect("status JSON");
+    fn identity_source_names_are_stable() {
         assert_eq!(
-            status["worker_uuid"],
-            "00000000-0000-4000-8000-000000000002"
+            identity_source_name(&IdentitySource::Persisted),
+            "persisted"
         );
-        assert_eq!(status["status"]["gpu_devices"], serde_json::json!([]));
-        assert!(!recorded.iter().any(|request| request.method == Method::Put));
-
-        let restore_transport = MockTransport::new();
-        let restore_requests = restore_transport.clone();
-        let restore_ready = Arc::clone(&restore_transport.control_plane_ready);
-        let restore_client =
-            ServerClient::new(profile.server_url.clone(), restore_transport).expect("client");
-        let restore_started = Arc::new(AtomicBool::new(false));
-        let restore_stopped = Arc::new(AtomicBool::new(false));
-        let restore_health = MockLivenessServer {
-            address: profile.listen_address(),
-            started: Arc::clone(&restore_started),
-            stopped: Arc::clone(&restore_stopped),
-        };
-        let restore_shutdown = async move {
-            restore_ready.notified().await;
-            tokio::task::yield_now().await;
-            Ok(ShutdownSignal::Terminate)
-        };
-
-        let restored = run_control_plane_only_session(
-            profile,
-            restore_client,
-            restore_health,
-            None,
-            restore_shutdown,
-            &mut |_| {},
-        )
-        .await
-        .expect("restored control-plane-only session");
-
-        assert!(restore_started.load(Ordering::SeqCst));
-        assert!(restore_stopped.load(Ordering::SeqCst));
-        assert_eq!(restored.identity_source, "persisted");
-        assert_eq!(restored.worker_id, summary.worker_id);
-        assert_eq!(restored.worker_uuid, summary.worker_uuid);
-        assert_eq!(restored.shutdown_signal, "terminate");
-        let restored_requests = restore_requests.requests();
-        assert!(restored_requests.iter().any(|request| {
-            request.method == Method::Get
-                && request.url.path() == "/v2/workers"
-                && request.url.query() == Some("me=true")
-        }));
-        assert!(!restored_requests.iter().any(|request| {
-            request.method == Method::Post && request.url.path() == "/v2/workers"
-        }));
-        assert!(
-            !restored_requests
-                .iter()
-                .any(|request| request.method == Method::Put)
+        assert_eq!(
+            identity_source_name(&IdentitySource::Registered),
+            "registered"
+        );
+        assert_eq!(
+            identity_source_name(&IdentitySource::Recovered),
+            "recovered"
         );
     }
 
-    #[tokio::test]
-    async fn first_registration_without_cluster_token_fails_before_registering() {
-        let directory = tempfile::tempdir().expect("temporary directory");
-        let profile =
-            ControlPlaneOnlyProfile::from_config(&test_config(directory.path().to_path_buf()))
-                .expect("complete profile");
-        let transport = MockTransport::new();
-        let requests = transport.clone();
-        let client = ServerClient::new(profile.server_url.clone(), transport).expect("client");
-        let started = Arc::new(AtomicBool::new(false));
-        let stopped = Arc::new(AtomicBool::new(false));
-        let health = MockLivenessServer {
-            address: profile.listen_address(),
-            started: Arc::clone(&started),
-            stopped: Arc::clone(&stopped),
+    #[test]
+    fn every_model_root_must_have_a_reported_mount() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let config = config(directory.path().to_path_buf());
+        let status: WorkerResourceStatus = serde_json::from_slice(include_bytes!(
+            "../../../fixtures/server-v2.2.3/worker-status-resource.request.json"
+        ))
+        .map(|value: serde_json::Value| serde_json::from_value(value["status"].clone()))
+        .expect("fixture envelope")
+        .expect("fixture status");
+        let mut resources = CollectedResources {
+            machine_id: Some("contract-machine-id".to_owned()),
+            status,
         };
 
-        let error = run_control_plane_only_session(
-            profile,
-            client,
-            health,
-            None,
-            std::future::pending::<io::Result<ShutdownSignal>>(),
-            &mut |_| {},
-        )
-        .await
-        .expect_err("first registration requires the Cluster token");
-
-        assert!(matches!(
-            error,
-            WorkerRunError::Identity(IdentityError::RegistrationTokenRequired)
-        ));
-        assert!(started.load(Ordering::SeqCst));
-        assert!(stopped.load(Ordering::SeqCst));
-        assert!(!requests.requests().iter().any(|request| {
-            request.method == Method::Post && request.url.path() == "/v2/workers"
-        }));
-    }
-
-    #[tokio::test]
-    async fn metadata_only_recovery_without_cluster_token_fails_before_registering() {
-        let directory = tempfile::tempdir().expect("temporary directory");
-        let profile =
-            ControlPlaneOnlyProfile::from_config(&test_config(directory.path().to_path_buf()))
-                .expect("complete profile");
-        IdentityRecordStore::new(worker_identity_path(directory.path()))
-            .persist_new(&crate::identity::WorkerIdentityRecord {
-                version: 1,
-                worker_id: 101,
-                worker_name: "rust-m3d-r760xa".to_owned(),
-                worker_uuid: "00000000-0000-4000-8000-000000000002".to_owned(),
-            })
-            .expect("persist identity metadata");
-        let transport = MockTransport::new();
-        let requests = transport.clone();
-        let client = ServerClient::new(profile.server_url.clone(), transport).expect("client");
-        let started = Arc::new(AtomicBool::new(false));
-        let stopped = Arc::new(AtomicBool::new(false));
-        let health = MockLivenessServer {
-            address: profile.listen_address(),
-            started: Arc::clone(&started),
-            stopped: Arc::clone(&stopped),
-        };
-
-        let error = run_control_plane_only_session(
-            profile,
-            client,
-            health,
-            None,
-            std::future::pending::<io::Result<ShutdownSignal>>(),
-            &mut |_| {},
-        )
-        .await
-        .expect_err("metadata-only recovery requires the Cluster token");
-
-        assert!(matches!(
-            error,
-            WorkerRunError::Identity(IdentityError::RegistrationTokenRequired)
-        ));
-        assert!(started.load(Ordering::SeqCst));
-        assert!(stopped.load(Ordering::SeqCst));
-        assert!(!requests.requests().iter().any(|request| {
-            request.method == Method::Post && request.url.path() == "/v2/workers"
-        }));
+        assert!(verify_model_root_mounts(&config, &resources).is_err());
+        resources.status.filesystem.as_mut().expect("filesystems")[0].mount_point = "/".to_owned();
+        verify_model_root_mounts(&config, &resources).expect("root mount covers model path");
     }
 }

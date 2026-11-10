@@ -37,11 +37,11 @@
   "not_supported": {
     "code": 501,
     "reason": "NotSupported",
-    "message": "Container logs are unavailable in resource-api-only mode"
+    "message": "Container logs are unavailable for this Worker endpoint"
   },
   "service_unavailable": {
     "code": 503,
     "reason": "ServiceUnavailable",
-    "message": "Worker runtime is not ready in resource-api-only mode"
+    "message": "Worker runtime is not ready"
   }
 }
