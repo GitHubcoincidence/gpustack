@@ -5200,3 +5200,30 @@
 - 当前停止位置：`M8-A.3 ready_for_review`，不是`accepted`。下一步只允许用户审阅本阶段详细
   报告；接受后才可另行进入M8-A.4公开CLI切换与适度拆分。A.5/A.6、90镜像构建、服务切换、
   Server写入、Docker生命周期操作和GPU使用仍未授权。
+
+### 2026-11-10：M8-A.3验收与M8-A.4公开CLI切换完成
+
+- 验收与范围：用户接受M8-A.3详细报告并授权A.4。产品提交
+  `edeaa4978dc8bb07b5f93c1f47163f549168c981`只修改`gpustack-cli`；没有删除Worker crate中的
+  旧编排、修改依赖或`Cargo.lock`，也没有提前执行A.5/A.6。
+- 公开入口：`gpustack-rs worker run`不再要求或接受`--control-plane-only`、
+  `--resource-api-only`、`--managed-file-only`、`--managed-runtime`。无模式参数的普通run直接调用
+  A.2/A.3形成的统一`run_worker`，因此产品CLI只会组装一套完整资源/API/metrics/控制面/
+  Managed文件/runtime生命周期。四个旧Worker函数仍保留在crate内，作为A.5删除前的离线对照，
+  但已不存在公开CLI调用路径。
+- 适度拆分：新增`gpustack-cli/src/worker.rs`，机械承接Worker子命令语法、运行配置覆盖、Lab参数和
+  枚举；crate根继续公开原类型，`lib.rs`保留全局分发、Context/Model/Inference、通用渲染和
+  确认逻辑。未重写Context、Model、Inference、Lab或它们的稳定JSON/退出码。
+- CLI契约：真实`worker run --help`只显示完整生产Worker生命周期和通用配置参数；旧
+  `--managed-runtime`实测由Clap以退出码2拒绝。回归测试固定普通run可解析、四个旧模式参数均
+  不可解析，同时完整Worker本地命令、Lab、Context、Model和Inference命令面继续通过。
+- 验证：90服务器上CLI定向30项测试通过；workspace共231项测试通过；`cargo fmt --check`、
+  全workspace/all-targets/all-features Clippy `-D warnings`和locked/offline build全部通过。测试数
+  相比A.3减少3项，是三个旧模式必选/互斥测试被一个统一入口契约测试替代，不是产品能力测试
+  缺失。没有连接真实Server、访问Docker/NVML、停止服务或使用GPU，秘密扫描无命中。
+- 漂移审计：Server协议、身份/maintenance/readiness、WorkloadSpec/spec hash、ownership、
+  GPU/TP、reconciler、恢复策略、数据面和Lab行为均未改变；本阶段只切换已冻结的公开调用入口并
+  拆分CLI语法定义，结论为`aligned`。
+- 当前停止位置：`M8-A.4 ready_for_review`，不是`accepted`。下一步只允许用户审阅本阶段详细
+  报告；接受后才可另行进入M8-A.5删除旧编排和完整离线回归。A.6、90镜像构建、服务切换、
+  Server写入、Docker生命周期操作和GPU使用仍未授权。
