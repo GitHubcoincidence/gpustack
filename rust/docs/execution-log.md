@@ -5170,3 +5170,33 @@
   访问Docker/NVML或使用GPU，漂移审计结论为`aligned`。
 - 当前停止位置：`M8-A.2 ready_for_review`，不是`accepted`。下一步只允许用户审阅详细报告；
   接受后才可另行进入M8-A.3首次注册与maintenance收敛，A.4～A.6和真实环境操作仍未授权。
+
+### 2026-11-10：M8-A.2验收与M8-A.3身份/maintenance语义收敛完成
+
+- 验收与范围：用户接受M8-A.2详细报告并授权A.3。产品提交
+  `62e87bb3bf2622f999b3d8eef7580f5b13c33b93`只修改`gpustack-worker`的统一surface编排和
+  控制面状态循环；没有切换公开CLI、删除旧实验入口、修改依赖或`Cargo.lock`，也没有提前进入
+  A.4～A.6。
+- 身份引导：生产`run_worker`现在把受保护`token_file`中的Cluster registration token交给既有
+  `IdentityBootstrap`。无本地身份时首次注册；identity record和per-Worker token同时存在时恢复；
+  identity record存在但per-Worker token缺失时使用原name/UUID重新注册并校验同一Server ID；
+  只有token而无identity record继续fail-closed，已持久token被Server拒绝时也不会静默创建第二个
+  Worker。注册令牌同时保留为固定v2.2.3推理代理认证，持久per-Worker token仍只用于Worker控制面。
+- maintenance所有权：生产注册请求只保留`implementation=rust`标签，发送
+  `maintenance=null`，不再写入阶段`mode/stage`或要求Worker预先处于maintenance。首次注册、恢复
+  和普通启动都只校验当前Server Worker与已建立ID/name一致；Server权威maintenance无论启用或
+  关闭都被尊重且不由Worker修改。旧实验入口继续保留原maintenance保护，作为A.4前的离线对照。
+- 调度屏障：生产入口在启动full sync前先显式上报非空
+  `Rust Worker initialization is incomplete`状态消息；七个readiness门全部通过后才清空消息，任一
+  full sync、Docker或runtime门退化又立即恢复非空消息。状态watch变化会立即触发上报，不再最多
+  等待30秒周期tick，因此Web/API状态与`/readyz`、metrics使用同一聚合判定。
+- 验证：新增生产profile、Server权威maintenance、registration token接线及状态watch即时上报
+  回归测试。90服务器上`gpustack-worker`定向172项测试通过；workspace共234项测试通过；
+  `cargo fmt --check`、全workspace/all-targets/all-features Clippy `-D warnings`和locked/offline
+  build全部通过。没有连接真实Server、访问Docker/NVML、停止服务或使用GPU，秘密扫描无命中。
+- 漂移审计：Server wire类型、WorkloadSpec/spec hash、ownership、GPU/TP、reconciler、恢复策略、
+  推理数据面和Lab均未改变；本阶段只关闭冻结的首次注册、身份恢复、maintenance和初始化调度
+  窗口，结论为`aligned`。
+- 当前停止位置：`M8-A.3 ready_for_review`，不是`accepted`。下一步只允许用户审阅本阶段详细
+  报告；接受后才可另行进入M8-A.4公开CLI切换与适度拆分。A.5/A.6、90镜像构建、服务切换、
+  Server写入、Docker生命周期操作和GPU使用仍未授权。
