@@ -5149,3 +5149,24 @@
   结论为`aligned`。
 - 当前停止位置：`M8-A.1 ready_for_review`，不是`accepted`。用户验收前不得进入M8-A.2，
   也不得执行90镜像构建、服务切换、Server写入、Docker生命周期操作或GPU使用。
+
+### 2026-11-10：M8-A.1验收与M8-A.2统一生命周期实现完成
+
+- 验收与范围：用户接受M8-A.1详细报告并授权A.2。提交
+  `70ed6112a5062a07cc329f5983ea1a484ac2a9c5`只修改`gpustack-worker`，新增尚未接入CLI的
+  `run_worker`统一入口；四个旧入口继续保留作离线对照，单次调用只组装一套协调器。
+- Supervisor：关键API、metrics、控制面、Managed文件和runtime任务共用一个取消通道；任一关键
+  任务意外结束会先触发全局取消，再在15秒硬期限内等待其余任务退出。正常信号先清空readiness，
+  再执行同一有界优雅停止；健康owned Runner仍不在进程退出清理范围内。
+- Readiness：新聚合器固定要求资源、Docker、Worker API、metrics、身份、首次权威full sync和首次
+  runtime协调七个门全部通过。Docker可用、runtime已协调和旧模型级registry健康分别记录；单个
+  模型失败不会决定统一Worker readiness。`/readyz`和`gpustack:rust_worker_ready`在新入口使用同一
+  聚合结果，旧入口仍保持原registry/固定0行为。
+- 兼容边界：首次注册和maintenance语义未在A.2提前修改；新入口仍继承已有持久身份且Server
+  maintenance开启的前置条件。Server wire、WorkloadSpec/spec hash、ownership、GPU/TP、
+  reconciler、推理数据面和CLI均未改变，`Cargo.lock`与依赖不变。
+- 质量门：90服务器上workspace共230项测试通过；`cargo fmt --check`、全workspace/all-targets/
+  all-features Clippy `-D warnings`和locked/offline build全部通过。实现没有连接真实Server、停止服务、
+  访问Docker/NVML或使用GPU，漂移审计结论为`aligned`。
+- 当前停止位置：`M8-A.2 ready_for_review`，不是`accepted`。下一步只允许用户审阅详细报告；
+  接受后才可另行进入M8-A.3首次注册与maintenance收敛，A.4～A.6和真实环境操作仍未授权。
