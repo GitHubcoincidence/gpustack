@@ -1297,3 +1297,10 @@ M8-0现为`accepted`。下一步只允许在另获用户同意后执行M8-A离�
 
 M8-A方案修订现为`accepted`，但尚未授权产品实现。下一步只允许在用户另行同意后执行
 M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfile、90镜像构建或真实服务/GPU操作。
+
+## 2026-11-10 M8-A.6离线容器打包
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D266 | Worker镜像与受保护生命周期契约 | 独立多阶段Dockerfile固定Rust 1.99.1 slim-bookworm索引摘要和Debian 12 slim linux/amd64 manifest摘要，使用完整源码commit与locked release构建；运行层只含`gpustack-rs`和CA证书，默认非root，entrypoint/CMD固定为普通`worker run`。构建、运行和停止脚本分别验证源码/镜像身份、host network、NVIDIA runtime、宿主UID/GID与socket GID、相同绝对路径mount、只读根文件系统、Worker专属标签及精确删除边界 | 镜像身份和运行权限必须在真实构建前可离线审阅。把Worker容器标签与Managed Runner ownership分开，并要求停止脚本同时匹配完整image ID、revision、名称和组件标签，可防止部署工具误删Python、Lab、Runner或未知容器。Docker socket仍是高权限控制面，非root不被解释为强安全隔离。 |
+| D267 | A.6验证与停止位置 | 产品提交`420fb027592f9fef9e11c7561b8ebd9342d2df24`通过静态package validator、6项fake Docker正反测试、232项workspace测试、Rustfmt、Clippy `-D warnings`、doc-tests和locked/offline release build；秘密扫描无命中。90未安装ShellCheck，因此没有声明该门通过。本阶段没有调用真实Docker、连接Server、停止服务、访问NVML或使用GPU | A.6只证明Dockerfile与脚本契约以及错误身份fail-closed，不能证明基础镜像可拉取、镜像可真实构建、容器中的socket/NVML/路径/权限可用或Worker可注册。阶段只能进入`ready_for_review`；用户接受后才能另行讨论和授权M8-B镜像与只读能力验证。 |

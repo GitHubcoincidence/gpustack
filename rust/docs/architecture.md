@@ -145,6 +145,20 @@ readiness/state message阻止过早调度。
 已经接受的 Server协议、WorkloadSpec/spec hash、Docker ownership、GPU/TP planner、Managed
 reconciler、恢复/backoff、推理代理或 Lab状态机。
 
+M8-A.6把该唯一入口封装为独立多阶段Worker镜像。构建层固定Rust 1.99.1 slim-bookworm索引摘要，
+运行层固定Debian 12 slim的linux/amd64 manifest摘要；构建必须提供完整源码commit并使用
+`Cargo.lock`执行release构建。运行层只复制`gpustack-rs`和CA证书，以非root用户为默认身份，
+entrypoint固定为二进制，默认命令固定为普通`worker run`，不包含Python、CUDA、vLLM、Runner或
+模型。
+
+受保护运行定义在创建容器前校验完整image ID、源码revision、组件标签、entrypoint/CMD、私密
+配置/token权限、持久目录所有权、模型根目录和Docker socket。容器使用host network、
+`unless-stopped`、NVIDIA runtime、宿主UID/GID与socket supplementary GID、只读根文件系统、
+最小capability和相同绝对路径mount。Worker容器标签不携带Managed Runner ownership tuple；
+停止定义只有在名称、image ID、revision和Worker标签全部匹配且Runner标签全部缺失时才允许
+优雅停止和非强制删除。以上是离线契约；基础镜像拉取、真实构建、NVML/socket可达性和非root
+运行仍必须在M8-B单独验证。
+
 ## 状态所有权
 
 | 状态 | 权威来源 |

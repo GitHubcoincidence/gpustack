@@ -5269,3 +5269,36 @@
 - 当前停止位置：下一步只允许讨论并另行授权M8-A.6离线容器打包。A.6最多修改Dockerfile、
   构建上下文/校验脚本和离线测试；90镜像构建/运行属于M8-B，服务切换、Server写入、Docker
   生命周期操作和GPU使用仍须后续独立授权。
+
+### 2026-11-10：M8-A.6离线容器打包完成
+
+- 范围与提交：用户接受A.5后授权A.6。产品提交
+  `420fb027592f9fef9e11c7561b8ebd9342d2df24`新增独立Worker Dockerfile、构建上下文排除规则、
+  受保护build/run/stop/validator脚本和fake Docker集成测试；没有修改Rust依赖、`Cargo.lock`、
+  Server协议、Managed协调器或Lab状态机。
+- 镜像边界：builder固定`rust:1.99.1-slim-bookworm`索引摘要
+  `sha256:f2c004e3d2d8b547e8cf7ffbc29205385f4e71d23e53e4e383065db5e9f822cd`，runtime固定
+  `debian:bookworm-20261027-slim`的linux/amd64 manifest摘要
+  `sha256:a3bba7dc7dbcc1f37c2856c51fc9a7fac96608f50cb87b1b4e4d8b8c85ae988e`。构建必须传入40位
+  小写源码commit并执行`cargo build --release --locked`；运行层只复制`gpustack-rs`与CA证书，
+  默认`USER 65532:65532`，entrypoint/CMD固定为`gpustack-rs worker run`。
+- 启动契约：build脚本要求源码HEAD匹配且工作树干净，并在构建后校验完整image ID、revision、
+  组件标签和entrypoint/CMD。run脚本要求完整image ID/commit，验证0600配置与token、0700持久
+  目录、可读模型根和Unix socket；运行参数固定host network、`unless-stopped`、NVIDIA runtime、
+  宿主UID/GID与socket supplementary GID、只读rootfs、tmpfs、drop all capabilities、
+  no-new-privileges及配置/token/数据/日志/模型/socket的相同绝对路径mount。
+- 停止与所有权：Worker容器只带`component=rust-worker`、`implementation=rust`、固定名称和
+  revision标签，不携带Managed Runner的mode/worker UUID/model instance/spec hash。stop脚本
+  只有在名称、完整image ID、revision和Worker标签全部匹配且四个Runner标签全部缺失时才执行
+  30秒优雅停止与非强制删除；未知、Python、Lab、Runner或身份不完整的容器均fail closed。
+- 离线验证：静态validator通过；6项fake Docker测试覆盖正常参数、错误image拒绝、精确停止和
+  Runner标签拒绝。90服务器上workspace 232项all-targets/all-features locked/offline测试通过；
+  `cargo fmt --check`、Clippy `-D warnings`、doc-tests和locked/offline workspace release build通过，
+  `git diff --check`及改动文件秘密扫描通过。90未安装ShellCheck，因此没有宣称该项通过。
+- 证据边界与漂移审计：本阶段没有调用真实Docker、拉取或构建镜像、连接Server、停止Python
+  Worker、访问NVML或使用GPU；fake结果不证明真实镜像、socket/NVML、非root权限或注册链路。
+  Server wire、WorkloadSpec/spec hash、ownership、GPU/TP、reconciler、恢复策略、推理数据面和
+  Lab均未改变，结论为`aligned`。
+- 当前停止位置：`M8-A.6 ready_for_review`，不是`accepted`。下一步只允许用户审阅本阶段详细
+  报告；接受后才可讨论并另行授权M8-B在Python Worker保持运行时进行真实镜像构建和只读能力
+  验证。候选Worker注册、服务切换、Server写入、Runner/模型创建和GPU计算仍未授权。
