@@ -119,7 +119,7 @@ CLI 显式解除 maintenance，Worker不能为了获取任务自行切换该字�
 ### M8 生产启动收敛
 
 M3～M7 的四个显式模式是逐阶段隔离真实副作用的验证门，不是 R1 对外支持的四种 Worker。
-M8-A.1～A.5已在构建容器镜像前把生产入口收敛为唯一的 `gpustack-rs worker run`；当前CLI已删除
+M8-A.1～A.5已验收，并在构建容器镜像前把生产入口收敛为唯一的 `gpustack-rs worker run`；当前CLI已删除
 `--control-plane-only`、`--resource-api-only`、`--managed-file-only` 和 `--managed-runtime`。
 只读诊断继续由 `worker doctor`、`worker validate-config`、`worker gpu list`、
 `worker runtime info` 和 `worker config get` 提供，完整 Worker不能因局部先决条件失败而静默
