@@ -5302,3 +5302,16 @@
 - 当前停止位置：`M8-A.6 ready_for_review`，不是`accepted`。下一步只允许用户审阅本阶段详细
   报告；接受后才可讨论并另行授权M8-B在Python Worker保持运行时进行真实镜像构建和只读能力
   验证。候选Worker注册、服务切换、Server写入、Runner/模型创建和GPU计算仍未授权。
+
+### 2026-11-10：M8-A.6验收与M8-A完成
+
+- 用户验收：用户审阅M8-A.6详细实现、验证、限制及ShellCheck未安装说明后确认无问题。产品
+  提交`420fb027592f9fef9e11c7561b8ebd9342d2df24`和治理提交
+  `c80fa7cec144f0af34160b17a024d3867c61100d`支持该结论；本阶段没有真实资源或阶段凭据需要退役。
+- 阶段状态：M8-A.1～A.6现均为`accepted`，普通`worker run`、统一生命周期/readiness、首次注册、
+  maintenance语义、CLI收敛、旧编排删除和离线容器打包已经闭合，M8-A完成。
+- 漂移审计：验收只覆盖离线代码、静态定义和fake边界证据，不把它提升为基础镜像拉取、真实
+  image build、Docker socket/NVML、非root容器运行、Worker注册或资源上报证据，结论为`aligned`。
+- 当前停止位置：下一步只允许讨论并冻结M8-B镜像与只读能力验证方案。用户本次验收不授权在
+  90执行真实Docker build/run，也不授权注册候选Worker、停止Python Worker、修改Server、创建
+  Runner/模型或使用GPU计算；任何真实操作均须在M8-B方案明确后另行授权。
