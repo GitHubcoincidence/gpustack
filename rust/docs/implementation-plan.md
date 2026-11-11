@@ -19,6 +19,7 @@
 | M6-B Managed 单 GPU runtime | `STARTING` 后 reconciler 启动/接管 vLLM，健康后上报 `RUNNING`，并补齐 `model logs`、Managed 推理和删除后的 runtime 清理 | M6-A | 完全通过 CLI 完成 Server 托管单 GPU 推理 | 完整命令记录、全状态链、响应、日志、健康门禁和删除后无孤儿资源 |
 | M7 恢复与双 GPU 路径 | 接管、事件/full-sync 恢复、重启策略、Server/Docker 故障、双 A100 tensor parallelism | M6-B | 宿主机进程形式的 Worker 行为可靠 | 重启、断连、故障、未知容器与双 GPU 证据 |
 | M8 Worker 容器与 R1 candidate | Worker 镜像、socket/NVML/network/path 契约、持久化状态、容器重启恢复与回滚 | M7 | 容器化 Rust Worker release candidate | 重跑单/双 GPU 套件、镜像摘要、回滚到 Python Worker、最终审计 |
+| M8-API Worker接口契约 | OpenAPI 3.1生成、Swagger UI、静态规范、人工使用指南和漂移门 | M8-A已接受、M8-B尚未开始 | 可在线交互且可离线消费的Worker API文档 | 规范解析、路由覆盖、认证/错误/流式契约、artifact一致性、完整离线质量门 |
 
 ## M1 门禁
 
@@ -391,6 +392,22 @@ M8-A 按下列六个子门禁顺序推进，不能合并成一次大范围重构
 `420fb027592f9fef9e11c7561b8ebd9342d2df24`完成独立Dockerfile、受保护构建/启动/停止定义和
 fake Docker边界回归。M8-A现为`accepted`；下一步只允许讨论并冻结M8-B执行方案，90真实镜像
 构建、候选容器运行、真实服务、Docker生命周期或GPU操作仍须用户另行明确授权。
+
+2026-11-11用户接受在M8-B前插入`M8-API`横切阶段。该阶段不重开M8-A，也不改变M8-B～G的
+真实验证标准；它使候选镜像在第一次真实构建前包含稳定接口契约。阶段按以下门禁执行：
+
+1. **M8-API.0设计冻结**：固定OpenAPI为机器契约，`utoipa + utoipa-axum`为生成路径，
+   `/openapi.json`为原始规范，`/docs`为vendored Swagger UI；metrics保持独立端口并由人工指南
+   说明。该门只修改治理文档。
+2. **M8-API.1离线实现**：锁定兼容Rust 1.99.1/Axum 0.8的依赖；以类型和handler注解描述现有
+   probe、资源、日志、配置和Managed推理接口；路由注册与规范收集使用同一构造路径。不得改变
+   现有认证、状态码、代理、流式或业务行为。
+3. **M8-API.2契约与发布物**：生成并提交版本化OpenAPI JSON和人工Worker API指南；测试规范
+   可解析、所有实际操作均被描述、security scheme和错误响应正确、静态artifact与运行时结果
+   一致，并重新执行M8-A.6静态package门及完整workspace质量门。
+4. **M8-API.3审阅**：在聊天中交付逐接口实现和限制报告；只有用户接受后阶段才为`accepted`，
+   随后才恢复到M8-B方案讨论。该阶段不授权90真实Docker build/run、Server写入、服务切换、
+   Runner/模型创建或GPU计算。
 
 每个真实阶段都使用独立 preflight、窗口外 watchdog、正常 cleanup 和独立 post-audit。M8-C～F
 分别需要精确授权；前一阶段通过不能自动授权下一阶段。非特权 NVML 失败时必须停在诊断边界，

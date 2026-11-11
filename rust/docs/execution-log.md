@@ -5315,3 +5315,18 @@
 - 当前停止位置：下一步只允许讨论并冻结M8-B镜像与只读能力验证方案。用户本次验收不授权在
   90执行真实Docker build/run，也不授权注册候选Worker、停止Python Worker、修改Server、创建
   Runner/模型或使用GPU计算；任何真实操作均须在M8-B方案明确后另行授权。
+
+### 2026-11-11：M8-API Worker接口文档方案冻结
+
+- 用户决定：接受以OpenAPI 3.1为正式机器契约、`utoipa + utoipa-axum`同源生成、
+  `/openapi.json`公开原始规范、`/docs`提供vendored Swagger UI，并以静态JSON和人工API指南
+  支持离线使用的方案。Swagger UI不是第二份契约。
+- 范围边界：生成规范覆盖当前Worker API listener上的probe、Worker认证资源接口和Managed推理
+  代理；metrics因独立listener由人工指南说明。认证主体、header、错误和流式响应必须显式记录，
+  规范、UI、测试和artifact不得包含真实凭据。
+- 路线图修订：在已接受M8-A和未开始M8-B之间插入M8-API.0～API.3。该修订不重开M8-A、不改变
+  Server协议、Worker业务行为或M8-B～G真实验收，但M8-B必须使用M8-API接受后的新HEAD。
+- 漂移审计：新增的是R1公开接口的可消费契约和防漂移门，不扩大推理后端、部署环境、GPU范围或
+  状态所有权；不会把离线文档证据提升为真实镜像证据，结论为`intentional change accepted`。
+- 当前停止位置：`M8-API.0 accepted`。下一步允许执行M8-API.1/2离线实现、依赖锁定、静态artifact
+  和完整质量门；90真实Docker build/run、服务切换、Server写入、Runner/模型和GPU仍未授权。

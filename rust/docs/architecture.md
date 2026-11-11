@@ -159,6 +159,29 @@ entrypoint固定为二进制，默认命令固定为普通`worker run`，不包�
 优雅停止和非强制删除。以上是离线契约；基础镜像拉取、真实构建、NVML/socket可达性和非root
 运行仍必须在M8-B单独验证。
 
+## Worker API 自动文档与公开契约
+
+Rust Worker以OpenAPI 3.1作为HTTP接口的机器可读契约。`gpustack-worker`使用`utoipa`从Rust
+请求/响应类型和handler契约生成schema，并通过`utoipa-axum`把实际路由注册与OpenAPI收集绑定，
+避免维护一份独立手写YAML。运行中的Worker在API listener上公开`GET /openapi.json`和
+`GET /docs`；前者是正式机器契约，后者只是Swagger UI交互视图。Swagger静态资源必须随二进制
+vendored，运行时不能依赖外部CDN。
+
+OpenAPI必须描述公开probe、Worker认证资源接口和Managed推理代理，包括query/path/header、
+Content-Type、成功与错误状态、Worker/Managed认证方案以及流式响应边界。原始代理body、SSE、
+日志流和运行时分支不能仅依赖类型推断，必须显式声明。规范和UI不得包含任何真实token、密码、
+Authorization值或本地敏感路径；受保护业务接口继续执行原认证中间件，文档端点本身只公开契约。
+
+Prometheus `GET /metrics`运行在独立metrics listener，不伪装为Worker API同端口路径；它由人工
+使用指南描述。项目同时保存从同一Rust定义生成的版本化OpenAPI JSON，供离线审阅、客户端生成
+和兼容性diff。自动化门必须验证规范可解析、实际路由与文档操作无遗漏、认证/错误契约正确、
+静态artifact与运行时生成结果一致，并确保接口变更会形成可审阅的规范diff。
+
+OpenAPI只负责“如何调用”。Worker/Server状态所有权、启动与恢复语义、运行端口、认证主体、
+当前未实现范围和调用示例继续由人工API指南维护；该指南不能复制一份会与生成schema漂移的字段
+清单。M8-API作为M8-A与M8-B之间的横切门禁，不重开已接受的M8-A；M8-B必须从包含该契约的
+新源码HEAD构建候选镜像。
+
 ## 状态所有权
 
 | 状态 | 权威来源 |

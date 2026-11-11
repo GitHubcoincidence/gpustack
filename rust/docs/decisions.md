@@ -1310,3 +1310,10 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D268 | M8-A.6与M8-A阶段验收 | 用户审阅A.6镜像边界、受保护生命周期脚本、测试结果、ShellCheck缺口和未验证真实能力后明确接受。产品提交`420fb027592f9fef9e11c7561b8ebd9342d2df24`及治理提交`c80fa7cec144f0af34160b17a024d3867c61100d`支持该结论；A.1～A.6均更新为`accepted`，M8-A完成 | 本次接受确认离线生产入口与容器打包契约，但不把fake Docker证据提升为真实镜像或运行证据，也不自动授权M8-B。下一步只能讨论并冻结M8-B构建与只读验证方案；真实Docker、候选容器、Server、服务或GPU操作仍需单独明确授权。 |
+
+## 2026-11-11 M8-API Worker接口文档方案冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D269 | Worker接口正式文档契约 | OpenAPI 3.1是唯一机器可读接口契约；使用`utoipa + utoipa-axum`从Rust类型、handler注解和实际路由构造生成，公开`GET /openapi.json`；使用vendored `utoipa-swagger-ui`在`GET /docs`提供交互视图。规范描述现有probe、受保护资源接口和Managed推理代理，显式记录认证、header、错误及流式边界，绝不嵌入真实凭据。metrics因独立listener不伪装为同端口OpenAPI路径，由人工指南说明；同时提交同源生成的版本化JSON和使用指南 | Swagger UI只是OpenAPI的视图，不能替代稳定契约。路由与规范同源可降低手写YAML漂移，vendored资源适合90弱外网环境；静态JSON支持离线审阅、客户端生成和兼容性diff，人工指南补充状态所有权和运行语义。 |
+| D270 | M8-API插入位置与权限边界 | 在已接受M8-A与尚未开始的M8-B之间插入M8-API.0～API.3，不重开M8-A或改变M8-B～G验收。API.1/2只允许Rust依赖、Worker API文档实现、测试、静态artifact、人工指南和离线质量门；不授权真实Docker build/run、Server写入、停止Python Worker、创建Runner/模型或使用GPU。M8-B必须从M8-API接受后的新HEAD构建 | OpenAPI依赖与端点必须进入第一次真实候选镜像，晚于M8-B加入会使镜像证据立即过期。该横切能力不改变Worker业务范围，但公开HTTP表面和依赖需要独立审阅、规范diff和完整回归。 |
