@@ -1337,3 +1337,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D275 | M8-RS.1实现判定与停止位置 | 产品提交`69e812076b13a9333377ce66d890d66d483ed499`新增只读取本地普通JSON文件的OpenAPI审计example、12项稳定差异矩阵、synthetic正反fixture、5项测试和中文联调runbook。输入拒绝symlink和超过16 MiB的文件，不接受URL/header/token；报告只保留固定摘要，不复制examples或完整watch描述。正向fixture为12/12通过、退出码0，反向fixture为2/12通过、退出码2且失败ID为RS-C001～RS-C010；所有运行状态固定为`unverified`。240项workspace测试、Rustfmt、Clippy `-D warnings`、doc-tests、locked/offline release build和M8-A.6 package validator通过 | synthetic结果只证明审计规则能识别已冻结的文档差异类别，不是106运行证据。实现没有新增依赖或修改`Cargo.lock`，也没有访问106、读取凭据、注册Worker、写Server、调用Docker/NVML、停止服务或使用GPU。阶段只能进入`ready_for_review`；M8-API与RS.1均由用户接受且RS.2另获授权前，不得开始真实只读联调。 |
+
+## 2026-11-11 M8-API与M8-RS.1验收
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D276 | 两项离线门验收与真实联调粒度 | 用户审阅M8-API.1/2和M8-RS.1的实现、验证、限制与证据后明确接受，两项均更新为`accepted`。RS.2及以后按单一接口或单一功能门逐步推进：每门单独冻结请求和预期、执行、解释结果并停止，下一门须由用户继续确认；一次授权不得扩展为同阶段批量探测或任何未声明写操作 | 逐接口联调能把传输、身份、认证、分页、watch和后续状态机问题分别归因，防止多个差异叠加后无法判断责任方。离线验收只解除RS.2的前置依赖，不把synthetic/OpenAPI结果提升为真实兼容证据，也不授权RS.3资源写入、M8-B容器化或GPU操作。 |

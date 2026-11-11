@@ -411,8 +411,8 @@ fake Docker边界回归。M8-A现为`accepted`；下一步只允许讨论并冻�
    Runner/模型创建或GPU计算。
 
 截至2026-11-11，M8-API.1/2产品提交`019423f9f0c94c04ebc10c6d165e54bb645c1840`
-已经完成同源OpenAPI路由、vendored Swagger UI、静态规范、人工指南和完整离线质量门，当前为
-`ready_for_review`。在用户完成M8-API.3审阅前不得标记`accepted`或进入M8-B。
+已经完成同源OpenAPI路由、vendored Swagger UI、静态规范、人工指南和完整离线质量门；用户完成
+M8-API.3审阅后已标记为`accepted`。该验收不直接授权M8-B真实镜像操作。
 
 2026-11-11用户接受在M8-API与M8-B之间增加`M8-RS` Rust Server联调前置阶段。原GPUStack
 v2.2.3源码commit`1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`、90上的同版本Python Server
@@ -444,8 +444,9 @@ M8-RS.0现为`accepted`。M8-RS.1产品提交
 正反fixture、5项回归测试和中文runbook，当前为`ready_for_review`。正向fixture的12项检查全部
 通过并以退出码0结束；反向fixture仅有错误/分页外形通过，其余10项以退出码2报告，所有
 `runtime_status`仍为`unverified`。这些结果只验证审计器，不能判定106运行实现错误。
-M8-API.1/2也仍是`ready_for_review`，不会因M8-RS实现完成自动变为`accepted`；M8-RS.2～RS.7
-及M8-B均未授权。
+用户审阅后，M8-API.1/2和M8-RS.1均已标记为`accepted`。M8-RS.2只能按单一接口或单一功能门
+逐步授权、执行、解释和记录；每一门结束后必须停下，不得把后续探测合并执行。RS.3～RS.7及
+M8-B仍未授权。
 
 每个真实阶段都使用独立 preflight、窗口外 watchdog、正常 cleanup 和独立 post-audit。M8-C～F
 分别需要精确授权；前一阶段通过不能自动授权下一阶段。非特权 NVML 失败时必须停在诊断边界，
