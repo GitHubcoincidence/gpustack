@@ -1,0 +1,190 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Compatible GPUStack Server API",
+    "version": "test"
+  },
+  "paths": {
+    "/v2/workers": {
+      "get": {
+        "parameters": [
+          {"in": "query", "name": "page"},
+          {"in": "query", "name": "perPage"},
+          {"in": "query", "name": "watch"},
+          {"in": "query", "name": "me"}
+        ],
+        "responses": {"200": {"description": "workers"}}
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/WorkersCreate"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "registered Worker",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/WorkerRegistrationPublic"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/worker-heartbeat": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {"schema": {"type": "object"}}
+          }
+        },
+        "responses": {"204": {"description": "heartbeat accepted"}}
+      }
+    },
+    "/v2/worker-status": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/WorkerStatusStored"}
+            }
+          }
+        },
+        "responses": {"204": {"description": "status accepted"}}
+      }
+    },
+    "/v2/models": {
+      "get": {
+        "parameters": [
+          {"in": "query", "name": "page"},
+          {"in": "query", "name": "perPage"},
+          {
+            "in": "query",
+            "name": "watch",
+            "description": "1=CREATED, 2=UPDATED, 3=DELETED, 4=UNKNOWN, 5=HEARTBEAT"
+          }
+        ],
+        "responses": {"200": {"description": "models"}}
+      }
+    },
+    "/v2/model-instances": {
+      "get": {
+        "parameters": [
+          {"in": "query", "name": "page"},
+          {"in": "query", "name": "perPage"},
+          {
+            "in": "query",
+            "name": "watch",
+            "description": "1=CREATED, 2=UPDATED, 3=DELETED, 4=UNKNOWN, 5=HEARTBEAT"
+          },
+          {"in": "query", "name": "model_id"}
+        ],
+        "responses": {"200": {"description": "instances"}}
+      }
+    },
+    "/v2/model-instances/{id}": {
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ModelInstanceUpdate"}
+            }
+          }
+        },
+        "responses": {"200": {"description": "instance"}}
+      }
+    },
+    "/v2/model-files": {
+      "get": {
+        "parameters": [
+          {"in": "query", "name": "page"},
+          {"in": "query", "name": "perPage"},
+          {
+            "in": "query",
+            "name": "watch",
+            "description": "1=CREATED, 2=UPDATED, 3=DELETED, 4=UNKNOWN, 5=HEARTBEAT"
+          },
+          {"in": "query", "name": "worker_id"}
+        ],
+        "responses": {"200": {"description": "files"}}
+      }
+    },
+    "/v2/model-files/{id}": {
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ModelFileUpdate"}
+            }
+          }
+        },
+        "responses": {"200": {"description": "file"}}
+      }
+    },
+    "/v1/models": {
+      "get": {"responses": {"200": {"description": "models"}}}
+    },
+    "/v1/chat/completions": {
+      "post": {"responses": {"200": {"description": "chat"}}}
+    },
+    "/v1/completions": {
+      "post": {"responses": {"200": {"description": "completion"}}}
+    }
+  },
+  "components": {
+    "schemas": {
+      "WorkersCreate": {
+        "type": "object",
+        "required": ["hostname", "ifname", "ip", "name", "port", "status", "worker_uuid"],
+        "properties": {
+          "hostname": {}, "ifname": {}, "ip": {}, "name": {}, "port": {},
+          "status": {}, "worker_uuid": {}
+        }
+      },
+      "WorkerRegistrationPublic": {
+        "type": "object",
+        "required": ["id", "name", "token", "worker_uuid"],
+        "properties": {"id": {}, "name": {}, "token": {}, "worker_uuid": {}}
+      },
+      "WorkerStatusStored": {
+        "type": "object",
+        "properties": {
+          "hostname": {}, "ifname": {}, "ip": {}, "port": {}, "status": {}, "worker_uuid": {}
+        }
+      },
+      "ModelInstanceUpdate": {
+        "type": "object",
+        "required": ["model_name", "name", "source"],
+        "properties": {
+          "last_restart_time": {}, "model_id": {}, "model_name": {}, "name": {},
+          "owner_principal_id": {}, "restart_count": {}, "source": {}, "state": {},
+          "state_message": {}, "worker_id": {}
+        }
+      },
+      "ModelFileUpdate": {
+        "type": "object",
+        "properties": {
+          "base_model": {}, "cleanup_on_delete": {}, "download_progress": {},
+          "is_lora": {}, "local_dir": {}, "resolved_paths": {}, "source": {},
+          "state": {}, "state_message": {}, "worker_id": {}
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {"code": {}, "message": {}, "reason": {}}
+      },
+      "PaginatedWorkers": {
+        "type": "object",
+        "properties": {"items": {}, "pagination": {}}
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {"page": {}, "perPage": {}, "total": {}, "totalPage": {}}
+      }
+    }
+  }
+}

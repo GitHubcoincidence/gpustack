@@ -1,0 +1,140 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Sanitized incompatible Rust Server contract",
+    "version": "0.1.0",
+    "description": "watch: type=1 create/update, 2 heartbeat, 3 delete"
+  },
+  "paths": {
+    "/v2/workers": {
+      "get": {
+        "parameters": [
+          {"in": "query", "name": "page"},
+          {"in": "query", "name": "perPage"},
+          {"in": "query", "name": "watch"}
+        ],
+        "responses": {"200": {"description": "workers"}}
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/WorkersCreate"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "workers",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/PaginatedWorkers"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/worker-heartbeat": {
+      "post": {"responses": {"200": {"description": "generic"}}}
+    },
+    "/v2/worker-status": {
+      "post": {"responses": {"200": {"description": "generic"}}}
+    },
+    "/v2/models": {
+      "get": {
+        "parameters": [
+          {"in": "query", "name": "page"},
+          {"in": "query", "name": "perPage"},
+          {"in": "query", "name": "watch", "description": "1=create/update, 2=heartbeat, 3=delete"}
+        ],
+        "responses": {"200": {"description": "models"}}
+      }
+    },
+    "/v2/model-instances": {
+      "get": {
+        "parameters": [
+          {"in": "query", "name": "page"},
+          {"in": "query", "name": "perPage"},
+          {"in": "query", "name": "watch", "description": "1=create/update, 2=heartbeat, 3=delete"}
+        ],
+        "responses": {"200": {"description": "instances"}}
+      }
+    },
+    "/v2/model-instances/{id}": {
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ModelInstancesCreate"}
+            }
+          }
+        },
+        "responses": {"200": {"description": "instance"}}
+      }
+    },
+    "/v2/model-files": {
+      "get": {
+        "parameters": [
+          {"in": "query", "name": "page"},
+          {"in": "query", "name": "perPage"},
+          {"in": "query", "name": "watch", "description": "1=create/update, 2=heartbeat, 3=delete"}
+        ],
+        "responses": {"200": {"description": "files"}}
+      }
+    },
+    "/v2/model-files/{id}": {
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ModelFilesCreate"}
+            }
+          }
+        },
+        "responses": {"200": {"description": "file"}}
+      }
+    },
+    "/v1/models": {
+      "get": {"responses": {"200": {"description": "models"}}}
+    },
+    "/v1/{path}": {
+      "post": {"responses": {"200": {"description": "generic"}}}
+    }
+  },
+  "components": {
+    "schemas": {
+      "WorkersCreate": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {"name": {}, "hostname": {}, "ip": {}, "ifname": {}, "port": {}, "status": {}}
+      },
+      "ModelInstancesCreate": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "model_id": {}, "model_name": {}, "name": {}, "source": {}, "state": {}, "worker_id": {}
+        }
+      },
+      "ModelFilesCreate": {
+        "type": "object",
+        "properties": {
+          "download_progress": {}, "is_lora": {}, "resolved_paths": {}, "source": {},
+          "state": {}, "worker_id": {}
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {"code": {}, "message": {}, "reason": {}}
+      },
+      "PaginatedWorkers": {
+        "type": "object",
+        "properties": {"items": {}, "pagination": {}}
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {"page": {}, "perPage": {}, "total": {}, "totalPage": {}}
+      }
+    }
+  }
+}
