@@ -5451,3 +5451,30 @@
   无凭据`GET http://10.213.80.106:18091/version`，不自动进入后续认证或分页接口。
 - 当前停止位置：RS.2.2尚未执行。下一步只允许向用户交付并解释预检、单次请求和离线复核命令；
   待用户返回完整输出后再判定结果。RS.3～RS.7和M8-B继续暂停。
+
+### 2026-11-11：M8-RS.2.2 version单接口联调完成
+
+- 执行方式修订：用户最新决定由代理继续执行真实联调，并要求每个接口完成后固定说明接口作用、
+  请求输入和实际响应。该决定只替代上一里程碑中的手工执行方式，不改变单接口停止门或权限边界。
+- 接口作用：`GET /version`供Worker和运维方识别Server发布版本与源码commit，原Python Worker仅
+  读取`version`和`git_commit`并据此给出版本兼容告警；本接口不创建、更新或删除资源。
+- 请求输入：90服务器在源码HEAD`368ff0bd1e3afa525e91a45f998498a02ddd8933`下，于
+  2026-11-11 17:53:58 CST只发送一次无凭据
+  `GET http://10.213.80.106:18091/version`。请求无query、无body、无Authorization；连接超时3秒、
+  总超时10秒、响应上限65,536字节，禁用重定向和重试。
+- 实际响应：curl退出码0；源地址`10.213.80.90`，目标`10.213.80.106:18091`；HTTP 200，
+  `content-type: application/json`，91字节，总耗时0.002082秒。JSON为
+  `{"version":"v2.2.3","git_commit":"1cfcbbf","implementation":"rust","build_version":"0.1.0"}`。
+- oracle对照：原v2.2.3 route与已接受fixture固定核心字段`version=v2.2.3`和
+  `git_commit=1cfcbbf`，106完全一致。`implementation=rust`与`build_version=0.1.0`是附加身份字段；
+  原Python Worker按dict只读取两个核心字段，故当前证据表明该扩展向后兼容，不构成协议差异。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs2-version-20261111T095358Z-108323`
+  为0700，四个文件均为0600。response body SHA-256为
+  `0c82cbc69ce033a84a1c1e07066aaaaddd2b3c24039de82c25cb3964c5eccc7b`；离线postcheck验证curl、
+  状态码、目标、四个身份字段和权限全部通过。
+- 边界与判定：RS.2.2为`ready_for_review`。本门没有调用其他接口，没有使用凭据、注册Worker、
+  写Server、调用Docker/NVML、停止服务或使用GPU；只证明当前Server身份，不证明认证、分页、
+  watch或控制面兼容。
+- 当前停止位置：下一步只允许用户审阅RS.2.2。接受后再单独讨论并授权RS.2.3：对一个受保护的
+  list接口发送一次无凭据请求，只验证401认证边界和错误外形；不得同时执行认证请求。
