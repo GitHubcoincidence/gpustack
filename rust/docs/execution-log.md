@@ -5489,3 +5489,31 @@
   查询前返回HTTP 401及标准`code/reason/message`错误，不将非法分页参数混入本门。
 - 当前停止位置：RS.2.3尚未执行。下一步只允许一次上述无凭据请求并离线对照
   `rust/fixtures/server-v2.2.3/unauthenticated.response.json`；不得同时发送认证请求或调用其他接口。
+
+### 2026-11-11：M8-RS.2.3 workers list无凭据认证边界联调完成
+
+- 接口作用：`GET /v2/workers`是受保护的Worker列表读取接口。本门只验证认证在业务分页处理前
+  生效，并且无凭据调用返回原GPUStack标准401错误；不读取实际Worker数据。
+- 请求输入：90服务器在源码HEAD`70bd556023e8105afd5c1ba4860c3909d3cc1a80`下，于
+  2026-11-11 19:03:30 CST只发送一次
+  `GET http://10.213.80.106:18091/v2/workers?page=1&perPage=1`。query使用有效的`page=1`和
+  `perPage=1`以隔离认证变量；请求无body、无Bearer、无`X-API-Key`、无cookie，连接超时3秒、
+  总超时10秒、响应上限65,536字节，禁用重定向和重试。
+- 实际wire：trace固定请求行为`GET /v2/workers?page=1&perPage=1 HTTP/1.1`及默认Host、
+  curl User-Agent和`Accept: */*`。curl退出码0；HTTP 401，`content-type: application/json`，
+  83字节，总耗时0.003182秒。响应JSON为
+  `{"code":401,"reason":"Unauthorized","message":"Invalid authentication credentials"}`。
+- oracle对照：实际响应与
+  `rust/fixtures/server-v2.2.3/unauthenticated.response.json`规范化后逐字段一致；离线trace扫描确认
+  不含Authorization、`X-API-Key`或Cookie。当前证据表明无凭据认证边界和错误外形与原v2.2.3
+  完全兼容，没有发现需归属Worker或Server的差异。
+- 证据：目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs2-workers-unauth-20261111T110330Z-374667`
+  为0700，五个文件均为0600。response body SHA-256为
+  `d09ea1578e30419168ee56f7075b45a495f1ff059ed1dedb78583919aa72e738`，wire trace SHA-256为
+  `903797f85b3ab8f18a6dbfc7f22bbaad0683dea7d99713f89177ec5e2aa18a2f`；离线postcheck全部通过。
+- 边界与判定：RS.2.3为`ready_for_review`。本门没有发送认证请求、读取Worker列表、调用其他
+  接口、注册Worker、写Server、调用Docker/NVML、停止服务或使用GPU；401通过不能证明有效凭据、
+  权限范围、分页或数据隔离正确。
+- 当前停止位置：下一步只允许用户审阅RS.2.3。接受后再单独讨论RS.2.4所需106短期只读凭据，
+  并仅对同一workers list发送一次认证请求；凭据准备与请求不得在未说明来源和权限前执行。
