@@ -5330,3 +5330,32 @@
   状态所有权；不会把离线文档证据提升为真实镜像证据，结论为`intentional change accepted`。
 - 当前停止位置：`M8-API.0 accepted`。下一步允许执行M8-API.1/2离线实现、依赖锁定、静态artifact
   和完整质量门；90真实Docker build/run、服务切换、Server写入、Runner/模型和GPU仍未授权。
+
+### 2026-11-11：M8-API.1/2离线实现完成
+
+- 范围与提交：产品提交`019423f9f0c94c04ebc10c6d165e54bb645c1840`新增`utoipa 6.0.0`、
+  `utoipa-axum 0.3.0`和vendored `utoipa-swagger-ui 10.0.2`，只修改Rust Worker接口文档、测试、
+  静态artifact和人工指南；没有修改Python Server/Worker、数据库、调度器或Managed状态机。
+- 同源路由与规范：Worker的public、protected和inference路由分别通过`OpenApiRouter`注册，实际
+  Axum Router与OpenAPI从同一路由定义拆分生成。规范覆盖12条现有API路径；`/openapi.json`返回
+  OpenAPI 3.1 JSON，`/docs`重定向到vendored Swagger UI。原认证中间件继续包裹受保护资源和
+  推理路由，文档端点公开但不旁路业务认证。
+- 契约内容：OpenAPI声明Bearer与`X-API-Key`两种认证传输、probe公开边界、文件/日志/配置接口、
+  `x-gpustack-model-instance`必填header、推理JSON与SSE响应及主要错误码。独立20151 metrics
+  listener不伪装成20150上的路径，由人工指南明确端口和调用场景。
+- 离线artifact：提交`rust/docs/openapi/worker-managed.openapi.json`和中文
+  `rust/docs/worker-api.md`。export example可从同一Rust定义重建规范；重建后逐字节一致，JSON
+  SHA-256为`504afc6dda260e4beb566b3a67fe33f209edbba60aa3eb566a5a32d218f2bf4d`。
+  `oas3 0.22.0`作为独立OpenAPI 3.1解析器用于测试，不依赖生成器自身反序列化。
+- 防漂移测试：新增测试固定完整路径集合、认证方案、probe公开性、配置GET/PUT、推理JSON/SSE、
+  metrics排除和秘密缺失；另一测试要求生成规范与版本化artifact逐字节一致并通过独立解析；路由
+  测试验证`/openapi.json`、`/docs`可访问且未认证`/token-auth`仍返回401。
+- 质量门：90服务器上235项workspace all-targets/all-features locked/offline测试通过；
+  `cargo fmt --all --check`、Clippy `-D warnings`、doc-tests、locked/offline workspace release build、
+  M8-A.6 package validator、`git diff --check`及范围秘密扫描通过。release二进制为18,857,704字节。
+- 漂移与现场边界：Server wire、认证优先级、业务handler、WorkloadSpec/spec hash、Docker ownership、
+  GPU/TP、reconciler、恢复策略、Lab和metrics listener均未改变，结论为`aligned`。本阶段没有执行
+  真实Docker build/run、停止Python Worker、写Server、创建Runner/模型、访问NVML或使用GPU。
+- 当前停止位置：`M8-API.1/2 ready_for_review`，不是`accepted`。下一步只允许用户审阅实现和验证
+  报告；接受后才能记录M8-API.3验收并另行讨论M8-B。任何真实镜像、服务、Server或GPU操作仍须
+  后续独立授权。

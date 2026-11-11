@@ -1317,3 +1317,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 |---|---|---|---|
 | D269 | Worker接口正式文档契约 | OpenAPI 3.1是唯一机器可读接口契约；使用`utoipa + utoipa-axum`从Rust类型、handler注解和实际路由构造生成，公开`GET /openapi.json`；使用vendored `utoipa-swagger-ui`在`GET /docs`提供交互视图。规范描述现有probe、受保护资源接口和Managed推理代理，显式记录认证、header、错误及流式边界，绝不嵌入真实凭据。metrics因独立listener不伪装为同端口OpenAPI路径，由人工指南说明；同时提交同源生成的版本化JSON和使用指南 | Swagger UI只是OpenAPI的视图，不能替代稳定契约。路由与规范同源可降低手写YAML漂移，vendored资源适合90弱外网环境；静态JSON支持离线审阅、客户端生成和兼容性diff，人工指南补充状态所有权和运行语义。 |
 | D270 | M8-API插入位置与权限边界 | 在已接受M8-A与尚未开始的M8-B之间插入M8-API.0～API.3，不重开M8-A或改变M8-B～G验收。API.1/2只允许Rust依赖、Worker API文档实现、测试、静态artifact、人工指南和离线质量门；不授权真实Docker build/run、Server写入、停止Python Worker、创建Runner/模型或使用GPU。M8-B必须从M8-API接受后的新HEAD构建 | OpenAPI依赖与端点必须进入第一次真实候选镜像，晚于M8-B加入会使镜像证据立即过期。该横切能力不改变Worker业务范围，但公开HTTP表面和依赖需要独立审阅、规范diff和完整回归。 |
+
+## 2026-11-11 M8-API离线实现完成
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D271 | M8-API.1/2实现判定与停止位置 | 产品提交`019423f9f0c94c04ebc10c6d165e54bb645c1840`从实际Axum路由同源生成OpenAPI 3.1，在`/openapi.json`和vendored `/docs`公开12条路径，并提交静态JSON与中文使用指南。规范以Bearer或`X-API-Key`表达Worker认证，标明Managed推理header、JSON/SSE响应和独立metrics listener；三项契约/路由测试及独立`oas3`解析防止漂移。235项workspace测试、Rustfmt、Clippy `-D warnings`、doc-tests、locked/offline release build和M8-A.6 package validator通过 | 实现满足D269/D270的离线范围，且未改变现有认证中间件、业务handler、Server协议或metrics端口。静态规范SHA-256为`504afc6dda260e4beb566b3a67fe33f209edbba60aa3eb566a5a32d218f2bf4d`；本阶段没有真实Docker、Server写入、服务停止、Runner/模型或GPU操作。状态只能更新为`ready_for_review`，用户验收前不得标记`accepted`或进入M8-B。 |

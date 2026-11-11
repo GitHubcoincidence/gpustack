@@ -409,6 +409,10 @@ fake Docker边界回归。M8-A现为`accepted`；下一步只允许讨论并冻�
    随后才恢复到M8-B方案讨论。该阶段不授权90真实Docker build/run、Server写入、服务切换、
    Runner/模型创建或GPU计算。
 
+截至2026-11-11，M8-API.1/2产品提交`019423f9f0c94c04ebc10c6d165e54bb645c1840`
+已经完成同源OpenAPI路由、vendored Swagger UI、静态规范、人工指南和完整离线质量门，当前为
+`ready_for_review`。在用户完成M8-API.3审阅前不得标记`accepted`或进入M8-B。
+
 每个真实阶段都使用独立 preflight、窗口外 watchdog、正常 cleanup 和独立 post-audit。M8-C～F
 分别需要精确授权；前一阶段通过不能自动授权下一阶段。非特权 NVML 失败时必须停在诊断边界，
 不得静默加入 `--privileged`。Docker socket 能力按宿主机高权限边界审计，Worker 容器不得带有
