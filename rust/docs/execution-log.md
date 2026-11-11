@@ -5517,3 +5517,18 @@
   权限范围、分页或数据隔离正确。
 - 当前停止位置：下一步只允许用户审阅RS.2.3。接受后再单独讨论RS.2.4所需106短期只读凭据，
   并仅对同一workers list发送一次认证请求；凭据准备与请求不得在未说明来源和权限前执行。
+
+### 2026-11-11：M8-RS.2.3验收与RS.2.4凭据边界
+
+- 用户验收：用户审阅workers list接口作用、无凭据请求、401响应、oracle逐字段对照、trace秘密
+  扫描和能力边界后确认无问题；RS.2.3更新为`accepted`。检查点提交
+  `ff9abf6fb06dfaa957012d9ffa6c00c00b7ce385`及原始证据目录支持该结论。
+- 权限事实：原v2.2.3 API Key只提供`management`、`inference`和`*`三种粗粒度scope，源码注释中的
+  `management.readonly`尚未实现。workers list需要`management`；因此无法声称凭据自身为只读，
+  只能创建106专用、短期、`management` scope密钥，并由执行协议把使用限制为一个GET。
+- 传输与秘密边界：RS.2.4使用Rust Client实际采用的`Authorization: Bearer`，密钥只允许直接写入
+  90服务器0600受保护文件，不进入聊天、shell参数、命令历史、Git、证据或trace。请求工具从文件
+  读取并在输出前脱敏；阶段完成后必须按精确身份退役并验证旧密钥401。
+- 当前停止位置：RS.2.4尚未授权执行。下一步需要用户确认能否登录106管理界面并创建最长7天、
+  `management` scope、106专用密钥；只在密钥安全落入90且元数据校验通过后，才能另行确认一次
+  `GET /v2/workers?page=1&perPage=1`认证请求。不得复用90 Python Server密钥或使用`*`scope。
