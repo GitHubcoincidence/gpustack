@@ -1,0 +1,1132 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GPUStack Rust Worker API",
+    "description": "OpenAPI contract for the Rust Worker HTTP listener. Prometheus metrics are served on the separately configured metrics listener and are documented in the Worker API guide.",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "healthz",
+        "responses": {
+          "200": {
+            "description": "Worker process is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "readyz",
+        "responses": {
+          "200": {
+            "description": "All production Worker readiness gates are satisfied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Worker is alive but not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "version",
+        "responses": {
+          "200": {
+            "description": "Worker build and compatible Server baseline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/token-auth": {
+      "get": {
+        "tags": [
+          "Resources"
+        ],
+        "operationId": "token_auth",
+        "responses": {
+          "200": {
+            "description": "The supplied per-Worker credential is valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The per-Worker credential was not accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "api_key_auth": []
+          }
+        ]
+      }
+    },
+    "/files/file-exists": {
+      "get": {
+        "tags": [
+          "Resources"
+        ],
+        "operationId": "file_exists",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "description": "Absolute path below one of the configured model roots.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contained path existence and type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileExistsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The path is not absolute or contains forbidden components",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The per-Worker credential was not accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The path escapes the configured model roots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The path metadata could not be inspected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "api_key_auth": []
+          }
+        ]
+      }
+    },
+    "/files/model-config": {
+      "get": {
+        "tags": [
+          "Resources"
+        ],
+        "operationId": "model_config",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "description": "Absolute path below one of the configured model roots.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Parsed JSON from an allowed model configuration file",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "The path or JSON document is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The per-Worker credential was not accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The path escapes the configured model roots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The configuration file does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The configuration file exceeds 16 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The configuration file could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "api_key_auth": []
+          }
+        ]
+      }
+    },
+    "/files/model-weight-size": {
+      "get": {
+        "tags": [
+          "Resources"
+        ],
+        "operationId": "model_weight_size",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "description": "Absolute path below one of the configured model roots.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Total bytes of supported model weight files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelWeightSizeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The path is invalid or is not a directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The per-Worker credential was not accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The path escapes the configured model roots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The model directory does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The model directory could not be inspected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "api_key_auth": []
+          }
+        ]
+      }
+    },
+    "/serveLogOptions/{id}": {
+      "get": {
+        "tags": [
+          "Logs"
+        ],
+        "operationId": "serve_log_options",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Positive ModelInstance ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available current and previous log generations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServeLogOptionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The ModelInstance ID is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The per-Worker credential was not accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The log directory could not be inspected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "api_key_auth": []
+          }
+        ]
+      }
+    },
+    "/serveLogs/{id}": {
+      "get": {
+        "tags": [
+          "Logs"
+        ],
+        "operationId": "serve_logs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Positive ModelInstance ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "model_instance_name",
+            "in": "query",
+            "description": "Optional logical instance name used for compatibility validation.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model_file_id",
+            "in": "query",
+            "description": "Optional ModelFile whose download log is prepended when available.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "container_name",
+            "in": "query",
+            "description": "Container-specific logs are not implemented in R1.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tail",
+            "in": "query",
+            "description": "Number of trailing lines, zero for none, or -1 for the complete log.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "follow",
+            "in": "query",
+            "description": "Continue streaming appended bytes after the initial response.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "previous",
+            "in": "query",
+            "description": "Select the previous restart generation instead of the current one.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current, previous, tailed, or continuously followed log bytes",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The ID or query is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The per-Worker credential was not accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested log generation does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The log files could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Container-specific log selection is not implemented",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "api_key_auth": []
+          }
+        ]
+      }
+    },
+    "/v2/config": {
+      "get": {
+        "tags": [
+          "Configuration"
+        ],
+        "operationId": "get_config",
+        "responses": {
+          "200": {
+            "description": "Non-sensitive compatibility configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConfigView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The per-Worker credential was not accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "api_key_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Configuration"
+        ],
+        "operationId": "put_config",
+        "responses": {
+          "401": {
+            "description": "The per-Worker credential was not accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Runtime configuration mutation is not supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "api_key_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "operationId": "proxy_chat_completions",
+        "parameters": [
+          {
+            "name": "x-gpustack-model-instance",
+            "in": "header",
+            "description": "Gateway destination in model-<model-id>-<instance-id>[-<alias>].<registry-type> form",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "OpenAI-compatible chat completion request",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Upstream vLLM response; stream=true uses Server-Sent Events",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or missing model instance destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Worker or Cluster credential was not accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No healthy managed route exists for the instance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the Worker proxy limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The managed route registry could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The selected vLLM upstream could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "api_key_auth": []
+          }
+        ]
+      }
+    },
+    "/v1/completions": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "operationId": "proxy_completions",
+        "parameters": [
+          {
+            "name": "x-gpustack-model-instance",
+            "in": "header",
+            "description": "Gateway destination in model-<model-id>-<instance-id>[-<alias>].<registry-type> form",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "OpenAI-compatible text completion request",
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Upstream vLLM response; stream=true uses Server-Sent Events",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or missing model instance destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Worker or Cluster credential was not accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No healthy managed route exists for the instance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the Worker proxy limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The managed route registry could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The selected vLLM upstream could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "api_key_auth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiConfigView": {
+        "type": "object",
+        "required": [
+          "debug",
+          "disable_builtin_observability"
+        ],
+        "properties": {
+          "debug": {
+            "type": "boolean"
+          },
+          "system_default_container_registry": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "server_external_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grafana_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "disable_builtin_observability": {
+            "type": "boolean"
+          },
+          "grafana_worker_dashboard_uid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grafana_model_dashboard_uid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "reason",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "FileExistsResponse": {
+        "type": "object",
+        "required": [
+          "exists",
+          "path",
+          "is_file",
+          "is_dir"
+        ],
+        "properties": {
+          "exists": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          },
+          "is_file": {
+            "type": "boolean"
+          },
+          "is_dir": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ModelWeightSizeResponse": {
+        "type": "object",
+        "required": [
+          "size"
+        ],
+        "properties": {
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "ServeLogOptionsResponse": {
+        "type": "object",
+        "required": [
+          "restarts"
+        ],
+        "properties": {
+          "restarts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServeLogRestart"
+            }
+          }
+        }
+      },
+      "ServeLogRestart": {
+        "type": "object",
+        "required": [
+          "previous",
+          "containers"
+        ],
+        "properties": {
+          "previous": {
+            "type": "boolean"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "containers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ServerBaseline": {
+        "type": "object",
+        "required": [
+          "version",
+          "git_commit"
+        ],
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "git_commit": {
+            "type": "string"
+          }
+        }
+      },
+      "VersionResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "git_commit",
+          "target",
+          "rust_toolchain",
+          "server_baseline"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "git_commit": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "rust_toolchain": {
+            "type": "string"
+          },
+          "server_baseline": {
+            "$ref": "#/components/schemas/ServerBaseline"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "api_key_auth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Alternative header transport for the same endpoint-specific token accepted by Authorization: Bearer."
+      },
+      "bearer_auth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Worker resource endpoints require the per-Worker token. Managed inference accepts the per-Worker token or the Cluster registration token."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Probes",
+      "description": "Worker liveness, readiness, and build identity"
+    },
+    {
+      "name": "Resources",
+      "description": "Authenticated local model resource inspection"
+    },
+    {
+      "name": "Logs",
+      "description": "Authenticated model instance log discovery and streaming"
+    },
+    {
+      "name": "Configuration",
+      "description": "Authenticated non-sensitive Worker configuration"
+    },
+    {
+      "name": "Inference",
+      "description": "Authenticated proxy to a healthy managed vLLM instance"
+    }
+  ]
+}

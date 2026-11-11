@@ -24,14 +24,17 @@ use axum::http::header::{
 use axum::http::{HeaderMap, HeaderName, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
 use futures_util::{StreamExt, stream};
 use gpustack_client::SecretToken;
 use gpustack_client::types::{SERVER_BASELINE_GIT_COMMIT, SERVER_BASELINE_VERSION};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::{router::OpenApiRouter, routes};
+use utoipa_swagger_ui::SwaggerUi;
 
+use crate::api_documentation;
 use crate::config::WorkerConfig;
 use crate::managed::ManagedRuntimeRegistry;
 use crate::readiness::WorkerReadiness;
@@ -189,40 +192,76 @@ impl WorkerApiState {
 pub fn router(state: WorkerApiState) -> Router {
     let supports_managed_inference = state.managed.is_some();
     let state = Arc::new(state);
-    let protected = Router::new()
-        .route("/token-auth", get(token_auth))
-        .route("/files/file-exists", get(file_exists))
-        .route("/files/model-config", get(model_config))
-        .route("/files/model-weight-size", get(model_weight_size))
-        .route("/serveLogOptions/{id}", get(serve_log_options))
-        .route("/serveLogs/{id}", get(serve_logs))
-        .route("/v2/config", get(get_config).put(put_config))
-        .route_layer(middleware::from_fn_with_state(
-            state.clone(),
-            require_worker_token,
-        ));
-    let mut application = Router::new()
-        .route("/healthz", get(healthz))
-        .route("/readyz", get(readyz))
-        .route("/version", get(version))
-        .merge(protected);
+    let protected = protected_routes().route_layer(middleware::from_fn_with_state(
+        state.clone(),
+        require_worker_token,
+    ));
+    let mut application = public_routes().merge(protected);
     if supports_managed_inference {
-        let inference = Router::new()
-            .route(CHAT_COMPLETIONS_PATH, post(proxy_chat_completions))
-            .route(COMPLETIONS_PATH, post(proxy_completions))
-            .route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                require_managed_inference_token,
-            ));
+        let inference = inference_routes().route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_managed_inference_token,
+        ));
         application = application.merge(inference);
     }
-    application.fallback(not_found).with_state(state)
+    let (application, openapi) = application.split_for_parts();
+    application
+        .merge(SwaggerUi::new("/docs").url("/openapi.json", openapi))
+        .fallback(not_found)
+        .with_state(state)
 }
 
+/// Generate the complete production Worker contract without starting a listener.
+pub fn openapi_document() -> utoipa::openapi::OpenApi {
+    public_routes()
+        .merge(protected_routes())
+        .merge(inference_routes())
+        .into_openapi()
+}
+
+fn public_routes() -> OpenApiRouter<Arc<WorkerApiState>> {
+    OpenApiRouter::with_openapi(api_documentation::base_document())
+        .routes(routes!(healthz))
+        .routes(routes!(readyz))
+        .routes(routes!(version))
+}
+
+fn protected_routes() -> OpenApiRouter<Arc<WorkerApiState>> {
+    OpenApiRouter::default()
+        .routes(routes!(token_auth))
+        .routes(routes!(file_exists))
+        .routes(routes!(model_config))
+        .routes(routes!(model_weight_size))
+        .routes(routes!(serve_log_options))
+        .routes(routes!(serve_logs))
+        .routes(routes!(get_config, put_config))
+}
+
+fn inference_routes() -> OpenApiRouter<Arc<WorkerApiState>> {
+    OpenApiRouter::default()
+        .routes(routes!(proxy_chat_completions))
+        .routes(routes!(proxy_completions))
+}
+
+#[utoipa::path(
+    get,
+    path = "/healthz",
+    tag = "Probes",
+    responses((status = 200, description = "Worker process is alive", body = String, content_type = "application/json"))
+)]
 async fn healthz() -> Json<&'static str> {
     Json("ok")
 }
 
+#[utoipa::path(
+    get,
+    path = "/readyz",
+    tag = "Probes",
+    responses(
+        (status = 200, description = "All production Worker readiness gates are satisfied", body = String, content_type = "application/json"),
+        (status = 503, description = "The Worker is alive but not ready", body = ErrorResponse)
+    )
+)]
 async fn readyz(State(state): State<Arc<WorkerApiState>>) -> Response {
     match &state.managed {
         Some(managed) if managed.readiness.is_ready() => Json("ok").into_response(),
@@ -286,6 +325,30 @@ impl ManagedInferenceProxy for ReqwestManagedInferenceProxy {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/chat/completions",
+    tag = "Inference",
+    params((
+        "x-gpustack-model-instance" = String,
+        Header,
+        description = "Gateway destination in model-<model-id>-<instance-id>[-<alias>].<registry-type> form"
+    )),
+    request_body(content = Value, description = "OpenAI-compatible chat completion request", content_type = "application/json"),
+    responses(
+        (status = 200, description = "Upstream vLLM response; stream=true uses Server-Sent Events", content(
+            (Value = "application/json"),
+            (String = "text/event-stream")
+        )),
+        (status = 400, description = "Invalid or missing model instance destination", body = ErrorResponse),
+        (status = 401, description = "Worker or Cluster credential was not accepted", body = ErrorResponse),
+        (status = 404, description = "No healthy managed route exists for the instance", body = ErrorResponse),
+        (status = 413, description = "Request body exceeds the Worker proxy limit", body = ErrorResponse),
+        (status = 500, description = "The managed route registry could not be read", body = ErrorResponse),
+        (status = 502, description = "The selected vLLM upstream could not be reached", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []), ("api_key_auth" = []))
+)]
 async fn proxy_chat_completions(
     State(state): State<Arc<WorkerApiState>>,
     request: Request<Body>,
@@ -293,6 +356,30 @@ async fn proxy_chat_completions(
     proxy_managed_inference(&state, request, CHAT_COMPLETIONS_PATH).await
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/completions",
+    tag = "Inference",
+    params((
+        "x-gpustack-model-instance" = String,
+        Header,
+        description = "Gateway destination in model-<model-id>-<instance-id>[-<alias>].<registry-type> form"
+    )),
+    request_body(content = Value, description = "OpenAI-compatible text completion request", content_type = "application/json"),
+    responses(
+        (status = 200, description = "Upstream vLLM response; stream=true uses Server-Sent Events", content(
+            (Value = "application/json"),
+            (String = "text/event-stream")
+        )),
+        (status = 400, description = "Invalid or missing model instance destination", body = ErrorResponse),
+        (status = 401, description = "Worker or Cluster credential was not accepted", body = ErrorResponse),
+        (status = 404, description = "No healthy managed route exists for the instance", body = ErrorResponse),
+        (status = 413, description = "Request body exceeds the Worker proxy limit", body = ErrorResponse),
+        (status = 500, description = "The managed route registry could not be read", body = ErrorResponse),
+        (status = 502, description = "The selected vLLM upstream could not be reached", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []), ("api_key_auth" = []))
+)]
 async fn proxy_completions(
     State(state): State<Arc<WorkerApiState>>,
     request: Request<Body>,
@@ -416,7 +503,7 @@ fn is_hop_by_hop(name: &HeaderName, connection_headers: &BTreeSet<String>) -> bo
         || connection_headers.contains(name.as_str())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct VersionResponse<'a> {
     name: &'a str,
     version: &'a str,
@@ -426,12 +513,18 @@ struct VersionResponse<'a> {
     server_baseline: ServerBaseline<'a>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct ServerBaseline<'a> {
     version: &'a str,
     git_commit: &'a str,
 }
 
+#[utoipa::path(
+    get,
+    path = "/version",
+    tag = "Probes",
+    responses((status = 200, description = "Worker build and compatible Server baseline", body = VersionResponse))
+)]
 async fn version() -> Json<VersionResponse<'static>> {
     Json(VersionResponse {
         name: "gpustack-rs",
@@ -505,16 +598,28 @@ fn presented_credential(headers: &HeaderMap) -> Option<&str> {
         .and_then(|value| value.to_str().ok())
 }
 
+#[utoipa::path(
+    get,
+    path = "/token-auth",
+    tag = "Resources",
+    responses(
+        (status = 200, description = "The supplied per-Worker credential is valid", body = String, content_type = "application/json"),
+        (status = 401, description = "The per-Worker credential was not accepted", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []), ("api_key_auth" = []))
+)]
 async fn token_auth() -> Json<&'static str> {
     Json("ok")
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct FileQuery {
+    /// Absolute path below one of the configured model roots.
     path: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct FileExistsResponse {
     exists: bool,
     path: String,
@@ -522,6 +627,20 @@ struct FileExistsResponse {
     is_dir: bool,
 }
 
+#[utoipa::path(
+    get,
+    path = "/files/file-exists",
+    tag = "Resources",
+    params(FileQuery),
+    responses(
+        (status = 200, description = "Contained path existence and type", body = FileExistsResponse),
+        (status = 400, description = "The path is not absolute or contains forbidden components", body = ErrorResponse),
+        (status = 401, description = "The per-Worker credential was not accepted", body = ErrorResponse),
+        (status = 403, description = "The path escapes the configured model roots", body = ErrorResponse),
+        (status = 500, description = "The path metadata could not be inspected", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []), ("api_key_auth" = []))
+)]
 async fn file_exists(
     State(state): State<Arc<WorkerApiState>>,
     query: Result<Query<FileQuery>, QueryRejection>,
@@ -541,6 +660,22 @@ async fn file_exists(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/files/model-config",
+    tag = "Resources",
+    params(FileQuery),
+    responses(
+        (status = 200, description = "Parsed JSON from an allowed model configuration file", body = Value),
+        (status = 400, description = "The path or JSON document is invalid", body = ErrorResponse),
+        (status = 401, description = "The per-Worker credential was not accepted", body = ErrorResponse),
+        (status = 403, description = "The path escapes the configured model roots", body = ErrorResponse),
+        (status = 404, description = "The configuration file does not exist", body = ErrorResponse),
+        (status = 413, description = "The configuration file exceeds 16 MiB", body = ErrorResponse),
+        (status = 500, description = "The configuration file could not be read", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []), ("api_key_auth" = []))
+)]
 async fn model_config(
     State(state): State<Arc<WorkerApiState>>,
     query: Result<Query<FileQuery>, QueryRejection>,
@@ -569,11 +704,26 @@ fn read_model_config(path: &Path) -> Result<Value, ApiError> {
     serde_json::from_slice(&content).map_err(|_| ApiError::bad_request())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct ModelWeightSizeResponse {
     size: u64,
 }
 
+#[utoipa::path(
+    get,
+    path = "/files/model-weight-size",
+    tag = "Resources",
+    params(FileQuery),
+    responses(
+        (status = 200, description = "Total bytes of supported model weight files", body = ModelWeightSizeResponse),
+        (status = 400, description = "The path is invalid or is not a directory", body = ErrorResponse),
+        (status = 401, description = "The per-Worker credential was not accepted", body = ErrorResponse),
+        (status = 403, description = "The path escapes the configured model roots", body = ErrorResponse),
+        (status = 404, description = "The model directory does not exist", body = ErrorResponse),
+        (status = 500, description = "The model directory could not be inspected", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []), ("api_key_auth" = []))
+)]
 async fn model_weight_size(
     State(state): State<Arc<WorkerApiState>>,
     query: Result<Query<FileQuery>, QueryRejection>,
@@ -634,18 +784,31 @@ fn weight_files_in_directory(directory: &Path) -> Result<u64, ApiError> {
     Ok(total)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 struct ServeLogRestart {
     previous: bool,
     started_at: Option<String>,
     containers: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 struct ServeLogOptionsResponse {
     restarts: Vec<ServeLogRestart>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/serveLogOptions/{id}",
+    tag = "Logs",
+    params(("id" = u64, Path, description = "Positive ModelInstance ID")),
+    responses(
+        (status = 200, description = "Available current and previous log generations", body = ServeLogOptionsResponse),
+        (status = 400, description = "The ModelInstance ID is invalid", body = ErrorResponse),
+        (status = 401, description = "The per-Worker credential was not accepted", body = ErrorResponse),
+        (status = 500, description = "The log directory could not be inspected", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []), ("api_key_auth" = []))
+)]
 async fn serve_log_options(
     State(state): State<Arc<WorkerApiState>>,
     AxumPath(id): AxumPath<String>,
@@ -726,14 +889,21 @@ fn parse_container_log_name(name: &str, id: u64) -> Option<(u64, String)> {
     valid_logical_name(container).then(|| (restart, container.to_owned()))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 #[serde(default, deny_unknown_fields)]
+#[into_params(parameter_in = Query)]
 struct ServeLogsQuery {
+    /// Optional logical instance name used for compatibility validation.
     model_instance_name: String,
+    /// Optional ModelFile whose download log is prepended when available.
     model_file_id: Option<u64>,
+    /// Container-specific logs are not implemented in R1.
     container_name: Option<String>,
+    /// Number of trailing lines, zero for none, or -1 for the complete log.
     tail: i64,
+    /// Continue streaming appended bytes after the initial response.
     follow: bool,
+    /// Select the previous restart generation instead of the current one.
     previous: bool,
 }
 
@@ -750,6 +920,24 @@ impl Default for ServeLogsQuery {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/serveLogs/{id}",
+    tag = "Logs",
+    params(
+        ("id" = u64, Path, description = "Positive ModelInstance ID"),
+        ServeLogsQuery
+    ),
+    responses(
+        (status = 200, description = "Current, previous, tailed, or continuously followed log bytes", body = Vec<u8>, content_type = "application/octet-stream"),
+        (status = 400, description = "The ID or query is invalid", body = ErrorResponse),
+        (status = 401, description = "The per-Worker credential was not accepted", body = ErrorResponse),
+        (status = 404, description = "The requested log generation does not exist", body = ErrorResponse),
+        (status = 500, description = "The log files could not be read", body = ErrorResponse),
+        (status = 501, description = "Container-specific log selection is not implemented", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []), ("api_key_auth" = []))
+)]
 async fn serve_logs(
     State(state): State<Arc<WorkerApiState>>,
     AxumPath(id): AxumPath<String>,
@@ -887,7 +1075,7 @@ fn follow_log_body(initial: Vec<u8>, path: PathBuf) -> Body {
     Body::from_stream(stream)
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, ToSchema)]
 pub struct ApiConfigView {
     debug: bool,
     system_default_container_registry: Option<String>,
@@ -902,10 +1090,30 @@ pub fn public_config_view() -> ApiConfigView {
     ApiConfigView::default()
 }
 
+#[utoipa::path(
+    get,
+    path = "/v2/config",
+    tag = "Configuration",
+    responses(
+        (status = 200, description = "Non-sensitive compatibility configuration", body = ApiConfigView),
+        (status = 401, description = "The per-Worker credential was not accepted", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []), ("api_key_auth" = []))
+)]
 async fn get_config() -> Json<ApiConfigView> {
     Json(ApiConfigView::default())
 }
 
+#[utoipa::path(
+    put,
+    path = "/v2/config",
+    tag = "Configuration",
+    responses(
+        (status = 401, description = "The per-Worker credential was not accepted", body = ErrorResponse),
+        (status = 405, description = "Runtime configuration mutation is not supported", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []), ("api_key_auth" = []))
+)]
 async fn put_config() -> ApiError {
     ApiError::method_not_allowed()
 }
@@ -995,7 +1203,7 @@ fn map_io_error(error: io::Error) -> ApiError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 struct ErrorResponse {
     code: u16,
     reason: &'static str,
@@ -1127,6 +1335,7 @@ mod tests {
 
     use futures_util::StreamExt;
     use tempfile::TempDir;
+    use tower::ServiceExt;
 
     use super::*;
 
@@ -1179,6 +1388,162 @@ mod tests {
                 worker_ip: "10.213.80.90".parse().expect("test Worker IP"),
             }),
         }
+    }
+
+    fn inert_proxy() -> Arc<dyn ManagedInferenceProxy> {
+        Arc::new(FakeInferenceProxy {
+            request: Mutex::new(None),
+            status: StatusCode::OK,
+            headers: HeaderMap::new(),
+            chunks: vec![Bytes::from_static(br#"{"ok":true}"#)],
+        })
+    }
+
+    #[test]
+    fn openapi_contract_covers_the_complete_managed_surface() {
+        let document = serde_json::to_value(openapi_document()).expect("OpenAPI JSON");
+        let paths = document["paths"].as_object().expect("OpenAPI paths");
+        let actual = paths.keys().map(String::as_str).collect::<BTreeSet<_>>();
+        let expected = BTreeSet::from([
+            "/files/file-exists",
+            "/files/model-config",
+            "/files/model-weight-size",
+            "/healthz",
+            "/readyz",
+            "/serveLogOptions/{id}",
+            "/serveLogs/{id}",
+            "/token-auth",
+            "/v1/chat/completions",
+            "/v1/completions",
+            "/v2/config",
+            "/version",
+        ]);
+
+        assert_eq!(actual, expected);
+        assert!(!paths.contains_key("/metrics"));
+        assert!(paths["/v2/config"].get("get").is_some());
+        assert!(paths["/v2/config"].get("put").is_some());
+        assert!(document["components"]["securitySchemes"]["bearer_auth"].is_object());
+        assert!(document["components"]["securitySchemes"]["api_key_auth"].is_object());
+        for (path, method) in [
+            ("/token-auth", "get"),
+            ("/files/file-exists", "get"),
+            ("/files/model-config", "get"),
+            ("/files/model-weight-size", "get"),
+            ("/serveLogOptions/{id}", "get"),
+            ("/serveLogs/{id}", "get"),
+            ("/v2/config", "get"),
+            ("/v2/config", "put"),
+            (CHAT_COMPLETIONS_PATH, "post"),
+            (COMPLETIONS_PATH, "post"),
+        ] {
+            let security = paths[path][method]["security"]
+                .as_array()
+                .expect("protected operation security");
+            assert_eq!(security.len(), 2, "unexpected security for {method} {path}");
+            assert!(security[0].get("bearer_auth").is_some());
+            assert!(security[1].get("api_key_auth").is_some());
+        }
+        for path in ["/healthz", "/readyz", "/version"] {
+            assert!(paths[path]["get"].get("security").is_none());
+        }
+        assert_eq!(
+            paths[CHAT_COMPLETIONS_PATH]["post"]["responses"]["200"]["content"]
+                .as_object()
+                .expect("inference response content")
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["application/json", "text/event-stream"])
+        );
+        let serialized = serde_json::to_string(&document).expect("OpenAPI serialization");
+        assert!(!serialized.contains("worker-token"));
+        assert!(!serialized.contains("cluster-registration-token"));
+        assert!(!serialized.contains("/home/"));
+    }
+
+    #[test]
+    fn checked_in_openapi_artifact_matches_the_generated_contract() {
+        let generated = format!(
+            "{}\n",
+            openapi_document()
+                .to_pretty_json()
+                .expect("OpenAPI serialization")
+        );
+        let checked_in = include_str!("../../../docs/openapi/worker-managed.openapi.json");
+        let parsed = oas3::from_json(checked_in).expect("checked-in OpenAPI 3.1 must parse");
+
+        assert_eq!(generated, checked_in);
+        assert_eq!(parsed.openapi, "3.1.0");
+    }
+
+    #[tokio::test]
+    async fn documentation_routes_are_public_without_bypassing_worker_auth() {
+        let application = router(managed_state(inert_proxy()));
+
+        let spec_response = application
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/openapi.json")
+                    .body(Body::empty())
+                    .expect("spec request"),
+            )
+            .await
+            .expect("spec response");
+        assert_eq!(spec_response.status(), StatusCode::OK);
+        let spec = to_bytes(spec_response.into_body(), 1024 * 1024)
+            .await
+            .expect("spec body");
+        let served: Value = serde_json::from_slice(&spec).expect("served OpenAPI JSON");
+        let generated = serde_json::to_value(openapi_document()).expect("generated OpenAPI JSON");
+        assert_eq!(served, generated);
+
+        let docs_redirect = application
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/docs")
+                    .body(Body::empty())
+                    .expect("docs request"),
+            )
+            .await
+            .expect("docs redirect");
+        assert!(docs_redirect.status().is_redirection());
+        assert_eq!(
+            docs_redirect.headers().get("location"),
+            Some(&axum::http::HeaderValue::from_static("/docs/"))
+        );
+
+        let docs_response = application
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/docs/")
+                    .body(Body::empty())
+                    .expect("docs page request"),
+            )
+            .await
+            .expect("docs page response");
+        assert_eq!(docs_response.status(), StatusCode::OK);
+        assert_eq!(
+            docs_response
+                .headers()
+                .get(CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok()),
+            Some("text/html")
+        );
+
+        let unauthorized = application
+            .oneshot(
+                Request::builder()
+                    .uri("/token-auth")
+                    .body(Body::empty())
+                    .expect("protected request"),
+            )
+            .await
+            .expect("protected response");
+        assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]

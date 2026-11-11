@@ -1,5 +1,6 @@
 //! Worker configuration, identity, control-plane, diagnostics, and lifecycle primitives.
 
+mod api_documentation;
 pub mod config;
 pub mod control;
 pub mod doctor;

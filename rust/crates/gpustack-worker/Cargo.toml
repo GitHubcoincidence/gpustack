@@ -21,10 +21,15 @@ sha2.workspace = true
 sysinfo.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+utoipa.workspace = true
+utoipa-axum.workspace = true
+utoipa-swagger-ui.workspace = true
 url.workspace = true
 
 [dev-dependencies]
+oas3 = { version = "0.22.0", default-features = false }
 tempfile = "3.0"
+tower = { version = "0.5", features = ["util"] }
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
