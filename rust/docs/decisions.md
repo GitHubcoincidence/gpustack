@@ -1323,3 +1323,11 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D271 | M8-API.1/2实现判定与停止位置 | 产品提交`019423f9f0c94c04ebc10c6d165e54bb645c1840`从实际Axum路由同源生成OpenAPI 3.1，在`/openapi.json`和vendored `/docs`公开12条路径，并提交静态JSON与中文使用指南。规范以Bearer或`X-API-Key`表达Worker认证，标明Managed推理header、JSON/SSE响应和独立metrics listener；三项契约/路由测试及独立`oas3`解析防止漂移。235项workspace测试、Rustfmt、Clippy `-D warnings`、doc-tests、locked/offline release build和M8-A.6 package validator通过 | 实现满足D269/D270的离线范围，且未改变现有认证中间件、业务handler、Server协议或metrics端口。静态规范SHA-256为`504afc6dda260e4beb566b3a67fe33f209edbba60aa3eb566a5a32d218f2bf4d`；本阶段没有真实Docker、Server写入、服务停止、Runner/模型或GPU操作。状态只能更新为`ready_for_review`，用户验收前不得标记`accepted`或进入M8-B。 |
+
+## 2026-11-11 M8-RS Rust Server联调方案冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D272 | 兼容权威与差异归属 | Rust Worker与`http://10.213.80.106:18091` Rust Server联调以原GPUStack v2.2.3源码commit`1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`、90同版本Python Server真实行为、已接受fixture和原Python Worker wire为权威，OpenAPI只作辅助。Worker偏离就修Worker，Server偏离就修Server，只有文档偏离就修文档；双方碰巧互通不能替代标准 | 把协议oracle固定在联调前，避免结果驱动地放宽身份恢复、状态所有权、完整PUT、watch或fail-closed规则，也让不同维护者能依据同一证据确定修复归属。 |
+| D273 | M8-RS门禁与权限边界 | 在M8-API之后、M8-B之前插入RS.0～RS.7：方案冻结、离线契约审计、无凭据/认证只读、隔离注册、宿主机空载Worker、资源/watch、GPU0端到端和差异闭环。RS.1可与待审阅的M8-API并行，但RS.2及以后必须等待两者验收并逐段授权；GPU0正式门另需维护窗口，GPU1永不参与 | 先用宿主机Worker隔离Server协议变量，再进行容器化，能避免把wire错误误判为镜像或权限错误。离线、只读、注册、空载、资源和GPU阶段拆开，可限制每一步的外部写入和回滚范围。 |
+| D274 | 106只读初始基线 | 2026-11-11无凭据GET确认`/healthz`为200/`"ok"`，`/version`为v2.2.3、git commit`1cfcbbf`、implementation`rust`、build version`0.1.0`，未认证workers list为标准401错误。OpenAPI 3.0.3共634,702字节，SHA-256为`ea8c08f107d0a3ce7493711648d9e1c9ee460bc626347ecfb10e7add836e9635`；文档暂见registration响应、heartbeat/status、`me`/`worker_id`过滤、完整update schema、watch编号和v1推理等高风险差异 | 这些GET只证明服务身份、基础健康和错误外形，文档差异既不能判定运行实现错误，也不能证明兼容。它们作为RS.1审计输入保留；正式归属必须由后续脱敏wire证据对照原始oracle判定。 |

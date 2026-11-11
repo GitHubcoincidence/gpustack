@@ -20,6 +20,7 @@
 | M7 恢复与双 GPU 路径 | 接管、事件/full-sync 恢复、重启策略、Server/Docker 故障、双 A100 tensor parallelism | M6-B | 宿主机进程形式的 Worker 行为可靠 | 重启、断连、故障、未知容器与双 GPU 证据 |
 | M8 Worker 容器与 R1 candidate | Worker 镜像、socket/NVML/network/path 契约、持久化状态、容器重启恢复与回滚 | M7 | 容器化 Rust Worker release candidate | 重跑单/双 GPU 套件、镜像摘要、回滚到 Python Worker、最终审计 |
 | M8-API Worker接口契约 | OpenAPI 3.1生成、Swagger UI、静态规范、人工使用指南和漂移门 | M8-A已接受、M8-B尚未开始 | 可在线交互且可离线消费的Worker API文档 | 规范解析、路由覆盖、认证/错误/流式契约、artifact一致性、完整离线质量门 |
+| M8-RS Rust Server联调 | 以原GPUStack v2.2.3为标准，核对Rust Worker与Rust Server的身份、控制资源、watch、状态机和推理契约 | M8-API实现完成、M8-B尚未开始 | 可归因、可重复、可清理的双Rust联调证据与差异闭环 | 原始源码/90 Python oracle对照、离线矩阵、隔离注册、空载Worker、GPU0端到端、清理与凭据退役 |
 
 ## M1 门禁
 
@@ -412,6 +413,34 @@ fake Docker边界回归。M8-A现为`accepted`；下一步只允许讨论并冻�
 截至2026-11-11，M8-API.1/2产品提交`019423f9f0c94c04ebc10c6d165e54bb645c1840`
 已经完成同源OpenAPI路由、vendored Swagger UI、静态规范、人工指南和完整离线质量门，当前为
 `ready_for_review`。在用户完成M8-API.3审阅前不得标记`accepted`或进入M8-B。
+
+2026-11-11用户接受在M8-API与M8-B之间增加`M8-RS` Rust Server联调前置阶段。原GPUStack
+v2.2.3源码commit`1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`、90上的同版本Python Server
+真实行为及已接受fixture是兼容性标准；Rust Server OpenAPI只作发现线索，不能覆盖运行oracle。
+哪一侧偏离标准就修复哪一侧，不能通过放宽Worker所有权、完整PUT、身份恢复或fail-closed规则
+迁就对端。阶段按以下门禁推进：
+
+1. **M8-RS.0方案冻结**：冻结证据优先级、差异归属、隔离身份、凭据、端口、GPU和回滚边界，
+   记录106 Rust Server的无凭据只读基线；只修改治理文档。
+2. **M8-RS.1离线契约审计**：实现不联网、不读取凭据的OpenAPI审计工具、规范化差异矩阵、
+   synthetic正反fixture和测试；覆盖Worker注册/me、heartbeat/status、分页/filter、watch、
+   Model/ModelInstance/ModelFile完整PUT及OpenAI入口。M8-API审阅可与本门并行，但两者都接受前
+   不得进入真实联调。
+3. **M8-RS.2无凭据与认证只读联调**：另获授权后验证health/version、认证、错误、分页和只读
+   watch；使用106专用短期凭据，不复用90 Python Server凭据，不创建资源。
+4. **M8-RS.3隔离注册与身份协议**：使用空测试Cluster和registration token验证注册响应、
+   `me=true`、204 heartbeat/status、身份恢复和重复Worker防护；不启动完整Worker、Docker或GPU。
+5. **M8-RS.4宿主机Worker空载联调**：以独立名称、端口和状态目录运行统一`worker run`，验证
+   full sync、watch、资源/API/metrics/readiness和Server权威maintenance；空Cluster不得创建Runner。
+6. **M8-RS.5资源与watch状态机**：在隔离Cluster中验证query过滤、初始回放、事件编号、keepalive、
+   ID-only delete、断线full sync、完整ModelFile/ModelInstance PUT和跨Worker拒绝；不启动vLLM。
+7. **M8-RS.6 GPU0端到端**：单独维护授权后精确停止并恢复90 Python Worker，只用GPU0运行固定
+   Qwen2.5-0.5B/vLLM，验证完整状态链、Server-only推理/日志、幂等和删除零残留；GPU1不参与。
+8. **M8-RS.7差异闭环与验收**：P0/P1差异清零，关键OpenAPI修正，测试资源和短期凭据退役，
+   旧token返回401且现场恢复。用户接受后才能恢复M8-B真实镜像计划。
+
+M8-RS.0现为`accepted`，M8-RS.1离线实现已获授权。M8-API.1/2仍是`ready_for_review`，不会因
+M8-RS方案接受自动变为`accepted`；M8-RS.2～RS.7及M8-B均未授权。
 
 每个真实阶段都使用独立 preflight、窗口外 watchdog、正常 cleanup 和独立 post-audit。M8-C～F
 分别需要精确授权；前一阶段通过不能自动授权下一阶段。非特权 NVML 失败时必须停在诊断边界，

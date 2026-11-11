@@ -182,6 +182,20 @@ OpenAPI只负责“如何调用”。Worker/Server状态所有权、启动与恢
 清单。M8-API作为M8-A与M8-B之间的横切门禁，不重开已接受的M8-A；M8-B必须从包含该契约的
 新源码HEAD构建候选镜像。
 
+## Rust Server兼容联调边界
+
+第一次真实容器构建前，宿主机版Rust Worker必须先与独立Rust Server完成M8-RS联调，避免把
+Server协议缺口、Worker缺口和容器权限问题混为同一个变量。兼容权威依次为固定v2.2.3源码、
+90同版本Python Server真实行为、已接受fixture和原Python Worker wire；Rust Server OpenAPI及
+双方“能够通信”都不能单独改变标准。若Worker序列化偏离则修Worker，若Server响应、过滤、事件或
+状态机偏离则修Server；文档单独偏离只修文档。任何扩展都需另行冻结，不能静默宽容错误协议。
+
+Rust Server联调使用完全独立的Server URL、Context、registration token、Worker token、短期
+management/inference API Key、Worker名称、端口和持久目录。先由不联网的契约工具审计OpenAPI，
+再按无凭据只读、隔离注册、空载完整Worker、资源/watch和GPU0端到端逐门推进。只有GPU0正式门
+可以在单独维护授权下停止90 Python Worker；GPU1、未知资源和其他用户任务始终不在控制范围。
+每个差异必须记录原始预期、双方实际wire、归属、修复提交和回归证据，不能靠客户端特判掩盖。
+
 ## 状态所有权
 
 | 状态 | 权威来源 |

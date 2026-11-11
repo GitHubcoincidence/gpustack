@@ -5359,3 +5359,21 @@
 - 当前停止位置：`M8-API.1/2 ready_for_review`，不是`accepted`。下一步只允许用户审阅实现和验证
   报告；接受后才能记录M8-API.3验收并另行讨论M8-B。任何真实镜像、服务、Server或GPU操作仍须
   后续独立授权。
+
+### 2026-11-11：M8-RS Rust Server联调方案冻结
+
+- 用户决定：在实际容器化前，先让宿主机Rust Worker与另一实现者的Rust Server联调；双方均以
+  原GPUStack v2.2.3源码、90 Python Server oracle和已接受fixture为标准，确认问题归属后修复
+  对应一侧，不以“能互通”替代规范兼容。
+- 初始只读观察：106 Server的health为200，version报告v2.2.3/`1cfcbbf`/rust/0.1.0，未认证
+  workers list返回标准401。OpenAPI 3.0.3为634,702字节，SHA-256为
+  `ea8c08f107d0a3ce7493711648d9e1c9ee460bc626347ecfb10e7add836e9635`；只执行GET，没有凭据或写入。
+- 初始风险：文档中的Worker注册响应、heartbeat/status请求与204响应、`me`和`worker_id`过滤、
+  ModelInstance/ModelFile完整PUT字段、watch事件编号、OpenAI路由及servers端口存在高风险差异。
+  这些只标记为待验证文档差异，尚未判定Rust Server实现错误。
+- 路线图修订：在当前M8-API和M8-B之间插入RS.0～RS.7。RS.0方案现为`accepted`，RS.1离线
+  OpenAPI审计工具、synthetic fixture和回归测试已获授权；不联网、不读凭据、不注册Worker。
+- 并行边界：M8-API.1/2仍保持`ready_for_review`，不会因本次方案确认自动验收。RS.1可独立实现；
+  RS.2及以后真实联调必须等待M8-API和RS.1均被用户接受，再逐阶段取得凭据与外部写入授权。
+- 当前停止位置：下一步只允许实现M8-RS.1离线工具并交付详细报告。106认证访问、Worker注册、
+  Server写入、Docker/NVML、服务停止、Runner/模型和GPU均未授权，M8-B继续暂停。
