@@ -439,8 +439,13 @@ v2.2.3源码commit`1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`、90上的同版本
 8. **M8-RS.7差异闭环与验收**：P0/P1差异清零，关键OpenAPI修正，测试资源和短期凭据退役，
    旧token返回401且现场恢复。用户接受后才能恢复M8-B真实镜像计划。
 
-M8-RS.0现为`accepted`，M8-RS.1离线实现已获授权。M8-API.1/2仍是`ready_for_review`，不会因
-M8-RS方案接受自动变为`accepted`；M8-RS.2～RS.7及M8-B均未授权。
+M8-RS.0现为`accepted`。M8-RS.1产品提交
+`69e812076b13a9333377ce66d890d66d483ed499`已完成本地文件审计器、固定JSON矩阵、synthetic
+正反fixture、5项回归测试和中文runbook，当前为`ready_for_review`。正向fixture的12项检查全部
+通过并以退出码0结束；反向fixture仅有错误/分页外形通过，其余10项以退出码2报告，所有
+`runtime_status`仍为`unverified`。这些结果只验证审计器，不能判定106运行实现错误。
+M8-API.1/2也仍是`ready_for_review`，不会因M8-RS实现完成自动变为`accepted`；M8-RS.2～RS.7
+及M8-B均未授权。
 
 每个真实阶段都使用独立 preflight、窗口外 watchdog、正常 cleanup 和独立 post-audit。M8-C～F
 分别需要精确授权；前一阶段通过不能自动授权下一阶段。非特权 NVML 失败时必须停在诊断边界，

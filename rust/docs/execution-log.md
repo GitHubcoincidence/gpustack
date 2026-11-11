@@ -5377,3 +5377,29 @@
   RS.2及以后真实联调必须等待M8-API和RS.1均被用户接受，再逐阶段取得凭据与外部写入授权。
 - 当前停止位置：下一步只允许实现M8-RS.1离线工具并交付详细报告。106认证访问、Worker注册、
   Server写入、Docker/NVML、服务停止、Runner/模型和GPU均未授权，M8-B继续暂停。
+
+### 2026-11-11：M8-RS.1离线契约审计实现完成
+
+- 范围与提交：产品提交`69e812076b13a9333377ce66d890d66d483ed499`新增
+  `gpustack-client`离线OpenAPI审计example、共享审计逻辑、5项集成测试、两份synthetic fixture
+  和中文联调runbook；没有新增依赖、修改`Cargo.lock`或改变Worker/Server运行协议。
+- 输入与输出边界：工具只接受单个本地普通JSON文件，拒绝symlink、非文件和超过16 MiB的输入，
+  不接受URL、header或token。稳定JSON报告包含规范标题/版本、12项固定expected/actual摘要及
+  文档/运行状态；不复制examples、request body或完整watch描述，运行状态在live wire验证前固定为
+  `unverified`。兼容、契约差异和工具失败分别使用退出码0、2、1。
+- 审计覆盖：RS-C001～RS-C012覆盖Worker注册请求/响应、`me`、heartbeat/status请求与204、
+  Model/ModelInstance/ModelFile过滤与完整PUT、watch编号、三个显式OpenAI路由、标准错误和分页
+  外形。正向fixture为12/12通过、退出码0；反向fixture仅RS-C011/RS-C012通过，其余10项失败、
+  退出码2。fixture SHA-256分别为
+  `6bfd46cf3ab9e9ae8a121a84da182bc7ee0f9b038959e114c0a5c779f77367ae`和
+  `169a0a39350149d49eebc41ed4105b9bf31b80efd5594bc747cc9d8449fa0805`。
+- 验证：90服务器上5项定向审计测试和240项workspace all-targets/all-features locked/offline测试
+  通过；`cargo fmt --all --check`、全workspace Clippy `-D warnings`、doc-tests、locked/offline
+  release build、M8-A.6 package validator、`git diff --check`及范围秘密扫描通过。报告脱敏测试同时
+  覆盖OpenAPI example和watch描述中的敏感哨兵。
+- 证据与漂移边界：本阶段只使用版本化synthetic fixture；没有重新访问106、使用认证凭据、注册
+  Worker、写Server、调用Docker/NVML、停止Python Worker、创建Runner/模型或使用GPU。10项失败
+  不能被提升为106运行缺陷，差异归属仍需RS.2以后对照原始oracle，漂移审计结论为`aligned`。
+- 当前停止位置：`M8-RS.1 ready_for_review`，不是`accepted`；M8-API.1/2也保持
+  `ready_for_review`。下一步只允许用户审阅两项离线实现。只有两者均被接受且RS.2另获明确授权后，
+  才能准备106专用短期凭据并执行无创建、无更新、无删除的真实只读联调；M8-B继续暂停。
