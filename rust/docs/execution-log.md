@@ -5665,3 +5665,18 @@
   第二次HTTP、其他非法query、watch、Server写入、Docker/NVML、服务停止或GPU使用。
 - 当前停止位置：下一步只允许用户审阅RS.2.6并决定该错误兼容差异是否作为非阻塞项继续保留，或
   交由106 Rust Server修复。未作裁决前不进入RS.2 watch，也不把本门差异迁就到Rust Worker。
+
+### 2026-11-12：M8-RS.2.6验收与live probe深度调整
+
+- 用户裁决：用户接受RS.2.6证据，并决定暂不处理非法query的400纯文本与原版422 JSON差异；该门
+  更新为`accepted_with_known_non_blocking_difference`。差异仍明确归属106 Rust Server并保留到
+  RS.7复核，Rust Worker不增加兼容分支，也不把106当前行为记为与原版一致。
+- 方法调整：后续单接口live probe优先覆盖Rust Worker真实工作流中的有效请求及正确返回值，不再
+  单独测试非法参数、输入校验失败、边缘错误外形或默认排序。该调整减少低收益边缘探测，但不改变
+  原v2.2.3的最终规范权威，也不放宽认证、注册、身份恢复、`me`、heartbeat/status、full sync、
+  watch、完整PUT、状态所有权、推理和清理等核心路径。
+- 漂移判定：这是用户明确批准的阶段性方法收敛，属于intentional change；此前分页逆序候选和本次
+  400/422已确认差异均保留为已知非阻塞项，不因停止追踪而消失。RS.2不再执行其他非法query。
+- 当前停止位置：RS.2有效分页门结束。下一步只允许讨论并冻结首个只读watch门，优先
+  `GET /v2/models?watch=true`；该门只观察已有事件或keepalive，不创建Model、Instance或File，其他
+  watch资源仍须逐门推进。
