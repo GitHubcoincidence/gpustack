@@ -5532,3 +5532,40 @@
 - 当前停止位置：RS.2.4尚未授权执行。下一步需要用户确认能否登录106管理界面并创建最长7天、
   `management` scope、106专用密钥；只在密钥安全落入90且元数据校验通过后，才能另行确认一次
   `GET /v2/workers?page=1&perPage=1`认证请求。不得复用90 Python Server密钥或使用`*`scope。
+
+### 2026-11-12：M8-RS.2.4 workers list认证分页联调完成
+
+- 接口作用：`GET /v2/workers`供已认证管理方分页读取Worker公开信息。本门验证106接受Rust Client
+  使用的Bearer传输方式、有效`management` API Key可以通过认证，以及最小分页查询返回原GPUStack
+  的`items`/`pagination`外形；不验证写权限、租户隔离、复杂过滤或翻页稳定性。
+- 凭据边界：原v2.2.3没有真正的只读管理scope。本次使用用户在106创建、最长7天有效、专用于联调的
+  `management`密钥，并由协议把其能力限制为单次GET。密钥只存在90服务器0600文件中，未进入聊天、
+  Git、命令参数、证据或trace，也未输出或计算/记录密钥哈希。该凭据保留给后续逐项授权的RS.2只读
+  查询，并须在RS.7或确认不再需要时按精确身份退役和验证失效。
+- 请求输入：90服务器在源码HEAD`287b933514e0d39738115a2f815700574ac0b494`下，于
+  2026-11-12 10:20:08 CST只发送一次
+  `GET http://10.213.80.106:18091/v2/workers?page=1&perPage=1`。请求无body；认证头从受保护临时文件
+  读取并记为`Authorization: Bearer [REDACTED]`；连接超时3秒、总超时10秒、响应上限1 MiB，禁用
+  重定向和重试。为避免凭据进入调试输出，本门明确禁用wire trace，请求后立即删除临时认证头文件。
+- 实际响应：curl退出码0；源地址`10.213.80.90`，目标`10.213.80.106:18091`；HTTP 200，
+  `content-type: application/json`，6,530字节，总耗时0.779561秒。顶层只含`items`和`pagination`；
+  本页返回1项，分页为`page=1`、`perPage=1`、`total=3`、`totalPage=3`。首项包含Worker身份、网络、
+  标签、维护、状态、资源状态、版本、创建更新时间及所属关系等公开字段，未出现凭据字段。
+- oracle与客户端对照：分页值满足`items.length <= perPage`、`total >= items.length`和
+  `totalPage=ceil(total/perPage)`。原Python `WorkerPublic`明确对列表排除`worker_uuid`和`machine_id`，
+  因此响应未返回两者是规范行为；Rust `WorkerPublic`强类型读取`id`、`cluster_id`、`name`、`labels`、
+  `maintenance`、`me`、`worker_version`和`status`，并用flattened extensions保留其他公开字段，实际
+  响应与该兼容策略一致。当前未发现需归属Rust Worker或Rust Server的协议差异。
+- 证据与安全复核：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs2-workers-auth-20261112T022008Z-3160387`
+  为0700，四个证据文件均为0600。metadata、response headers、response body和transfer的SHA-256
+  依次为`9e6bc2596eb4bdf503ba2707eeb90e0826d294970ba41428dfd8a7af9d1ea8ce`、
+  `3dd3706085116ca2bf686056ab0245b57367dc3a457009abc9c4b8c31554226c`、
+  `6246f4e389fb891ee8f4489d74671414147429c52ffdc4a372978b536d5cf7f6`和
+  `e37523829bd7b52a96df86959495f07cd86d32fa4082a57d17f6db3c11ddd72e`。离线postcheck确认分页外形、
+  响应敏感字段扫描、凭据对证据逐字扫描及临时文件清理全部通过。
+- 边界与判定：RS.2.4为`ready_for_review`，不是`accepted`。本门没有调用其他接口、创建或更新
+  Worker、测试错误分页、执行第二页查询、调用Docker/NVML、停止服务或使用GPU。一个成功页面只证明
+  当前认证传输和该页响应外形，不证明过滤、完整分页、watch、注册或控制面写入兼容。
+- 当前停止位置：下一步只允许用户审阅RS.2.4。用户接受后，再单独讨论一个分页或过滤查询及其
+  原版oracle；本次结果不会自动授权新的106请求、Server写操作或后续RS.3～RS.7阶段。
