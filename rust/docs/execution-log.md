@@ -5729,3 +5729,20 @@
   NVML、服务停止或GPU使用。
 - 当前停止位置：下一步只允许用户审阅RS.2.7。接受后再单独执行有效
   `GET /v2/model-instances?watch=true`；ModelFile watch和RS.3继续暂停。
+
+### 2026-11-12：M8-RS.2.7验收与RS.2.8 ModelInstance watch冻结
+
+- 用户验收：用户审阅Model watch的作用、有效请求、3条CREATED回放、keepalive、Rust类型兼容和
+  凭据边界后确认无问题；RS.2.7更新为`accepted`。提交
+  `7770ca451763285dc24844bf8225b0223d6c0235`和受保护证据目录支持该结论。
+- 下一门作用：RS.2.8只验证Rust Worker真实使用的
+  `GET /v2/model-instances?watch=true`能建立`text/event-stream`并返回可解析的现有实例事件或
+  keepalive；不创建、更新或删除ModelInstance，不测试错误参数。
+- 输入与通过门：复用106专用短期management密钥、`Accept: text/event-stream`和20秒单次观察窗口，
+  禁用重试、重定向和wire trace。若存在事件，要求数字事件类型、envelope/data ID一致，并具备Rust
+  `ModelInstancePublic`真实控制路径所需的实例/模型身份、状态、来源和Worker归属字段；没有可见实例时
+  空keepalive即可通过传输门。
+- 边界：management主体可能看见全部实例，因此本门只验证wire和值可消费；Worker system principal的
+  cluster范围、仅接管`worker_id`等于自身的实例以及实时更新/删除仍留到RS.3～RS.5。
+- 当前停止位置：RS.2.8尚未执行。下一步只允许发出上述一次有效watch并离线复核后停止；ModelFile
+  watch、任何Server写入、Docker/NVML、服务停止和GPU操作继续暂停。
