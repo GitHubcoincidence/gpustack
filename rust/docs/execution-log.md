@@ -5618,3 +5618,19 @@
 - 当前停止位置：下一步只允许用户审阅RS.2.5。接受该观察后，可单独冻结一次
   `GET /v2/workers?page=1&perPage=3`，在单一响应快照内检查完整`created_at DESC`顺序；只有再次复现
   逆序，才将差异明确归属106 Rust Server并进入修复协调。
+
+### 2026-11-12：M8-RS.2.5验收、排序偏差裁决与RS.2.6冻结
+
+- 用户裁决：用户接受RS.2.5的分页数值、第二页offset外形和跨页去重证据，并明确决定不继续追踪
+  默认排序候选差异；RS.2.5更新为`accepted_with_known_non_blocking_difference`。该裁决取消此前建议的
+  `perPage=3`追加确认，不删除或改写已观察到的`created_at`逆序事实。
+- 影响范围：原v2.2.3默认`created_at DESC`与106观察顺序的候选差异仍保留为已知非阻塞项，但不作为
+  当前Rust Worker联调的P0/P1阻塞。Rust Worker控制循环按资源ID、过滤和事件处理，不依赖无显式
+  `sortBy`时的列表次序；本裁决不能被解释为106该行为已与原版一致。
+- 下一门冻结：RS.2.6只发送一次认证
+  `GET /v2/workers?page=abc&perPage=1`，用于验证类型错误在进入数据库分页前返回原v2.2.3标准422。
+  预期顶层为`code/reason/message`，其中`code=422`、`reason=Invalid`，message说明一个page整数解析
+  错误；Pydantic/FastAPI补丁版本造成的诊断措辞差异只作兼容性解释，不要求逐字一致。
+- 权限与停止门：复用106专用短期`management`密钥和RS.2既有秘密保护、超时、响应上限、无trace、
+  无重试规则。只允许该单次GET，不得同时测试`page=0`、其他非法参数、watch或任何写接口；完成后
+  离线对照精确v2.2.3 commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`并停止。
