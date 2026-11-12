@@ -5696,3 +5696,36 @@
   不创建事件、不验证后续增删改实时推送，也不证明Worker system principal的可见范围。
 - 当前停止位置：RS.2.7尚未执行。下一步只允许完成源码、凭据和证据路径预检后发出上述一次watch，
   离线复核后停止；ModelInstance/ModelFile watch、RS.3写路径、Docker和GPU仍暂停。
+
+### 2026-11-12：M8-RS.2.7 Model watch只读联调完成
+
+- 接口作用：验证Rust Worker真实使用的Model watch能够建立，并返回可由现有JSON-line解码器消费的
+  初始Model事件和keepalive；本门不制造增删改事件，也不验证Worker principal的租户/Cluster范围。
+- 请求输入：90服务器在源码HEAD`dbcdc191c38e814cffebc4d5e02c69c52061cd41`下，于
+  2026-11-12 21:21:39 CST只发送一次认证
+  `GET http://10.213.80.106:18091/v2/models?watch=true`，携带`Accept: text/event-stream`、无body。
+  Bearer从0600临时header读取；禁用重试、重定向和wire trace，观察20秒后由客户端超时断开。
+- 实际响应：HTTP 200，`content-type: text/event-stream`、`cache-control: no-cache`和chunked传输；
+  源地址`10.213.80.90`、目标`10.213.80.106:18091`。20.002038秒内接收3,133字节，curl退出28是
+  预定观察窗口结束，不是Server失败。
+- 返回值：捕获3条非空JSON事件，均为`type=1` CREATED，envelope ID和`data.id`逐条一致为1、2、3。
+  三条Model都包含Rust `ModelPublic`必需的数值`id`、字符串`name`和字符串`source`；其余公开字段
+  集合一致，可由flattened extensions保留。原始流共8个换行，除3条事件及其空行分隔外还包含空行
+  keepalive；该格式与原v2.2.3 `_format_event(...)+"\n\n"`和15秒空keepalive一致。
+- 兼容结论：106的状态码、媒体类型、初始CREATED回放、数字事件类型、envelope/data ID和Model核心值
+  均满足Rust Worker当前解码路径；本门没有发现Worker或Server差异。使用的是management API Key，
+  因而只证明协议和值可用，Worker system principal可见范围留到RS.3身份门验证。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs2-model-watch-20261112T132139Z-1320637`
+  为0700，文件均为0600。metadata、headers、原始stream、transfer和非空events的SHA-256依次为
+  `5d7730795acb23ffc0eabf7c534d2fc874d47976ffac2969002bbe71eb42f931`、
+  `e2af07dd6de38f2df8aa9f1ae6dacad368114cb4a19a15cf9d066b26624364c3`、
+  `7bc05790e4b5ace452df4413e9771f4d967665134d94b97299b3c56a874e440d`、
+  `05b2fe0c87da5bcad351f92299b67fbbd7ffc4bf127eb7a16b49ef986127d115`和
+  `af7e87ab55a84b8553043629824ac07c68d09877bcd537a862eff765770a86fd`；凭据扫描和临时header清理通过。
+- 非评分诊断：正式HTTP完成后，首次jq汇总因数组上下文中错误引用`.type`而退出5；原始证据未受影响，
+  随后只修正离线表达式并成功解析，没有重复请求。
+- 边界与判定：RS.2.7为`ready_for_review`，不是`accepted`。本门没有Model写入、其他watch、Docker、
+  NVML、服务停止或GPU使用。
+- 当前停止位置：下一步只允许用户审阅RS.2.7。接受后再单独执行有效
+  `GET /v2/model-instances?watch=true`；ModelFile watch和RS.3继续暂停。
