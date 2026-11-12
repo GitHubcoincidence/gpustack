@@ -5746,3 +5746,32 @@
   cluster范围、仅接管`worker_id`等于自身的实例以及实时更新/删除仍留到RS.3～RS.5。
 - 当前停止位置：RS.2.8尚未执行。下一步只允许发出上述一次有效watch并离线复核后停止；ModelFile
   watch、任何Server写入、Docker/NVML、服务停止和GPU操作继续暂停。
+
+### 2026-11-12：M8-RS.2.8 ModelInstance watch只读联调完成
+
+- 接口作用：验证Rust Worker真实使用的ModelInstance watch能建立并维持空闲连接；当前106没有
+  management主体可见的实例，因此本门不声称验证了实例事件字段或Worker归属过滤。
+- 请求输入：90服务器在源码HEAD`9168762f066f3f9a0b4aa931a2aa50516ef4c7da`下，于
+  2026-11-12 21:56:47 CST只发送一次认证
+  `GET http://10.213.80.106:18091/v2/model-instances?watch=true`，携带
+  `Accept: text/event-stream`、无body；使用0600临时Bearer header，禁用重试、重定向和wire trace，
+  观察20秒后由客户端超时断开。
+- 实际响应：HTTP 200，`content-type: text/event-stream`、`cache-control: no-cache`和chunked传输；
+  源地址`10.213.80.90`、目标`10.213.80.106:18091`。20.001742秒内接收2字节，原始十六进制
+  `0a0a`即`\n\n`空行keepalive；curl退出28是预定观察窗口结束。没有非空事件，符合当前无可见实例
+  的空闲watch语义。
+- 兼容结论：状态码、媒体类型和约15秒空行keepalive均与原v2.2.3一致，Rust WatchLineDecoder会忽略
+  空行并保持连接，本门没有发现协议差异。因为没有CREATED/UPDATED/DELETED事件，实例核心字段、
+  ID-only delete和system principal的Cluster范围仍必须在RS.5隔离资源阶段验证。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs2-instance-watch-20261112T135647Z-1452656`
+  为0700，文件均为0600。metadata、headers、原始stream、transfer和空events的SHA-256依次为
+  `4022f95945d050e746ffdc6859f391e86365bb4b0b387b197baf3536d40b9fc3`、
+  `9afa090fa52ee106a391a926659ad19a13f69c36278ef286f04397930f567e14`、
+  `75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070`、
+  `8e054cd07b1f3eecf94139e5e49e27d0641f8e026f46790a2728990b324ed91f`和
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`；凭据扫描和临时header清理通过。
+- 边界与判定：RS.2.8为`ready_for_review`，不是`accepted`。本门没有实例或其他资源写入、其他watch、
+  Docker、NVML、服务停止或GPU使用。
+- 当前停止位置：下一步只允许用户审阅RS.2.8。接受后再讨论ModelFile watch；该接口需要有效
+  `worker_id`过滤，必须先选定不造成写入或跨Cluster误读的验证输入。
