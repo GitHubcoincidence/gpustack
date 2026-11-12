@@ -5584,3 +5584,37 @@
   结果标记为环境漂移，不能通过追加请求修正。
 - 当前停止位置：RS.2.5尚未执行。下一步只允许完成凭据/源码/第一页证据预检后发送上述单次GET，
   随后离线复核并停止；RS.2.6以后、Server写操作、Docker/NVML和GPU继续暂停。
+
+### 2026-11-12：M8-RS.2.5 workers list第二页联调完成
+
+- 接口作用：继续验证`GET /v2/workers`的offset分页语义。本门只读取第二页，用冻结的第一页证据
+  检查总量、分页元数据、跨页重复和默认顺序；不测试过滤、watch、详情或写入。
+- 请求输入：90服务器在源码HEAD`a3adb485299546ccf8a094e64abc3d597969888a`下，于
+  2026-11-12 11:08:08 CST只发送一次认证
+  `GET http://10.213.80.106:18091/v2/workers?page=2&perPage=1`。请求无body；Bearer从受保护临时
+  header文件读取，证据中只记`[REDACTED]`；连接超时3秒、总超时10秒、响应上限1 MiB，禁用重定向、
+  重试和wire trace，请求后立即删除临时header。
+- 实际响应：curl退出码0；源地址`10.213.80.90`，目标`10.213.80.106:18091`；HTTP 200，
+  `content-type: application/json`，6,495字节，总耗时0.476994秒。顶层仍为`items`和`pagination`；
+  本页返回1项，分页为`page=2`、`perPage=1`、`total=3`、`totalPage=3`。第一页和第二页总数相同，
+  Worker ID分别为13和14，未发生重复，两个item字段集合完全一致。
+- 通过项：分页公式、第二页offset外形、跨页ID去重、响应字段安全扫描、凭据对证据逐字扫描、证据
+  权限和临时header清理均通过。请求与响应没有发现Rust Worker客户端编码问题。
+- oracle差异：精确原版v2.2.3 commit `1cfcbbf`的`paginated_by_query`在未提供`sortBy`时明确使用
+  `created_at DESC`。RS.2.4第一页ID 13的`created_at`为`2026-11-04T08:53:43.314279Z`，本门第二页
+  ID 14为`2026-11-05T02:05:27.006722Z`，观察到的先后顺序与原版默认降序相反。这是106 Rust Server
+  默认排序差异的候选证据；但两页在不同时间请求，`total=3`保持不变仍不能排除其他主体在间隔内
+  等量替换数据，因此当前不把候选差异提升为已确认Server缺陷。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs2-workers-page2-20261112T030808Z-3340013`
+  为0700，四个文件均为0600。metadata、response headers、response body和transfer的SHA-256依次为
+  `0a38b460410cbdd0d6fca8bcc10aa56209a99754f06d4ffa969d67e35604e429`、
+  `838443d3e9470356b9c8166ca29ee144ea9b11b1c12a52ec7a227f33908e053f`、
+  `760bec47bd346f724246408d2d05c53a0cc6a61b34020ec60134772ffd7ceb9b`和
+  `8ab61ae3b540525e58e0bd6f802c5169b29d24b96c1588868fbd6ebca77137a6`。
+- 边界与判定：RS.2.5为`ready_for_review_with_difference`，不是`accepted`。分页数值与跨页去重通过，
+  默认顺序只形成候选差异；本门没有额外HTTP、Server写入、Docker/NVML、服务停止或GPU使用。两次
+  本地封装诊断在SSH前因模板变量/编码函数不可用而停止，不计接口尝试；正式请求仍只有一次。
+- 当前停止位置：下一步只允许用户审阅RS.2.5。接受该观察后，可单独冻结一次
+  `GET /v2/workers?page=1&perPage=3`，在单一响应快照内检查完整`created_at DESC`顺序；只有再次复现
+  逆序，才将差异明确归属106 Rust Server并进入修复协调。
