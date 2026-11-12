@@ -5680,3 +5680,19 @@
 - 当前停止位置：RS.2有效分页门结束。下一步只允许讨论并冻结首个只读watch门，优先
   `GET /v2/models?watch=true`；该门只观察已有事件或keepalive，不创建Model、Instance或File，其他
   watch资源仍须逐门推进。
+
+### 2026-11-12：M8-RS.2.7 Model watch只读门冻结
+
+- 接口作用：验证Rust Worker真实使用的`GET /v2/models?watch=true`能建立长连接，并返回客户端可
+  解析的Model事件或空keepalive；只关注有效请求和值，不测试非法query或错误响应。
+- 原版预期：精确v2.2.3在`text/event-stream`响应中先将可见已有Model回放为每行一个JSON envelope，
+  `type=1`表示CREATED，envelope还包含`data`和`id`；无资源变化时约每15秒输出空行keepalive。
+  Rust Client按相同JSON行协议解析，忽略空行，并要求Model核心字段可反序列化。
+- 输入与安全：只发送一次认证`GET http://10.213.80.106:18091/v2/models?watch=true`，使用现有106
+  专用短期`management`密钥、`Accept: text/event-stream`、无body、无重试和无重定向。观察窗口固定
+  为20秒，正常由客户端超时结束；凭据只经0600临时header传入，不记录wire trace。
+- 通过门：HTTP 200、媒体类型`text/event-stream`，且捕获到至少一个结构正确的Model JSON事件，或
+  在无可见Model时捕获keepalive。若有事件，核对数字事件类型、envelope ID和Model核心字段；本门
+  不创建事件、不验证后续增删改实时推送，也不证明Worker system principal的可见范围。
+- 当前停止位置：RS.2.7尚未执行。下一步只允许完成源码、凭据和证据路径预检后发出上述一次watch，
+  离线复核后停止；ModelInstance/ModelFile watch、RS.3写路径、Docker和GPU仍暂停。
