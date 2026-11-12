@@ -5634,3 +5634,34 @@
 - 权限与停止门：复用106专用短期`management`密钥和RS.2既有秘密保护、超时、响应上限、无trace、
   无重试规则。只允许该单次GET，不得同时测试`page=0`、其他非法参数、watch或任何写接口；完成后
   离线对照精确v2.2.3 commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`并停止。
+
+### 2026-11-12：M8-RS.2.6 workers list非法page联调完成
+
+- 接口作用：验证认证成功后，非法分页类型是否在数据库查询前按原GPUStack标准返回结构化422错误；
+  本门不读取有效Worker页面，也不测试数值边界或其他参数。
+- 请求输入：90服务器在源码HEAD`b63e1ca33dd382f9b9daa2481e623eb77f1b92ec`下，于
+  2026-11-12 17:15:25 CST只发送一次认证
+  `GET http://10.213.80.106:18091/v2/workers?page=abc&perPage=1`。请求无body；Bearer只从0600临时
+  header文件读取；连接超时3秒、总超时10秒、响应上限65,536字节，禁用重定向、重试和wire trace。
+- 实际响应：curl退出码0，源地址`10.213.80.90`，目标`10.213.80.106:18091`；106返回HTTP 400、
+  `content-type: text/plain; charset=utf-8`和71字节正文
+  `Failed to deserialize query string: page: invalid digit found in string`。响应接收后，预期JSON的离线
+  jq门以退出码5停止；没有重试HTTP，trap已删除临时认证header。
+- 原版oracle：精确v2.2.3 commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`通过FastAPI
+  `RequestValidationError` handler返回HTTP 422和JSON `code/reason/message`，其中`code=422`、
+  `reason=Invalid`，message列出page整数解析错误。106的状态码、媒体类型和响应schema三项均不一致，
+  这是已确认的Rust Server query rejection映射差异，不是Rust Worker请求编码问题。
+- 客户端影响：Rust Client能把原版JSON错误解析为`ClientError::Api`；对106这份纯文本400只能产生
+  已脱敏、长度受限的`ClientError::UnknownResponse`。正常Worker控制循环只构造类型正确的分页参数，
+  因此该差异不阻塞正常控制面运行，但会降低非法参数和运维诊断的API兼容性。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs2-workers-invalid-page-20261112T091525Z-280578`
+  为0700，四个文件均为0600。metadata、response headers、response body和transfer的SHA-256依次为
+  `72e4f261310c4aef901d9cf13c36d24499aa618c2caa207ececb39a561222154`、
+  `b3e5a3aa92d61821e98d627b30cda85831e24d934ed50df3b865403348ad8f1a`、
+  `358875d825ed4506ab116109ccbb9b1ab7416ef430d9ef96e25e4401f184c65c`和
+  `e4cbd831246c228ecdf970afbaa5b8d105e3120da7f33ee2080e7952accb945f`；凭据扫描通过且无临时header残留。
+- 边界与判定：RS.2.6为`ready_for_review_with_confirmed_server_difference`，不是`accepted`。本门没有
+  第二次HTTP、其他非法query、watch、Server写入、Docker/NVML、服务停止或GPU使用。
+- 当前停止位置：下一步只允许用户审阅RS.2.6并决定该错误兼容差异是否作为非阻塞项继续保留，或
+  交由106 Rust Server修复。未作裁决前不进入RS.2 watch，也不把本门差异迁就到Rust Worker。
