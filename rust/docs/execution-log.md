@@ -6689,3 +6689,13 @@
   `bfec60171b994fce7c06a7a6b437edbb2b736bdfe250662b14498d39cb67a716`，清单复核通过。
 - 判定与停止：RS.4.1正式结果为`ready_for_review`，maintenance按D279保留启用。用户接受前不讨论或
   执行RS.4.2，不启动Worker、不关闭maintenance，也不停止Python Worker或操作Docker/GPU。
+
+### 2026-11-13：M8-RS.4.1验收
+
+- 用户验收：用户审阅RS.4.1唯一完整PUT、实际请求与响应、Server异步state收敛、完整字段保留、
+  隔离资源零计数、现有服务连续性及43个受保护证据文件后确认没有问题。
+- 状态更新：RS.4.1由`ready_for_review`更新为`accepted`。Worker 16继续保持
+  `maintenance.enabled=true`和固定message，未执行恢复写入。
+- 当前停止位置：下一步只允许讨论并冻结RS.4.2统一`worker run`空载启动的源码/二进制身份、命令
+  参数、运行时长、health/metrics/readiness、full sync/watch、heartbeat、优雅停止、证据和失败回滚。
+  本次验收不授权启动Worker、关闭maintenance、停止Python Worker或操作Docker/GPU。

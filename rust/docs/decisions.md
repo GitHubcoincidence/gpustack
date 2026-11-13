@@ -1367,3 +1367,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D280 | Worker 16 maintenance写入判定与停止位置 | 冻结HEAD`8276e95830fb62b6308c2644e6e4380fef927a26`上的最小只读门通过后，只发送一次`PUT /v2/workers/16`；HTTP 200且完整请求保留name与`implementation=rust`标签，只设置固定maintenance。即时响应已含maintenance但state仍为`not_ready`，随后独立GET收敛为`state=maintenance`和固定message；隔离资源、进程、端口及现有服务门全部通过 | 该状态变化符合Server控制器异步派生state语义，不是第二次写入或Worker上报。安全屏障已真实生效且保留，结果进入`ready_for_review`；用户验收前不得启动Worker或进入RS.4.2。 |
+
+## 2026-11-13 M8-RS.4.1验收
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D281 | RS.4.1 maintenance安全屏障验收 | 用户审阅唯一PUT的作用、完整请求、HTTP 200响应、异步`not_ready`到`maintenance`收敛、字段保留、零隔离资源、现有服务健康以及证据权限与秘密扫描后确认没有问题；RS.4.1更新为`accepted`，Worker 16继续保持固定maintenance | 已生效maintenance是RS.4.2空载启动的必要调度屏障。验收只确认该屏障，不授权启动Worker、关闭maintenance、停止Python Worker或操作Docker/GPU。 |
