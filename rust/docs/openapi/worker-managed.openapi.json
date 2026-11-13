@@ -1049,14 +1049,10 @@
       "ServerBaseline": {
         "type": "object",
         "required": [
-          "version",
-          "git_commit"
+          "version"
         ],
         "properties": {
           "version": {
-            "type": "string"
-          },
-          "git_commit": {
             "type": "string"
           }
         }
