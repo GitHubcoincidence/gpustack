@@ -6454,3 +6454,37 @@
   Server调度、Rust Worker状态机、Docker/vLLM、GPU0和双路径推理闭环，结果为`ready_for_review`。
   模型按用户原始部署意图保持running，没有执行清理。106注册端仍应补齐最终Worker名称标签，Rust
   Worker产品修复则保证新注册请求主动携带该标签；RS.3.5C继续暂停到用户审阅本结果。
+
+### 2026-11-13：M8-RS.3.5C重复Worker本地精确计数完成
+
+- 目的与接口：补齐RS.3.5A恢复式注册后的重复Worker防护证明。实际协议请求为一次认证
+  `GET /v2/workers?page=-1`，取得management主体可见的完整typed `Paginated<WorkerPublic>`后，
+  只在Rust进程内按`name == rust-rs3-worker-90-20261113 && cluster_id == 3`精确过滤；必须恰好一项
+  且ID为16。本门不再依赖106已确认有缺陷的`name` query过滤。
+- 产品修正：提交`bf457505e9ffa237d36701c4f0fb5a5493f4af0e`为生产`ServerClient`新增无过滤
+  `list_workers`；提交`bc7ef1ad`把CLI名称解析改为完整列表上的本地精确匹配；提交`3e8db039`在同一
+  typed响应中加入非目标Worker回归，并锁定请求不携带`name`参数。不存在、歧义和数字ID解析语义
+  保持不变，`list_workers_by_name`仍保留给原版兼容场景。
+- 尝试边界：第一次CLI调用在HTTP前因直接混用Worker runtime配置被本地参数门以退出码10拒绝，
+  未访问106。第二次通过临时非活动Context成功执行一次完整列表GET并唯一解析到ID 16，但CLI安全
+  投影没有`cluster_id`，因此只证明名称唯一性，未提升为正式通过；临时Context随后删除。两个尝试
+  目录均已收紧为0700/0600，且管理密钥逐值扫描无命中。
+- 正式响应：在源码HEAD`d164f070`上构建的临时审计程序直接复用生产
+  `ReqwestTransport`、`load_context_token`和`ServerClient::list_workers`，只发送一次上述GET。
+  106返回`items.len=4`、`pagination.total=4`；本地name+cluster精确匹配数为1，结果为
+  `id=16`、`cluster_id=3`、目标名称、`implementation=rust`、`maintenance=null`和
+  `worker_version=v2.2.3`。审计程序退出0，正式判定为PASS；临时源码已复制进证据后从产品树删除。
+- 证据与安全：正式证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs3-worker-uniqueness-formal-20261113T082016Z`
+  为0700，九个文件均为0600，清单内八项哈希独立复核全部通过，`SHA256SUMS`自身SHA-256为
+  `23358d7cffeca7089701c5d935360b204778bd464ca609f862ddb7a8d685b394`。证据未包含管理密钥，临时
+  Context不存在。后置只读快照显示GPU0空闲、GPU1约41,575 MiB；本门未创建、启动、停止或删除
+  容器，也未改变Worker、模型、GPU或Server资源。
+- 最终质量门：临时审计源码删除后的产品HEAD
+  `ba312ee17e84121c6cb51ed6173f8d3e41621a04`通过rustfmt、全workspace/all-targets Clippy
+  `-D warnings`、完整workspace locked/offline测试和locked/offline构建；90工作树与GitHub同步。
+- 结论与已知差异：RS.3.5C为`ready_for_review`，重复Worker防护证据已经闭合。106忽略
+  `name`过滤的差异仍归属Rust Server并保留到RS.7修复/复测；本地fallback只保证当前Rust CLI在
+  该差异下仍能正确解析，不把Server偏差标记为已修复。用户接受本结果后，RS.3可标记为
+  `accepted`，下一步只讨论并冻结RS.4宿主机统一`worker run`联调，不自动授权新的HTTP写入、服务
+  停止或GPU操作。
