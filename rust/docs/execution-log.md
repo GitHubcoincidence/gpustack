@@ -6488,3 +6488,16 @@
   该差异下仍能正确解析，不把Server偏差标记为已修复。用户接受本结果后，RS.3可标记为
   `accepted`，下一步只讨论并冻结RS.4宿主机统一`worker run`联调，不自动授权新的HTTP写入、服务
   停止或GPU操作。
+
+### 2026-11-13：M8-RS.3验收
+
+- 用户验收：用户审阅RS.3.5C的完整Worker清单请求、name+cluster本地精确计数、Worker 16唯一
+  结果、产品兼容修正、质量门和受保护证据后确认没有问题。RS.3.5C及RS.3整体更新为`accepted`。
+- 完成范围：RS.3已经在隔离Cluster 3中完成唯一Worker注册、Worker token身份恢复、heartbeat、
+  完整无GPUstatus、缺失token场景的恢复式注册和重复Worker防护；没有把RS.2.9的ModelFile过滤、
+  Worker name过滤或model_id过滤差异错误提升为兼容通过。
+- 漂移审计：验收只推进既有状态，不修改原GPUStack v2.2.3兼容权威、单功能门粒度、秘密保护或
+  资源隔离规则。106已知过滤差异继续归属Rust Server并保留到RS.7。结论为aligned。
+- 当前停止位置：RS.4尚未冻结或执行。下一步只允许讨论并冻结宿主机统一`worker run`空载联调的
+  Worker身份、端口、maintenance、运行时长、full sync/watch、readiness、停止方法和证据门；本次
+  验收不授权启动Worker、发送新的控制面写入、操作现有模型/容器/GPU或停止任何服务。
