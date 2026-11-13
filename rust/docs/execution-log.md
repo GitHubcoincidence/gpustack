@@ -6144,3 +6144,31 @@
   status/watch，不更新其他Worker字段，不访问Docker/NVML/GPU或启动端口。
 - 漂移审计：该门直接验证原版Worker主循环的heartbeat协议，使用生产Rust Client并保持单接口、秘密
   保护和隔离资源边界；没有把异步状态诊断提升为通过条件。结论为aligned。
+
+### 2026-11-13：M8-RS.3.3 Worker heartbeat完成
+
+- 接口作用：验证RS.3.2确认的Worker token能通过生产Rust Client向106提交一次心跳，并满足原版
+  Worker主循环所依赖的204空响应契约。
+- 请求输入：90服务器在源码HEAD`940dd3d1a5592df634ef5a4cfe73b4ba940bec0e`下，通过实际Rust
+  `ServerClient::heartbeat`只发送一次认证
+  `POST http://10.213.80.106:18091/v2/worker-heartbeat`。记录到的方法为POST、路径无额外query、body
+  精确为`{}`；Worker token由生产`CredentialStore::load`读取，未调用其他接口。
+- 实际响应：HTTP 204、无Content-Type、响应body为0字节；Rust `expect_no_content`完整通过。probe
+  退出0，stderr为空，没有重试或heartbeat后的GET。
+- 原版对照：精确v2.2.3要求认证主体关联Worker，把对应Worker ID加入异步
+  `heartbeat_flush_buffer`后返回204。106的认证、请求外形和空响应与原版一致；由于本门刻意不查询
+  异步刷新结果，只能证明heartbeat已被Server接受，不能据此宣称Worker已变为ready。
+- 只读与秘密审计：`worker-identity.json`和`worker-token`执行前后inode、大小、权限、mtime、链接数
+  和owner完全不变；证据目录对Worker token逐值扫描通过，未记录token值或hash。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs3-worker-heartbeat-20261113T024320Z-4111360`
+  为0700，文件均为0600。脱敏heartbeat summary、probe源码、run identity和持久化审计的SHA-256
+  依次为`2944ccc5839c2ddcfd677b8b11426798fc02800101caf8dfe63ce8d734ad56ce`、
+  `a2218ef7392330d68cc1fd04f64edceb92d6ccd5f90cca7c3606201fb5e93366`、
+  `ab95e5da6267b46f27a476f8c0b3fed32fc2a3d6ce0a00ecb759a7781392e125`和
+  `2a66edd535e23b113fa86a94cb617ce2cb617c6e3d5ed26a09c2242cb0dd4f42`。
+- 边界与判定：RS.3.3为`ready_for_review`。本门没有发送Worker status/watch，没有更新本地身份，
+  没有访问Docker/NVML/GPU或启动端口；Server端仅发生原版heartbeat缓冲写入。
+- 当前停止位置：下一步只允许用户审阅heartbeat结果。接受后，RS.3.4建议用同一Worker token和实际
+  `ServerClient::report_status`发送一次完整但无GPU的`WorkerStatusReport`，验证`POST
+  /v2/worker-status`的204契约和关键状态字段；不在同一门追加GET。
