@@ -5795,3 +5795,46 @@
   RS.5隔离资源阶段验证。本门不访问Docker/NVML，不停止服务，不使用GPU。
 - 当前停止位置：RS.2.9尚未执行。下一步只允许完成凭据、源码和证据目录预检后发出上述一次有效
   watch并离线复核；其他接口和全部写操作继续暂停。
+
+### 2026-11-13：M8-RS.2.9 ModelFile watch联调发现Server过滤差异
+
+- 接口作用：验证Rust Worker按自身Worker ID订阅ModelFile时，106是否只回放归属于该Worker的文件
+  事件；该过滤决定Worker收到的文件准备任务范围，是有效工作流的核心值校验。
+- 请求输入：90服务器在源码HEAD`dfaf4ffc9552d0634f663dec538374ed299f12d6`下，于
+  2026-11-13 09:23:36 CST只发送一次认证
+  `GET http://10.213.80.106:18091/v2/model-files?watch=true&worker_id=13`，携带
+  `Accept: text/event-stream`、无body。Bearer只从0600临时header读取；禁用重试、重定向和wire
+  trace，观察20秒后由客户端超时断开。
+- 实际响应：HTTP 200，`content-type: text/event-stream`、`cache-control: no-cache`和chunked传输；
+  源地址`10.213.80.90`、目标`10.213.80.106:18091`。20.000548秒内收到1,598字节，curl退出28是
+  预定观察窗口结束。流包含3条结构正确的`type=1` CREATED事件，envelope/data ID逐条一致为1、2、3，
+  必需的时间、LoRA、路径数组、来源和状态字段均可供Rust `ModelFilePublic`解码。
+- 过滤失败：请求值为`worker_id=13`，但3条事件的`data.worker_id`分别为13、14、15；仅1条匹配，
+  另外2条违反精确过滤条件。对应状态为`ready`、`ready`、`downloading`，表明106执行了未按
+  `worker_id`收窄的现有ModelFile回放。
+- 原版oracle与归因：精确v2.2.3的`get_model_files`将非空`worker_id`构造成
+  `fields={"worker_id": worker_id}`并传给`ModelFile.streaming`；Rust Client也正确生成相同query。
+  management主体权限较宽不能解释忽略显式资源过滤，因此差异归属106 Rust Server的ModelFile
+  watch查询/初始回放实现，Rust Worker不应删除query或迁就该行为。
+- Worker影响与防线：当前Rust Worker在full sync和CREATED/UPDATED事件应用时都会再次核对
+  `model_file.worker_id == self.worker_id`，异属文件不会进入期望状态。离线执行
+  `control::tests::model_file_events_remove_assignments_moved_to_another_worker`和
+  `control::tests::full_sync_filters_unscoped_model_files_and_rejects_partial_refresh`均为1 passed。
+  因而当前不会误处理14/15的文件，但仍会接收不必要事件、增加revision变更，并暴露同Cluster其他
+  Worker的文件元数据；Server过滤必须按原版修复。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs2-model-file-watch-20261113T012336Z-3805096`
+  为0700，文件均为0600。metadata、headers、原始stream、transfer、events和summary的SHA-256依次为
+  `732fd784e621d0a6aba970fc1958f8a4691faa3de2ec77368e84c975dcda75f6`、
+  `38b64d8ec518bec599093d4ecb2839c433c4830761e65990ceff1430347d60b4`、
+  `ffcd8c88936e710bf40eca6e965d80ab2ad69f8a177b8848fba00f1657d5cc66`、
+  `5e939887e8b32a95bf3d6642e4fe1ee75b2a3a4f90c8328ba2cae21774184240`、
+  `74d7aede1160d102223d205c0804d5b2cca7ccb25d15c61cbe3e250ad8f57c0d`和
+  `e26ba962c5af65c915315c5e5aea0404de947cdfd84483c987a352138fc7d8fe`；凭据扫描通过，临时header已删除。
+- 非评分诊断：正式HTTP后，证据脚本按冻结条件在发现14/15事件时立即退出1，未打印摘要；随后只对
+  已保存原始响应做离线结构校验和封存，没有重复HTTP。该退出是正确的过滤门失败，不是网络或接口
+  可用性失败。
+- 边界与判定：RS.2.9为`ready_for_review_with_confirmed_server_difference`，不是`accepted`。
+  本门没有ModelFile写入、下载或删除，没有访问Docker/NVML、停止服务或使用GPU。
+- 当前停止位置：下一步只允许用户审阅该差异，并决定先交由106 Rust Server按原版修复后复测，或
+  作为已知核心差异暂存并继续下一有效只读接口；在明确裁决前不把RS.2.9记为通过。
