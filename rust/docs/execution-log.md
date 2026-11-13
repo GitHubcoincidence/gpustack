@@ -6230,3 +6230,39 @@
   registration token和持久Server UUID只发送一次恢复式`POST /v2/workers`，在独立恢复目录保存
   返回凭据；必须仍返回Worker 16且Server清单不产生第二条同名/同UUID Worker。为保持单接口粒度，
   本门先验证POST响应身份；重复行清单在后续独立只读门验证。
+
+### 2026-11-13：M8-RS.3.3/3.4补充交付与验收
+
+- 用户指出RS.3.3在界面中缺少单独最终交付。只读复核确认正式heartbeat probe、204空响应、证据、
+  秘密扫描、临时文件清理、结果提交`ec13984417d96e326bec4b4e3f91eff4c01c22a7`及90同步均已完成；
+  中断只发生在聊天最终总结发送前，未重发heartbeat。
+- 用户随后接受补交的RS.3.3说明，并明确表示RS.3.4结果没有问题。RS.3.3和RS.3.4更新为
+  `accepted`，继续RS.3.5；既有证据、接口次数和解释边界不变。
+
+### 2026-11-13：M8-RS.3.5A恢复式注册响应门冻结
+
+- 用户授权：用户接受RS.3.3/3.4后明确同意继续。本门只允许用Cluster 3 registration token对
+  Worker 16发出一次恢复式注册，不允许追加Worker清单或`me`查询。
+- 原版语义：精确v2.2.3按同一Cluster内非空`worker_uuid`查找现有Worker；命中后更新现有行，复用
+  已有SYSTEM principal/API key和Worker token，并返回同一ID/name/UUID。Rust生产恢复路径也要求
+  这三项身份逐项一致后才持久化响应token。
+- 真实实现路径：临时非产品probe使用生产`IdentityRecordStore`从主data dir读取身份，并在初始完全
+  不存在的独立恢复目录原子发布同一identity；使用生产`CredentialStore`读取Cluster registration
+  token和当前Worker token，调用实际`ServerClient::register`，再用生产`CredentialStore`把响应token
+  原子发布到恢复目录并重新读取。probe源码随证据保存后从仓库删除。
+- 请求冻结：只发送一次`POST http://10.213.80.106:18091/v2/workers`。完整`WorkerCreate`沿用RS.3.1
+  空资源输入，但name和worker_uuid强制来自持久身份，即`rust-rs3-worker-90-20261113`和
+  `7fa8e157-cc3e-4b10-958a-c338a3a65a7d`；hostname`r760xa`、IP`10.213.80.90`、ifname
+  `eno8403`、port`21150`、metrics_port`21151`、version`v2.2.3`、空GPU、labels仅
+  `implementation=rust`、cluster_id为空并由注册主体推导Cluster 3。
+- 通过门：HTTP 200；typed响应必须为ID 16、精确name和相同Server UUID，cluster_id为3，返回token
+  非空并与当前生产Worker token相同；恢复目录的identity/token能由生产Store重读并匹配。主data dir
+  两个身份文件元数据不变。成功后仅逐文件unlink恢复目录中的两个已知文件并逐级rmdir，不留额外
+  token副本；失败则不重试、不清理恢复目录，以保存唯一可用的新凭据和诊断锚点。
+- 秘密与证据：token值/hash不得进入聊天、Git、参数或证据；证据逐值扫描Cluster registration
+  token、当前Worker token和响应token。只输出响应身份、token等值布尔值、文件元数据和哈希。
+- 停止边界：本门不调用version、Worker list、`me`、heartbeat/status/watch，不访问Docker/NVML/GPU
+  或启动端口。POST通过仍只能证明响应复用了Worker 16；“Server中恰好一条匹配记录”留到RS.3.5B
+  独立只读清单门。
+- 漂移审计：该门直接覆盖RS.3冻结的身份恢复/重复Worker防护，使用原版UUID匹配和Rust生产Store，
+  不放宽身份等值或合并后续清单验证。结论为aligned。
