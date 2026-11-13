@@ -6528,3 +6528,30 @@
   Worker本地端点或进入RS.4.1。
 - 漂移审计：该门只为RS.4真实启动确认可归因基线，沿用原v2.2.3权威、隔离Cluster、单功能门和既有
   身份；GPU活动降为只观测符合空载阶段范围，不放宽后续RS.6 GPU0排他门。结论为aligned。
+
+### 2026-11-13：M8-RS.4.0只读预检attempt 1因Server版本漂移停止
+
+- 执行与结果：90服务器在冻结HEAD`a6600ba1b92324ccee0406f00e867a458f31fa06`执行只读attempt 1。
+  本地/GitHub/90源码同步且工作树干净，Rust 1.99.1、四个身份/凭据文件、持久Worker 16身份、预留
+  日志路径、21150/21151空闲、无目标进程、Docker socket、双GPU枚举、Python Server/Worker、106
+  health及全部认证清单读取均通过。
+- 资源基线：完整清单本地过滤确认Worker 16在Cluster 3恰好一项，Worker 15恰好一项；Cluster 3的
+  Model、ModelInstance和Worker 16 ModelFile均为0。Worker 16保持`not_ready`、maintenance为空、
+  最后heartbeat为既有历史值；GPU0空闲，GPU1约使用41,575 MiB。没有启动Worker、创建日志目录、
+  更新maintenance或执行容器/GPU生命周期操作。
+- harness诊断：attempt脚本错误地以`127.0.0.1:20150/20151`检查Worker 15，三个curl返回000；已有
+  `ss`证据和补充只读检查确认进程PID 1113114实际绑定冻结Worker IP
+  `10.213.80.90:20150/20151`，health、ready和metrics均为200，106 heartbeat新鲜且状态ready。
+  因此该项是预检地址输入错误，不是Worker 15或产品故障；后续脚本必须使用冻结Worker IP。
+- 实际阻断：106 `/version`仍返回`version=v2.2.3`、`implementation=rust`和
+  `build_version=0.1.0`，但`git_commit`已从此前目标`1cfcbbf`变化为`b51893c`。该外部Server源码
+  身份漂移尚未获得用户确认，不能在观察结果后静默改写冻结输入；attempt固定为非评分`STOP`，不以
+  其他门通过覆盖版本阻断。
+- 证据与安全：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs4-preflight-20261113T085040Z`为0700，
+  文件均为0600，清单复核通过，三个token逐值扫描无命中；`SHA256SUMS`自身SHA-256为
+  `a4e717bf803c313eb4f7c3b6c878e760d896ac967dbec7fdb6c39eff3ec26d97`。补充post-audit只访问Worker
+  15的正确本地地址，没有重复106请求或外部写入。
+- 当前停止位置：RS.4.0未通过。下一步必须由用户确认是否把106 commit`b51893c`冻结为RS.4目标，
+  并把Worker 15健康地址纠正为`10.213.80.90`；确认后先更新门，再运行全新只读attempt 2。不得直接
+  进入RS.4.1、maintenance写入或Worker启动。
