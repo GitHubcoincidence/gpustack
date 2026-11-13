@@ -6301,3 +6301,27 @@
 - 当前停止位置：用户接受后，RS.3.5B只发送一次认证Worker清单GET，以精确name和cluster_id统计
   匹配项；必须恰好一项且ID为16。该只读门通过后RS.3可完成，随后再单独讨论/授权RS.4宿主机统一
   `worker run`空载联调。
+
+### 2026-11-13：M8-RS.3.5B重复Worker只读清单门冻结
+
+- 用户授权：用户审阅RS.3.5A的同ID/name/UUID/token恢复响应、生产Store和秘密清理结果后明确同意
+  继续；RS.3.5A更新为`accepted`。本门只允许一次认证Worker清单GET，不再注册或修改资源。
+- 查询与凭据：使用生产Rust `ServerClient::list_workers_by_name`和106专用短期0600 management密钥，
+  只发送一次
+  `GET http://10.213.80.106:18091/v2/workers?page=-1&name=rust-rs3-worker-90-20261113`，无body、无重试、
+  无后续GET。不得使用Cluster registration token或Worker token。
+- 原版语义：精确v2.2.3把非空`name`放入exact `fields`，只有`search`才是模糊过滤；同时Worker创建
+  对名称执行全局冲突检查。`WorkerPublic`按规范不公开UUID，因此本门以精确name结果数、ID和
+  cluster_id验证重复行，UUID复用继续由RS.3.5A typed注册响应证明。
+- 通过门：HTTP 200且typed `Paginated<WorkerPublic>`的items恰好一项、pagination.total为1；唯一项
+  name精确一致、ID 16、cluster_id 3、labels仅`implementation=rust`、version`v2.2.3`，公开对象
+  不含token/secret/password字段。state只作观察，不作为空载在线结论。
+- 秘密与证据：management密钥由生产`CredentialStore::load`读取，值/hash不得进入参数、聊天、Git
+  或证据；逐值证据扫描必须通过，密钥文件元数据执行前后不变。
+- 失败与停止：认证、decode、响应数量、pagination或身份不一致立即停止且不重试。成功后同样停止，
+  不调用`me`/heartbeat/status/watch，不删除Worker/Cluster/凭据，不访问Docker/NVML/GPU或启动端口。
+- 阶段判定：本门通过并经用户审阅后，RS.3的注册、`me`、heartbeat/status、凭据恢复和重复Worker
+  防护全部完成；进入RS.4宿主机统一`worker run`前必须另行讨论运行时长、maintenance、真实资源、
+  端口、readiness、full sync/watch和安全停止方案。
+- 漂移审计：该门只补齐RS.3.5A刻意拆出的只读唯一性证明，沿用原版精确过滤和短期管理凭据，不把
+  公开列表缺少UUID误判为缺陷，也不提前启动RS.4。结论为aligned。
