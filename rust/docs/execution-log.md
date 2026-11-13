@@ -5905,3 +5905,34 @@
   也不删除刚创建的Cluster。后续每个写入或秘密读取继续单独授权。
 - 漂移审计：本动作只建立RS.3已冻结的隔离Cluster，不复用现有资源、不扩大GPU或服务权限，兼容
   oracle和差异归属规则不变；结论为aligned。
+
+### 2026-11-13：M8-RS.3.0B隔离测试Cluster创建完成
+
+- 接口作用：为后续registration token、Worker注册、`me`和状态协议提供不承载既有任务的唯一隔离
+  Cluster；本门本身不验证Worker运行时协议。
+- 请求输入：90服务器在源码HEAD`9316337c80ce0b729e2299a54d095ac26379bb48`下，于
+  2026-11-13 09:50:33 CST只发送一次认证`POST http://10.213.80.106:18091/v2/clusters`。JSON
+  body只含名称`rust-worker-rs3-90-20261113`、隔离用途说明和`provider="Docker"`；使用0600
+  management header，无重试、重定向和wire trace。
+- 实际响应：curl退出0，HTTP 200、`content-type: application/json`。106创建Cluster ID 3，名称和
+  description逐字一致，`provider=Docker`、`state=ready`、`is_default=false`、
+  `owner_principal_id=1`、`system_principal_id=21`；创建/更新时间为
+  `2026-11-13T01:50:34Z`。响应没有`token`或`registration_token`字段。
+- 原版对照：原v2.2.3同一路由创建Docker Cluster、对应SYSTEM principal和注册凭据，但
+  `ClusterPublic`响应不返回注册秘密。106的核心创建语义、状态和秘密边界与原版一致；RS.3.0A已知
+  的Cluster汇总字段缺失不影响本门身份和回滚边界。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs3-create-cluster-20261113T015033Z-3903013`
+  为0700，文件均为0600。request、metadata、headers、body、transfer和summary的SHA-256依次为
+  `7dd86216cdf9e6176f8b2d39b265c67d256ed14581666a8db5fb13233badab75`、
+  `9ebd3ff338801465c7f54866b38e3016b414c5cf6f9ede1688e2341389e080c6`、
+  `d8f9a9246e70b6d53b71257e2e6badbba7ce7cc3d53917370185bf47e1752234`、
+  `22a249f7ebab78b42a33cd173ca2cda9390b097e5ba3f29652e53c92ca13d36a`、
+  `faa178d8fa2086bdf979c1e9e05f160d6e15fa64c714054980a27ad9ab1b55b4`和
+  `6c9ff4848685be49c6051933df93b27cf7d0892e5d2729b82b7b94a54c5523ad`；凭据扫描通过，临时header已删除。
+- 边界与判定：RS.3.0B为`ready_for_review`。只新增Cluster 3及Server内部配套SYSTEM principal/
+  API key；没有读取registration token、创建Worker、访问Docker/NVML、停止服务或使用GPU。Cluster 3
+  是后续唯一允许使用和最终精确删除的RS.3测试Cluster。
+- 当前停止位置：下一步只允许用户审阅创建结果。接受后，RS.3.0C建议只调用一次
+  `GET /v2/clusters/3/registration-token`，将返回token直接原子保存到90服务器0600受保护文件；
+  原始含密响应不进入Git、聊天或长期证据，不注册Worker。该秘密读取仍需单独明确授权。
