@@ -6393,3 +6393,26 @@
 - 边界与停止：本诊断只执行健康、metrics、Docker/GPU现场和Server GET；没有更新Worker标签、重启
   Worker、重新部署/删除模型、创建/停止容器或占用GPU。修复方案与现有Instance 8的安全复测步骤须经
   用户确认后另行实施，RS.3.5C在此期间保持暂停。
+
+### 2026-11-13：Rust Worker内建worker-name注册标签修复
+
+- 目的与范围：用户接受pending根因诊断后，先修复本项目可控的Rust Worker新注册wire，不混入106
+  Server实现、现存Worker 15数据修复、Worker重启或Instance 8复测。兼容权威继续为原GPUStack
+  v2.2.3，未修改身份恢复、状态机、readiness、watch、Managed runtime或容器契约。
+- 实现：`WorkerProfile::registration_request`保留`implementation=rust`，并从同一冻结
+  `worker_name`配置生成内建`worker-name=<name>`标签。既有资源/readiness单测更新为同时断言
+  `implementation=rust`和`worker-name=rust-worker`，未加入与逻辑无关的注释或重构。
+- 原版对照：原Python Worker在注册时通过`_ensure_builtin_labels`发送`worker-name`；CLI
+  `model deploy --worker`生成相同键的worker selector。修复后新Worker注册请求可直接满足原版严格
+  `LabelMatchingFilter`，不再依赖Server补偿才能匹配显式Worker选择。
+- 验证：90服务器在提交`2737515153c26006d67245d64b712dd0a902b0f9`上使用Rust 1.99.1和
+  `--locked --offline`执行。精确目标单测实际运行1项并通过；完整workspace共237项测试全部通过，
+  rustfmt check、全workspace/all-targets Clippy `-D warnings`和locked/offline build通过。
+  `run.rs` SHA-256为`28ff79fa6f97568833c8370ec1af1111540cf1f1d7ac0f72a8b69d1ab0ec5e92`。
+- 限制与归因：已持久identity和Worker token的正常启动走`IdentityBootstrap::restore`，只调用`me`
+  验证身份，不重新发送`WorkerCreate`。因此当前运行中的Worker 15不会因源码修复自动获得标签，
+  Instance 8也不能据此记为恢复；106仍需按原Server行为在注册端强制写入最终`worker-name`，以覆盖
+  Server重命名和非规范客户端。
+- 状态与下一步：Rust Worker产品修复为`ready_for_review`。下一步须单独冻结现有Worker 15的最小
+  标签修复和复测方案；任何106 PUT、重新注册、重启Worker、重新调度、容器或GPU操作均未由本次离线
+  实现授权。RS.3.5C继续暂停。
