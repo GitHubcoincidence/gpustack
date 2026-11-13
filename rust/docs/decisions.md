@@ -1373,3 +1373,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D281 | RS.4.1 maintenance安全屏障验收 | 用户审阅唯一PUT的作用、完整请求、HTTP 200响应、异步`not_ready`到`maintenance`收敛、字段保留、零隔离资源、现有服务健康以及证据权限与秘密扫描后确认没有问题；RS.4.1更新为`accepted`，Worker 16继续保持固定maintenance | 已生效maintenance是RS.4.2空载启动的必要调度屏障。验收只确认该屏障，不授权启动Worker、关闭maintenance、停止Python Worker或操作Docker/GPU。 |
+
+## 2026-11-13 M8-RS.4.2统一Worker空载方案冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D282 | 生产`worker run`空载验证门 | 从冻结HEAD重新构建精确二进制，以Worker 16既有身份、21150/21151、`m8rs3`数据目录和`m8rs4/logs`运行约130秒；maintenance全程保持。验证七项本地readiness、heartbeat/status/full sync/watch、双GPU资源和空desired状态，允许只创建生产runtime私有目录/锁文件，不允许容器或reconciliation；SIGINT后15秒内退出并通过零残留审计 | 130秒覆盖控制循环、周期full sync和watch idle边界。把本地`readyz`健康与Server maintenance调度隔离同时验证，可以证明统一生产生命周期可运行而不会把空载测试变成模型部署。失败始终保留maintenance并只清理精确进程。 |

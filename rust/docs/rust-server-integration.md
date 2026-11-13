@@ -51,6 +51,26 @@ Worker快照构造完整`WorkerUpdate`，原样保留name和全部labels，只�
 只有能证明本次写入所有权且不会覆盖并发更新时才允许恢复原maintenance。本门不启动Worker、不停止
 Python Worker，也不调用Docker/NVML或使用GPU。方案冻结不构成真实写入授权。
 
+### RS.4.2 统一Worker空载运行
+
+RS.4.2只使用普通生产入口`worker run`恢复Worker 16，固定Server、名称、宿主机身份、21150/21151、
+Cluster registration token、既有`m8rs3`数据目录、`m8rs4/logs`日志目录、本地模型根和Docker socket。
+二进制必须从冻结后同步且干净的HEAD用Rust 1.99.1和locked/offline依赖重新构建，并核对内嵌commit、
+SHA-256和Cargo.lock。启动前须再次确认maintenance精确保持、隔离资源为零、目标端口/进程不存在及
+现有服务健康；GPU活动只观测，不要求排他。
+
+运行窗口固定约130秒，覆盖至少四轮30秒heartbeat/status、初始和多轮30秒full sync、两个45秒
+watch idle边界及多轮10秒资源刷新。Worker本地`/readyz=200`表示resources、Docker、Worker API、
+metrics、identity、full sync和runtime七项门健康；Server仍须保持`state=maintenance`，两者不能混为
+调度就绪。health、version、认证、metrics、双A100资源、heartbeat推进、三类watch和零desired资源
+必须通过；不得出现Managed reconciliation或Docker容器集合变化。
+
+空载生产runtime允许创建私有`lab.lock`、`managed.lock`、`manifests/`、`cache/`和`logs/serve/`，但
+manifests、实例cache和模型日志必须为空。结束时只向精确PID发送SIGINT，15秒内优雅退出并输出零
+desired/零reconciliation、control health全通过且watch reconnect为0的JSON总结；随后端口和进程必须
+消失，maintenance继续保留。失败时先停止精确PID，不关闭maintenance、不删除身份或数据目录、不
+操作容器/GPU，也不自动重试。方案冻结不授权构建、启动或任何运行时操作。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；

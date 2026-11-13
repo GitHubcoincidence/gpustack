@@ -6699,3 +6699,32 @@
 - 当前停止位置：下一步只允许讨论并冻结RS.4.2统一`worker run`空载启动的源码/二进制身份、命令
   参数、运行时长、health/metrics/readiness、full sync/watch、heartbeat、优雅停止、证据和失败回滚。
   本次验收不授权启动Worker、关闭maintenance、停止Python Worker或操作Docker/GPU。
+
+### 2026-11-13：M8-RS.4.2统一Worker空载运行方案冻结
+
+- 固定入口与身份：只使用普通生产`worker run`，不恢复任何阶段模式。目标继续为106、Cluster 3、
+  Worker 16、`rust-rs3-worker-90-20261113`、`r760xa/10.213.80.90/eno8403`和21150/21151；token、
+  data、log、model root和Docker socket路径按RS.4既有约束固定。
+- 构建门：执行前在同步且干净的冻结HEAD上用Rust 1.99.1、`Cargo.lock`及offline依赖运行完整质量门并
+  重新构建精确debug二进制，记录内嵌commit、binary/Cargo.lock SHA-256。若内嵌commit不匹配则停止，
+  只允许清理该package构建产物后重建，不能使用PATH中的未知旧二进制。
+- 前置门：Worker 16须唯一、maintenance及message精确保持；Cluster 3 Model/ModelInstance和Worker
+  16 ModelFile仍为0；目标端口/进程不存在，现有Python Server/Worker和Worker 15端点健康。GPU仅
+  观测，不以空闲为门；Worker生产runtime会连接Docker socket并查询daemon，但不得调用容器生命周期。
+- 运行门：固定约130秒，覆盖至少四轮heartbeat/status、初始和多轮周期full sync、两个watch idle
+  边界和多轮资源刷新。本地health、version、token auth、无凭据401、metrics及最终`readyz=200`通过；
+  metrics的ready/heartbeat/status和三类watch均为1。Server侧须保持同一Worker、maintenance、
+  `unreachable=false`，heartbeat前进并上报两张A100及metrics port 21151。
+- 空载与本地写边界：desired Model/ModelInstance/ModelFile始终为0，文件和runtime reconciliation均
+  不得发生，Docker容器集合不得变化。允许首次创建`lab/lab.lock`、`managed/managed.lock`、空
+  `managed/manifests`、空`managed/cache`和`m8rs4/logs/serve`；不得出现manifest、实例cache或模型日志。
+- 停止与失败：到时只向精确PID发送SIGINT，15秒内退出0并输出identity persisted、三类desired为0、
+  全部reconciliation为0、heartbeat/status/full-sync/watch成功且reconnect为0的JSON总结。任何门失败
+  先停止精确PID，必要时才升级同一PID信号；maintenance保持，不删除身份/数据、不操作现有容器/GPU，
+  不自动重试。
+- 标签边界：Worker 16历史标签仍只有`implementation=rust`。RS.4.2不依赖调度且不得顺带补写
+  `worker-name`；进入后续模型调度前另设小门处理。
+- 漂移审计：统一生产入口、既有隔离身份、v2.2.3权威和空载非GPU目标均未改变；显式披露Docker
+  daemon只读初始化及预期私有目录写入，结论为aligned。
+- 状态与停止：RS.4.2为`frozen_not_executed`。本次确认只冻结方案，不授权构建、启动Worker、停止
+  Python Worker、关闭maintenance或执行Docker/GPU生命周期；下一步须取得单独正式执行授权。
