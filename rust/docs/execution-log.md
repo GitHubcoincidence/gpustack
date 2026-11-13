@@ -6639,3 +6639,25 @@
   Docker/NVML或使用GPU，结论为aligned。
 - 当前停止位置：下一步只允许讨论并冻结RS.4.1的maintenance安全边界、写入对象、前后快照、回滚和
   停止条件。该验收本身不授权更新106、启动宿主机Worker或进入RS.4.2。
+
+### 2026-11-13：M8-RS.4.1 maintenance安全屏障方案冻结
+
+- 目的：在统一`worker run`开始上报真实资源和ready状态前，为Cluster 3的Worker 16建立明确的
+  Server调度隔离；`not_ready`历史状态不代替长期maintenance屏障。
+- 固定目标：唯一写入对象为Worker ID 16、name`rust-rs3-worker-90-20261113`、Cluster 3。写入前
+  重新确认该身份唯一、21150/21151空闲、无目标进程、Cluster 3无Model/ModelInstance且Worker 16无
+  ModelFile；Python Worker、Worker 15和其他任务保持在线，GPU活动只记录。
+- 请求契约：只发送一次完整`PUT /v2/workers/16`。请求从即时Worker快照生成，原样保留name和全部
+  labels，只将maintenance设为`enabled=true`，message固定为
+  `M8-RS.4 empty-run safety barrier`。本门不补写缺失的`worker-name`标签，避免把独立兼容问题混入
+  maintenance验证。
+- 通过门：响应和随后GET均保持ID、Cluster、name及labels不变，maintenance精确启用；隔离资源仍为
+  零，现有服务、进程、端口、容器和GPU workload无新增。本阶段成功后保留maintenance，供RS.4.2
+  启动Worker时继续作为安全屏障。
+- 失败与回滚：超时或响应不明确时先GET判定实际状态，禁止盲重试；身份、name或labels发生并发变化
+  即停止。已经生效的maintenance默认保留；仅在能证明本次写入所有权且恢复不会覆盖并发修改时才
+  允许恢复写入前maintenance。证据继续使用唯一0700目录、0600文件和secret逐值无命中门。
+- 漂移审计：该方案服务于RS.4空载联调，不改变v2.2.3 oracle、Worker 16身份、现有服务或后续GPU
+  排他规则；将maintenance写入与Worker启动分开授权，结论为aligned。
+- 状态与停止：RS.4.1为`frozen_not_executed`。本次用户确认只冻结方案，不授权真实PUT、启动Worker、
+  停止Python Worker、调用Docker/NVML或进入RS.4.2；下一步须单独取得RS.4.1执行授权。

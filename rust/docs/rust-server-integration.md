@@ -37,6 +37,20 @@ commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`始终保留为协议和行为�
 
 RS.2及以后分别需要明确授权。RS.6还必须取得停止并恢复精确Python Worker的维护窗口授权。
 
+### RS.4.1 maintenance安全屏障
+
+RS.4.1在统一Worker首次空载启动前，只对Cluster 3中唯一Worker ID 16执行一次完整
+`PUT /v2/workers/16`。写入前重新确认身份唯一、21150/21151空闲、目标进程不存在、Cluster 3无
+Model/ModelInstance且Worker 16无ModelFile；现有Python Worker和其他任务保持在线。请求从即时
+Worker快照构造完整`WorkerUpdate`，原样保留name和全部labels，只把maintenance设为
+`enabled=true`，message固定为`M8-RS.4 empty-run safety barrier`。
+
+响应和随后GET必须确认ID、Cluster、name和labels未变，maintenance精确启用且隔离资源计数仍为零。
+超时或响应不明确时先GET判定实际状态，禁止盲目重试PUT；发现并发身份或标签变化立即停止。成功后
+保留maintenance作为RS.4.2启动安全屏障，不在本门自动恢复；失败时也优先保留已经生效的安全状态，
+只有能证明本次写入所有权且不会覆盖并发更新时才允许恢复原maintenance。本门不启动Worker、不停止
+Python Worker，也不调用Docker/NVML或使用GPU。方案冻结不构成真实写入授权。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；

@@ -1355,3 +1355,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D278 | 统一版本门实现及RS.4.0只读预检验收 | 用户审阅版本唯一硬门的运行语义、三条identity bootstrap路径、错误版本fail-closed、实际Server诊断字段、OpenAPI同步、239项测试和三方Git状态后明确确认没有问题；D277产品实现与RS.4.0 attempt 2均更新为`accepted` | 实现与冻结决策一致，完整质量门通过，RS.4.0已证明身份、端口、凭据、隔离资源和现有服务基线满足下一阶段讨论条件。验收不授权maintenance写入、Worker启动、Docker/GPU操作或直接进入RS.4.2。 |
+
+## 2026-11-13 M8-RS.4.1 maintenance安全边界冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D279 | Worker 16空载启动前maintenance屏障 | 在重新通过最小只读门后，只对Cluster 3中唯一Worker ID 16发送一次完整PUT；请求保留即时name和全部labels，仅设置`maintenance.enabled=true`及固定message。成功后保持maintenance供RS.4.2使用；请求结果不明确时先GET且不盲重试，发现并发字段变化立即停止，只有能够证明本次写入所有权且不会覆盖并发更新时才允许恢复原maintenance | 显式maintenance是Worker开始上报真实GPU和ready状态前的Server调度屏障。把屏障写入与Worker启动拆成两个授权门，可在没有进程、容器或GPU副作用时先证明完整PUT字段保留和隔离有效；保留安全状态比失败后无条件关闭maintenance更稳妥。 |
