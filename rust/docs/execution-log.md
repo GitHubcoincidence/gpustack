@@ -6124,3 +6124,23 @@
 - 当前停止位置：下一步只允许用户审阅身份恢复结果。接受后，RS.3.3建议使用同一Worker token只发送
   一次`POST /v2/worker-heartbeat`，验证204和Server心跳语义；状态重新计算是否即时发生应按原版
   异步刷新机制解释，不在同一门追加GET。
+
+### 2026-11-13：M8-RS.3.3 Worker heartbeat门冻结
+
+- 用户授权：用户审阅RS.3.2的token身份绑定、原版公开字段对照、`not_ready`原因和下一接口边界后
+  明确同意继续。本授权只允许Worker 16发送一次heartbeat。
+- 真实实现路径：临时非产品probe只捕获脱敏HTTP元数据；Worker token必须由生产
+  `CredentialStore::load`读取，请求必须调用实际Rust `ServerClient::heartbeat`和
+  `ReqwestTransport`。probe源码随证据保存并从仓库删除。
+- 请求冻结：只发送一次认证`POST http://10.213.80.106:18091/v2/worker-heartbeat`，body为Rust
+  Client固定生成的`{}`、`Content-Type: application/json`。不使用registration/management凭据，
+  不重试，不发送`me`、status或任何后续GET。
+- 通过门：Server返回HTTP 204且响应body为空，Rust `expect_no_content`成功；生产identity/token文件
+  执行前后不变，证据不含Worker token。204只证明认证主体已被接受且heartbeat已进入Server处理，
+  不宣称Worker state已同步转为ready。
+- 原版语义：精确v2.2.3先要求认证主体关联Worker，把Worker ID加入异步
+  `heartbeat_flush_buffer`后立即返回204；因此本门不追加查询，也不以数据库刷新时点作为成败条件。
+- 失败与停止：非204、非空body、认证或transport失败立即停止且不重试。成功后同样停止；不发送完整
+  status/watch，不更新其他Worker字段，不访问Docker/NVML/GPU或启动端口。
+- 漂移审计：该门直接验证原版Worker主循环的heartbeat协议，使用生产Rust Client并保持单接口、秘密
+  保护和隔离资源边界；没有把异步状态诊断提升为通过条件。结论为aligned。
