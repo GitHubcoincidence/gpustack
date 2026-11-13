@@ -6501,3 +6501,30 @@
 - 当前停止位置：RS.4尚未冻结或执行。下一步只允许讨论并冻结宿主机统一`worker run`空载联调的
   Worker身份、端口、maintenance、运行时长、full sync/watch、readiness、停止方法和证据门；本次
   验收不授权启动Worker、发送新的控制面写入、操作现有模型/容器/GPU或停止任何服务。
+
+### 2026-11-13：M8-RS.4.0宿主机统一Worker只读预检门冻结
+
+- 用户决定：用户接受RS.4按“只读预检、安全运行边界、统一Worker启动、空载稳定性、优雅停止与
+  事后审计”顺序推进，并明确同意先执行RS.4.0。本门只授权只读检查，不授权后续maintenance写入
+  或Worker启动。
+- 固定身份：目标继续使用Cluster 3、Worker ID 16、名称`rust-rs3-worker-90-20261113`、Server
+  `http://10.213.80.106:18091/`、宿主机`r760xa/10.213.80.90/eno8403`和端口21150/21151。生产身份
+  目录固定为`/home/wujiaxing2/.local/state/gpustack-rust-worker/m8rs3/managed`，Cluster注册凭据固定
+  为`/home/wujiaxing2/.config/gpustack-rust/m8rs3-cluster-3-registration-token`；不得输出任何token值。
+- 允许动作：核对本地、GitHub和90源码HEAD/工作树及Rust工具链；只读检查身份/凭据文件元数据和
+  非秘密字段；检查目标端口/进程、Docker socket、现有容器和GPU快照；读取106 health/version、
+  完整Worker/Model/ModelInstance/ModelFile清单后在本地按Cluster 3或Worker 16过滤。由于106已确认
+  忽略部分过滤query，任何Server端过滤响应都不能代替本地精确计数。
+- 通过门：三方Git同步且90工作树干净；身份和两个凭据文件均为0600、单链接、普通文件且owner正确；
+  持久identity精确指向Worker 16/Cluster 3/权威UUID；21150/21151无监听且没有目标Worker进程；106
+  health/version正确且完整清单中目标Worker恰好一项；Cluster 3不存在Model/ModelInstance，Worker
+  16不存在ModelFile；Docker socket可读写访问但不调用生命周期操作；现有Python Worker、Worker 15
+  和其他任务保持在线。GPU活动只记录，不作为空载Worker预检失败门，因为RS.4不部署模型或取得GPU
+  排他权。
+- 证据门：所有原始响应和现场快照进入90服务器唯一0700证据目录，文件0600；管理、registration和
+  persisted Worker token逐值扫描不得命中；只输出安全摘要、文件元数据、哈希和本地过滤计数。
+- 停止条件：任一身份、资源、端口、清单、服务或秘密门失败即以`STOP`结束，且不重试写操作。通过后
+  同样停止并提交`ready_for_review`结果；不得顺带启用maintenance、创建日志目录、启动Worker、访问
+  Worker本地端点或进入RS.4.1。
+- 漂移审计：该门只为RS.4真实启动确认可归因基线，沿用原v2.2.3权威、隔离Cluster、单功能门和既有
+  身份；GPU活动降为只观测符合空载阶段范围，不放宽后续RS.6 GPU0排他门。结论为aligned。
