@@ -6195,3 +6195,38 @@
   停止；不发送`me`/heartbeat/watch，不访问Docker/NVML/GPU，不启动端口。
 - 漂移审计：该门验证原版Worker主循环的完整状态上报协议，同时明确合成零资源输入的证据边界，未将
   其提升为资源采集结论；单接口、oracle、秘密保护和隔离边界不变。结论为aligned。
+
+### 2026-11-13：M8-RS.3.4完整无GPU Worker status完成
+
+- 接口作用：验证生产Rust Client能把完整`WorkerStatusReport`编码并通过Worker token提交给106，且
+  满足原版Worker控制循环依赖的204空响应契约。
+- 请求输入：90服务器在源码HEAD`bdf51bdba06a399c7612ee3f4b73f11ba48868f0`下，通过实际Rust
+  `ServerClient::report_status`只发送一次认证
+  `POST http://10.213.80.106:18091/v2/worker-status`。typed body与冻结JSON完全一致：hostname
+  `r760xa`、ifname`eno8403`、IP`10.213.80.90`、port`21150`、metrics_port`21151`、
+  proxy_mode`worker`和Server UUID`7fa8e157-cc3e-4b10-958a-c338a3a65a7d`；status的cpu、
+  filesystem、gpu_devices、kernel、memory、os、rpc_servers、swap、uptime九个键全部存在，GPU与
+  filesystem数组为空。
+- 实际响应：HTTP 204、无Content-Type、响应body为0字节；Rust `expect_no_content`完整通过，probe
+  退出0且stderr为空。没有重试、后续GET、单独heartbeat或其他接口调用。
+- 原版对照：精确v2.2.3验证Worker认证主体后，把请求中显式字段连同新的heartbeat_time写入异步
+  `worker_status_flush_buffer`并立即返回204。106的认证、完整请求接收和空响应语义与原版一致；本门
+  不以异步数据库刷新时间或后续state值作为成败条件。
+- 输入边界：该状态是v2.2.3 fixture派生的合成空资源协议输入，只证明完整wire schema可用；它不证明
+  90的真实CPU、内存、磁盘、NVML、两张A100或资源采集实现正确，也不作为后续调度容量证据。
+- 只读与秘密审计：`worker-identity.json`和`worker-token`执行前后inode、大小、权限、mtime、链接数
+  和owner完全不变；证据目录对Worker token逐值扫描通过，未记录token值或hash。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs3-worker-status-20261113T025030Z-4140632`
+  为0700，文件均为0600。request、脱敏summary、probe源码、run identity和持久化审计的SHA-256
+  依次为`d229bd32ed4d64d102d443ed36d5e467e65033081d7a77a83c70bd0f3a0e56ef`、
+  `08d09235bda120e0497110f35d5f78f19ab2f92737705807beeac84d87eb1db0`、
+  `bd739ad2b8631f0d8255a41bfd1ff515c6756244c270ff4f51577565d1ec8a48`、
+  `6e573dffce89f3f6d106aa0b409fd1216c55d49a83dd20d5c18b0646a4fcd6ca`和
+  `2a66edd535e23b113fa86a94cb617ce2cb617c6e3d5ed26a09c2242cb0dd4f42`。
+- 边界与判定：RS.3.4为`ready_for_review`。Server端仅发生原版状态缓冲写入；没有启动完整Worker、
+  watch、Docker、NVML、GPU或监听端口。Worker 16、Cluster 3和生产身份继续保留。
+- 当前停止位置：RS.3仍剩重复Worker防护/注册恢复语义。用户接受本门后，RS.3.5建议用Cluster 3
+  registration token和持久Server UUID只发送一次恢复式`POST /v2/workers`，在独立恢复目录保存
+  返回凭据；必须仍返回Worker 16且Server清单不产生第二条同名/同UUID Worker。为保持单接口粒度，
+  本门先验证POST响应身份；重复行清单在后续独立只读门验证。
