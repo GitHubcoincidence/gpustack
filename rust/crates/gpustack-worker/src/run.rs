@@ -11,7 +11,8 @@ use std::time::Duration;
 
 use gpustack_client::http::{ReqwestTransport, TransportError};
 use gpustack_client::types::{
-    ProxyMode, SystemReserved, WorkerCreate, WorkerPublic, WorkerStatusReport,
+    ProxyMode, SERVER_BASELINE_VERSION, SystemReserved, WorkerCreate, WorkerPublic,
+    WorkerStatusReport,
 };
 use gpustack_client::{ClientError, ServerClient};
 use serde::Serialize;
