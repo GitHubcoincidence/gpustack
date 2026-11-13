@@ -5775,3 +5775,23 @@
   Docker、NVML、服务停止或GPU使用。
 - 当前停止位置：下一步只允许用户审阅RS.2.8。接受后再讨论ModelFile watch；该接口需要有效
   `worker_id`过滤，必须先选定不造成写入或跨Cluster误读的验证输入。
+
+### 2026-11-13：M8-RS.2.8验收与RS.2.9 ModelFile watch冻结
+
+- 用户验收：用户审阅ModelInstance watch的有效请求、HTTP 200、SSE媒体类型、20秒观察窗口内的
+  空行keepalive及未覆盖边界后确认无问题；RS.2.8更新为`accepted`。提交
+  `aee9603e518d1ec81baf939655000d6b6410819a`和对应受保护证据目录支持该结论。
+- 下一门作用：RS.2.9只验证Rust Worker真实使用的
+  `GET /v2/model-files?watch=true&worker_id=13`能建立`text/event-stream`，并返回该Worker现有
+  ModelFile事件或空keepalive；不创建、下载、更新或删除ModelFile。
+- 过滤输入：`worker_id=13`来自RS.2.4已保存的认证Worker列表证据，对应106现有Worker `.106`；该
+  正整数与Rust Client在注册后传入自身Worker ID的请求形状一致。management主体权限较宽，因此精确
+  过滤只限制本次请求结果，不能替代后续Worker system principal的Cluster范围验证。
+- 输入与通过门：复用106专用短期management密钥、`Accept: text/event-stream`和20秒单次观察窗口，
+  禁用重试、重定向和wire trace。若存在事件，要求数字事件类型、envelope/data ID一致、
+  `data.worker_id=13`，并具备Rust `ModelFilePublic`需要的身份、来源、状态、路径和进度字段；没有可见
+  文件时，HTTP 200、SSE媒体类型及空keepalive即可通过传输门。
+- 边界：空闲流不能证明ModelFile事件字段、ID-only delete、实时更新、完整PUT或状态所有权；这些仍在
+  RS.5隔离资源阶段验证。本门不访问Docker/NVML，不停止服务，不使用GPU。
+- 当前停止位置：RS.2.9尚未执行。下一步只允许完成凭据、源码和证据目录预检后发出上述一次有效
+  watch并离线复核；其他接口和全部写操作继续暂停。
