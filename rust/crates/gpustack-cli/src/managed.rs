@@ -806,7 +806,7 @@ async fn resolve_worker<T: Transport>(
         return client.get_worker(token, id).await.map_err(Into::into);
     }
     let exact: Vec<WorkerPublic> = client
-        .list_workers_by_name(token, selector)
+        .list_workers(token)
         .await?
         .items
         .into_iter()
@@ -2066,7 +2066,7 @@ mod tests {
         assert_eq!(requests.len(), 2);
         assert_eq!(
             requests[0].url.as_str(),
-            "http://127.0.0.1/base/v2/workers?page=-1&name=rust-worker"
+            "http://127.0.0.1/base/v2/workers?page=-1"
         );
         assert_eq!(requests[1].url.path(), "/base/v2/models");
         let body: Value =
@@ -2401,7 +2401,7 @@ mod tests {
         assert_eq!(requests.len(), 2);
         assert_eq!(
             requests[0].url.as_str(),
-            "http://127.0.0.1/base/v2/workers?page=-1&name=rust-worker-contract"
+            "http://127.0.0.1/base/v2/workers?page=-1"
         );
         assert_eq!(
             requests[1].url.as_str(),
@@ -2852,7 +2852,7 @@ mod tests {
         assert_eq!(requests.len(), 2);
         assert_eq!(
             requests[0].url.as_str(),
-            "http://127.0.0.1/base/v2/workers?page=-1&name=rust-worker-contract"
+            "http://127.0.0.1/base/v2/workers?page=-1"
         );
         assert_eq!(requests[1].method, Method::Put);
         assert_eq!(requests[1].url.path(), "/base/v2/workers/101");
