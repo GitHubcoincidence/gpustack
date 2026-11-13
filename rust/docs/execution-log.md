@@ -6172,3 +6172,26 @@
 - 当前停止位置：下一步只允许用户审阅heartbeat结果。接受后，RS.3.4建议用同一Worker token和实际
   `ServerClient::report_status`发送一次完整但无GPU的`WorkerStatusReport`，验证`POST
   /v2/worker-status`的204契约和关键状态字段；不在同一门追加GET。
+
+### 2026-11-13：M8-RS.3.4完整无GPU Worker status门冻结
+
+- 用户授权：用户以“继续”接受RS.3.3的204空响应、原版异步heartbeat解释和证据结果，并授权进入
+  下一接口。本授权只允许Worker 16发送一次完整但无GPU的状态报告。
+- 真实实现路径：临时非产品probe只读取冻结JSON、用typed `WorkerStatusReport`反序列化/再序列化并
+  捕获脱敏HTTP元数据；Worker token由生产`CredentialStore::load`读取，请求调用实际Rust
+  `ServerClient::report_status`和`ReqwestTransport`。probe源码随证据保存后从仓库删除。
+- 请求冻结：只发送一次认证`POST http://10.213.80.106:18091/v2/worker-status`。输入基于已接受的
+  v2.2.3 `worker-status.request.json`，固定hostname`r760xa`、ifname`eno8403`、IP
+  `10.213.80.90`、port`21150`、metrics_port`21151`、proxy_mode`worker`、Server UUID
+  `7fa8e157-cc3e-4b10-958a-c338a3a65a7d`；advertise/gateway/machine/state_message和
+  system_reserved为空。status完整包含cpu/filesystem/gpu_devices/kernel/memory/os/rpc_servers/swap/
+  uptime，其中GPU数组和filesystem为空，其余为空资源fixture的零值或空字符串。
+- 输入解释：这是验证完整wire schema和状态入口的隔离协议输入，不是90真实资源采集结果；不得以该
+  请求证明NVML、磁盘、CPU或内存采集正确。真实资源采集及两张A100状态在后续专门门验证。
+- 通过门：typed请求字段和值与冻结JSON逐项一致，Server返回HTTP 204且body为空，Rust
+  `expect_no_content`成功；生产identity/token文件不变，证据不含Worker token。原版Server会将显式
+  字段和新的heartbeat_time加入异步`worker_status_flush_buffer`，故本门不追加GET检查刷新时点。
+- 失败与停止：encode、认证、transport、非204或非空body任一失败立即停止且不重试。成功后同样
+  停止；不发送`me`/heartbeat/watch，不访问Docker/NVML/GPU，不启动端口。
+- 漂移审计：该门验证原版Worker主循环的完整状态上报协议，同时明确合成零资源输入的证据边界，未将
+  其提升为资源采集结论；单接口、oracle、秘密保护和隔离边界不变。结论为aligned。
