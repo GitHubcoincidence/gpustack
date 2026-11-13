@@ -6416,3 +6416,41 @@
 - 状态与下一步：Rust Worker产品修复为`ready_for_review`。下一步须单独冻结现有Worker 15的最小
   标签修复和复测方案；任何106 PUT、重新注册、重启Worker、重新调度、容器或GPU操作均未由本次离线
   实现授权。RS.3.5C继续暂停。
+
+### 2026-11-13：Worker 15标签修复与Model 5真实闭环
+
+- 授权与边界：用户审阅离线修复后同意更新106上的Worker 15，并允许既有目标模型在GPU0继续部署。
+  操作只允许保留Worker名称、原标签和maintenance后增加
+  `worker-name=jiaxingHaoyuNB`，不停止Worker/Python Worker、不操作GPU1、不创建第二个验证模型。
+- 前置门变化：首次只读快照发现Instance 8已返回404，Model 5在15:33:56+08被外部更新为
+  `replicas=0`；因此原Instance 8门在任何写入前安全停止。随后只对Worker 15执行一次完整
+  `PUT /v2/workers/15`，请求保留name、`implementation=rust`和disabled maintenance并增加规范
+  worker-name；HTTP 200和即时GET均确认标签正确，且当时没有Model 5实例、容器或GPU0占用。
+- 并发状态与复现：之后Model 5又被外部更新为`replicas=1`并生成Instance 10，但一次观察发现Worker
+  标签再次只剩`implementation=rust`，Instance 10仍pending。该标签消失的写入来源无法由现有证据
+  归因；不能把它记为Worker周期status覆盖，因为受控第二次同值PUT后的41轮轮询跨越多次heartbeat，
+  标签始终保持。第二次PUT后状态按时间线从07:55:57Z pending、07:56:00Z scheduled、07:56:03Z
+  initializing、07:56:06Z starting推进到07:57:25Z running，worker_id=15且gpu_indexes固定为`[0]`。
+- 运行时结果：最终Worker 15为ready、非maintenance且保留两项标签；Model 5
+  `demo-qwen25-05b-new2`为replicas=1、ready_replicas=1；Instance 10
+  `demo-qwen25-05b-new2-t6pmk`为running、Worker IP`10.213.80.90`、端口40001。唯一owned容器
+  `gpustack-rs-managed-10`使用固定Runner digest和GPU0 UUID
+  `GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3`，vLLM命令保持本地Qwen2.5-0.5B路径、TP=1、
+  max length 2048、memory utilization 0.5、dtype auto和eager。
+- 推理闭环：实际Rust CLI经106 Server执行chat completion成功，Worker 20150受保护代理使用
+  Worker token和`X-GPUStack-Model-Instance: model-5-10.static`直连同样返回HTTP 200；两条路径的
+  model均为`demo-qwen25-05b-new2`、finish_reason为stop、内容为`OK.`、总token数37。
+- 独立Server差异：Rust CLI `model status`调用
+  `GET /v2/model-instances?page=-1&model_id=5`时同时收到Model 4的Instance 9和Model 5的Instance 10，
+  说明106与先前name过滤相同，未应用该有效`model_id`过滤。Instance 10的精确GET及推理闭环不受
+  影响；该差异保留给RS.7，不阻断本次模型部署结论。
+- 资源与安全：GPU0最终使用约41,575 MiB；GPU1先前约41 GiB的外部任务在实验期间自行结束，最终为
+  4 MiB，本项目未停止或调度GPU1任务。management、Worker和registration三类token逐值扫描证据
+  均无命中，21个证据文件均为0600。受保护证据目录为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs-worker15-label-repair-20261113T075247Z-1262023`，
+  `sha256sums.txt`自身SHA-256为
+  `b6dbfe575af4cc5da3fa3b596f7f1f5bf5d4de7baeffe5a252a0146b5d659192`。
+- 判定与停止：缺少`worker-name`是本次pending的直接阻断条件；标签修复后同一Model选择器完成
+  Server调度、Rust Worker状态机、Docker/vLLM、GPU0和双路径推理闭环，结果为`ready_for_review`。
+  模型按用户原始部署意图保持running，没有执行清理。106注册端仍应补齐最终Worker名称标签，Rust
+  Worker产品修复则保证新注册请求主动携带该标签；RS.3.5C继续暂停到用户审阅本结果。
