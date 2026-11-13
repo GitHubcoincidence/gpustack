@@ -6555,3 +6555,21 @@
 - 当前停止位置：RS.4.0未通过。下一步必须由用户确认是否把106 commit`b51893c`冻结为RS.4目标，
   并把Worker 15健康地址纠正为`10.213.80.90`；确认后先更新门，再运行全新只读attempt 2。不得直接
   进入RS.4.1、maintenance写入或Worker启动。
+
+### 2026-11-13：M8-RS目标Server版本门修订
+
+- 用户决定：用户认为后续注册和联调不应硬性要求106的Git commit等于旧值，只需校验协议版本号；
+  经讨论后确认采用该规则，并同意据此重跑RS.4.0 attempt 2。
+- 修订规则：目标Server硬门固定为`version=v2.2.3`和`implementation=rust`，Worker注册请求的
+  `worker_version`固定为`v2.2.3`。106实际`git_commit`和`build_version`只作为证据记录，不因阶段
+  间commit变化自动失败；但同一正式attempt开始与结束读取的commit必须一致，运行中变化则该attempt
+  因无法归因而停止或作废。
+- 权威边界：原GPUStack commit`1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`仍是接口、状态机和行为
+  oracle，不要求Rust Server报告同一commit。版本门修订不放宽注册身份、认证、完整PUT、过滤、状态
+  所有权、readiness或推理结果验证；任何实际wire差异仍按原版归因并记录。
+- 历史处理：attempt 1保留为旧规则下的非评分`STOP`，不追溯改判。其Worker 15检查地址错误也保留
+  为harness诊断；attempt 2固定使用`10.213.80.90:20150/20151`。
+- 漂移审计：该修改适应持续开发的Rust Server，同时用单次运行commit稳定门保持结果可归因；不改变
+  RS.4空载范围或后续RS.6 GPU排他条件。结论为`intentional_change_accepted`。
+- 当前停止位置：下一步只允许在本修订形成的新治理HEAD上运行全新RS.4.0只读attempt 2；通过后先
+  交付用户审阅，不自动启用maintenance或启动Worker。
