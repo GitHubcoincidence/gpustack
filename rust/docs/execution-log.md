@@ -6325,3 +6325,36 @@
   端口、readiness、full sync/watch和安全停止方案。
 - 漂移审计：该门只补齐RS.3.5A刻意拆出的只读唯一性证明，沿用原版精确过滤和短期管理凭据，不把
   公开列表缺少UUID误判为缺陷，也不提前启动RS.4。结论为aligned。
+
+### 2026-11-13：M8-RS.3.5B发现Worker name过滤差异
+
+- 接口作用：用精确name过滤确认RS.3.5A恢复注册后Server中只有一条对应Worker记录；本门只读，
+  不修改Worker或凭据。
+- 请求输入：90服务器在源码HEAD`033b9eded7fd1f40cb1991c08ec0d50610716f91`下，通过实际Rust
+  `ServerClient::list_workers_by_name`只发送一次认证
+  `GET http://10.213.80.106:18091/v2/workers?page=-1&name=rust-rs3-worker-90-20261113`，无body，
+  使用106专用短期management密钥；没有重试或后续HTTP。
+- 实际响应：认证和typed `Paginated<WorkerPublic>`解码成功，但返回`items.len=4`、
+  `pagination.total=4`，未满足冻结的1项门；probe按约定退出1，summary为空，stderr只含
+  `expected one Worker, got items=4 total=4`。结合RS.2.4创建测试Worker前总数为3，本次4项与当前全部
+  可见Worker数量一致，推断106没有应用显式name过滤。
+- 原版对照与归因：精确v2.2.3 `_build_worker_list_filters`把非空name放入exact `fields`，只有search
+  才进入fuzzy过滤；Rust Client也通过固定实现生成了`page=-1&name=...`。因此差异归属106 Rust
+  Server Worker list过滤实现，不应由Rust Worker删除query或迁就错误语义。
+- 结论边界：本次响应没有落盘原始四项，只在内存完成typed decode后因数量失败退出；因此不能由本次
+  证据离线计算四项中的同名/同Cluster数量。`4`不能解释为已经发现四个重复Worker，也不能把
+  RS.3.5A的同ID/name/UUID/token响应判为无效。RS.3唯一性证明尚未完成。
+- 证据与安全：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs3-worker-uniqueness-20261113T031045Z-48093`
+  为0700，文件均为0600。probe源码、stderr、run identity和runner的SHA-256依次为
+  `49165e3831e21351efe1a8466fdda49b86b5e0ab3335d6965427124decbfb31a`、
+  `5926bf0e2816996d9a27b8160449b41672eff5a060392d036e03e9a83f173965`、
+  `eac82e19630570e591fb6a5db5b719b2995e7db3eb027133c34db43d67adc571`和
+  `5f3ec547ab4d03b671dce086ff95dc4231fe030780ed5a81ac44a132cd05e8ef`；management密钥文件元数据
+  正常且逐值证据扫描通过。
+- 边界与判定：RS.3.5B为`ready_for_review_with_confirmed_server_difference`，不是通过或accepted。
+  本门没有再次注册、更新、删除或启动Worker，也未访问Docker/NVML/GPU。
+- 当前停止位置：下一步建议RS.3.5C只发送一次有效的
+  `GET /v2/workers?page=-1`，用同一management密钥和typed Rust Client取得完整可见清单后，在内存
+  以name+cluster_id精确计数；必须恰好一项且ID为16。该门可补齐重复Worker防护证据，但106忽略
+  name过滤的差异仍须保留到RS.7修复/复测，不能因fallback而关闭。
