@@ -6075,3 +6075,16 @@
   Docker/NVML或GPU，不启动端口。
 - 漂移审计：该门直接验证RS.3.1签发token与Worker身份的绑定，是原版Worker启动恢复路径的下一步；
   单接口拆分、v2.2.3 oracle、秘密保护和隔离边界均未改变。结论为aligned。
+
+### 2026-11-13：M8-RS.3.2执行前oracle纠偏
+
+- 发现：在正式HTTP前复核精确v2.2.3 `workers-me.response.json`、`WorkerPublic` schema和Rust生产
+  `IdentityBootstrap::restore`，确认`GET /v2/workers?me=true`不返回`worker_uuid`；生产恢复路径按
+  `me=true`、ID和名称验证token绑定。前一冻结条目要求响应UUID与identity record一致，超出了原版
+  接口契约。
+- 处理：该UUID条件判定为执行前意外漂移并撤销，没有据此修改Server或Worker。通过门恢复为HTTP
+  200、typed分页恰好一项、ID 16、精确名称、cluster_id 3、`me=true`、labels和worker_version
+  正确；本地identity record仍须安全加载且ID/名称与响应一致，持久UUID只作为后续注册恢复锚点，
+  不要求本接口回传。
+- 证据状态：纠偏发生在任何106请求之前，没有产生非评分响应或重复调用；单请求、凭据、无写入和
+  停止边界均不变。恢复权威v2.2.3 oracle后结论为aligned。
