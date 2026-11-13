@@ -1361,3 +1361,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D279 | Worker 16空载启动前maintenance屏障 | 在重新通过最小只读门后，只对Cluster 3中唯一Worker ID 16发送一次完整PUT；请求保留即时name和全部labels，仅设置`maintenance.enabled=true`及固定message。成功后保持maintenance供RS.4.2使用；请求结果不明确时先GET且不盲重试，发现并发字段变化立即停止，只有能够证明本次写入所有权且不会覆盖并发更新时才允许恢复原maintenance | 显式maintenance是Worker开始上报真实GPU和ready状态前的Server调度屏障。把屏障写入与Worker启动拆成两个授权门，可在没有进程、容器或GPU副作用时先证明完整PUT字段保留和隔离有效；保留安全状态比失败后无条件关闭maintenance更稳妥。 |
+
+## 2026-11-13 M8-RS.4.1正式执行完成
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D280 | Worker 16 maintenance写入判定与停止位置 | 冻结HEAD`8276e95830fb62b6308c2644e6e4380fef927a26`上的最小只读门通过后，只发送一次`PUT /v2/workers/16`；HTTP 200且完整请求保留name与`implementation=rust`标签，只设置固定maintenance。即时响应已含maintenance但state仍为`not_ready`，随后独立GET收敛为`state=maintenance`和固定message；隔离资源、进程、端口及现有服务门全部通过 | 该状态变化符合Server控制器异步派生state语义，不是第二次写入或Worker上报。安全屏障已真实生效且保留，结果进入`ready_for_review`；用户验收前不得启动Worker或进入RS.4.2。 |

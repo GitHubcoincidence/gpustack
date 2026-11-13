@@ -6661,3 +6661,31 @@
   排他规则；将maintenance写入与Worker启动分开授权，结论为aligned。
 - 状态与停止：RS.4.1为`frozen_not_executed`。本次用户确认只冻结方案，不授权真实PUT、启动Worker、
   停止Python Worker、调用Docker/NVML或进入RS.4.2；下一步须单独取得RS.4.1执行授权。
+
+### 2026-11-13：M8-RS.4.1 maintenance安全屏障正式执行
+
+- 授权与输入：用户在冻结方案和精确执行边界后确认执行。90服务器源码HEAD固定为
+  `8276e95830fb62b6308c2644e6e4380fef927a26`；目标固定为106 Server、Cluster 3、Worker ID 16、
+  name`rust-rs3-worker-90-20261113`。复用受保护106 management密钥，不输出或记录token值。
+- 写前门：Worker 16在完整清单中精确匹配1项且maintenance为空；Cluster 3的Model和ModelInstance
+  均为0，Worker 16的ModelFile为0；21150/21151无监听且无目标进程。Python Server、Python Worker、
+  metrics以及既有Worker 15本地health/metrics均健康。没有停止服务或调用生命周期操作。
+- 接口作用与请求：`PUT /v2/workers/16`用于完整更新指定Worker的管理字段。本次只发送一次，请求为
+  `name=rust-rs3-worker-90-20261113`、原样保留的labels
+  `{"implementation":"rust"}`以及maintenance
+  `{"enabled":true,"message":"M8-RS.4 empty-run safety barrier"}`；没有补写`worker-name`或改变其他
+  Server资源。
+- 实际响应：curl退出0、HTTP 200。响应保持ID 16、Cluster 3、name、labels、worker version和
+  `unreachable=false`，并立即返回目标maintenance；该响应中的派生state仍为历史`not_ready`。随后
+  独立GET在`2026-11-13T14:32:40.879536Z`确认Server控制器已把state和state message收敛为
+  `maintenance`及固定message，期间没有第二次PUT或Worker heartbeat。
+- 事后门：完整清单本地过滤仍为Worker精确1项、Cluster 3 Model/ModelInstance各0、Worker 16
+  ModelFile 0；name和labels前后排序比较一致，目标端口继续空闲且目标进程不存在。Python Server、
+  Python Worker、metrics和既有Worker 15端点继续健康；没有启动Rust Worker、创建容器或GPU workload。
+- 证据与安全：证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs4-maintenance-formal`为0700，共43个
+  0600普通文件、无symlink；management、Cluster registration和persisted Worker三类token逐值扫描
+  均无命中。`SHA256SUMS`自身SHA-256为
+  `bfec60171b994fce7c06a7a6b437edbb2b736bdfe250662b14498d39cb67a716`，清单复核通过。
+- 判定与停止：RS.4.1正式结果为`ready_for_review`，maintenance按D279保留启用。用户接受前不讨论或
+  执行RS.4.2，不启动Worker、不关闭maintenance，也不停止Python Worker或操作Docker/GPU。
