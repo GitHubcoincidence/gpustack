@@ -6625,3 +6625,17 @@
   未写Server、未操作Docker/GPU，也未改变RS.4.0 attempt 2的历史判定。
 - 状态与停止：统一版本门实现为`ready_for_review`。RS.4.0仍为`ready_for_review`；用户接受本实现和
   既有预检结果前，不进入RS.4.1 maintenance讨论或任何真实Worker启动。
+
+### 2026-11-13：Worker版本门与M8-RS.4.0验收
+
+- 用户验收：用户审阅只校验`version=v2.2.3`的统一产品实现、首次注册/持久恢复/恢复式注册三条路径、
+  错误版本在写Server和本地落盘前停止、实际Server诊断字段传递、OpenAPI契约同步、239项完整测试
+  以及本地/GitHub/90三方同步状态后确认没有问题。
+- 状态更新：统一版本兼容门实现由`ready_for_review`更新为`accepted`；RS.4.0只读预检attempt 2也由
+  `ready_for_review`更新为`accepted`。attempt 1的旧规则STOP、包装器非评分失败和历史原始证据均
+  保持原判，不追溯改写。
+- 漂移审计：最终产品行为与D277一致；原GPUStack v2.2.3仍是协议和状态机oracle，只有运行时兼容
+  硬门收敛为版本号。验收过程中没有发送HTTP、启动Worker、创建日志目录、写maintenance、调用
+  Docker/NVML或使用GPU，结论为aligned。
+- 当前停止位置：下一步只允许讨论并冻结RS.4.1的maintenance安全边界、写入对象、前后快照、回滚和
+  停止条件。该验收本身不授权更新106、启动宿主机Worker或进入RS.4.2。

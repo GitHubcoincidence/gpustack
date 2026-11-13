@@ -1349,3 +1349,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D277 | Worker对Server的产品级兼容性校验 | 首次注册、持久身份恢复和缺失Worker token后的恢复式注册统一只要求`GET /version`中的`version`严格等于`v2.2.3`。`implementation`、`git_commit`和`build_version`均为可选诊断字段，不要求存在或匹配固定值；Worker注册请求仍声明`worker_version=v2.2.3`。原GPUStack固定commit继续作为联调行为oracle，但不作为运行时注册条件 | 固定commit会阻断同版本Server的正常迭代，`implementation=rust`还会错误排除原Python Server。把唯一硬门放在协议发布版本上，可以同时维持原版兼容和明确的版本边界；构建身份仍可用于日志与证据归因，而不会冒充协议兼容条件。 |
+
+## 2026-11-13 Worker版本门与RS.4.0验收
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D278 | 统一版本门实现及RS.4.0只读预检验收 | 用户审阅版本唯一硬门的运行语义、三条identity bootstrap路径、错误版本fail-closed、实际Server诊断字段、OpenAPI同步、239项测试和三方Git状态后明确确认没有问题；D277产品实现与RS.4.0 attempt 2均更新为`accepted` | 实现与冻结决策一致，完整质量门通过，RS.4.0已证明身份、端口、凭据、隔离资源和现有服务基线满足下一阶段讨论条件。验收不授权maintenance写入、Worker启动、Docker/GPU操作或直接进入RS.4.2。 |
