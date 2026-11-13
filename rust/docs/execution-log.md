@@ -6011,3 +6011,46 @@
   或GPU。
 - 漂移审计：本门使用实际Rust Client和生产秘密存储，只把完整Worker生命周期拆到单接口粒度；未用
   curl替代Worker wire，也未启动完整Worker。结论为aligned。
+
+### 2026-11-13：M8-RS.3.1唯一Worker注册完成
+
+- 接口作用：用Cluster 3的注册主体在106创建唯一Rust测试Worker，并取得后续Worker自身认证所需的
+  Server签发token和权威身份；这是首次写入Worker资源，但尚未启动完整Worker生命周期。
+- 请求输入：90服务器在冻结源码HEAD`0b48ad704c64494bbdb3b0c3325e791865737396`下，通过实际Rust
+  `ServerClient::register`只发送一次`POST http://10.213.80.106:18091/v2/workers`。请求为完整
+  typed `WorkerCreate`：name`rust-rs3-worker-90-20261113`、hostname`r760xa`、IP
+  `10.213.80.90`、ifname`eno8403`、port`21150`、metrics_port`21151`、候选UUID
+  `5f3c1f2a-6b65-4d79-8f90-3a7c1e2b4d60`、`worker_version=v2.2.3`、空GPU状态、
+  `labels={"implementation":"rust"}`、`cluster_id=null`。registration token由生产
+  `CredentialStore::load`读取，值未进入参数、日志或证据。
+- 实际响应：HTTP 200；106创建Worker ID 16，name精确一致，归属`cluster_id=3`，返回hostname
+  `r760xa`、IP`10.213.80.90`、port`21150`、labels精确一致、state`ready`、
+  `worker_version=v2.2.3`，`worker_config`不存在。Server忽略新建请求的候选UUID并签发权威UUID
+  `7fa8e157-cc3e-4b10-958a-c338a3a65a7d`，同时返回非空Worker token；token值和hash均未输出。
+- 生产持久化：按`IdentityBootstrap::register_new`相同顺序，先由`IdentityRecordStore::persist_new`
+  发布identity，再由`CredentialStore::persist_new`发布token。隔离目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/m8rs3/managed`只含
+  `worker-identity.json`和`worker-token`，两者均0600、owner`wujiaxing2:wujiaxing2`、单链接；生产
+  store重新读取后，identity和token均与typed响应完全匹配。
+- 原版对照：精确v2.2.3的新Worker路径同样忽略新建请求报告的UUID、生成唯一Server UUID、建立Worker
+  SYSTEM principal/API key、返回`WorkerRegistrationPublic`的token/worker_uuid/worker_config，并从
+  Cluster注册主体推导缺省cluster_id。106本门的核心注册、身份签发、Cluster归属和秘密响应语义与
+  原版一致，未发现阻塞差异。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs3-worker-register-20261113T021848Z-4011293`
+  为0700，文件均为0600。request、脱敏response summary、probe源码和离线审计的SHA-256依次为
+  `b9ed895d7b0e6d657c26100244469703cc0b8053c71b298cca9f77e069b1886e`、
+  `c6afca748019d2de1006c3e78681588728d3dedb88f288c96674df2abc91394d`、
+  `48b65b0ed5045d28901e29342e977e6c95e22fac092f9fb108765261573b0383`和
+  `38be7b03f9c521eca1d164d25680e4a908465e13a169cfaf1d9629972f05b1f3`；registration token与Worker
+  token的逐值证据扫描均通过，`probe.stderr`为空。
+- 证据门诊断：网络调用、typed校验和生产持久化全部成功后，runner最终退出1，因为被保存的
+  `runner.sh`自身含有待查找文本`Authorization:`，导致授权头正则自匹配。随后只对既有文件做离线
+  复核，没有重复HTTP；唯一匹配文件确认为`runner.sh`，两个真实凭据逐值扫描均为PASS。该假阳性及
+  `formal_http_retried=false`已写入`post-run-audit.txt`，不改变功能门结果。
+- 边界与判定：RS.3.1为`ready_for_review`。本门没有调用`GET /v2/workers?me=true`、heartbeat、
+  status、watch、Docker/NVML或GPU，也未启动监听端口。Worker 16与其私有身份保留给后续RS.3门；
+  不清理Cluster 3。
+- 当前停止位置：下一步只允许用户审阅注册结果。接受后，RS.3.2建议使用刚持久化的Worker token和
+  实际Rust `ServerClient::me`只发送一次`GET /v2/workers?me=true`，验证token绑定到Worker 16且
+  返回name/UUID/Cluster身份一致；不发送heartbeat或状态更新。
