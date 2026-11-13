@@ -6,9 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use gpustack_client::http::Transport;
-use gpustack_client::types::{
-    ServerVersion, WorkerCreate, WorkerPublic, WorkerRegistrationPublic,
-};
+use gpustack_client::types::{ServerVersion, WorkerCreate, WorkerPublic, WorkerRegistrationPublic};
 use gpustack_client::{ClientError, SecretToken, SecretTokenError, ServerClient};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -914,9 +912,8 @@ mod tests {
     async fn bootstrap_rejects_an_unsupported_server_version_before_registration() {
         let directory = tempfile::tempdir().expect("temporary directory");
         let (credentials, records) = stores(directory.path());
-        let transport = QueueTransport::new([response(
-            br#"{"version":"v2.3.0","git_commit":"1cfcbbf"}"#,
-        )]);
+        let transport =
+            QueueTransport::new([response(br#"{"version":"v2.3.0","git_commit":"1cfcbbf"}"#)]);
         let client = ServerClient::new(
             Url::parse("http://server.test").expect("URL"),
             transport.clone(),
