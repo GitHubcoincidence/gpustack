@@ -5985,3 +5985,29 @@
   `ServerClient::register`发送一次`POST /v2/workers`，在Cluster 3创建唯一
   `rust-rs3-worker-90-20261113`，并用生产`CredentialStore/IdentityRecordStore`把返回Worker token
   和Server权威身份原子保存到隔离data dir；不调用后续`me`。该资源写入仍需单独明确授权。
+
+### 2026-11-13：M8-RS.3.1唯一Worker注册门冻结
+
+- 用户授权：用户审阅Cluster 3 registration token的安全落盘、原版对照和下一步资源边界后明确同意
+  创建唯一`rust-rs3-worker-90-20261113`并保存其Worker token和身份。
+- 真实实现路径：临时非产品probe只负责装配输入和输出脱敏摘要；网络请求必须调用实际Rust
+  `ServerClient::register`，registration token必须由生产`CredentialStore::load`读取，返回的Server
+  权威身份与Worker token按生产顺序分别由`IdentityRecordStore::persist_new`和
+  `CredentialStore::persist_new`原子发布。probe源码随证据保存并在仓库中删除，不新增产品命令。
+- 请求冻结：只发送一次`POST http://10.213.80.106:18091/v2/workers`。typed `WorkerCreate`基于已接受
+  v2.2.3注册fixture，固定name`rust-rs3-worker-90-20261113`、hostname`r760xa`、IP
+  `10.213.80.90`、ifname`eno8403`、port`21150`、metrics_port`21151`、候选UUID
+  `5f3c1f2a-6b65-4d79-8f90-3a7c1e2b4d60`、`worker_version=v2.2.3`、空GPU状态和
+  `labels={"implementation":"rust"}`；`cluster_id=null`，由注册主体推导Cluster 3。
+- 本地边界：隔离data dir固定为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/m8rs3`，执行前必须完全不存在；成功后只允许
+  `managed/worker-identity.json`与`managed/worker-token`两个生产身份文件，均0600。Worker token值
+  和hash不得进入聊天、Git、进程参数或证据。
+- 通过门：Rust typed response得到正整数ID、精确名称、非空且不同于候选值的Server权威UUID、非空
+  token；两个身份文件能由生产store重新读取并与响应身份一致。脱敏摘要只报告ID/name/UUID、
+  worker_version、worker_config是否存在和文件元数据。
+- 失败与停止：任何Server、decode或持久化失败都立即停止且不重试；保留唯一Worker名称作为精确恢复/
+  清理锚点，不自动发其他HTTP。成功后同样停止，不调用`me`、heartbeat、status、watch、Docker/NVML
+  或GPU。
+- 漂移审计：本门使用实际Rust Client和生产秘密存储，只把完整Worker生命周期拆到单接口粒度；未用
+  curl替代Worker wire，也未启动完整Worker。结论为aligned。
