@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use gpustack_client::http::Transport;
-use gpustack_client::types::{WorkerCreate, WorkerPublic, WorkerRegistrationPublic};
+use gpustack_client::types::{
+    ServerVersion, WorkerCreate, WorkerPublic, WorkerRegistrationPublic,
+};
 use gpustack_client::{ClientError, SecretToken, SecretTokenError, ServerClient};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -35,6 +37,12 @@ pub struct WorkerIdentity {
     pub worker_uuid: String,
     pub token: SecretToken,
     pub source: IdentitySource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IdentityEstablishment {
+    pub identity: WorkerIdentity,
+    pub server_version: ServerVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -217,7 +225,7 @@ impl<'a, T: Transport> IdentityBootstrap<'a, T> {
         &self,
         registration_token: Option<&SecretToken>,
         request: &WorkerCreate,
-    ) -> Result<WorkerIdentity, IdentityError> {
+    ) -> Result<IdentityEstablishment, IdentityError> {
         let record = self.worker_identity.load_optional()?;
         let token = self.worker_credentials.load_optional()?;
 
@@ -229,8 +237,9 @@ impl<'a, T: Transport> IdentityBootstrap<'a, T> {
             ));
         }
 
-        self.client.version().await?.verify_baseline()?;
-        match (record, token) {
+        let server_version = self.client.version().await?;
+        server_version.verify_compatible_version()?;
+        let identity = match (record, token) {
             (Some(record), Some(token)) => self.restore(record, token).await,
             (Some(record), None) => {
                 self.recover_registration(record, registration_token, request)
@@ -238,7 +247,11 @@ impl<'a, T: Transport> IdentityBootstrap<'a, T> {
             }
             (None, None) => self.register_new(registration_token, request).await,
             (None, Some(_)) => unreachable!("token-only state is rejected above"),
-        }
+        }?;
+        Ok(IdentityEstablishment {
+            identity,
+            server_version,
+        })
     }
 
     async fn restore(
@@ -791,9 +804,9 @@ mod tests {
             .persist_new(&SecretToken::new("persisted-secret").expect("valid token"))
             .expect("persist credential");
         let transport = QueueTransport::new([
-            response(include_bytes!(
-                "../../../fixtures/server-v2.2.3/live-version.response.json"
-            )),
+            response(
+                br#"{"version":"v2.2.3","git_commit":"b51893c","implementation":"rust","build_version":"0.1.0"}"#,
+            ),
             response(include_bytes!(
                 "../../../fixtures/server-v2.2.3/workers-me.response.json"
             )),
@@ -801,10 +814,15 @@ mod tests {
         let client = ServerClient::new(Url::parse("http://server.test").expect("URL"), transport)
             .expect("client");
 
-        let identity = IdentityBootstrap::new(&client, credentials, records)
+        let establishment = IdentityBootstrap::new(&client, credentials, records)
             .establish(None, &registration_request())
             .await
             .expect("restore identity");
+        assert_eq!(
+            establishment.server_version.git_commit.as_deref(),
+            Some("b51893c")
+        );
+        let identity = establishment.identity;
 
         assert_eq!(identity.id, 101);
         assert_eq!(identity.worker_uuid, record.worker_uuid);
@@ -820,9 +838,7 @@ mod tests {
         let directory = tempfile::tempdir().expect("temporary directory");
         let (credentials, records) = stores(directory.path());
         let transport = QueueTransport::new([
-            response(include_bytes!(
-                "../../../fixtures/server-v2.2.3/live-version.response.json"
-            )),
+            response(br#"{"version":"v2.2.3"}"#),
             response(include_bytes!(
                 "../../../fixtures/server-v2.2.3/worker-register.response.json"
             )),
@@ -832,10 +848,12 @@ mod tests {
         let registration_token = SecretToken::new("registration-secret").expect("valid token");
         let request = registration_request();
 
-        let identity = IdentityBootstrap::new(&client, credentials.clone(), records.clone())
+        let establishment = IdentityBootstrap::new(&client, credentials.clone(), records.clone())
             .establish(Some(&registration_token), &request)
             .await
             .expect("register identity");
+        assert_eq!(establishment.server_version.git_commit, None);
+        let identity = establishment.identity;
 
         assert_ne!(identity.worker_uuid, request.worker_uuid);
         assert_eq!(identity.worker_uuid, registration_response().worker_uuid);
@@ -874,7 +892,8 @@ mod tests {
         let identity = IdentityBootstrap::new(&client, credentials.clone(), records)
             .establish(Some(&registration_token), &registration_request())
             .await
-            .expect("recover registration");
+            .expect("recover registration")
+            .identity;
 
         assert_eq!(identity.source, IdentitySource::Recovered);
         assert_eq!(identity.worker_uuid, record.worker_uuid);
@@ -889,6 +908,35 @@ mod tests {
         .expect("recovery request");
         assert_eq!(recovered.name, record.worker_name);
         assert_eq!(recovered.worker_uuid, record.worker_uuid);
+    }
+
+    #[tokio::test]
+    async fn bootstrap_rejects_an_unsupported_server_version_before_registration() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let (credentials, records) = stores(directory.path());
+        let transport = QueueTransport::new([response(
+            br#"{"version":"v2.3.0","git_commit":"1cfcbbf"}"#,
+        )]);
+        let client = ServerClient::new(
+            Url::parse("http://server.test").expect("URL"),
+            transport.clone(),
+        )
+        .expect("client");
+        let registration_token = SecretToken::new("registration-secret").expect("valid token");
+
+        let error = IdentityBootstrap::new(&client, credentials.clone(), records.clone())
+            .establish(Some(&registration_token), &registration_request())
+            .await
+            .expect_err("unsupported Server version");
+
+        assert!(matches!(
+            error,
+            IdentityError::Client(ClientError::Contract(message))
+                if message.contains("expected Server version v2.2.3")
+        ));
+        assert_eq!(transport.requests().len(), 1);
+        assert_eq!(records.load_optional().expect("load identity"), None);
+        assert_eq!(credentials.load_optional().expect("load credential"), None);
     }
 
     #[tokio::test]

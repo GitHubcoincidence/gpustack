@@ -26,7 +26,7 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use futures_util::{StreamExt, stream};
 use gpustack_client::SecretToken;
-use gpustack_client::types::{SERVER_BASELINE_GIT_COMMIT, SERVER_BASELINE_VERSION};
+use gpustack_client::types::SERVER_BASELINE_VERSION;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -516,7 +516,6 @@ struct VersionResponse<'a> {
 #[derive(Serialize, ToSchema)]
 struct ServerBaseline<'a> {
     version: &'a str,
-    git_commit: &'a str,
 }
 
 #[utoipa::path(
@@ -534,7 +533,6 @@ async fn version() -> Json<VersionResponse<'static>> {
         rust_toolchain: "1.99.1",
         server_baseline: ServerBaseline {
             version: SERVER_BASELINE_VERSION,
-            git_commit: SERVER_BASELINE_GIT_COMMIT,
         },
     })
 }
@@ -1553,10 +1551,6 @@ mod tests {
         assert_eq!(response.git_commit, env!("GPUSTACK_GIT_COMMIT"));
         assert_eq!(response.target, env!("GPUSTACK_BUILD_TARGET"));
         assert_eq!(response.server_baseline.version, SERVER_BASELINE_VERSION);
-        assert_eq!(
-            response.server_baseline.git_commit,
-            SERVER_BASELINE_GIT_COMMIT
-        );
     }
 
     fn allowed_root(directory: &TempDir) -> AllowedRoot {

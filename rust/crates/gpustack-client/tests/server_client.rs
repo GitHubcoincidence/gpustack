@@ -165,7 +165,7 @@ async fn client_uses_the_frozen_control_plane_contract() {
         .version()
         .await
         .expect("version")
-        .verify_baseline()
+        .verify_compatible_version()
         .expect("baseline");
     let registration = client
         .register(&registration_token, &worker)

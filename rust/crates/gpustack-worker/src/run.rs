@@ -11,8 +11,7 @@ use std::time::Duration;
 
 use gpustack_client::http::{ReqwestTransport, TransportError};
 use gpustack_client::types::{
-    ProxyMode, SERVER_BASELINE_GIT_COMMIT, SERVER_BASELINE_VERSION, SystemReserved, WorkerCreate,
-    WorkerPublic, WorkerStatusReport,
+    ProxyMode, SystemReserved, WorkerCreate, WorkerPublic, WorkerStatusReport,
 };
 use gpustack_client::{ClientError, ServerClient};
 use serde::Serialize;
@@ -534,12 +533,18 @@ where
         CredentialStore::new(worker_credential_path(&profile.data_dir)),
         IdentityRecordStore::new(worker_identity_path(&profile.data_dir)),
     );
-    let identity = bootstrap
+    let establishment = bootstrap
         .establish(
             Some(&registration_token),
             &profile.registration_request(&initial_resources),
         )
         .await?;
+    let server_version = establishment.server_version.version;
+    let server_git_commit = establishment
+        .server_version
+        .git_commit
+        .unwrap_or_else(|| "unknown".to_owned());
+    let identity = establishment.identity;
     let current_worker = client.me(&identity.token).await?;
     verify_production_worker(&current_worker, &identity)?;
     let identity_source = identity_source_name(&identity.source);
@@ -811,8 +816,8 @@ where
     let health = control_health.borrow().clone();
     let desired = desired_summary.borrow().clone();
     Ok(WorkerSummary {
-        server_version: SERVER_BASELINE_VERSION.to_owned(),
-        server_git_commit: SERVER_BASELINE_GIT_COMMIT.to_owned(),
+        server_version,
+        server_git_commit,
         worker_id: identity.id,
         worker_name: identity.name,
         worker_uuid: identity.worker_uuid,

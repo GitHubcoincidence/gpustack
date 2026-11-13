@@ -8,7 +8,6 @@ use serde_json::Value;
 use crate::{ClientError, SecretToken};
 
 pub const SERVER_BASELINE_VERSION: &str = "v2.2.3";
-pub const SERVER_BASELINE_GIT_COMMIT: &str = "1cfcbbf";
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct ServerVersion {
@@ -17,18 +16,12 @@ pub struct ServerVersion {
 }
 
 impl ServerVersion {
-    /// Rejects a Server whose release identity differs from the frozen R1 baseline.
-    pub fn verify_baseline(&self) -> Result<(), ClientError> {
+    /// Rejects a Server whose protocol version differs from the supported release.
+    pub fn verify_compatible_version(&self) -> Result<(), ClientError> {
         if self.version != SERVER_BASELINE_VERSION {
             return Err(ClientError::Contract(format!(
                 "expected Server version {SERVER_BASELINE_VERSION}, got {}",
                 self.version
-            )));
-        }
-        if self.git_commit.as_deref() != Some(SERVER_BASELINE_GIT_COMMIT) {
-            return Err(ClientError::Contract(format!(
-                "expected Server commit {SERVER_BASELINE_GIT_COMMIT}, got {}",
-                self.git_commit.as_deref().unwrap_or("<missing>")
             )));
         }
         Ok(())

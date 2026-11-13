@@ -192,7 +192,9 @@ fn typed_requests_serialize_to_the_frozen_wire_shape() {
 #[test]
 fn typed_responses_are_tolerant_and_preserve_the_update_contract() {
     let version: ServerVersion = serde_json::from_str(VERSION).expect("typed ServerVersion");
-    version.verify_baseline().expect("frozen Server identity");
+    version
+        .verify_compatible_version()
+        .expect("compatible Server version");
 
     let mut registration_value = parse_json("registration", WORKER_REGISTER_RESPONSE);
     registration_value["future_server_field"] = serde_json::json!({ "enabled": true });
@@ -244,6 +246,26 @@ fn typed_responses_are_tolerant_and_preserve_the_update_contract() {
         serde_json::to_value(model_file_update).expect("serialize ModelFile update"),
         parse_json("model file update", MODEL_FILE_UPDATE)
     );
+}
+
+#[test]
+fn server_compatibility_uses_the_protocol_version_only() {
+    for git_commit in [Some("b51893c"), None] {
+        ServerVersion {
+            version: "v2.2.3".to_owned(),
+            git_commit: git_commit.map(str::to_owned),
+        }
+        .verify_compatible_version()
+        .expect("compatible protocol version");
+    }
+
+    let error = ServerVersion {
+        version: "v2.3.0".to_owned(),
+        git_commit: Some("1cfcbbf".to_owned()),
+    }
+    .verify_compatible_version()
+    .expect_err("unsupported protocol version");
+    assert!(error.to_string().contains("expected Server version v2.2.3"));
 }
 
 #[test]
