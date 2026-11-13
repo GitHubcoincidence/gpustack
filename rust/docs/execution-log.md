@@ -6358,3 +6358,38 @@
   `GET /v2/workers?page=-1`，用同一management密钥和typed Rust Client取得完整可见清单后，在内存
   以name+cluster_id精确计数；必须恰好一项且ID为16。该门可补齐重复Worker防护证据，但106忽略
   name过滤的差异仍须保留到RS.7修复/复测，不能因fallback而关闭。
+
+### 2026-11-13：Rust Server联调模型部署pending插入诊断
+
+- 现象与输入：宿主机Rust Worker以名称`jiaxingHaoyuNB`、Worker API端口20150、metrics端口
+  20151、真实双A100资源和独立`liantiao`数据目录接入106，Server恢复持久身份Worker 15。CLI创建
+  Model 5 `demo-qwen25-05b-new2`，固定本地Qwen2.5-0.5B-Instruct路径、Runner digest、GPU0、TP=1、
+  max length 2048、GPU memory utilization 0.5、dtype auto和eager，并等待ModelInstance 8。
+- Server权威状态：认证GET确认Instance 8持续为`pending`，`worker_id`、`worker_name`和`worker_ip`
+  均为空，`gpu_indexes=[]`，状态消息为`No suitable workers`及`no ready worker with available GPU`。
+  因此Server没有完成调度，实例从未进入Rust Worker只接管的`scheduled`状态。
+- Worker与资源排除项：Worker 15为`ready`、非maintenance、非unreachable，Cluster 1与Model/Instance
+  的Cluster 1一致，心跳持续更新；Worker `/healthz`和`/readyz`均为200，models、model_instances和
+  model_files三条watch全部连接且重连计数为0。Server保存的GPU0为A100 80 GiB、used=0，宿主
+  `nvidia-smi`同样为空闲；GPU资源wire与v2.2.3冻结fixture一致。现场没有为Instance 8创建容器。
+- 直接冲突：Model 5的`worker_selector`要求`worker-name=jiaxingHaoyuNB`，GPU selector要求
+  `jiaxingHaoyuNB:cuda:0`；但Server保存的Worker 15 labels只有`implementation=rust`，缺少
+  `worker-name`。原v2.2.3 `LabelMatchingFilter`会严格剔除缺少该标签的Worker，且原Python Worker
+  注册时主动发送该内建标签，原Python Server创建Worker时还会以最终名称强制写入该标签。
+- 归因：故障发生在Server调度阶段而非Worker容器运行阶段；协议偏差同时存在于双方。Rust Worker
+  `WorkerProfile::registration_request`只发送`implementation=rust`，未对齐原Python Worker内建
+  `worker-name`标签；106 Rust Server注册实现也没有像原Server那样补齐最终`worker-name`。任一侧
+  单独补齐可解除当前selector冲突，但为保持与原版一致且覆盖Server重命名场景，双方都应修复并各自
+  增加回归测试。当前结论不把106的概括性状态消息解释为GPU采集失败。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs-deploy-pending-20261113T072736Z-1160864`
+  为0700，五个JSON文件均为0600，management密钥逐值扫描无命中。Instance 8、Worker 15、全量
+  instances、models和model-files响应SHA-256依次为
+  `80af59d29426466c95e9eb5b4f61a855abd624d6fef337a77e6ca5925d1082e3`、
+  `2316e5f071d9d260b9ea5ad3fda020e3c8c08361768a9952c3f40b68f275e16b`、
+  `3d639d3e5219db4aaa716683bc508d9f178135ed11ba76394350e01cde931b18`、
+  `ccc9b4a1cfe981ec9967380799ed5777a93dc9c1f2b8460c1280242e5d259643`和
+  `5a45236cda21fb6d83e3913ad72c769ca56bb39f77839765b2593acd4641e8e7`。
+- 边界与停止：本诊断只执行健康、metrics、Docker/GPU现场和Server GET；没有更新Worker标签、重启
+  Worker、重新部署/删除模型、创建/停止容器或占用GPU。修复方案与现有Instance 8的安全复测步骤须经
+  用户确认后另行实施，RS.3.5C在此期间保持暂停。
