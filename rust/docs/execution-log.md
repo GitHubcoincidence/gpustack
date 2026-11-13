@@ -5936,3 +5936,21 @@
 - 当前停止位置：下一步只允许用户审阅创建结果。接受后，RS.3.0C建议只调用一次
   `GET /v2/clusters/3/registration-token`，将返回token直接原子保存到90服务器0600受保护文件；
   原始含密响应不进入Git、聊天或长期证据，不注册Worker。该秘密读取仍需单独明确授权。
+
+### 2026-11-13：M8-RS.3.0C registration token读取门冻结
+
+- 用户授权：用户审阅Cluster 3的创建响应、秘密边界、证据和下一步文件路径后明确同意继续。本授权
+  仅允许读取Cluster 3的registration token并保存到90受保护文件，不允许注册Worker。
+- 请求冻结：只发送一次认证`GET http://10.213.80.106:18091/v2/clusters/3/registration-token`，
+  使用现有0600 management密钥、无body、无重试、无重定向和无wire trace。响应先进入同一受保护
+  配置目录内的0600临时文件。
+- 秘密处理：只将非空`token`值原子发布到
+  `/home/wujiaxing2/.config/gpustack-rust/m8rs3-cluster-3-registration-token`，固定0600、owner
+  `wujiaxing2:wujiaxing2`、单链接；含密原始响应和临时认证header随后立即删除。聊天、Git和长期
+  证据只记录token存在、文件元数据、server URL、image、env键名和args数量，不记录token值、hash、
+  env值或原始body。
+- 通过与停止：HTTP 200，响应包含非空token及类型正确的`server_url/image/env/args`，目标文件保护
+  和秘密扫描全部通过。任一失败立即清理临时含密文件并停止，不重试。成功后也停止；不调用
+  `POST /v2/workers`，不访问Docker/NVML、不停止服务、不使用GPU。
+- 漂移审计：只获取已授权隔离Cluster的注册凭据，未扩展资源或运行权限；秘密保护强于普通wire证据
+  留存，仍能用安全元数据证明门结果。结论为aligned。
