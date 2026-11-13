@@ -6728,3 +6728,37 @@
   daemon只读初始化及预期私有目录写入，结论为aligned。
 - 状态与停止：RS.4.2为`frozen_not_executed`。本次确认只冻结方案，不授权构建、启动Worker、停止
   Python Worker、关闭maintenance或执行Docker/GPU生命周期；下一步须取得单独正式执行授权。
+
+### 2026-11-13：M8-RS.4.2 formal attempt 1发现跨Cluster可见性差异
+
+- 构建与前置门：90服务器在冻结HEAD
+  `5f00536b29a6319b7381269b876c537051be0252`上通过rustfmt、全workspace/all-targets Clippy
+  `-D warnings`、239项locked/offline测试及locked/offline构建。二进制内嵌commit`5f00536b29a6`，
+  SHA-256为`77791d07e4c7439abe3ba7d0160be438f61175669783f38e9185df87bb0ca0c2`；Cargo.lock
+  SHA-256为`3573ec9493671ebe67590500f841e0b7cbe1625241eb95250f36741d9f2e6599`。Worker 16
+  maintenance、零隔离资源、端口/进程、现有服务、Docker socket和预留runtime路径门全部通过。
+- 运行事实：普通生产`worker run`从`2026-11-13T22:50:30+08:00`运行至22:52:40，共130秒；事件
+  依次为listening、persisted identity 16、running with 2 GPUs和SIGINT stopping。首次现场观测中
+  health/ready/metrics/token-auth均为200，无凭据config为401，Server state保持maintenance、
+  unreachable=false、两张A100、三类watch连接且Docker容器集合不变。
+- 成功能力：timeout守护发送SIGINT后进程退出0；总结中Server version v2.2.3/commit b51893c、
+  identity persisted、heartbeat/status/full sync/watch均true、reconnect 0，ModelInstance和ModelFile
+  desired均0，文件/runtime reconciliation及所有启动/运行/错误/删除/失败计数均0。端口关闭、进程
+  消失、容器集合不变，manifests/cache/serve logs为空；只留下允许的0700目录和0600锁文件。
+- 冻结门失败：同一总结的`desired_models=5`不满足空Cluster期望。独立Worker token GET复现106返回
+  Model ID 1～5，全部`cluster_id=1`，而Worker 16属于Cluster 3且management完整清单确认Cluster 3
+  Model为0。相同主体还看到Worker 13～15的4个ModelFile；Rust Worker本地worker_id二次过滤使
+  desired ModelFile仍为0。ModelInstance响应为0，因此没有触发任何Managed动作。
+- oracle与归因：原GPUStack v2.2.3固定commit中的`cluster_scoped_system`、
+  `tenant_list_conditions`、Model watch filter和ModelFile visibility filter要求Cluster绑定SYSTEM主体
+  只看到本Cluster或`cluster_id=NULL`资源。106未应用该隔离，属于Rust Server的数据可见性缺口；
+  Rust Worker的Instance/File所有权防线工作正常，不增加迁就分支，也不把无副作用等同于协议通过。
+- 清理与证据：Worker 16继续保持固定maintenance，Cluster 3 Model/ModelInstance和Worker 16
+  ModelFile均为0；Python Server/Worker和Worker 15端点健康，未操作GPU任务。证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs4-empty-run-formal-attempt1`为0700，
+  共62个0600普通文件，三类token逐值扫描无命中；`SHA256SUMS`自身SHA-256为
+  `f3d7e75223fc724ffe9cf7b2d2c305d2f013830e3ba4afd7bce1bc8dadb74273`。
+- 判定与停止：formal attempt 1为`FAIL/unexpected_desired_models`，cleanup为PASS，不能更新为
+  `ready_for_review`或accepted。下一步须先由用户审阅归因，再推动106按原版修复Model和ModelFile的
+  Cluster SYSTEM list/watch隔离；修复部署并通过只读复测后，RS.4.2需要新的正式执行授权和全新证据
+  目录。不得自动重跑、关闭maintenance或进入RS.4.3/RS.5。

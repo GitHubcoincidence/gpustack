@@ -1379,3 +1379,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D282 | 生产`worker run`空载验证门 | 从冻结HEAD重新构建精确二进制，以Worker 16既有身份、21150/21151、`m8rs3`数据目录和`m8rs4/logs`运行约130秒；maintenance全程保持。验证七项本地readiness、heartbeat/status/full sync/watch、双GPU资源和空desired状态，允许只创建生产runtime私有目录/锁文件，不允许容器或reconciliation；SIGINT后15秒内退出并通过零残留审计 | 130秒覆盖控制循环、周期full sync和watch idle边界。把本地`readyz`健康与Server maintenance调度隔离同时验证，可以证明统一生产生命周期可运行而不会把空载测试变成模型部署。失败始终保留maintenance并只清理精确进程。 |
+
+## 2026-11-13 M8-RS.4.2 formal attempt 1失败与Server归因
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D283 | 空载运行结果与跨Cluster可见性差异 | 冻结HEAD`5f00536b29a6319b7381269b876c537051be0252`的Worker完整运行130秒并优雅退出，readiness、heartbeat/status/full sync/watch、maintenance、零reconciliation、容器不变和清理全部通过；但总结为`desired_models=5`。Worker token直接GET确认106向Cluster 3 SYSTEM主体返回Cluster 1的5个Model及其他Worker的4个ModelFile，故formal attempt 1固定为`FAIL/unexpected_desired_models`、cleanup PASS | 原v2.2.3的`tenant_list_conditions`及Model/ModelFile watch filter会把Cluster绑定SYSTEM主体限制到本Cluster或NULL cluster。106响应违反该隔离语义，问题归属Rust Server；Worker对ModelInstance/ModelFile的本地worker_id二次过滤已阻止副作用，不能通过放宽验收或增加迁就分支把Server数据隔离缺口标记为兼容。 |
