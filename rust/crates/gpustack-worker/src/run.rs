@@ -104,7 +104,10 @@ impl WorkerProfile {
             hostname: self.worker_hostname.clone(),
             ifname: self.worker_ifname.clone(),
             ip: self.worker_ip.to_string(),
-            labels: BTreeMap::from([("implementation".to_owned(), "rust".to_owned())]),
+            labels: BTreeMap::from([
+                ("implementation".to_owned(), "rust".to_owned()),
+                ("worker-name".to_owned(), self.worker_name.clone()),
+            ]),
             machine_id: resources.machine_id.clone(),
             maintenance: None,
             metrics_port: Some(self.metrics_port),
@@ -1008,7 +1011,7 @@ mod tests {
     }
 
     #[test]
-    fn profile_reports_typed_resources_and_readiness_without_stage_labels() {
+    fn profile_reports_typed_resources_and_readiness_with_builtin_labels() {
         let directory = tempfile::tempdir().expect("temp directory");
         let profile = WorkerProfile::from_config(&config(directory.path().to_path_buf()))
             .expect("Worker profile");
@@ -1030,7 +1033,10 @@ mod tests {
 
         assert_eq!(
             create.labels,
-            BTreeMap::from([("implementation".to_owned(), "rust".to_owned())])
+            BTreeMap::from([
+                ("implementation".to_owned(), "rust".to_owned()),
+                ("worker-name".to_owned(), "rust-worker".to_owned()),
+            ])
         );
         assert_eq!(create.maintenance, None);
         assert_eq!(create.metrics_port, Some(20151));
