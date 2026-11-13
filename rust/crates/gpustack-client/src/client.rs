@@ -371,6 +371,23 @@ impl<T: Transport> ServerClient<T> {
         self.decode_json(response, "Worker search response", Some(operator_token))
     }
 
+    pub async fn list_workers(
+        &self,
+        operator_token: &SecretToken,
+    ) -> Result<Paginated<WorkerPublic>, ClientError> {
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Get,
+                "v2/workers?page=-1",
+                Some(operator_token),
+                None,
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "Worker list response", Some(operator_token))
+    }
+
     pub async fn get_worker(
         &self,
         operator_token: &SecretToken,

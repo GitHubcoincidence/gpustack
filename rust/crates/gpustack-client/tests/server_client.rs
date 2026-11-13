@@ -132,6 +132,7 @@ async fn client_uses_the_frozen_control_plane_contract() {
     transport.push_response(200, WORKERS_ME);
     transport.push_response(204, Vec::new());
     transport.push_response(204, Vec::new());
+    transport.push_response(200, WORKERS_ME);
     transport.push_response(200, MODELS_FULL_SYNC);
     transport.push_response(200, MODEL_INSTANCES_FULL_SYNC);
     transport.push_response(200, json_item_from_page(MODEL_INSTANCES_FULL_SYNC));
@@ -181,6 +182,15 @@ async fn client_uses_the_frozen_control_plane_contract() {
         .report_status(&worker_token, &status)
         .await
         .expect("status");
+    assert_eq!(
+        client
+            .list_workers(&worker_token)
+            .await
+            .expect("workers")
+            .items[0]
+            .id,
+        101
+    );
     assert_eq!(
         client
             .list_models(&worker_token)
@@ -293,6 +303,7 @@ async fn client_uses_the_frozen_control_plane_contract() {
             "/base/v2/workers?me=true",
             "/base/v2/worker-heartbeat",
             "/base/v2/worker-status",
+            "/base/v2/workers?page=-1",
             "/base/v2/models?page=-1",
             "/base/v2/model-instances?page=-1",
             "/base/v2/model-instances/301",
@@ -311,12 +322,12 @@ async fn client_uses_the_frozen_control_plane_contract() {
             .all(|request| request.authorization.is_some())
     );
     assert!(
-        requests[..12]
+        requests[..13]
             .iter()
             .all(|request| request.timeout.is_some())
     );
     assert!(
-        requests[12..]
+        requests[13..]
             .iter()
             .all(|request| request.timeout.is_none())
     );
