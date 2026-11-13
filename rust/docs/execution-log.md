@@ -5858,3 +5858,35 @@
 - 通过与停止条件：HTTP 200并得到可解析的Cluster列表即可；结果只用于选择唯一测试名称，不把
   Cluster管理接口算作Worker协议兼容结论。完成后停止，下一门若需`POST /v2/clusters`创建唯一测试
   Cluster，必须先向用户报告清单并取得明确写入授权。
+
+### 2026-11-13：M8-RS.3.0A Cluster只读清单完成
+
+- 接口作用：盘点106已有Cluster并检查RS.3唯一测试名称前缀是否冲突；该接口只服务于隔离环境准备，
+  不属于Rust Worker运行时协议评分。
+- 请求输入：90服务器在源码HEAD`54a4aa72dcea5cf51190168d0a6bbe2dd7e107cc`下，于
+  2026-11-13 09:42:37 CST只发送一次认证
+  `GET http://10.213.80.106:18091/v2/clusters?page=-1`，携带`Accept: application/json`、无body；
+  使用0600临时Bearer header，禁用重试、重定向和wire trace，总超时10秒。
+- 实际响应：curl退出0，HTTP 200，`content-type: application/json`，0.479683秒接收971字节；
+  pagination为`page=-1/perPage=10/total=2/totalPage=1`。返回Cluster 1“Default Cluster”和
+  Cluster 2“default-cluster2”，两者均为`provider=Docker`、`state=ready`；不存在以
+  `rust-worker-rs3-`开头的名称。
+- 原版差异：106两条Cluster对象都省略了原v2.2.3 `ClusterPublic`公开的`workers`、
+  `ready_workers`、`gpus`和`models`汇总字段。初始脚本因此按冻结字段门退出1；随后只对同一份
+  原始响应离线收敛，没有重复HTTP。该管理接口schema差异不影响名称冲突判断，但意味着不能由本次
+  响应证明现有Cluster为空。
+- 隔离结论：不复用Cluster 1或2，也不推断它们为空；RS.3仍应创建一个独立且可精确清理的Docker
+  测试Cluster。建议名称固定为`rust-worker-rs3-90-20261113`，避免触碰既有资源。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs3-cluster-inventory-20261113T014237Z-3873540`
+  为0700，文件均为0600。metadata、headers、body、transfer和summary的SHA-256依次为
+  `d6f04b703136cb1ebcffb86148cbd0b324d6c54ee1e1bc4f95ebda76acc5bd3e`、
+  `0fbb0b6d172d3e97cff1c725901dc49dcddfe8c58147435a3f1604bccbd3be0a`、
+  `2a3827796b74dcc3d08b7ea018ba10bceb8144f64af3cd93551e161d2e081557`、
+  `6fae56ca3f7a7a229e653508773ca2d3bf55af6d05898f772f2e21d9ced2a278`和
+  `3680475a9c610ffe0870a39fcefea0221b3c35eac45ff1638f5240e85e2014ac`；凭据扫描通过，临时文件已删除。
+- 边界与判定：RS.3.0A为`ready_for_review_with_non_blocking_server_schema_difference`。没有读取
+  registration token，没有创建、更新或删除Cluster/Worker，没有访问Docker/NVML、停止服务或使用GPU。
+- 当前停止位置：下一步只允许用户审阅清单。接受后，RS.3.0B建议仅以management密钥发送一次
+  `POST /v2/clusters`，body固定为名称、隔离用途说明、`provider="Docker"`且无worker pool；只创建
+  唯一测试Cluster并验证响应，不获取registration token、不注册Worker。该写入必须单独明确授权。
