@@ -6266,3 +6266,38 @@
   独立只读清单门。
 - 漂移审计：该门直接覆盖RS.3冻结的身份恢复/重复Worker防护，使用原版UUID匹配和Rust生产Store，
   不放宽身份等值或合并后续清单验证。结论为aligned。
+
+### 2026-11-13：M8-RS.3.5A恢复式注册响应完成
+
+- 接口作用：模拟“持久identity存在但Worker token缺失”的崩溃恢复窗口，验证Cluster 3注册凭据和
+  Server UUID能重新取得Worker 16的现有身份与凭据，而不是创建新Worker或轮换token。
+- 请求输入：90服务器在源码HEAD`d76b3332a3fd57826ad9bad043bfdb8d79325ddf`下，通过实际Rust
+  `ServerClient::register`只发送一次
+  `POST http://10.213.80.106:18091/v2/workers`。完整请求固定name
+  `rust-rs3-worker-90-20261113`、Server UUID`7fa8e157-cc3e-4b10-958a-c338a3a65a7d`、Cluster 3
+  注册主体、节点地址/21150/21151端口、v2.2.3版本、空GPU和`implementation=rust`；没有其他HTTP。
+- 实际响应：HTTP 200、`content-type=application/json`、body 1611字节；typed响应仍为ID 16、同名、
+  cluster_id 3、同一Server UUID和v2.2.3，worker_config不存在。返回Worker token非空且与RS.3.1
+  生产token完全相同；即时state为`ready`，这是恢复式注册更新后的计算结果，不证明持续在线。
+- 生产Store验证：主identity由生产`IdentityRecordStore`加载；独立恢复目录先以生产Store原子发布
+  identity，收到响应后再以生产`CredentialStore`发布token，二者重读均与主身份/响应一致。主data
+  dir两个文件元数据完全不变。成功审计后只对恢复目录两个已知0600文件逐项unlink并逐级rmdir，未
+  留额外token副本。
+- 原版对照：精确v2.2.3以同Cluster内非空UUID命中现有Worker，更新同一行并复用已有SYSTEM
+  principal/API key；Rust生产恢复路径要求响应ID/name/UUID完全一致。106本门同时满足同ID、同name、
+  同UUID、同token和同Cluster，恢复响应语义与原版一致。
+- 秘密审计：Cluster registration token、主Worker token和恢复token对证据目录的逐值扫描均通过，
+  没有记录秘密值或hash；probe stderr为空，恢复目录已不存在。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs3-worker-recovery-20261113T030212Z-5246`
+  为0700，文件均为0600。request、脱敏summary、probe源码、run identity和持久化审计的SHA-256
+  依次为`0b44c8124d253d512ac8d0fa0e481771f2f2f01e1344b2d58726b4fc10a40fa2`、
+  `a7941bdf1aa8c95ae5c71a03b7f25852ea090a2a9b9a6b4819755ffb13610c95`、
+  `1b25cea0ad33271401835c50aa3eb28ce3e519119aa44f78279da07dbd36ec9d`、
+  `15e3879c19d54961dc393dc75395847ec95893eb204f382a1daf5825cc57b732`和
+  `a4475d9d86efa86ce6b3996ae137b95c0719411efbc9c49984e7b24489ab0d4f`。
+- 边界与判定：RS.3.5A为`ready_for_review`。本门证明POST响应复用了Worker 16，但没有查询Server
+  清单，不能单凭响应排除额外残留行；没有启动完整Worker、Docker、NVML、GPU或监听端口。
+- 当前停止位置：用户接受后，RS.3.5B只发送一次认证Worker清单GET，以精确name和cluster_id统计
+  匹配项；必须恰好一项且ID为16。该只读门通过后RS.3可完成，随后再单独讨论/授权RS.4宿主机统一
+  `worker run`空载联调。
