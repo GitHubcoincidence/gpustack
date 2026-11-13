@@ -5890,3 +5890,18 @@
 - 当前停止位置：下一步只允许用户审阅清单。接受后，RS.3.0B建议仅以management密钥发送一次
   `POST /v2/clusters`，body固定为名称、隔离用途说明、`provider="Docker"`且无worker pool；只创建
   唯一测试Cluster并验证响应，不获取registration token、不注册Worker。该写入必须单独明确授权。
+
+### 2026-11-13：M8-RS.3.0B隔离测试Cluster创建门冻结
+
+- 用户授权：用户在审阅RS.3.0A的两个现有Cluster、名称零冲突、缺失汇总字段和独立Cluster建议后
+  明确同意继续。本授权仅允许在106创建唯一`rust-worker-rs3-90-20261113`测试Cluster。
+- 请求冻结：只发送一次认证`POST http://10.213.80.106:18091/v2/clusters`，body固定为
+  `{"name":"rust-worker-rs3-90-20261113","description":"Isolated Rust Worker RS.3 integration cluster","provider":"Docker"}`。
+  使用现有0600短期management密钥；无重试、无重定向、无wire trace。
+- 通过门：HTTP 200，返回正整数ID、精确名称、`provider=Docker`和`state=ready`；响应不得暴露
+  registration token。创建后的Cluster ID作为后续精确token获取、Worker注册和最终删除边界。
+- 失败与停止：非2xx、名称冲突、响应身份不一致或秘密字段外泄都立即停止且不重试。成功后同样停止；
+  本门不调用registration-token接口、不注册Worker、不访问Docker/NVML、不停止服务、不使用GPU，
+  也不删除刚创建的Cluster。后续每个写入或秘密读取继续单独授权。
+- 漂移审计：本动作只建立RS.3已冻结的隔离Cluster，不复用现有资源、不扩大GPU或服务权限，兼容
+  oracle和差异归属规则不变；结论为aligned。
