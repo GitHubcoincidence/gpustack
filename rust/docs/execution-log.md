@@ -6088,3 +6088,39 @@
   不要求本接口回传。
 - 证据状态：纠偏发生在任何106请求之前，没有产生非评分响应或重复调用；单请求、凭据、无写入和
   停止边界均不变。恢复权威v2.2.3 oracle后结论为aligned。
+
+### 2026-11-13：M8-RS.3.2 Worker token身份恢复完成
+
+- 接口作用：验证RS.3.1由106签发并由生产Store保存的Worker token，能否在不重新注册的情况下唯一
+  恢复当前Worker身份；这是Worker重启/恢复路径进入后续心跳与状态同步前的认证门。
+- 请求输入：90服务器在源码HEAD`3f5b88fcfdfcbb7af36f81314d017a75aee9de8d`下，通过实际Rust
+  `ServerClient::me`只发送一次
+  `GET http://10.213.80.106:18091/v2/workers?me=true`，无body。Bearer由生产
+  `CredentialStore::load`从隔离data dir读取，期望身份由生产`IdentityRecordStore::load_optional`
+  读取；没有重试、其他HTTP或秘密输出。
+- 实际响应：HTTP 200、`content-type=application/json`，typed client从分页响应解析出恰好一项：
+  ID 16、name`rust-rs3-worker-90-20261113`、cluster_id 3、`me=true`、hostname`r760xa`、ifname
+  `eno8403`、IP`10.213.80.90`、port`21150`、metrics_port`21151`、provider`Docker`、labels仅为
+  `{"implementation":"rust"}`、worker_version`v2.2.3`、maintenance为空、status存在且GPU数量为0。
+  ID和名称与持久identity完全一致。
+- 状态解释：响应state为`not_ready`，state_message明确为自`2026-11-13 02:18:52`起heartbeat lost。
+  这是预期控制面状态：RS.3.1只注册了资源，本阶段又禁止发送heartbeat，所以不能把该Worker解释为
+  正在运行；该状态不影响token身份绑定通过。
+- 原版对照：精确v2.2.3在`me=true`且认证主体关联Worker时，将查询强制收窄到该Worker ID并在公开
+  对象设置`me=true`；`WorkerPublic`不公开`worker_uuid`。106同样只返回一项并省略UUID，核心认证、
+  查询收窄、Cluster归属和公开字段语义与原版一致。执行前撤销UUID响应要求因此得到实证支持。
+- 只读与秘密审计：`worker-identity.json`和`worker-token`执行前后inode、大小、权限、mtime、链接数
+  和owner完全不变；证据目录对Worker token逐值扫描通过，`probe.stderr`为空，没有记录token值或
+  hash。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs3-worker-me-20261113T023338Z-4072677`
+  为0700，文件均为0600。request描述、脱敏summary、probe源码和持久化审计的SHA-256依次为
+  `19c739dd4f00bd81971ef418493dade01f6c79fd6c24e2db6f3148e25b689109`、
+  `51152916de542d7adb5ce78887531da5439c4c04dc81c0ed227d110130faf31d`、
+  `65f20d8ca7d8058739ecf87e44f1c08345678c34c67550b728b65ae96efb3edb`和
+  `2a66edd535e23b113fa86a94cb617ce2cb617c6e3d5ed26a09c2242cb0dd4f42`。
+- 边界与判定：RS.3.2为`ready_for_review`。没有发送heartbeat/status/watch，没有更新或删除Worker，
+  没有访问Docker/NVML/GPU或启动端口。Worker 16、Cluster 3和两个生产身份文件继续保留。
+- 当前停止位置：下一步只允许用户审阅身份恢复结果。接受后，RS.3.3建议使用同一Worker token只发送
+  一次`POST /v2/worker-heartbeat`，验证204和Server心跳语义；状态重新计算是否即时发生应按原版
+  异步刷新机制解释，不在同一门追加GET。
