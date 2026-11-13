@@ -6601,3 +6601,27 @@
 - 判定与停止：RS.4.0为`ready_for_review`。本门没有创建日志目录、启用maintenance、启动Worker、
   写入106、操作容器或分配GPU。用户接受后才能冻结RS.4.1的maintenance安全边界；不得直接启动
   Worker或进入RS.4.2。
+
+### 2026-11-13：Worker统一Server版本兼容门实现完成
+
+- 用户最终决定：把先前`version + implementation`的目标Server门进一步收敛为只校验`version`。
+  该决定是Worker产品级统一规则，不只针对RS.4或106联调；目标版本固定为`v2.2.3`，注册请求中的
+  `worker_version`保持`v2.2.3`。
+- 统一入口：`IdentityBootstrap::establish`在首次注册、持久身份恢复和缺失Worker token后的恢复式
+  注册分支之前只调用一次`GET /version`并执行版本比较。`v2.3.0`等不支持版本在任何注册写入和本地
+  identity/token落盘前fail closed；`v2.2.3`即使没有`git_commit`，或commit、implementation、
+  build version不同，也允许继续。
+- 诊断信息：bootstrap把实际`ServerVersion`连同Worker identity交给统一运行编排。最终
+  `WorkerSummary`报告Server真实version和实际commit；响应没有commit时稳定显示`unknown`，不再把
+  原版commit伪装成当前Server身份。Worker自身`GET /version`的`server_baseline`及同源OpenAPI只公开
+  唯一兼容条件`version`。
+- 测试：新增版本唯一判定回归，覆盖不同commit、缺失commit和错误版本；新增bootstrap错误版本在
+  注册前停止且不落盘回归，并更新身份恢复、首次注册、Worker version端点及静态OpenAPI漂移测试。
+  90服务器在HEAD`5f62ac4b7e89bbadee6ad42dfbf718c3a6e2bdcf`上通过rustfmt、全workspace/all-targets
+  Clippy `-D warnings`、完整workspace locked/offline测试和locked/offline构建。实际测试共239项通过，
+  0项失败。
+- 提交链：产品逻辑提交`eed47a79`、格式提交`0e11e3b6`、注册版本常量修正`72486576`和OpenAPI
+  artifact同步`5f62ac4b`已推送GitHub并同步90工作树。变更未新增依赖、未访问106、未启动Worker、
+  未写Server、未操作Docker/GPU，也未改变RS.4.0 attempt 2的历史判定。
+- 状态与停止：统一版本门实现为`ready_for_review`。RS.4.0仍为`ready_for_review`；用户接受本实现和
+  既有预检结果前，不进入RS.4.1 maintenance讨论或任何真实Worker启动。

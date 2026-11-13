@@ -59,7 +59,7 @@ Worker 端 route prefix 和 method 固定如下。`public` 表示无需凭据；
 |---|---|---|---|---|
 | GET | `/healthz` | public | 200 JSON 字符串 `"ok"` | 只表示进程存活。 |
 | GET | `/readyz` | public | 不适用 | resource-api-only 固定 503。 |
-| GET | `/version` | public | 200 JSON object | 返回 Rust build 与 Server baseline identity。 |
+| GET | `/version` | public | 200 JSON object | 返回 Rust build 与兼容的 Server baseline version。 |
 | GET | `/token-auth` | worker | 200 | 只验证本地 per-Worker token。 |
 | GET | `/files/file-exists` | worker | 200 JSON object | 安全根目录内存在性和文件类型。 |
 | GET | `/files/model-config` | worker | 200 JSON value | 读取白名单配置文件，最多 16 MiB。 |

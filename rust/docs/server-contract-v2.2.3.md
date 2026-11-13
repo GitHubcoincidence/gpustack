@@ -82,12 +82,12 @@ artifact 版本、Git commit 和 build target 仍由 Rust `/version` 与 CLI `ve
 {"git_commit":"1cfcbbf","version":"v2.2.3"}
 ```
 
-Python 兼容算法除开发版 `0.0.0` 外要求版本字符串完全相等。Rust R1 更严格地把
-`v2.2.3` 和固定 commit 作为协议基线：
+Python 兼容算法除开发版 `0.0.0` 外要求版本字符串完全相等。Rust Worker对当前固定环境采用同样的
+发布版本边界，只把`v2.2.3`作为协议兼容硬门：
 
 - `version` 不等于 `v2.2.3`：拒绝进入 Managed ready；
-- `git_commit` 缺失：记录可执行警告并拒绝正式验收；
-- `git_commit` 与 `1cfcbbf` 不一致：拒绝正式验收；
+- `git_commit` 缺失或与`1cfcbbf`不同：只作为可选诊断信息，不阻止注册或恢复；
+- `implementation`和`build_version`缺失或取值不同：同样不参与兼容性判定；
 - `/version` 404 只作为旧 Server 兼容现象记录，R1 固定环境中视为门禁失败。
 
 ## Schema 与 null 规则

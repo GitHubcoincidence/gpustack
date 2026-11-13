@@ -15,10 +15,11 @@ OpenAPI差异只表示文档不满足基线，不能单独判定运行实现错�
 原始oracle共同证明。Worker偏离时修改Worker，Server偏离时修改Server，文档单独偏离时只修改
 文档；不能为了互通而放宽身份恢复、状态所有权、资源归属、完整PUT或fail-closed规则。
 
-目标Rust Server的兼容性硬门是`version=v2.2.3`和`implementation=rust`；Worker注册请求的
-`worker_version`同样固定为`v2.2.3`。目标Server的`git_commit`是构建追溯字段，不要求等于原版
-oracle commit，也不因阶段间变化自动阻断后续联调，但必须写入证据。一次正式attempt开始和结束时
-读取的`git_commit`必须一致；若运行期间发生变化，该attempt因无法归因而停止或作废重跑。原GPUStack
+Worker对Server执行的兼容性硬门只校验`version=v2.2.3`；Worker注册请求的`worker_version`同样固定为
+`v2.2.3`。`implementation`、`git_commit`和`build_version`均为可选诊断字段：存在时可以写入证据，
+缺失或取值不同都不得阻止首次注册、持久身份恢复或缺失Worker token后的恢复式注册。该规则同时适用
+原Python Server和目标Rust Server，不能用`implementation=rust`排除兼容的原版Server。正式实验仍可
+因运行期间外部Server发生变化而按证据不可归因规则停止，但这不是Worker产品兼容性校验。原GPUStack
 commit `1cfcbbff02aacdb51f0a390378dd7bcddd9bf365`始终保留为协议和行为权威。
 
 ## 阶段
