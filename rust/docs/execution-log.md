@@ -6042,12 +6042,13 @@
   `b9ed895d7b0e6d657c26100244469703cc0b8053c71b298cca9f77e069b1886e`、
   `c6afca748019d2de1006c3e78681588728d3dedb88f288c96674df2abc91394d`、
   `48b65b0ed5045d28901e29342e977e6c95e22fac092f9fb108765261573b0383`和
-  `38be7b03f9c521eca1d164d25680e4a908465e13a169cfaf1d9629972f05b1f3`；registration token与Worker
+  `efd166d1e885654abe4614d6de040c75705a98981b45a71dc2c7e748f27d7c38`；registration token与Worker
   token的逐值证据扫描均通过，`probe.stderr`为空。
 - 证据门诊断：网络调用、typed校验和生产持久化全部成功后，runner最终退出1，因为被保存的
   `runner.sh`自身含有待查找文本`Authorization:`，导致授权头正则自匹配。随后只对既有文件做离线
   复核，没有重复HTTP；唯一匹配文件确认为`runner.sh`，两个真实凭据逐值扫描均为PASS。该假阳性及
-  `formal_http_retried=false`已写入`post-run-audit.txt`，不改变功能门结果。
+  `network_probe_exit=0`、`runner_exit=1`和`formal_http_retried=false`已写入
+  `post-run-audit.txt`，不改变功能门结果。
 - 边界与判定：RS.3.1为`ready_for_review`。本门没有调用`GET /v2/workers?me=true`、heartbeat、
   status、watch、Docker/NVML或GPU，也未启动监听端口。Worker 16与其私有身份保留给后续RS.3门；
   不清理Cluster 3。
