@@ -5954,3 +5954,34 @@
   `POST /v2/workers`，不访问Docker/NVML、不停止服务、不使用GPU。
 - 漂移审计：只获取已授权隔离Cluster的注册凭据，未扩展资源或运行权限；秘密保护强于普通wire证据
   留存，仍能用安全元数据证明门结果。结论为aligned。
+
+### 2026-11-13：M8-RS.3.0C registration token安全落盘完成
+
+- 接口作用：取得Cluster 3的注册凭据，供后续Rust Client只注册唯一测试Worker；本门不使用该凭据
+  调用Worker接口。
+- 请求输入：90服务器在源码HEAD`3ebc0eea9322ab9c335443fa0b57e9929e44f857`下，于
+  2026-11-13 09:57:13 CST只发送一次认证
+  `GET http://10.213.80.106:18091/v2/clusters/3/registration-token`，无body，使用0600
+  management header，无重试、重定向和wire trace。
+- 实际响应：curl退出0，HTTP 200、`content-type: application/json`。脱敏解析确认
+  `server_url=http://10.213.80.106:18091`、`image=gpustack/gpustack:v2.2.3`、env键只有
+  `GPUSTACK_TOKEN`、args数量为0且token非空；env值和token值均未输出。
+- 秘密结果：token已原子保存到
+  `/home/wujiaxing2/.config/gpustack-rust/m8rs3-cluster-3-registration-token`，文件为0600、
+  owner `wujiaxing2:wujiaxing2`、单链接。含密原始响应、临时token文件和认证header均已删除；
+  管理密钥和registration token对长期证据的逐值扫描均通过，未记录秘密hash。
+- 原版对照：原v2.2.3 `ClusterRegistrationTokenPublic`同样返回`token/server_url/image/env/args`；
+  106的字段和值类型以及v2.2.3镜像身份满足后续Rust Worker配置输入，本门未发现协议差异。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs3-registration-token-20261113T015713Z-3928437`
+  为0700，文件均为0600且不含原始body。metadata、headers、transfer和脱敏summary的SHA-256依次为
+  `6c4490cb7ded8dac9dc842642357716a0c9f1d5d6e672622c7ceed8984ffca72`、
+  `f40a0f8aa20b935a22c20ade4c31048f39db36368a15cb26699cdefd1833e468`、
+  `556e63a73beee65bc6fc960dc2eac0eaffe3b7273f20044afbcc1b5812fe1057`和
+  `29558cd0fb85e74edf83a239fd03d6219ea594ce7ed3215991dbce94677a5c9b`。
+- 边界与判定：RS.3.0C为`ready_for_review`。没有注册Worker、调用`me`/heartbeat/status、访问
+  Docker/NVML、停止服务或使用GPU。
+- 当前停止位置：下一步只允许用户审阅秘密处理结果。接受后，RS.3.1建议以实际Rust
+  `ServerClient::register`发送一次`POST /v2/workers`，在Cluster 3创建唯一
+  `rust-rs3-worker-90-20261113`，并用生产`CredentialStore/IdentityRecordStore`把返回Worker token
+  和Server权威身份原子保存到隔离data dir；不调用后续`me`。该资源写入仍需单独明确授权。
