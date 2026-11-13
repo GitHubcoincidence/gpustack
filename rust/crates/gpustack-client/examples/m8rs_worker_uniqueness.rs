@@ -4,7 +4,7 @@ use gpustack_client::{Context, ServerClient, http::ReqwestTransport, load_contex
 use serde_json::json;
 use url::Url;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
