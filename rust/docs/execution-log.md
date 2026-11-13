@@ -5838,3 +5838,23 @@
   本门没有ModelFile写入、下载或删除，没有访问Docker/NVML、停止服务或使用GPU。
 - 当前停止位置：下一步只允许用户审阅该差异，并决定先交由106 Rust Server按原版修复后复测，或
   作为已知核心差异暂存并继续下一有效只读接口；在明确裁决前不把RS.2.9记为通过。
+
+### 2026-11-13：M8-RS.2.9证据验收与RS.3隔离准备入口
+
+- 用户裁决：用户接受RS.2.9的请求、响应、归因、Worker二次归属防线和修复建议。该门更新为
+  `accepted_with_known_server_difference_pending_fix`：证据和问题归因已接受，但106忽略
+  `worker_id`过滤的行为仍不兼容，必须由Rust Server修复并在RS.7前复测闭环，Rust Worker不增加
+  迁就分支。
+- 阶段状态：RS.2只读联调更新为`complete_with_open_server_differences`。分页默认顺序候选、
+  非法query错误外形和ModelFile watch过滤差异均保留；前两项按用户策略为非阻塞诊断，最后一项属于
+  有效Worker主路径，依靠Worker防线可继续联调，但不能进入最终兼容验收。
+- 漂移审计：继续RS.3仍服务于原定双Rust控制面联调目标；v2.2.3 oracle、独立身份、单门推进、秘密
+  保护、无Docker/GPU和不触碰90 Python Worker等约束不变。把已知Server差异保留到闭环而不修改
+  Worker wire属于aligned，不是放宽协议。
+- 下一最小门：RS.3.0A只发送一次认证
+  `GET /v2/clusters?page=-1`，盘点106现有Cluster的ID、名称、provider、state和Worker数量，用于
+  证明后续隔离测试Cluster名称未占用且不借用他人Cluster。使用现有短期management密钥，只读、不
+  获取registration token，不创建或删除任何资源。
+- 通过与停止条件：HTTP 200并得到可解析的Cluster列表即可；结果只用于选择唯一测试名称，不把
+  Cluster管理接口算作Worker协议兼容结论。完成后停止，下一门若需`POST /v2/clusters`创建唯一测试
+  Cluster，必须先向用户报告清单并取得明确写入授权。
