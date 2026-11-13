@@ -6055,3 +6055,23 @@
 - 当前停止位置：下一步只允许用户审阅注册结果。接受后，RS.3.2建议使用刚持久化的Worker token和
   实际Rust `ServerClient::me`只发送一次`GET /v2/workers?me=true`，验证token绑定到Worker 16且
   返回name/UUID/Cluster身份一致；不发送heartbeat或状态更新。
+
+### 2026-11-13：M8-RS.3.2 Worker token身份恢复门冻结
+
+- 用户授权：用户审阅RS.3.1的请求、响应、生产身份持久化、证据假阳性诊断和下一接口边界后明确
+  同意继续。本授权只允许验证已保存Worker token对应的当前Worker身份。
+- 真实实现路径：临时非产品probe只负责读取本地期望身份并输出脱敏摘要；Worker token必须由生产
+  `CredentialStore::load`读取，持久身份必须由生产`IdentityRecordStore::load_optional`读取，网络
+  请求必须调用实际Rust `ServerClient::me`和`ReqwestTransport`。probe源码随证据保存并从仓库删除。
+- 请求冻结：只发送一次认证
+  `GET http://10.213.80.106:18091/v2/workers?me=true`，Bearer为RS.3.1保存的Worker token，无body、
+  无重试、无重定向和wire trace。不得使用Cluster registration token或management密钥。
+- 通过门：HTTP 200且typed client从分页响应中解析出恰好一个Worker；返回ID 16、name
+  `rust-rs3-worker-90-20261113`、cluster_id 3、`me=true`和Server UUID
+  `7fa8e157-cc3e-4b10-958a-c338a3a65a7d`，并与生产identity record逐项一致；labels仍为
+  `{"implementation":"rust"}`。token值和hash不得进入聊天、Git、进程参数或证据。
+- 失败与停止：任何认证、decode、分页基数或身份不一致都立即停止且不重试；保留Worker 16和现有
+  身份文件供精确诊断。成功后同样停止，不发送heartbeat/status/watch，不改Worker，不访问
+  Docker/NVML或GPU，不启动端口。
+- 漂移审计：该门直接验证RS.3.1签发token与Worker身份的绑定，是原版Worker启动恢复路径的下一步；
+  单接口拆分、v2.2.3 oracle、秘密保护和隔离边界均未改变。结论为aligned。
