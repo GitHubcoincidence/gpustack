@@ -2674,6 +2674,14 @@ mod tests {
         page["items"][0]["system_principal_id"] = json!(77);
         page["items"][0]["unknown_extension"] = json!("do-not-emit");
         let item = serde_json::to_vec(&page["items"][0]).expect("Worker item JSON");
+        let mut other = page["items"][0].clone();
+        other["id"] = json!(102);
+        other["name"] = json!("different-worker");
+        page["items"]
+            .as_array_mut()
+            .expect("Worker items")
+            .push(other);
+        page["pagination"]["total"] = json!(2);
         transport.push_json(200, serde_json::to_vec(&page).expect("Worker page"));
         transport.push_json(200, item);
         let client = ServerClient::new(
@@ -2728,7 +2736,7 @@ mod tests {
         assert_eq!(requests.len(), 2);
         let query: BTreeMap<_, _> = requests[0].url.query_pairs().into_owned().collect();
         assert_eq!(query.get("page").map(String::as_str), Some("-1"));
-        assert_eq!(query.get("name").map(String::as_str), Some("rust worker/α"));
+        assert!(!query.contains_key("name"));
         assert_eq!(requests[1].url.path(), "/base/v2/workers/101");
     }
 
