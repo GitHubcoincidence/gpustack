@@ -6573,3 +6573,31 @@
   RS.4空载范围或后续RS.6 GPU排他条件。结论为`intentional_change_accepted`。
 - 当前停止位置：下一步只允许在本修订形成的新治理HEAD上运行全新RS.4.0只读attempt 2；通过后先
   交付用户审阅，不自动启用maintenance或启动Worker。
+
+### 2026-11-13：M8-RS.4.0只读预检attempt 2完成
+
+- 执行输入：90服务器在修订后的冻结HEAD`def54ab411993bb32ed908cde0aee82ad5110878`执行全新
+  只读attempt 2；Worker 15健康检查使用其真实绑定IP`10.213.80.90`，目标Worker仍为Cluster 3的
+  ID 16和21150/21151端口。没有复用attempt 1的Server响应或资源结论。
+- 源码与身份：本地/GitHub/90源码同步且90工作树干净，Rust 1.99.1正确；identity、persisted
+  Worker token、Cluster registration token和management key均为0600普通单链接文件，identity精确
+  为Worker 16、目标名称和权威UUID。预留RS.4日志目录未占用，目标端口无监听且无目标进程。
+- 服务与资源：Python Server、Python Worker及metrics均为200；Worker 15的health、ready和metrics
+  均为200，106清单中其heartbeat新鲜、状态ready。Docker socket和只读容器清单正常；GPU0空闲，
+  GPU1约使用41,575 MiB，仅记录不作为空载门失败条件。
+- Server与清单：attempt开始和结束的`/version`均为`v2.2.3`、`implementation=rust`、commit
+  `b51893c`，满足协议版本门和单次运行commit稳定门。完整清单在本地过滤确认Worker 16恰好一项、
+  Worker 15恰好一项、Cluster 3的Model/ModelInstance均为0且Worker 16的ModelFile为0；Worker 16
+  保持历史`not_ready`且maintenance为空，符合尚未启动的基线。
+- harness边界：全部功能门已写出PASS、结果文件没有STOP且最后一行为`preflight=PASS`，证据和首版
+  manifest生成后，SSH管道传输的临时脚本尾部返回分支被截断，Bash报告`unexpected end of file`并使
+  外层退出1。随后只对既有文件执行独立离线post-audit，没有重发任何HTTP；前后commit、全部计数、
+  本地服务状态、权限、哈希和秘密扫描均复核通过。因此功能预检为PASS，包装器退出记为
+  `NON_SCORING_FAILURE`，不提升为产品或Server问题。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs4-preflight-attempt2-20261113T090054Z`
+  为0700，文件均为0600，三个token逐值扫描无命中，最终`SHA256SUMS`自身SHA-256为
+  `cf3bc02097aa624fadaacadac80157ef7ff0ee58ef974f9b8422e236c078c283`。
+- 判定与停止：RS.4.0为`ready_for_review`。本门没有创建日志目录、启用maintenance、启动Worker、
+  写入106、操作容器或分配GPU。用户接受后才能冻结RS.4.1的maintenance安全边界；不得直接启动
+  Worker或进入RS.4.2。
