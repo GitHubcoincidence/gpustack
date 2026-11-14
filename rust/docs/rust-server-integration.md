@@ -151,3 +151,8 @@ RS.1固定检查：
 每个真实差异必须记录：编号、严重度、method/path、原始预期、Rust Worker实际请求、Rust Server
 实际响应、脱敏复现、问题归属、修复提交、回归结果和阻塞状态。诊断、失败和无效attempt不能被
 提升为正式通过。
+
+当前阻断差异：Cluster 3 的 Worker SYSTEM 主体可以读取 Cluster 1 的 Model，且
+`GET /v2/model-files?worker_id=16`返回Worker 13～15的ModelFile。完整脱敏报告、原版行为依据、
+建议修复范围和验收用例见
+[Rust Server 跨 Cluster 可见性缺陷报告](rust-server-cross-cluster-visibility-issue.md)。

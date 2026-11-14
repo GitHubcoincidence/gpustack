@@ -6762,3 +6762,17 @@
   `ready_for_review`或accepted。下一步须先由用户审阅归因，再推动106按原版修复Model和ModelFile的
   Cluster SYSTEM list/watch隔离；修复部署并通过只读复测后，RS.4.2需要新的正式执行授权和全新证据
   目录。不得自动重跑、关闭maintenance或进入RS.4.3/RS.5。
+
+### 2026-11-14：Rust Server跨Cluster可见性缺陷完成脱敏转交记录
+
+- 目标：把RS.4.2 formal attempt 1已经确认的Server差异整理为可直接交给Rust Server开发者的
+  独立问题报告，不改变失败判定、测试范围或现场状态。
+- 产物：新增`rust/docs/rust-server-cross-cluster-visibility-issue.md`，记录环境与身份、前置条件、
+  三个只读请求、实际越界资源、130秒Worker表现、原始v2.2.3 list/watch语义、疑似排查位置、建议
+  修复范围、回归用例和修复后复测顺序。
+- 安全边界：报告只使用`<WORKER_16_SYSTEM_TOKEN>`占位符和脱敏资源摘要，不包含真实Cluster、
+  Worker、operator或API key值；正式证据继续只保存在90服务器0700目录中。
+- 治理判定：本次是对D283既有证据的转交整理，没有新增实验变量，也没有把失败attempt提升为
+  通过，漂移审计结论为aligned。
+- 当前停止位置：等待Rust Server修复并部署；修复后先执行三个只读list范围复测，再单独验证watch。
+  未获得新授权前不得重跑RS.4.2、关闭Worker 16 maintenance或进入RS.5。
