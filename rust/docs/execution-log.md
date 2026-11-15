@@ -7189,3 +7189,27 @@
   分类器，不放宽业务门。结论为aligned。
 - 当前停止位置：RS.6.0为`ready_for_review`。下一步只允许讨论并冻结RS.6.1在maintenance下启动
   Worker 16和验证空载readiness的具体命令、超时、证据及本地回滚；尚未授权启动Worker。
+
+### 2026-11-15：M8-RS.6.0验收与RS.6.1空载启动门冻结
+
+- 用户裁决：用户接受RS.6.0组合证据、harness裁决、零业务写入和环境就绪结论，并授权继续RS.6.1。
+  授权只覆盖maintenance下启动统一Worker及空载readiness，不覆盖补`worker-name`、关闭maintenance、
+  调度Instance 14、创建vLLM容器或执行推理。
+- 即时漂移复核：本地/GitHub/90源码均为`b77dc956b0b644ce1f88a28f2b74cbcccf7646e5`且90干净；
+  Worker 16仍maintenance、labels仅`implementation=rust`。Model 7和Instance 14保持冻结状态，Worker
+  16 ModelFile为0，21150/21151和运行端口池空闲，无目标进程。GPU0为0 MiB/0%且无计算进程；GPU1
+  出现外部PID 1100412、约46 GB显存和93%利用率，只记录且不操作。结论为aligned。
+- 固定命令：使用当前仓库debug二进制的普通`gpustack-rs worker ... run`，Server/Worker/宿主身份、
+  Cluster注册token、m8rs3 data目录、m8rs6 log/control目录、Qwen model root、Docker socket和
+  21150/21151全部显式传入；token只以0600文件路径引用。
+- 启动与观察门：在包含D297的干净HEAD上locked/offline重建后启动精确PID，观察至少90秒。本地
+  health/ready/metrics必须200，Server heartbeat前进且maintenance/unreachable/身份不变；Model 7
+  ready仍0，Instance 14仍pending未分配，Worker 16 ModelFile、目标容器、运行端口、GPU0计算和
+  managed reconciliation均为0。D284跨Cluster资源只记录，禁止转化为动作。
+- watchdog与回滚：观察期每秒检查maintenance和Instance 14。若隔离屏障丢失，先恢复maintenance再
+  SIGINT精确PID；普通失败只停止精确PID。仅在Instance 14、Worker UUID、component和ownership标签
+  全部匹配时才允许处理目标容器。Python Worker、用户PID 1113114及GPU1始终禁止操作。
+- 成功终态：Worker PID、control和日志保留，maintenance继续启用，供RS.6.2使用；通过不自动授权
+  标签PUT。失败保留Model 7/Instance 14和证据，不自动重试。
+- 当前停止位置：RS.6.1为`authorized_pending_execution`。下一步只允许提交并同步本冻结记录后，
+  执行上述一次启动、watchdog和空载验收；不得进入RS.6.2。

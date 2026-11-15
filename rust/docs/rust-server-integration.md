@@ -262,6 +262,29 @@ attempt 1因错误使用loopback检查仅绑定宿主IP的用户Worker而提前�
 监听端口和health确认用户Worker身份，并用加括号的Context谓词完成余下门。组合证据判定为
 `PASS/readonly_preflight_ready_composite`，未发出写请求或触发进程、容器、镜像和GPU生命周期。
 
+### RS.6.1 maintenance下统一Worker空载启动
+
+RS.6.1只使用普通生产`worker run`，复用Worker 16的持久身份、Cluster注册凭据和m8rs3 data目录，
+固定宿主身份`r760xa/10.213.80.90/eno8403`、21150/21151、本地Qwen model root和Docker socket。
+本阶段创建独立m8rs6 control/log/evidence目录并启动一个精确PID；不使用阶段模式，不补标签，不关闭
+maintenance，不调用容器生命周期。
+
+启动前在包含本方案的干净HEAD上用Rust 1.99.1 locked/offline重建，记录二进制和Cargo.lock身份。
+重新确认Worker 16 maintenance、Model 7/Instance 14冻结字段、Worker 16 ModelFile为0、目标进程和
+端口池空闲、GPU0无计算进程、Python及用户Worker健康。GPU1允许存在外部任务，只记录其进程和资源，
+不得把GPU1空闲作为启动条件或对其采取操作。
+
+启动后观察至少90秒：本地health、ready和metrics为200，21150/21151由精确PID监听，Server heartbeat
+前进且Worker 16继续maintenance、unreachable false、上报两张GPU和metrics port 21151。Model 7
+保持replicas 1/ready 0，Instance 14保持pending且worker/port/GPU为空，Worker 16 ModelFile为0；
+不得出现Instance 14容器、40000～40063监听、GPU0计算进程或managed reconciliation。已知D284跨
+Cluster list/watch差异只记录，不把其他Cluster资源用于动作。
+
+启动前建立短时watchdog。maintenance丢失或Instance 14开始分配时，先用即时完整Worker对象恢复
+maintenance，再向本阶段精确PID发送SIGINT；若出现容器，只能在Instance 14、Worker UUID、component
+和ownership全部匹配后停止/删除。其他失败只停止精确PID并保留maintenance。成功时PID保持运行，
+control文件记录身份，供RS.6.2在maintenance下补齐`worker-name`；通过不授权RS.6.2写入。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；
