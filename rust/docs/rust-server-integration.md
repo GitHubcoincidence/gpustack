@@ -169,6 +169,13 @@ deploy；结果不明确时按精确Model名称GET，禁止第二次POST。
 容器和GPU均不得增加。成功资源保留给后续ModelInstance list/watch及RS.6准备；本门不启动Worker、
 不修改maintenance、不修复Worker标签、不停止任何现有Worker，也不调用Docker生命周期。
 
+2026-11-15实际结果：非评分attempt 1在模型写入前因`pipefail`把`pgrep`零匹配误判为失败，确认没有
+创建Context或发送Model POST后保留证据。attempt 2使用HEAD `29deb51605b1`只执行一次无`--wait`
+CLI deploy，创建Model 7；Server约5秒后内部生成Instance 14，状态为pending，worker/port/GPU均空。
+管理主体与Worker 16 SYSTEM主体各自精确看到一个目标实例；Model 6、Worker 16 maintenance、
+ModelFile、进程、端口、容器和两张GPU均保持基线。RS.5.4判定为
+`PASS/server_created_pending_instance`，资源保留给下一门。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；

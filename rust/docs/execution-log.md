@@ -7021,3 +7021,45 @@
 - 当前停止位置：RS.5.4为`authorized_pending_execution`。下一步只允许在包含D290的干净治理HEAD上
   建立新证据、创建非active Context、执行一次CLI deploy并做60秒只读后审；不得启动Worker或修改
   maintenance/labels。
+
+### 2026-11-15：M8-RS.5.4 Server驱动pending实例生成通过
+
+- 源码与二进制：本地、GitHub和90冻结HEAD为
+  `29deb51605b14d080bb230cf62f7466d99454ebf`，90工作树干净；Rust 1.99.1 locked/offline重建的
+  `gpustack-rs`报告commit `29deb51605b1`，SHA-256为
+  `b7ac2d18ce17ae405744ccc37293d23dec728c43a6bbede8601cab901cb6ad9d`。
+- 非评分attempt 1：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs5-server-driven-instance-20261115T134010Z`
+  在宿主机隔离检查处停止。原因是harness启用`pipefail`后把`pgrep`的“零匹配”退出1在进入`wc`
+  前当作失败；该结果本应是安全门通过。停止发生在Context add与Model deploy之前，复核Context和
+  目标Model均为0，`model_post_sent=false`，因此只记`NON_SCORING_FAILURE`。其`SHA256SUMS`自身
+  SHA-256为`80edab55cfae13911495465d2da449bb47a3fad74c72d7daf40152654207b98d`。
+- attempt 2准备：全新0700证据目录中重新验证HEAD、二进制、三类0600凭据、Server v2.2.3 commit
+  `fba334c`、Worker 16 Cluster 3 maintenance、Model 6 replicas 0、目标名称未占用、Worker 16
+  Instance/File为0、进程/21150/21151为0和双GPU空闲。新增非active Context
+  `m8rs-rs5-control`仅引用既有management key；用户active Context前后均为`liantiao-demo-new`。
+- 接口作用与输入：CLI `model deploy`先本地精确解析Worker，然后只调用一次`POST /v2/models`；不
+  调用缺失的ModelInstance POST。本次无`--wait`，Model名
+  `rust-rs5-server-driven-qwen25-05b-gpu0`，Worker 16、GPU0、本地Qwen2.5-0.5B、固定Runner digest、
+  TP=1、max length 2048、memory utilization 0.5、dtype auto、eager和禁止跨Worker分布式推理。
+- Model响应：CLI退出0，返回Model ID 7、Cluster 3、replicas 1、ready replicas 0、完整本地路径、
+  vLLM、Runner、`worker-name=rust-rs3-worker-90-20261113` selector、唯一GPU ID
+  `rust-rs3-worker-90-20261113:cuda:0`和全部冻结backend parameters；没有重试POST。
+- Server内部实例：第一次与第二次轮询为0，约5秒后的第三次轮询精确出现Instance ID 14、名称
+  `rust-rs5-server-driven-qwen25-05b-gpu0-hr0a0`、Cluster 3、Model 7、state pending。状态消息为
+  `No suitable workers / no ready worker with available GPU`；worker identity、port和GPU assignment
+  均为空。该资源由Server controller内部生成，证明正常部署链不依赖外部Instance POST。
+- 可见性与副作用：管理主体和Worker 16 SYSTEM主体各精确看到一个目标Instance；Worker 16
+  ModelFile仍为0。Model 6保持replicas 0，Worker 16保持maintenance，目标进程/端口为0，用户独立
+  PID 1113114仍在线，Docker身份集合不变，两张A100前后均为0 MiB/0%。Server commit稳定。
+- 正式判定：RS.5.4为`PASS/server_created_pending_instance`，model、instance、isolation三门和Worker
+  可见性全部通过。正式证据目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs5-server-driven-instance-attempt2-20261115T134243Z`
+  为0700、文件均0600，三类token逐值和通用秘密扫描PASS；`SHA256SUMS`自身SHA-256为
+  `54956e841703b9646c1cbc9bf4c299100fa4208c796463f78c6e0f9fe2ab66a2`。
+- 解释边界：本门证明Server内部Model controller创建实例的真实主链可用，不改变RS.5.3外部POST
+  缺失的失败结论，也不证明调度或runtime。Instance 14预期保持pending，因为Worker 16同时停止、
+  maintenance且缺少`worker-name`标签。
+- 当前停止位置：RS.5.4为`ready_for_review`。Model 7与Instance 14保留。下一步建议RS.5.5只读验证
+  `GET /v2/model-instances/14`、Model 7状态查询和ModelInstance watch初始回放；不得修改Instance、
+  Worker labels/maintenance或启动Worker。通过后再单独冻结RS.6调度前置修复和维护窗口。
