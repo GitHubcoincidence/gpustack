@@ -6941,3 +6941,24 @@
   `rust/docs/rust-server-model-update-ignored-fields-issue.md`。
 - 当前停止位置：需要用户审阅并决定该差异是等待Rust Server修复后复测，还是像D284一样记录为
   RS.7前必须闭环的已知差异并继续下一个隔离资源门；在裁决前不发送新的Server写请求。
+
+### 2026-11-15：M8-RS.5.2差异暂存与RS.5.3方案冻结
+
+- 用户裁决：用户接受RS.5.2的单次PUT、HTTP 200但字段未应用、空UPDATED事件、问题归因及零副作用
+  审计，同意按D284相同策略记录并暂时跳过；该门保持失败，Rust Server修复和回归仍为RS.7硬门。
+- 原版与106契约：原v2.2.3存在`POST /v2/model-instances`及完整ModelInstanceCreate；106当前
+  OpenAPI的`/v2/model-instances`只列GET，虽提供`ModelInstancesCreate` schema和单资源GET/PUT/
+  DELETE。OpenAPI缺失先记录为文档观察，运行时须由一次真实合法POST判定。
+- 唯一请求：管理主体只发送一次`POST /v2/model-instances`，body固定name
+  `rust-rs5-instance-90-20261115`、source/local path、state pending、model_id 6/model name、cluster_id
+  3、worker_id 16及Worker name/IP/ifname/advertise address、backend vLLM；port/pid null，ports、
+  gpu_indexes和gpu_addresses为空，distributed/draft/LoRA字段为空。
+- 安全语义：Rust Worker只为自身`state=scheduled`实例执行初始化；pending实例不会触发端口分配或
+  runtime。目标Worker保持停止和maintenance，本门也不启动它。Model 6继续replicas 0。
+- 通过与失败门：HTTP 200/201且正ID、字段精确一致；管理和Worker Token列表各唯一命中，Model/File/
+  maintenance/进程/端口/容器/GPU不变。若运行时404/405或其他错误，记录Server差异并停止；连接结果
+  不明确时只按精确name GET，禁止第二次POST，不改数据库、不扩容Model。
+- 漂移审计：RS.5隔离资源、原版接口权威、D284/D287待修差异和非GPU边界均未改变；OpenAPI缺失是
+  已披露输入差异，真实POST为冻结判定方法。结论为aligned。
+- 当前停止位置：RS.5.3为`authorized_pending_execution`。下一步只允许在包含D287-D288的干净治理
+  HEAD上建立全新证据，执行一次POST及只读后置审计。

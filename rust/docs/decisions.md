@@ -1403,3 +1403,10 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D286 | 停止态Model更新与实时事件 | 先以Worker 16 Token建立Model watch并确认Model 6初始回放，再从即时Model快照构造白名单完整PUT，只修改description。要求HTTP 200、独立GET保持Cluster 3、replicas 0、source/path、backend参数和selectors，并在同一watch收到恰好一个Model 6 type=2事件；全程无Instance/File、Worker、Docker或GPU动作。原版会对非Custom backend清空image_name/run_command，两字段单独按oracle审计；结果不明确时只GET且不重试 | 该门以无调度副作用的description变化验证Rust Server完整更新和Rust Worker真实watch wire，同时保持D284隔离边界。把原版特殊字段归零语义与普通字段保留分开，避免把已知oracle行为误判为Server字段丢失。用户已同意执行该下一步。 |
+
+## 2026-11-15 M8-RS.5.2差异暂存与RS.5.3实例创建门
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D287 | Model PUT忽略字段的临时推进策略 | RS.5.2保持`FAIL/update_ignored_description`：唯一PUT HTTP 200但响应、GET和UPDATED watch均保留旧description，事件changed_fields为空；问题归属Rust Server并在RS.7前修复回归。等待期间继续RS.5，不重试、不回滚Model 6，也不在Worker增加迁就逻辑 | watch连接和事件传输已经证明可用，但Server未应用有效更新字段。问题有独立报告、正式证据和零副作用审计，可与D284一样隔离暂存；保留失败结论和最终硬门避免降低原版兼容标准。用户同意记录并继续。 |
+| D288 | 唯一pending ModelInstance创建 | 按原版只发送一次`POST /v2/model-instances`，创建`rust-rs5-instance-90-20261115`并精确绑定Model 6、Cluster 3和Worker 16；state为pending，端口/PID/GPU/distributed/draft/LoRA字段为空，不启动Worker。106 OpenAPI当前缺少POST，运行时若404/405即判定Server缺失接口并停止，不通过数据库或Model扩容绕过；成功资源保留供后续watch/完整PUT | pending不满足Rust Worker只接管scheduled实例的前置条件，且Worker 16保持maintenance/停止，能够在无Runner/GPU风险下验证原版核心创建接口、归属过滤和后续状态所有权前置资源。单次真实POST比仅依据不完整OpenAPI更能确定运行实现。 |

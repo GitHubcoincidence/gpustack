@@ -120,6 +120,25 @@ description为新值的UPDATED事件。初始回放中其他Cluster Model继续�
 用于写请求。Model 6和Worker 16仍无Instance/File，目标Worker/端口、容器、GPU和独立20150 Worker
 前后不变。结果不明确时只GET判定，禁止第二次PUT；Model 6继续保留，不在本门回滚description或删除。
 
+2026-11-15裁决：RS.5.2保持`FAIL/update_ignored_description`，缺陷交由Rust Server修复并作为RS.7
+硬门；等待期间继续RS.5，不在Worker添加迁就分支，也不把空UPDATED事件视为更新成功。
+
+### RS.5.3 唯一pending ModelInstance创建
+
+原GPUStack v2.2.3提供`POST /v2/model-instances`，而106当前OpenAPI只列出该集合路径的GET，未列
+POST。RS.5.3仍按原版向运行时发送一次合法POST，以实际HTTP行为判定接口是否存在；若返回404/405，
+记录为Rust Server缺失核心接口并停止，不尝试数据库写入、Model扩容或其他绕过路径。
+
+请求创建唯一`rust-rs5-instance-90-20261115`，固定model_id 6、model name、Cluster 3、Worker 16
+身份与10.213.80.90网络字段、local_path、vLLM和`state=pending`；port/pid为空，ports、GPU indexes/
+addresses为空，distributed servers和draft/LoRA字段为空。pending状态不满足Rust Worker只接管
+scheduled实例的前置条件，即使后续启动Worker也不能进入端口分配或runtime；本门仍禁止启动Worker。
+
+通过门为HTTP 200/201、正ID、字段精确一致，管理主体和Worker 16 Token各自只看到一次目标实例；
+Model 6保持replicas 0、Worker 16 maintenance，ModelFile为0，端口/进程/容器/GPU不变。结果不明确
+时只按精确name GET，禁止第二次POST。成功实例保留给后续ModelInstance watch/完整PUT门，失败时不
+删除Model 6或修改其他资源。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；
