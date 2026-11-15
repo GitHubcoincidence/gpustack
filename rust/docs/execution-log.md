@@ -7157,3 +7157,35 @@
   GPU计算。用户已授权执行该只读门。
 - 当前停止位置：RS.6.0为`authorized_pending_execution`。下一步在新治理HEAD上执行一次正式预检并
   交付审阅；通过只允许冻结RS.6.1启动方案，不自动启动Worker。
+
+### 2026-11-15：M8-RS.6.0只读正式预检通过
+
+- 冻结身份：本地、GitHub和90源码HEAD均为`0ba5d54eae72bbaeafdca924a352b743c375620a`，90工作树
+  干净；Rust 1.99.1 locked/offline构建通过。二进制SHA-256为
+  `e9fe6184f0307168e574775970e775967fef6beef2d91bbcbe3a14f81ed13905`，Cargo.lock SHA-256为
+  `3573ec9493671ebe67590500f841e0b7cbe1625241eb95250f36741d9f2e6599`。
+- Server与资源：106 health为200，版本前后均为v2.2.3 commit `fba334c`。Worker 16保持Cluster 3、
+  maintenance、unreachable false和仅`implementation=rust`标签；Model 6 replicas 0，Model 7
+  replicas 1/ready 0且selector仍精确指向Worker 16/GPU0；Instance 14保持pending，worker、port和
+  GPU indexes均空；管理主体与Worker SYSTEM主体读取一致，Worker 16 ModelFile为0。
+- 本地运行前提：固定Runner digest
+  `f9c58b163ec7eb537404c7d268f3d96e101cbf19e05acb8df6b7637f9e64c3af`已在本地，Docker nvidia
+  runtime存在。Qwen2.5-0.5B路径规范、可读，10个文件共999,604,126字节。21150/21151和
+  40000～40063空闲，无目标Worker进程和Instance 14容器；预留日志路径未占用。
+- GPU与既有服务：GPU0 UUID为`GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3`，显存/利用率为0且无
+  计算进程；GPU1仅记录。Python Server/Worker和用户Worker health/metrics全部200，PID 1113114、
+  20150/20151及两个Python容器身份和restart count保持。
+- harness证据：attempt 1错误用loopback检查仅绑定`10.213.80.90`的用户Worker；attempt 2使用错误
+  版本路径；attempt 3在离线构建替换inode后把`/proc/PID/exe`的`(deleted)`后缀误判为错误，第一次
+  continuation又有`jq`优先级错误。所有原始未完成/STOP证据保留；最终裁决使用PID、`comm`、argv0、
+  端口和health确认用户Worker，并用加括号谓词验证Context，引用输入逐文件SHA-256且没有重放写操作。
+- 证据：attempt 3和最终裁决目录均为0700、文件均0600，精确token和通用API key扫描PASS。最终目录为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-readonly-preflight-final-adjudication-20261115T143519Z`，
+  `SHA256SUMS`文件自身SHA-256为
+  `4bed82da8955a862846e65239fa771c5b5587d4efb70b3ea827c50079c04ab27`。
+- 结果与边界：正式结论为`PASS/readonly_preflight_ready_composite`。本门没有POST/PUT/DELETE、
+  Worker启动、maintenance/label修改、容器操作、镜像拉取或GPU任务；D284及RS.5.2/5.3差异不变。
+- 漂移审计：目标、资源ID、Server oracle、GPU0排他和隔离边界均与D293～D295一致；D296只修正本地
+  分类器，不放宽业务门。结论为aligned。
+- 当前停止位置：RS.6.0为`ready_for_review`。下一步只允许讨论并冻结RS.6.1在maintenance下启动
+  Worker 16和验证空载readiness的具体命令、超时、证据及本地回滚；尚未授权启动Worker。

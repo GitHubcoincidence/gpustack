@@ -244,6 +244,24 @@ PID和容器身份必须保持。预留RS.6日志目录必须未占用。
 Worker/容器生命周期、Server POST/PUT/DELETE、label/maintenance修改、镜像拉取和GPU任务。通过后
 只解锁RS.6.1方案冻结与单独启动授权，不自动启动Worker。
 
+2026-11-15实际结果：预检在HEAD `0ba5d54eae72`上通过。Rust Server保持v2.2.3 commit
+`fba334c`，Worker 16保持maintenance且仅有`implementation=rust`标签；Model 7保持replicas 1/
+ready 0，Instance 14保持pending且未分配Worker、端口或GPU，Worker 16 ModelFile为0。固定Runner
+digest已存在，Qwen2.5-0.5B规范路径含10个文件、共999,604,126字节；21150/21151和40000～40063
+空闲，没有目标Worker进程或Instance 14容器。
+
+GPU0 UUID为`GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3`，显存、利用率和计算进程均为0；GPU1只
+记录且同样空闲。Python Server/Worker和用户Worker的health/metrics均为200，用户Worker PID
+1113114及20150/20151保持。locked/offline构建后的二进制SHA-256为
+`e9fe6184f0307168e574775970e775967fef6beef2d91bbcbe3a14f81ed13905`，Cargo.lock SHA-256为
+`3573ec9493671ebe67590500f841e0b7cbe1625241eb95250f36741d9f2e6599`。
+
+attempt 1因错误使用loopback检查仅绑定宿主IP的用户Worker而提前退出；attempt 2因版本路径写错为
+`/v1-openai/version`而退出；attempt 3把离线重建后仍运行的旧inode显示为`(deleted)`误判为错误，
+其continuation又因`jq`管道优先级误判Context。原始STOP均保留，最终独立裁决用PID、`comm`、argv0、
+监听端口和health确认用户Worker身份，并用加括号的Context谓词完成余下门。组合证据判定为
+`PASS/readonly_preflight_ready_composite`，未发出写请求或触发进程、容器、镜像和GPU生命周期。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；
