@@ -17,6 +17,15 @@ Server 应执行的数据隔离。
 - 建议优先级：P0 兼容性阻断；若两个 Cluster 属于不同租户，还同时构成跨租户元数据泄露风险
 - 正式实验结论：`FAIL/unexpected_desired_models`，清理结果 `PASS`
 
+### 2026-11-15 处理状态
+
+该问题已经转交Rust Server开发者，当前等待对方修复。为避免阻塞其他接口和功能联调，项目决定
+暂时跳过此差异并继续RS.5，但本次RS.4.2 attempt仍保持`FAIL`，不得改写为兼容通过。
+
+后续联调必须继续使用Worker本地`worker_id`所有权检查、Cluster 3隔离资源、Worker 16 maintenance
+屏障和精确资源ID审计，禁止根据Server返回的其他Cluster Model构造任何写请求。该问题仍是RS.7
+最终兼容验收的硬阻断项；Rust Server修复部署后必须重新执行list、watch和RS.4.2空载回归。
+
 ## 环境与身份
 
 | 项目 | 值 |

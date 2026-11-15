@@ -6776,3 +6776,22 @@
   通过，漂移审计结论为aligned。
 - 当前停止位置：等待Rust Server修复并部署；修复后先执行三个只读list范围复测，再单独验证watch。
   未获得新授权前不得重跑RS.4.2、关闭Worker 16 maintenance或进入RS.5。
+
+### 2026-11-15：M8-RS.4差异暂存并允许继续RS.5
+
+- 用户裁决：Rust Server开发者尚未完成修复；用户要求记录并暂时跳过该Bug，继续后续任务，修复
+  完成后再通知本项目复测。
+- 状态解释：RS.4.2 formal attempt 1继续保持`FAIL/unexpected_desired_models`，D283的问题归因、
+  证据和脱敏转交报告均不变。RS.4阶段只更新为
+  `complete_with_open_server_difference`，不称为`accepted`或完全兼容。
+- 临时推进边界：RS.5只能逐门操作管理主体精确创建在Cluster 3且显式绑定Worker 16的唯一资源；
+  不得使用Worker Token返回的其他Cluster Model或其他Worker ModelFile构造写请求。Worker 16继续
+  保持maintenance，本地ModelInstance/ModelFile所有权检查保持fail-closed，每门前后核对资源归属、
+  容器集合和reconciliation计数。
+- 最终门：该Bug继续阻断RS.7最终兼容验收。收到Rust Server修复通知后，必须先复测Model和
+  ModelFile list，再分别复测watch，最后用新证据目录重跑RS.4.2；旧失败attempt不得重分类。
+- 漂移审计：用户显式授权改变“修复后才能进入RS.5”的顺序门；兼容oracle、失败结论、资源归属、
+  maintenance和最终验收标准未改变。结论为intentional change accepted。
+- 当前停止位置：允许进入RS.5的第一个单一功能门。下一步先执行只读RS.5.0基线复核并冻结唯一
+  测试资源命名与写入边界；该裁决本身不授权创建、更新或删除Server资源，也不授权启动Worker、
+  操作Docker或使用GPU。

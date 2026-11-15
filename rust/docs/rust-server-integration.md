@@ -71,6 +71,21 @@ desired/零reconciliation、control health全通过且watch reconnect为0的JSON
 消失，maintenance继续保留。失败时先停止精确PID，不关闭maintenance、不删除身份或数据目录、不
 操作容器/GPU，也不自动重试。方案冻结不授权构建、启动或任何运行时操作。
 
+2026-11-15临时推进裁决：RS.4.2 attempt 1仍为`FAIL/unexpected_desired_models`，但其失败已明确
+归因于Rust Server跨Cluster list/watch范围缺口，且Worker本地所有权防线、零reconciliation、零容器
+变化和完整清理均有正式证据。用户决定在等待Server修复期间把RS.4更新为
+`complete_with_open_server_difference`并继续RS.5，不能把该状态表述为完全兼容或正式通过。
+
+临时推进期间增加以下硬约束：
+
+- 只使用由管理主体精确创建在Cluster 3、并显式绑定Worker 16的唯一测试资源；
+- 不得把Worker Token返回的其他Cluster Model或其他Worker ModelFile用于任何写请求；
+- Worker 16继续保持maintenance，除非后续单独冻结并授权精确状态变化；
+- 每一门前后核对目标ID、Cluster、worker_id、容器集合和reconciliation计数；
+- Worker本地ModelInstance/ModelFile所有权检查不得放宽或删除；
+- RS.7最终验收前，Rust Server必须修复Model Cluster范围和ModelFile `worker_id`过滤，并重新通过
+  list、watch和RS.4.2空载回归。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；
@@ -156,3 +171,5 @@ RS.1固定检查：
 `GET /v2/model-files?worker_id=16`返回Worker 13～15的ModelFile。完整脱敏报告、原版行为依据、
 建议修复范围和验收用例见
 [Rust Server 跨 Cluster 可见性缺陷报告](rust-server-cross-cluster-visibility-issue.md)。
+该差异当前由Rust Server开发者处理中；项目按2026-11-15临时推进裁决继续RS.5，但它仍阻断RS.7
+最终兼容验收。

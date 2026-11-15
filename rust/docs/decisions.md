@@ -1385,3 +1385,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D283 | 空载运行结果与跨Cluster可见性差异 | 冻结HEAD`5f00536b29a6319b7381269b876c537051be0252`的Worker完整运行130秒并优雅退出，readiness、heartbeat/status/full sync/watch、maintenance、零reconciliation、容器不变和清理全部通过；但总结为`desired_models=5`。Worker token直接GET确认106向Cluster 3 SYSTEM主体返回Cluster 1的5个Model及其他Worker的4个ModelFile，故formal attempt 1固定为`FAIL/unexpected_desired_models`、cleanup PASS | 原v2.2.3的`tenant_list_conditions`及Model/ModelFile watch filter会把Cluster绑定SYSTEM主体限制到本Cluster或NULL cluster。106响应违反该隔离语义，问题归属Rust Server；Worker对ModelInstance/ModelFile的本地worker_id二次过滤已阻止副作用，不能通过放宽验收或增加迁就分支把Server数据隔离缺口标记为兼容。 |
+
+## 2026-11-15 M8-RS.4差异暂存与后续联调推进
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D284 | 跨Cluster可见性缺口的临时推进策略 | 保留RS.4.2 attempt 1的`FAIL/unexpected_desired_models`和D283归因，不把差异改写为通过；问题已转交Rust Server开发者，等待修复期间将RS.4标记为`complete_with_open_server_difference`并逐门进入RS.5。后续只操作管理主体精确创建在Cluster 3且绑定Worker 16的唯一资源，保留maintenance、本地所有权检查和前后资源/容器审计；不得使用跨Cluster响应构造写请求。RS.7前必须完成Server修复以及Model/ModelFile list、watch和RS.4.2重跑 | 本次失败没有触发reconciliation、容器或GPU副作用，Worker的身份、heartbeat/status、readiness、full sync/watch连接和优雅退出均已得到正式证据，因此可继续验证其他接口和状态所有权。继续推进不改变原版兼容标准，也不降低最终验收门；附加隔离约束把已知Server缺口限制为可追踪风险。 |
