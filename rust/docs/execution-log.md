@@ -6886,3 +6886,25 @@
 - 当前停止位置：用户接受后，建议RS.5.2只验证Model有效watch：先用Worker 16 Token建立watch，再对
   Model 6发送一次完整PUT，仅改变description且保持replicas 0和所有调度字段，要求收到该ID的UPDATED
   事件并证明无Instance/File/Docker/GPU副作用。该下一门尚未授权。
+
+### 2026-11-15：M8-RS.5.2 Model完整PUT与UPDATED watch方案冻结
+
+- 用户授权：用户审阅RS.5.1接口、请求、HTTP 200/Model 6响应、范围与副作用审计后明确表示没有
+  问题，同意执行“Worker watch加一次完整PUT description更新”的下一门。
+- watch输入：Worker 16 SYSTEM Token只建立一次
+  `GET /v2/models?watch=true`，`Accept: text/event-stream`，无body；收到初始type=1回放且精确包含
+  Model 6后才允许PUT。其他Cluster初始事件按D284已知差异记录，不作为写入输入。
+- PUT输入：管理主体只发送一次`PUT /v2/models/6`。请求从即时GET响应按Rust Server ModelsCreate
+  可写字段白名单构造；只把description设为`M8-RS.5 watch update verified; still stopped`，其余
+  Cluster 3、replicas 0、source/local path、vLLM参数、Worker selector、gpu_selector null、restart和
+  distributed字段保持。
+- oracle细节：原v2.2.3 `update_model`会在非Custom backend且现存image/run command时把
+  `image_name`、`run_command`置null；这两字段单独记录，不纳入普通字段保留失败。其他归属、调度和
+  停止态字段必须精确保留。
+- 通过门：PUT HTTP 200且独立GET为新description；同一watch恰好一个type=2、ID 6事件且data字段
+  与GET一致。Model 6 Instance为0、Worker 16 File为0、maintenance/端口/进程/容器/GPU和独立
+  PID 1113114不变。结果不明确时只GET，不发送第二次PUT，也不回滚或删除Model。
+- 漂移审计：目标仍为RS.5有效工作流wire与字段所有权，单一停止态Model、D284隔离、v2.2.3 oracle
+  和非GPU边界均未改变；结论为aligned。
+- 当前停止位置：RS.5.2为`authorized_pending_execution`。下一步只允许在包含D286的干净治理HEAD
+  上建立全新证据，执行一次watch、一次PUT及只读后置审计。

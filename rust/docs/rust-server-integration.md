@@ -104,6 +104,22 @@ Model没有ModelInstance且Worker 16没有ModelFile。Worker SYSTEM Token的Mode
 后置门失败，保留该资源、记录ID并停止，不自动删除。成功资源同样保留给RS.5后续单门使用，最终由
 RS.5/RS.7精确清理。方案不授权更新或删除Model，也不授权启动Worker或执行Docker/GPU生命周期。
 
+### RS.5.2 Model完整PUT与UPDATED watch
+
+RS.5.2先用Worker 16 SYSTEM Token建立`GET /v2/models?watch=true`，确认初始回放中Model 6精确
+出现后，管理主体只对`PUT /v2/models/6`发送一次完整请求。请求由即时Model 6快照白名单化构造，
+只把description改为`M8-RS.5 watch update verified; still stopped`；Cluster、replicas 0、source/path、
+backend参数、Worker selector、gpu_selector null和分布式推理false必须保持不变。
+
+原GPUStack v2.2.3对非Custom backend执行Model更新时会把`image_name`和`run_command`设置为null，
+因此两字段按oracle单独审计，不混入普通字段保留门。Rust Server若采用不同结果，记录为兼容差异，
+但本门硬门仍要求所有归属、停止态和调度字段不变。
+
+通过门要求PUT为HTTP 200、独立GET字段正确，watch在同一连接中收到恰好一个`type=2`、ID 6、
+description为新值的UPDATED事件。初始回放中其他Cluster Model继续按D284记为已知Server差异，不能
+用于写请求。Model 6和Worker 16仍无Instance/File，目标Worker/端口、容器、GPU和独立20150 Worker
+前后不变。结果不明确时只GET判定，禁止第二次PUT；Model 6继续保留，不在本门回滚description或删除。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；

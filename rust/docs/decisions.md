@@ -1397,3 +1397,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D285 | RS.5第一个隔离资源写入 | 只向106发送一次`POST /v2/models`，创建`rust-rs5-scope-90-20261115`：cluster_id 3、replicas 0、Qwen2.5-0.5B本地路径、vLLM、固定Runner digest、Worker 16名称selector、无GPU selector且禁止分布式推理。成功后以管理GET和Worker SYSTEM GET核对精确ID/归属/停止态及零Instance/File，并保留Model供后续RS.5使用；结果不明确时只GET判定，禁止盲重试或自动删除 | `replicas=0`使本门只验证Model创建与范围语义，不进入调度或runtime。精确Cluster、名称和Worker selector满足D284隔离约束；保留资源可让后续list/watch/完整PUT逐门使用同一对象，同时避免失败时无证据删除。用户已审阅并同意RS.5.1计划。 |
+
+## 2026-11-15 M8-RS.5.2 Model完整PUT与watch门
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D286 | 停止态Model更新与实时事件 | 先以Worker 16 Token建立Model watch并确认Model 6初始回放，再从即时Model快照构造白名单完整PUT，只修改description。要求HTTP 200、独立GET保持Cluster 3、replicas 0、source/path、backend参数和selectors，并在同一watch收到恰好一个Model 6 type=2事件；全程无Instance/File、Worker、Docker或GPU动作。原版会对非Custom backend清空image_name/run_command，两字段单独按oracle审计；结果不明确时只GET且不重试 | 该门以无调度副作用的description变化验证Rust Server完整更新和Rust Worker真实watch wire，同时保持D284隔离边界。把原版特殊字段归零语义与普通字段保留分开，避免把已知oracle行为误判为Server字段丢失。用户已同意执行该下一步。 |
