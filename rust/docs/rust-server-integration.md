@@ -285,6 +285,18 @@ maintenance，再向本阶段精确PID发送SIGINT；若出现容器，只能在
 和ownership全部匹配后停止/删除。其他失败只停止精确PID并保留maintenance。成功时PID保持运行，
 control文件记录身份，供RS.6.2在maintenance下补齐`worker-name`；通过不授权RS.6.2写入。
 
+2026-11-15 formal attempt 1：Worker PID 1148891在4秒内达到health/ready/metrics 200，identity从
+m8rs3持久状态恢复并持续保持maintenance；Instance 14始终pending未分配，没有目标容器、运行端口
+或reconciliation。观察第16秒watchdog检测到GPU0短时计算进程，按门立即SIGINT精确PID并判
+`FAIL/gpu0_compute_appeared`。停止摘要确认heartbeat/status/full sync/watch成功、reconnect 0、
+Instance/File desired为0及全部runtime/file计数为0。
+
+回滚后PID、21150/21151和运行端口全部消失，maintenance、Model 7、Instance 14、ModelFile、容器、
+GPU0及既有服务均恢复冻结基线。GPU1外部任务的PID同期从1100412变为1152850，强相关于外部任务
+重启并可能在初始化时短暂探测GPU0，但trigger瞬间未采集进程身份，不能把该推断当作已证明归因。
+attempt 1保持正式失败，不自动重试；下次须先稳定观察GPU0并让watchdog在触发时保存完整
+compute-app快照。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；

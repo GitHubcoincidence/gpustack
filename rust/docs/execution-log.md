@@ -7213,3 +7213,35 @@
   标签PUT。失败保留Model 7/Instance 14和证据，不自动重试。
 - 当前停止位置：RS.6.1为`authorized_pending_execution`。下一步只允许提交并同步本冻结记录后，
   执行上述一次启动、watchdog和空载验收；不得进入RS.6.2。
+
+### 2026-11-15：M8-RS.6.1 formal attempt 1因瞬时GPU0进程失败并完成回滚
+
+- 冻结输入：包含D297的本地、GitHub和90源码HEAD为
+  `49ae9f1ca91f1031d773d1db4e8f62a353d6e336`，90工作树干净。Rust 1.99.1 locked/offline构建通过，
+  二进制SHA-256为`50dde1c4264e81eca623f4b5e5882efc20babc4598cecd5b58de7478bc1ddb08`。
+  启动前Worker 16 maintenance、Model 7/Instance 14、ModelFile、端口、容器和GPU0门全部通过。
+- 启动与正常证据：普通生产`worker run`创建精确PID 1148891，4秒内
+  `healthz/readyz/metrics=200`，监听21150/21151并从持久identity恢复Worker 16。Server heartbeat
+  连续前进，maintenance保持true；Instance 14始终pending且worker/port/GPU为空，目标容器和
+  40000～40063监听为0。
+- 失败触发：watchdog第1～15秒记录GPU0 compute count为0，第16秒变为1，随即触发
+  `FAIL/gpu0_compute_appeared`。触发前maintenance、Instance、容器和端口门仍正常。原watchdog只记录
+  计数，没有在触发分支落盘GPU UUID/PID/process name，因此不能确定瞬时进程身份。
+- Worker停止摘要：SIGINT优雅停止后报告Server v2.2.3 commit `fba334c`、identity persisted、
+  heartbeat/status/full sync/watch均成功、reconnect 0、desired ModelInstance/File均0；file/runtime
+  reconciliation以及starting/running/errored/deleted/failure计数全部0。`desired_models=7`继续属于
+  D284已知跨Cluster可见性，不产生动作。
+- 环境线索：启动前GPU1 compute PID为1100412，回滚后变为1152850，均为同一外部Python路径；GPU1
+  负载在观察期重启，可能初始化时短暂探测GPU0。该时间相关性不足以证明因果，正式结果不改判。
+- 回滚：PID 1148891已退出，21150/21151和40000～40063无监听；Worker 16继续maintenance且
+  unreachable false，Model 7 ready 0，Instance 14 pending未分配，Worker 16 ModelFile和目标容器为0，
+  GPU0回到0 MiB/0%且无计算进程。Python Server/Worker和用户PID 1113114 health/metrics均200。
+- 证据：目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-maintenance-start-20261115T144604Z`
+  为0700、文件0600，精确token和通用API key扫描PASS；`SHA256SUMS`自身SHA-256为
+  `8269904d6bc9e99bb2aa9ef302a5c9bc720bfc03820c3eb30876f755bc52236b`。
+- 判定与漂移审计：attempt 1为正式`FAIL/gpu0_compute_appeared`，cleanup为PASS。D297的GPU0硬门按
+  设计工作，没有把控制面成功提升为阶段通过；结论为aligned。
+- 当前停止位置：RS.6.1仍未通过，Worker已停止，maintenance和Model/Instance保留。下一步须单独接受
+  attempt 2：先做GPU0稳定观察，再用能在触发前保存完整compute-app身份的watchdog重新启动；不得
+  自动重试或进入RS.6.2。
