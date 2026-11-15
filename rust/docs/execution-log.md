@@ -6795,3 +6795,36 @@
 - 当前停止位置：允许进入RS.5的第一个单一功能门。下一步先执行只读RS.5.0基线复核并冻结唯一
   测试资源命名与写入边界；该裁决本身不授权创建、更新或删除Server资源，也不授权启动Worker、
   操作Docker或使用GPU。
+
+### 2026-11-15：M8-RS.5.0只读基线复核完成
+
+- 目的与范围：在不创建、更新或删除106资源，不启动目标Worker且不操作Docker/GPU的条件下，复核
+  进入RS.5隔离资源阶段所需的Server身份、Worker 16安全屏障、资源空集、预留名称、端口、现有服务
+  和宿主机工作负载。
+- Server与源码：90工作树位于干净治理HEAD
+  `53a4714c41be1955367e60b87f6ce5304cbf69e8`；106的health/version、Worker、Model、ModelInstance和
+  ModelFile六个GET均为HTTP 200。106仍为`version=v2.2.3`和`implementation=rust`，诊断commit已从
+  上次的`b51893c`更新为`fba334c`，build version仍为`0.1.0`。版本硬门满足；commit变化只作为本门
+  外部身份记录，后续正式写入须绑定当前即时身份。
+- 隔离身份：Worker ID 16以name`rust-rs3-worker-90-20261113`、cluster_id 3精确唯一，state为
+  `maintenance`、unreachable=false，maintenance message仍为`M8-RS.4 empty-run safety barrier`，
+  labels和worker_version未变。
+- 资源与名称：Cluster 3 Model为0，Worker 16 ModelInstance为0，经本地`worker_id==16`过滤后的
+  ModelFile为0；建议的唯一Model名称`rust-rs5-scope-90-20261115`未占用。已知Server差异仍可复现：
+  `GET /v2/model-files?page=-1&worker_id=16`原始响应仍返回4条其他Worker资源，本门未将其用于任何
+  后续请求。
+- 宿主机隔离：21150/21151空闲。另有用户此前手工启动的`jiaxingHaoyuNB`进程PID 1113114，自
+  2026-11-13运行并监听20150/20151；它不属于RS.5，后续不得停止、重启、读取其秘密或复用其目录。
+  Python Server、Worker health和metrics均为200；现有5个容器只做快照，未发生变化。
+- GPU观察：GPU0和GPU1均为A100 80GB，现场快照均为0 MiB显存和0%利用率。本门不把空闲状态视为
+  后续GPU授权；RS.5仍以非推理控制面验证为目标。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs5-baseline-20261115T120335Z`
+  为0700，文件为0600；management key、Cluster registration token、Worker token逐值扫描及通用
+  凭据模式扫描全部通过。`SHA256SUMS`自身SHA-256为
+  `5f9e4f4d509558244fc6181b358442ad956e864de2d6ed41a5ef431bd1a34055`，全量校验通过。
+- 判定：RS.5.0为`ready_for_review`。只读前置门通过且D284临时推进约束未被违反；Server commit变化
+  与独立20150 Worker均已显式纳入控制变量，不需要操作它们。
+- 当前停止位置：下一步建议冻结RS.5.1“唯一停止态Model创建”门：只在Cluster 3创建一个
+  `replicas=0`的Model，不启动Worker、不创建ModelInstance/ModelFile、不触发调度或GPU；请求不明确
+  时只GET判定且禁止盲重试。该写入尚未授权，必须先向用户说明完整请求字段、保留/清理策略和停止条件。
