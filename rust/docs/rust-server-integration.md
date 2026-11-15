@@ -139,6 +139,12 @@ Model 6保持replicas 0、Worker 16 maintenance，ModelFile为0，端口/进程/
 时只按精确name GET，禁止第二次POST。成功实例保留给后续ModelInstance watch/完整PUT门，失败时不
 删除Model 6或修改其他资源。
 
+2026-11-15实际结果：唯一POST传输成功但返回HTTP 405、空响应体，管理主体和Worker 16 SYSTEM主体
+后置list均确认目标实例为0；OpenAPI与运行时同时缺少集合POST。RS.5.3判定为
+`FAIL/missing_model_instance_create`，问题归属Rust Server，完整报告见
+[Rust Server ModelInstance创建接口缺失报告](rust-server-model-instance-create-missing-issue.md)。
+Model 6和Worker 16继续保持停止/maintenance隔离，未触发Worker、Docker或GPU。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；
@@ -230,3 +236,7 @@ RS.1固定检查：
 RS.5.2又确认`PUT /v2/models/{id}`返回HTTP 200并发布UPDATED事件，但忽略请求中的description，
 响应、GET和watch均保留旧值；详细wire、oracle和建议修复见
 [Rust Server Model PUT忽略字段缺陷报告](rust-server-model-update-ignored-fields-issue.md)。
+
+RS.5.3确认106没有实现原版`POST /v2/model-instances`：唯一合法请求返回HTTP 405且未创建资源，
+OpenAPI也只列集合GET。详细请求、原版依据、零副作用审计和建议回归见
+[Rust Server ModelInstance创建接口缺失报告](rust-server-model-instance-create-missing-issue.md)。

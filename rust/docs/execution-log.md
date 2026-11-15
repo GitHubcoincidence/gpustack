@@ -6962,3 +6962,35 @@
   已披露输入差异，真实POST为冻结判定方法。结论为aligned。
 - 当前停止位置：RS.5.3为`authorized_pending_execution`。下一步只允许在包含D287-D288的干净治理
   HEAD上建立全新证据，执行一次POST及只读后置审计。
+
+### 2026-11-15：M8-RS.5.3确认ModelInstance创建接口缺失
+
+- 冻结输入：本地、GitHub和90在治理HEAD
+  `2fca247fcb858a372117b9c0df56e97a1f27aa35`一致，90工作树干净；106前后均为`v2.2.3`、commit
+  `fba334c`、implementation rust、build 0.1.0。management key、Worker 16 Token和Cluster 3
+  registration token均为0600普通单链接文件。
+- 前置门：Worker 16精确为Cluster 3的`rust-rs3-worker-90-20261113`并处于maintenance；Model 6精确
+  为Cluster 3的`rust-rs5-scope-90-20261115`且replicas 0。目标实例名未占用，Model 6、Worker 16
+  的Instance均为0，Worker 16 ModelFile为0；目标进程/21150/21151为0。用户独立Worker PID 1113114
+  在线且不在操作范围内，Docker与两张A100为空载基线。
+- 接口作用：原版`POST /v2/model-instances`创建Model副本控制面记录，携带Model/Cluster/Worker、
+  source/backend、端口、GPU、分布式拓扑和状态；Rust Worker只消费Server分配，不负责该路由。
+- 唯一请求：管理主体只发送一次POST，创建`rust-rs5-instance-90-20261115`；固定Model 6、Cluster 3、
+  Worker 16、本地Qwen2.5-0.5B路径和vLLM，state pending，port/pid null，ports、GPU indexes/
+  addresses为空，distributed/draft/LoRA字段为空。全部字段均存在于106的`ModelInstancesCreate`。
+- 实际响应：curl退出0、HTTP 405、响应体为空，且没有重试。106 OpenAPI同样只为集合路径列GET，
+  虽有Create schema和单资源GET/PUT/DELETE；结合运行结果判定不是单纯文档漏项，而是POST路由缺失。
+- 后置结果：管理主体和Worker 16 SYSTEM主体目标实例计数均为0；Model 6 Instance、Worker 16
+  Instance/ModelFile仍为0。Server commit稳定，Model 6 replicas 0和Worker 16 maintenance保持；目标
+  进程/端口仍为0，PID 1113114仍在线，Docker身份集合与GPU快照不变。
+- 证据：
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs5-pending-instance-create-20261115T131358Z`
+  为0700、文件均0600；三类token逐值扫描和通用凭据扫描PASS，`SHA256SUMS`自身SHA-256为
+  `28996677671f4b46c6e4dab89203f19a29e4701edc27ea02f55928d3903d1e17`。
+- 判定：RS.5.3为`FAIL/missing_model_instance_create`，问题归属Rust Server，副作用审计PASS。未发送
+  第二次POST，未通过数据库、Model扩容或其他Cluster资源绕过。详细报告为
+  `rust/docs/rust-server-model-instance-create-missing-issue.md`。
+- 漂移审计：执行严格遵守D288的单次请求和停止门，v2.2.3 oracle、D284隔离、maintenance及非GPU
+  边界未改变；失败证据没有提升为通过。结论为aligned。
+- 当前停止位置：RS.5.3为`ready_for_review`。ModelInstance依赖的watch/完整PUT链暂不能继续；用户
+  审阅后决定等待Rust Server修复并复测，或把本差异暂存为RS.7硬门后转向不依赖该创建路由的下一门。

@@ -1410,3 +1410,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 |---|---|---|---|
 | D287 | Model PUT忽略字段的临时推进策略 | RS.5.2保持`FAIL/update_ignored_description`：唯一PUT HTTP 200但响应、GET和UPDATED watch均保留旧description，事件changed_fields为空；问题归属Rust Server并在RS.7前修复回归。等待期间继续RS.5，不重试、不回滚Model 6，也不在Worker增加迁就逻辑 | watch连接和事件传输已经证明可用，但Server未应用有效更新字段。问题有独立报告、正式证据和零副作用审计，可与D284一样隔离暂存；保留失败结论和最终硬门避免降低原版兼容标准。用户同意记录并继续。 |
 | D288 | 唯一pending ModelInstance创建 | 按原版只发送一次`POST /v2/model-instances`，创建`rust-rs5-instance-90-20261115`并精确绑定Model 6、Cluster 3和Worker 16；state为pending，端口/PID/GPU/distributed/draft/LoRA字段为空，不启动Worker。106 OpenAPI当前缺少POST，运行时若404/405即判定Server缺失接口并停止，不通过数据库或Model扩容绕过；成功资源保留供后续watch/完整PUT | pending不满足Rust Worker只接管scheduled实例的前置条件，且Worker 16保持maintenance/停止，能够在无Runner/GPU风险下验证原版核心创建接口、归属过滤和后续状态所有权前置资源。单次真实POST比仅依据不完整OpenAPI更能确定运行实现。 |
+
+## 2026-11-15 M8-RS.5.3 ModelInstance创建接口裁决
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D289 | 缺失ModelInstance集合POST的归因与停止 | 唯一合法POST返回HTTP 405且空body，管理和Worker SYSTEM后置list均为0；判定`FAIL/missing_model_instance_create`并归属Rust Server。禁止第二次POST、数据库直写、Model扩容或复用其他Cluster实例；Model 6和Worker 16原样保留，等待用户决定修复后复测或作为RS.7硬门暂存 | 原版v2.2.3明确注册集合POST，106 OpenAPI和运行时都缺少该方法；请求未进入解析/持久化，更未到达Worker。单次请求加零资源后审足以区分Server路由缺口与Worker行为，同时不扩大故障面。 |
