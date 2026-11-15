@@ -176,6 +176,23 @@ CLI deploy，创建Model 7；Server约5秒后内部生成Instance 14，状态为
 ModelFile、进程、端口、容器和两张GPU均保持基线。RS.5.4判定为
 `PASS/server_created_pending_instance`，资源保留给下一门。
 
+### RS.5.5 ModelInstance精确GET与watch初始回放
+
+RS.5.5只读验证Server内部生成的Model 7和Instance 14可被正常控制面读取，并能通过Rust Worker真实
+使用的ModelInstance watch wire到达Worker 16。管理主体分别调用`GET /v2/models/7`和
+`GET /v2/model-instances/14`；Worker 16 SYSTEM Token调用
+`GET /v2/model-instances?watch=true`，观察初始回放后主动超时结束，不制造更新事件。
+
+通过门要求两个精确GET均为HTTP 200且保持Model 7的Cluster 3、replicas 1/ready 0及Instance 14的
+Model 7、Cluster 3、pending、空worker/port/GPU assignment；watch为HTTP 200和SSE，并在初始
+`type=1`事件中恰好一次回放Instance 14，关键字段与精确GET一致。106已知跨Cluster范围缺陷可能让
+Worker 16同时收到其他实例；额外事件单独计数并保留为RS.7差异，但不得参与目标字段判定或任何写入。
+
+本门前后核对Server commit、Model 6、Model 7、Instance 14、Worker 16 maintenance、ModelFile、
+目标进程/21150/21151、用户独立Worker、Context active状态、Docker和GPU。禁止PUT/POST/DELETE、
+启动Worker、修改labels/maintenance、创建ModelFile或触发Docker生命周期。watch传输按固定短时窗口
+结束时，curl超时退出28是预期的观察终点，不视为Server失败。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；

@@ -7063,3 +7063,23 @@
 - 当前停止位置：RS.5.4为`ready_for_review`。Model 7与Instance 14保留。下一步建议RS.5.5只读验证
   `GET /v2/model-instances/14`、Model 7状态查询和ModelInstance watch初始回放；不得修改Instance、
   Worker labels/maintenance或启动Worker。通过后再单独冻结RS.6调度前置修复和维护窗口。
+
+### 2026-11-15：M8-RS.5.4验收与RS.5.5只读wire门冻结
+
+- 用户裁决：用户接受Model 7、Server内部Instance 14、pending安全终点和零副作用证据，同意继续
+  RS.5.5。RS.5.3缺失POST、D284跨Cluster可见性和RS.5.2 Model PUT字段丢失均保持原判。
+- 当前输入：只读复核确认Model 7仍为Cluster 3、replicas 1、ready replicas 0；Instance 14仍为
+  Model 7/Cluster 3、pending、worker/port/GPU assignment为空。Model和Instance身份固定，不接受
+  调度或并发变更后继续沿用本门。
+- 请求：management主体分别执行一次`GET /v2/models/7`与
+  `GET /v2/model-instances/14`；Worker 16 SYSTEM Token连接一次
+  `GET /v2/model-instances?watch=true`。watch固定短时观察初始回放，结束时curl 28视为预期终点。
+- 通过门：两个GET为200且冻结字段一致；watch HTTP 200/SSE，Instance 14在type=1初始事件中恰好
+  出现一次，字段与GET一致。其他Cluster事件只计数并继续归入D284，不用于写入或目标判定。
+- 副作用门：Server commit、Model 6/7、Instance 14、Worker 16 maintenance、ModelFile、目标进程/
+  端口、用户独立Worker、active Context、Docker和GPU前后不变；禁止所有POST/PUT/DELETE和Worker/
+  Docker生命周期操作。
+- 漂移审计：目标仍为RS.5资源wire和Worker消费兼容性；精确ID本地过滤不修饰或关闭D284，watch超时
+  只定义观察终点，不放宽事件字段门。结论为aligned。
+- 当前停止位置：RS.5.5为`authorized_pending_execution`。下一步只允许在包含D291的干净治理HEAD
+  上执行上述三次只读请求及前后审计，生成独立0700证据；不得进入RS.6调度或启动Worker。

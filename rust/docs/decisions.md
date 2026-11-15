@@ -1422,3 +1422,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D290 | 正常部署链与新增隔离Model | 暂存D289为RS.7硬门并继续正常主链。保留证据Model 6不变，使用非active Context `m8rs-rs5-control`只执行一次无`--wait`的CLI `model deploy`，创建`rust-rs5-server-driven-qwen25-05b-gpu0`；固定Cluster 3、Worker 16、GPU0、Qwen2.5-0.5B、Runner digest和vLLM参数。Worker 16继续停止且maintenance，只接受Server内部生成一个pending实例，禁止scheduled/runtime副作用 | `model deploy`只POST Model，Server controller内部创建Instance，不依赖缺失的外部Instance POST。第二个唯一Model避免通过已知有问题的Model PUT改写Model 6及其RS.5.1/5.2证据；maintenance加停止进程形成双重执行屏障。用户在两条链路解释后同意继续。 |
+
+## 2026-11-15 M8-RS.5.5 ModelInstance只读wire门
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D291 | Instance精确读取与watch回放 | 管理主体只读GET Model 7和Instance 14；Worker 16 SYSTEM Token建立短时`GET /v2/model-instances?watch=true`，要求初始type=1事件精确回放Instance 14一次且字段与GET一致。其他Cluster额外事件按D284单独记录，不影响目标门；前后执行完整零副作用审计，curl观察窗口超时28为预期结束 | 该门直接验证Rust Worker实际消费的Instance list/watch wire，同时不需要外部创建接口、Server写入或运行Worker。以目标ID做本地精确过滤可在不掩盖跨Cluster缺陷的前提下继续主链证据。用户接受RS.5.4结果和该只读下一步。 |
