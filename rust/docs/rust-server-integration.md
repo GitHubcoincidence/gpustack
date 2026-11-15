@@ -145,6 +145,30 @@ Model 6保持replicas 0、Worker 16 maintenance，ModelFile为0，端口/进程/
 [Rust Server ModelInstance创建接口缺失报告](rust-server-model-instance-create-missing-issue.md)。
 Model 6和Worker 16继续保持停止/maintenance隔离，未触发Worker、Docker或GPU。
 
+### RS.5.4 Server驱动的pending ModelInstance生成
+
+RS.5.4验证正常用户部署链与直接ModelInstance POST是两条独立路径。Rust CLI不调用缺失的
+`POST /v2/model-instances`；它先精确解析Worker，再调用`POST /v2/models`，由Server内部Model
+controller按replicas生成ModelInstance。本门使用CLI且不带`--wait`，避免把预期pending误判为超时。
+
+保留Model 6及其replicas 0不变，另创建唯一Model
+`rust-rs5-server-driven-qwen25-05b-gpu0`。新增第二个Model是用户接受RS.5.3差异后继续真实主链的受控
+范围扩展：Model 6固定保存RS.5.1/5.2证据，不能通过已确认存在字段问题的PUT改写。新Model固定
+Cluster 3、replicas 1、Qwen2.5-0.5B本地路径、vLLM、既有Runner digest、Worker 16名称selector、
+GPU0 selector、TP=1、max model length 2048、GPU memory utilization 0.5、dtype auto、eager且禁止
+跨Worker分布式推理。
+
+CLI使用新增但不激活的本地Context `m8rs-rs5-control`，只引用既有0600 management key；不得改变
+用户当前active Context。请求前确认目标Model/Context均不存在、Worker 16仍停止并maintenance、Model
+6仍replicas 0、Worker 16无Instance/File、21150/21151空闲、容器和GPU基线稳定。只允许一次CLI
+deploy；结果不明确时按精确Model名称GET，禁止第二次POST。
+
+通过门为CLI创建Model成功，响应和独立GET确认正ID、Cluster 3、replicas 1及冻结spec；Server在60秒
+内内部创建恰好一个属于新Model的pending ModelInstance。由于Worker 16仍停止且maintenance，实例
+不得进入scheduled，worker_id/port/GPU assignment保持空，Worker 16 ModelFile、目标进程、端口、
+容器和GPU均不得增加。成功资源保留给后续ModelInstance list/watch及RS.6准备；本门不启动Worker、
+不修改maintenance、不修复Worker标签、不停止任何现有Worker，也不调用Docker生命周期。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；

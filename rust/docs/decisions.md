@@ -1416,3 +1416,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D289 | 缺失ModelInstance集合POST的归因与停止 | 唯一合法POST返回HTTP 405且空body，管理和Worker SYSTEM后置list均为0；判定`FAIL/missing_model_instance_create`并归属Rust Server。禁止第二次POST、数据库直写、Model扩容或复用其他Cluster实例；Model 6和Worker 16原样保留，等待用户决定修复后复测或作为RS.7硬门暂存 | 原版v2.2.3明确注册集合POST，106 OpenAPI和运行时都缺少该方法；请求未进入解析/持久化，更未到达Worker。单次请求加零资源后审足以区分Server路由缺口与Worker行为，同时不扩大故障面。 |
+
+## 2026-11-15 M8-RS.5.4 Server驱动实例生成门
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D290 | 正常部署链与新增隔离Model | 暂存D289为RS.7硬门并继续正常主链。保留证据Model 6不变，使用非active Context `m8rs-rs5-control`只执行一次无`--wait`的CLI `model deploy`，创建`rust-rs5-server-driven-qwen25-05b-gpu0`；固定Cluster 3、Worker 16、GPU0、Qwen2.5-0.5B、Runner digest和vLLM参数。Worker 16继续停止且maintenance，只接受Server内部生成一个pending实例，禁止scheduled/runtime副作用 | `model deploy`只POST Model，Server controller内部创建Instance，不依赖缺失的外部Instance POST。第二个唯一Model避免通过已知有问题的Model PUT改写Model 6及其RS.5.1/5.2证据；maintenance加停止进程形成双重执行屏障。用户在两条链路解释后同意继续。 |

@@ -6994,3 +6994,30 @@
   边界未改变；失败证据没有提升为通过。结论为aligned。
 - 当前停止位置：RS.5.3为`ready_for_review`。ModelInstance依赖的watch/完整PUT链暂不能继续；用户
   审阅后决定等待Rust Server修复并复测，或把本差异暂存为RS.7硬门后转向不依赖该创建路由的下一门。
+
+### 2026-11-15：M8-RS.5.3验收与RS.5.4真实部署前半链冻结
+
+- 用户裁决：用户确认理解成功模型部署与直接ModelInstance POST属于两条链路，同意继续。D289保持
+  Rust Server缺陷和RS.7硬门，不因正常部署曾成功而改判，也不等待该路由修复才验证真实主链。
+- 链路依据：Rust CLI `model deploy`精确解析Worker后调用`POST /v2/models`；只有`--wait`才预先建立
+  ModelInstance watch。原Server ModelController的`sync_replicas`根据Model replicas构造
+  `ModelInstanceCreate`并直接调用内部service持久化，不经过外部`POST /v2/model-instances`。
+- 资源选择：Model 6继续保持Cluster 3、replicas 0和原description，保存RS.5.1/5.2证据。新增唯一
+  `rust-rs5-server-driven-qwen25-05b-gpu0`，固定replicas 1、Worker 16名称selector、GPU0 selector、
+  本地Qwen2.5-0.5B、Runner digest、TP=1、max length 2048、memory utilization 0.5、dtype auto、
+  eager和禁止跨Worker分布式推理。新增第二Model是避免已知有问题PUT的受控范围扩展。
+- Context与调用：创建本地非active Context `m8rs-rs5-control`，引用既有106 management key；用户当前
+  active Context保持不变。当前HEAD二进制需用Rust 1.99.1 locked/offline重建后，只执行一次不带
+  `--wait`的CLI deploy；不明确时只按精确name GET，禁止重试POST。
+- 安全门：只读复核确认106仍为v2.2.3 commit `fba334c`；Worker 16为Cluster 3 maintenance，labels
+  只有`implementation=rust`，目标进程/21150/21151为0；Model 6 replicas 0，Worker 16 Instance/File
+  均为0，预留Model名未占用，两张GPU为空闲。缺少`worker-name`标签与maintenance共同阻止调度，但
+  本门只以Server内部创建pending实例为目标，不在本门修复标签。
+- 通过门：CLI Model响应和独立GET字段正确，60秒内新Model恰好一个pending Instance；实例不得进入
+  scheduled，worker/port/GPU assignment为空，Worker 16 ModelFile、进程、端口、容器和GPU不变。
+  成功资源保留；失败也不自动删除或重试。
+- 漂移审计：正常部署主链属于RS.5/RS.6既定目标；新增隔离Model是用户接受的有意变化，未修改v2.2.3
+  oracle、已知失败、Worker状态所有权、maintenance或GPU边界。结论为`intentional_change_accepted`。
+- 当前停止位置：RS.5.4为`authorized_pending_execution`。下一步只允许在包含D290的干净治理HEAD上
+  建立新证据、创建非active Context、执行一次CLI deploy并做60秒只读后审；不得启动Worker或修改
+  maintenance/labels。
