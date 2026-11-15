@@ -6849,3 +6849,40 @@
   maintenance、独立20150 Worker以及非GPU边界均未改变。结论为aligned。
 - 当前停止位置：RS.5.1为`authorized_pending_execution`。下一步只允许在包含D285的干净治理HEAD
   上建立全新证据目录，执行上述一次POST及只读后置审计。
+
+### 2026-11-15：M8-RS.5.1唯一停止态Model创建完成
+
+- 冻结身份与前置门：90服务器在干净且三方同步的治理HEAD
+  `515c1d774f482ddb83734b352c33c9e6ce684c53`执行。106仍为v2.2.3、commit`fba334c`；Worker 16
+  精确唯一、Cluster 3、maintenance且reachable，目标名称和Cluster 3资源为空，Qwen2.5-0.5B本地
+  目录存在，21150/21151空闲，目标Worker进程为0，现有服务健康。独立`jiaxingHaoyuNB` PID 1113114
+  和20150/20151只做前后快照。
+- 接口作用：`POST /v2/models`创建Server托管Model定义。本门用replicas 0证明Rust Server可创建并
+  保存Cluster 3停止态资源，而不进入scheduler、ModelInstance、ModelFile、Runner或GPU路径。
+- 请求输入：只发送一次认证POST；body为name`rust-rs5-scope-90-20261115`、cluster_id 3、
+  replicas 0、source`local_path`及固定Qwen路径、backend`vLLM`、固定Runner digest、Worker 16名称
+  selector、gpu_selector null、restart_on_error false、distributed inference false，以及TP=1、max len
+  2048、GPU memory utilization 0.5、dtype auto和enforce eager参数。未启用curl重试或重定向。
+- 实际响应：curl退出0、HTTP 200、JSON有效；Server创建Model ID 6。响应精确返回name、cluster_id 3、
+  replicas 0、ready_replicas 0、local_path、vLLM、固定image、Worker selector、gpu_selector null、
+  restart_on_error false和distributed inference false。
+- 后置范围：管理完整清单中目标name和ID均唯一；`GET /v2/models/6`字段一致。Worker SYSTEM Token
+  也恰好看到一次Model 6，但其完整Model列表总数为6，另外5条仍是已记录的跨Cluster Server差异，
+  未用于任何写请求。Model 6的ModelInstance为0，Worker 16归属ModelFile为0；已知错误的原始
+  ModelFile查询仍返回4条其他Worker资源。
+- 副作用审计：Worker 16继续maintenance，目标进程0且21150/21151空闲；Docker前后快照完全一致，
+  两张A100前后均为0 MiB、0%，独立PID 1113114及其命令完全一致。Python Server/Worker/metrics健康。
+  本门未启动Worker、未创建容器、未执行reconciliation，也未使用GPU。
+- 执行器诊断：PowerShell经SSH标准输入在两个脚本的最后追加了CR-only行，分别在唯一POST完成后产生
+  `exit: 0\r: numeric argument required`，在全部后置结果和哈希完成后产生`$'\r': command not found`。
+  这是请求完成后的非评分harness换行问题；POST transport文件明确curl exit 0/HTTP 200，未发送第二次
+  POST，独立GET和全量后置审计均通过。该输出保留但不改变wire或资源结论。
+- 证据：目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs5-stopped-model-create-20261115T121906Z`
+  为0700，全部文件0600；management key、Cluster registration token、Worker token逐值扫描和通用
+  模式扫描全部通过，临时header/checksum文件均已删除。`SHA256SUMS`自身SHA-256为
+  `39de0fa890b4381921c15835cc5c08987c9ef33002849d271d2cf39105ae5dfe`，逐文件校验通过。
+- 判定与保留：RS.5.1为`ready_for_review`，Model 6按D285保留为唯一RS.5测试资源，不自动删除。
+- 当前停止位置：用户接受后，建议RS.5.2只验证Model有效watch：先用Worker 16 Token建立watch，再对
+  Model 6发送一次完整PUT，仅改变description且保持replicas 0和所有调度字段，要求收到该ID的UPDATED
+  事件并证明无Instance/File/Docker/GPU副作用。该下一门尚未授权。
