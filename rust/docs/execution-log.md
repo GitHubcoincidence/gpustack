@@ -7118,3 +7118,42 @@
 - 当前停止位置：RS.5.5为`ready_for_review`，Model 7与Instance 14继续保留pending。下一步必须先
   讨论并冻结RS.6调度/运行前置：Worker 16的规范`worker-name`标签、maintenance解除与回滚、宿主机
   Worker启动、GPU0排他和完整watch/状态链；本验收不授权任何这些写入或运行操作。
+
+### 2026-11-15：M8-RS.5.5验收与RS.6总体方案接受
+
+- 用户验收：用户接受RS.5.5精确GET、单一type=1 watch回放、更新时间戳离线裁决、零副作用及正式
+  PASS；Model 7和Instance 14继续作为RS.6唯一资源。RS.5.2/5.3和D284差异仍为RS.7硬门。
+- 现场重建：106仍为v2.2.3 commit `fba334c`；Worker 16为Cluster 3 maintenance、unreachable false，
+  但heartbeat停在2026-11-13且labels只有`implementation=rust`。Model 7 replicas 1/ready 0并固定
+  Worker 16/GPU0 selector；Instance 14 pending、未分配Worker/port/GPU，Worker 16 ModelFile为0。
+  21150/21151空闲、无目标进程；用户PID 1113114在线。当前两张A100均0 MiB/0%且无计算进程，但
+  GPU1只观察，后续即使出现外部任务也不得操作。
+- 接受顺序：RS.6拆为只读预检；maintenance下启动统一Worker；maintenance下修复规范worker-name；
+  watchdog和观察器保护下解除maintenance并等待完整状态链；Server/Worker推理与日志；恢复
+  maintenance并精确清理。每段单独验收和授权，不把总体接受扩展为立即启动或Server写入。
+- 状态与资源门：Instance 14必须分配给Worker 16、GPU indexes严格`[0]`和唯一40000～40063端口；
+  ModelFile属于Worker 16并完成local path；唯一Rust容器固定Runner且只暴露GPU0 UUID。vLLM健康先于
+  running，restart count 0，无重复容器/File或GPU1进程。
+- 回滚：解除maintenance前必须有watchdog；失败先恢复maintenance，再停止精确Worker PID和匹配完整
+  ownership的唯一容器，保留Model/Instance证据。Server不可达仍执行本地安全回滚；Python Worker、
+  用户Worker和GPU1始终禁止操作。
+- 漂移审计：RS.6是既定Qwen2.5-0.5B/GPU0端到端目标，复用已接受资源并增加分阶段/回滚约束没有
+  放宽v2.2.3 oracle或已知差异；当前GPU1空闲只是快照，不成为隐含依赖。结论为aligned。
+
+### 2026-11-15：M8-RS.6.0只读正式预检方案冻结
+
+- 输入门：源码/远端/90必须在包含D293～D295的同一干净HEAD；用Rust 1.99.1 locked/offline重建CLI，
+  记录二进制和Cargo.lock SHA-256。三类token、Context和m8rs3 identity必须为0600普通单链接文件，
+  不记录秘密值。
+- Server门：health/version、commit单次稳定；Worker 16、Model 6/7、Instance 14和Worker 16 ModelFile
+  精确符合接受快照。`worker-name`缺失在本门是已知待修输入，不得提前修复。Context
+  `m8rs-rs5-control`存在但非active，用户active Context保持`liantiao-demo-new`。
+- 宿主机门：21150/21151及40000～40063无监听，无目标Worker或Instance 14 owned container；Docker
+  socket可用、nvidia runtime存在、固定Runner digest本地可检查且禁止pull；Qwen模型路径canonical且
+  可读。GPU0必须无计算进程，GPU1只记录。Python Server/Worker和用户Worker health/metrics、PID及
+  容器身份保持；RS.6日志路径未占用。
+- 权限边界：只允许HTTP GET、Git/文件元数据、Docker/NVML只读查询、locked/offline build和0700
+  Git外证据；禁止任何POST/PUT/DELETE、Worker启动、容器操作、maintenance/label修改、镜像拉取和
+  GPU计算。用户已授权执行该只读门。
+- 当前停止位置：RS.6.0为`authorized_pending_execution`。下一步在新治理HEAD上执行一次正式预检并
+  交付审阅；通过只允许冻结RS.6.1启动方案，不自动启动Worker。

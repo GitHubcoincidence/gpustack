@@ -200,6 +200,50 @@ Instance 14的`updated_at`在调度器周期重试中自然推进约15秒而把�
 原FAIL保留为非评分harness记录，未重发网络请求；RS.5.5正式判定为
 `PASS/exact_get_and_initial_watch_replay`。
 
+### RS.6 GPU0端到端执行顺序
+
+RS.6复用Model 7和Instance 14，不创建第三个Model。固定顺序为：RS.6.0只读正式预检；RS.6.1在
+maintenance下用普通`worker run`启动Worker 16并验证空载readiness；RS.6.2在maintenance下用一次
+完整Worker PUT补齐规范`worker-name=rust-rs3-worker-90-20261113`标签；RS.6.3预先建立Instance、
+ModelFile、Docker和GPU观察器及watchdog后解除maintenance，等待Server把Instance 14调度至Worker
+16/GPU0并完成完整状态链；RS.6.4验证Server推理、Worker受保护代理、日志和重复请求；RS.6.5恢复
+maintenance并精确清理Model/Instance/ModelFile、容器、进程、端口和GPU0残留。
+
+每一阶段单独验收，前一阶段不自动授权后一阶段。Worker可以盘点并上报两张A100，但Model selector、
+Instance assignment和vLLM容器设备必须只使用GPU0 UUID；GPU1无论空闲或存在外部任务都只观察，禁止
+停止、分配或传入容器。Python Worker、用户独立Worker PID/20150/20151及其数据目录始终不在操作
+范围内。
+
+RS.6.3的目标状态链为`pending -> analyzing -> pending -> scheduled -> initializing -> downloading ->
+starting -> running`；允许调度器重试导致相同pending事件或`updated_at`推进，但不得跳过Worker和
+Server各自拥有的关键状态。Instance必须绑定Worker 16、`gpu_indexes=[0]`和唯一40000～40063端口；
+ModelFile必须属于Worker 16并验证既有local path；只允许一个带完整ownership标签的Rust容器，固定
+Runner digest且容器GPU可见性只含GPU0。vLLM健康必须先于或等于Server running写回，restart count
+保持0且不得出现重复容器、重复ModelFile或GPU1进程。
+
+解除maintenance前必须启用独立watchdog。任一失败优先恢复Worker 16 maintenance；随后向精确Rust
+Worker PID发送SIGINT，并在核对Instance 14、Worker UUID、component和ownership标签后停止/删除唯一
+Rust容器以释放GPU0。故障路径不自动删除Model 7/Instance 14，先保留证据；Server不可达时也必须
+执行本地Worker/owned-container安全回滚。正常清理则先恢复maintenance，再删除Model 7并等待实例和
+容器清理，对孤立ModelFile只用`cleanup=false`删除元数据，最后停止Worker。不得用回滚操作触碰
+Python Worker、用户独立Worker或GPU1。
+
+### RS.6.0 只读正式预检
+
+RS.6.0冻结源码、Cargo.lock、Rust 1.99.1和重新构建的二进制身份；验证106仍为v2.2.3且单次预检
+期间commit稳定，三类凭据和Context引用受保护。Server资源必须保持Model 7 replicas 1/ready 0、
+Instance 14 pending且未分配Worker/端口/GPU、Worker 16 maintenance且缺少待修的worker-name标签、
+Model 6 replicas 0和Worker 16 ModelFile为0。
+
+宿主机门包括：21150/21151和40000～40063空闲、无Worker 16进程和Instance 14 owned container、
+Docker socket可读写且nvidia runtime可见、固定Runner digest已存在、本地Qwen2.5-0.5B路径可解析、
+GPU0无计算进程。GPU1负载只记录，不作为通过条件；Python Server/Worker、用户Worker health/metrics、
+PID和容器身份必须保持。预留RS.6日志目录必须未占用。
+
+本门只允许GET、文件元数据、Docker/NVML只读查询、locked/offline构建和Git外0700证据写入；禁止
+Worker/容器生命周期、Server POST/PUT/DELETE、label/maintenance修改、镜像拉取和GPU任务。通过后
+只解锁RS.6.1方案冻结与单独启动授权，不自动启动Worker。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；

@@ -1434,3 +1434,11 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D292 | pending调度重试的`updated_at`处理 | 保留原始`FAIL/gate_mismatch`，但将其标记为非评分harness分类失败；用独立、零网络请求的离线裁决删除`updated_at`后比较完整Instance对象。规范化对象相同且GET/watch/其余隔离门通过时，RS.5.5判PASS | 唯一变化字段是`updated_at`，业务状态、归属和分配均不变；原v2.2.3 scheduler在无候选Worker时也会调用ModelInstanceService.update。冻结协议要求资源语义不变，没有把调度重试时间戳定义为不可变；字节级cmp是实现过严，不应否定有效wire证据。 |
+
+## 2026-11-15 M8-RS.6端到端阶段与只读预检
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D293 | RS.6分段与GPU边界 | 复用Model 7/Instance 14，按只读预检、maintenance下启动、maintenance下修复worker-name、watchdog保护下解除maintenance并跑完整状态链、推理/日志、恢复maintenance与清理六段推进；每段独立验收。Worker可上报双GPU，但调度/容器只允许GPU0，GPU1和Python/用户Worker完全不操作 | 复用已证明的Server内部实例避免再造资源；maintenance内先验证Worker和标签，把宿主启动、Server写入和GPU运行风险分开。精确GPU selector和容器设备审计可在GPU1有外部任务时仍保证隔离。用户审阅并接受该方案。 |
+| D294 | RS.6失败回滚 | 解除maintenance前启动独立watchdog；失败时先恢复Worker 16 maintenance，再停止精确Rust PID并仅在完整ownership匹配后停止/删除Instance 14容器。故障时保留Model 7/Instance 14作证，不自动删除；Server不可达也执行本地安全回滚。正常清理另按maintenance、Model、Instance/container、孤立ModelFile cleanup=false、Worker顺序执行 | 先阻断新调度再释放GPU0最安全；保留控制面资源避免故障证据丢失。Server不可用时不能让GPU容器无人管理，ownership tuple防止误删其他容器。 |
+| D295 | RS.6.0正式预检 | 只读验证源码/二进制/Server/资源/凭据/Context、端口池、Docker+nvidia runtime、Runner digest、本地模型、GPU0排他、既有服务和预留路径；允许locked/offline build和Git外证据写入，禁止Server写入、进程/容器生命周期、镜像拉取和GPU任务。通过只解锁RS.6.1讨论 | 在任何真实启动前重新固定全部可变外部状态，能把环境问题与后续Worker/Server状态链问题分离；GPU1仅观察使门与用户只用GPU0的约束一致。 |
