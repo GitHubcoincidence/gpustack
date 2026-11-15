@@ -6908,3 +6908,36 @@
   和非GPU边界均未改变；结论为aligned。
 - 当前停止位置：RS.5.2为`authorized_pending_execution`。下一步只允许在包含D286的干净治理HEAD
   上建立全新证据，执行一次watch、一次PUT及只读后置审计。
+
+### 2026-11-15：M8-RS.5.2发现Model PUT忽略description
+
+- 冻结身份与预检：90在干净且三方同步的HEAD
+  `c021b19689c9563aa446a1f058d600d2c2f79ffb`执行；106仍为v2.2.3 commit`fba334c`。Model 6
+  description为创建值，Cluster 3、replicas 0、零Instance/File、Worker 16 maintenance、目标进程/
+  端口为空及Docker/GPU/独立PID基线全部通过。完整PUT的硬字段与即时快照完全一致。
+- watch请求：Worker 16 Token建立一次`GET /v2/models?watch=true`，HTTP 200和SSE headers正确；
+  初始回放精确包含一次Model 6 type=1事件。其他5个Cluster 1初始事件属于D284已知Server差异。
+- PUT请求：管理主体只发送一次`PUT /v2/models/6`，curl退出0、HTTP 200；请求description为
+  `M8-RS.5 watch update verified; still stopped`，其余可写字段来自白名单完整即时快照。没有重试。
+- 错误表现：PUT响应仍返回旧description`M8-RS.5 isolated stopped model; no scheduling`；独立GET
+  同样为旧值。watch收到恰好一条Model 6 type=2事件，但data.description仍为旧值且
+  `changed_fields={}`；只有`updated_at`从12:19:37.519531Z推进到12:54:14.491985Z。Server接受请求、
+  更新时间戳并发布空UPDATED事件，却没有应用description。
+- oracle与归因：原v2.2.3 `update_model(ModelUpdate)`通过ModelService持久化请求提供的可写字段并
+  返回提交后Model；因此问题归属Rust Server的PUT DTO/字段映射或update实现，不是Rust Worker、Token、
+  watch解析或请求丢失。当前OpenAPI的PUT requestBody还引用不存在的`ModelCreate`，实际schema名为
+  `ModelsCreate`，作为独立文档差异一并记录。
+- 字段与副作用：Cluster、replicas、source/path、backend参数、selectors等硬字段全部保持；Rust
+  Server也保留了image_name，而原版非Custom update会把image/run command置null，该次级差异单独
+  记录。Model 6仍无Instance，Worker 16 File为0且maintenance不变；Docker、双GPU、端口、目标进程
+  和独立PID 1113114前后完全一致。
+- 证据：受保护目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs5-model-watch-update-20261115T125249Z`
+  为0700、文件0600；三种凭据逐值和通用模式扫描通过，无临时header、checksum或curl残留。
+  `SHA256SUMS`自身SHA-256为
+  `cc28aa021b59c3a2fbfd76cc6ddc8b7019434badaa1be71adb6bac194212d9af`，全量校验通过。
+- 判定：RS.5.2为`FAIL/update_ignored_description`、副作用审计PASS。Model 6保留原description和停止态，
+  未重试、未回滚、未删除。独立缺陷报告为
+  `rust/docs/rust-server-model-update-ignored-fields-issue.md`。
+- 当前停止位置：需要用户审阅并决定该差异是等待Rust Server修复后复测，还是像D284一样记录为
+  RS.7前必须闭环的已知差异并继续下一个隔离资源门；在裁决前不发送新的Server写请求。

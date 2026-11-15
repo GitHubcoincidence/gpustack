@@ -207,3 +207,7 @@ RS.1固定检查：
 [Rust Server 跨 Cluster 可见性缺陷报告](rust-server-cross-cluster-visibility-issue.md)。
 该差异当前由Rust Server开发者处理中；项目按2026-11-15临时推进裁决继续RS.5，但它仍阻断RS.7
 最终兼容验收。
+
+RS.5.2又确认`PUT /v2/models/{id}`返回HTTP 200并发布UPDATED事件，但忽略请求中的description，
+响应、GET和watch均保留旧值；详细wire、oracle和建议修复见
+[Rust Server Model PUT忽略字段缺陷报告](rust-server-model-update-ignored-fields-issue.md)。
