@@ -6828,3 +6828,24 @@
 - 当前停止位置：下一步建议冻结RS.5.1“唯一停止态Model创建”门：只在Cluster 3创建一个
   `replicas=0`的Model，不启动Worker、不创建ModelInstance/ModelFile、不触发调度或GPU；请求不明确
   时只GET判定且禁止盲重试。该写入尚未授权，必须先向用户说明完整请求字段、保留/清理策略和停止条件。
+
+### 2026-11-15：M8-RS.5.1唯一停止态Model创建方案冻结
+
+- 用户授权：用户审阅RS.5.0结果以及“Cluster 3唯一停止态Model、replicas 0、无Worker/Instance/File/
+  Docker/GPU动作”的下一步说明后明确表示没有问题，授权执行该单一Model创建门。
+- 唯一请求：管理主体只发送一次`POST /v2/models`。body固定name
+  `rust-rs5-scope-90-20261115`、description`M8-RS.5 isolated stopped model; no scheduling`、
+  source`local_path`、local_path
+  `/home/wujiaxing2/flowscale-system-validation/models/Qwen2.5-0.5B-Instruct`、replicas 0、
+  placement`spread`、cluster_id 3、backend`vLLM`、固定Runner digest、restart_on_error false、
+  distributed inference false、worker selector只含Worker 16名称、gpu_selector null，以及固定TP=1、
+  max len 2048、memory utilization 0.5、dtype auto、enforce eager参数。
+- 通过门：请求前重新通过RS.5.0最小基线；POST只接受200/201且响应含精确name、cluster_id 3、
+  replicas 0、ready_replicas 0和正ID。独立管理GET及Worker SYSTEM GET必须各有唯一精确目标，目标
+  ModelInstance为0、Worker 16 ModelFile为0、21150/21151为空、目标Worker未启动、容器/GPU不变。
+- 不明确与失败处理：curl连接或响应不明确时只按精确name GET，禁止第二次POST。若资源已经存在但
+  字段或后置门失败，保留该资源、记录ID并停止，不自动删除。
+- 漂移审计：本门服务于RS.5资源范围和状态所有权验证；D284已知Server差异、v2.2.3 oracle、
+  maintenance、独立20150 Worker以及非GPU边界均未改变。结论为aligned。
+- 当前停止位置：RS.5.1为`authorized_pending_execution`。下一步只允许在包含D285的干净治理HEAD
+  上建立全新证据目录，执行上述一次POST及只读后置审计。

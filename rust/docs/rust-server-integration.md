@@ -86,6 +86,24 @@ desired/零reconciliation、control health全通过且watch reconnect为0的JSON
 - RS.7最终验收前，Rust Server必须修复Model Cluster范围和ModelFile `worker_id`过滤，并重新通过
   list、watch和RS.4.2空载回归。
 
+### RS.5.1 唯一停止态Model创建
+
+RS.5.1只使用106管理主体向`POST /v2/models`发送一次请求，创建名称
+`rust-rs5-scope-90-20261115`、cluster_id 3、replicas 0的唯一停止态Model。source固定为
+`local_path`，路径为90服务器已经验证存在的Qwen2.5-0.5B-Instruct；backend固定为vLLM，Runner
+镜像使用M6/M7已接受的固定digest。worker selector只绑定`rust-rs3-worker-90-20261113`，
+`gpu_selector=null`，不创建ModelInstance或ModelFile，不启动Worker，不触发调度、容器或GPU。
+
+请求前重新确认106仍为v2.2.3、Worker 16精确属于Cluster 3并保持maintenance、目标名称不存在、
+Cluster 3资源为空、21150/21151空闲、本地模型目录存在以及现有容器/GPU快照。请求HTTP 200或201后，
+响应和独立GET必须确认非空ID、精确name、cluster_id 3、replicas 0和ready_replicas 0；随后确认该
+Model没有ModelInstance且Worker 16没有ModelFile。Worker SYSTEM Token的Model list只用于确认精确
+目标可见，已知的其他Cluster条目必须忽略且不得参与任何写请求。
+
+连接或响应不明确时禁止重复POST，只按精确名称GET判断实际状态；若Server已经创建资源但响应字段或
+后置门失败，保留该资源、记录ID并停止，不自动删除。成功资源同样保留给RS.5后续单门使用，最终由
+RS.5/RS.7精确清理。方案不授权更新或删除Model，也不授权启动Worker或执行Docker/GPU生命周期。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；

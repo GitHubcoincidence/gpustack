@@ -1391,3 +1391,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D284 | 跨Cluster可见性缺口的临时推进策略 | 保留RS.4.2 attempt 1的`FAIL/unexpected_desired_models`和D283归因，不把差异改写为通过；问题已转交Rust Server开发者，等待修复期间将RS.4标记为`complete_with_open_server_difference`并逐门进入RS.5。后续只操作管理主体精确创建在Cluster 3且绑定Worker 16的唯一资源，保留maintenance、本地所有权检查和前后资源/容器审计；不得使用跨Cluster响应构造写请求。RS.7前必须完成Server修复以及Model/ModelFile list、watch和RS.4.2重跑 | 本次失败没有触发reconciliation、容器或GPU副作用，Worker的身份、heartbeat/status、readiness、full sync/watch连接和优雅退出均已得到正式证据，因此可继续验证其他接口和状态所有权。继续推进不改变原版兼容标准，也不降低最终验收门；附加隔离约束把已知Server缺口限制为可追踪风险。 |
+
+## 2026-11-15 M8-RS.5.1唯一停止态Model创建门
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D285 | RS.5第一个隔离资源写入 | 只向106发送一次`POST /v2/models`，创建`rust-rs5-scope-90-20261115`：cluster_id 3、replicas 0、Qwen2.5-0.5B本地路径、vLLM、固定Runner digest、Worker 16名称selector、无GPU selector且禁止分布式推理。成功后以管理GET和Worker SYSTEM GET核对精确ID/归属/停止态及零Instance/File，并保留Model供后续RS.5使用；结果不明确时只GET判定，禁止盲重试或自动删除 | `replicas=0`使本门只验证Model创建与范围语义，不进入调度或runtime。精确Cluster、名称和Worker selector满足D284隔离约束；保留资源可让后续list/watch/完整PUT逐门使用同一对象，同时避免失败时无证据删除。用户已审阅并同意RS.5.1计划。 |
