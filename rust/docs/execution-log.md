@@ -7083,3 +7083,38 @@
   只定义观察终点，不放宽事件字段门。结论为aligned。
 - 当前停止位置：RS.5.5为`authorized_pending_execution`。下一步只允许在包含D291的干净治理HEAD
   上执行上述三次只读请求及前后审计，生成独立0700证据；不得进入RS.6调度或启动Worker。
+
+### 2026-11-15：M8-RS.5.5精确GET与ModelInstance watch通过
+
+- 冻结输入：本地、GitHub和90源码HEAD为
+  `58d9a3b6ab99fcd26f1331797d9634b448de666b`，90工作树干净；106前后均为v2.2.3 commit
+  `fba334c`。Model 7仍为Cluster 3、replicas 1/ready 0；Instance 14仍为Model 7/Cluster 3 pending，
+  worker/port/GPU assignment为空。Worker 16保持maintenance且无ModelFile、进程或目标端口。
+- 接口与响应：management主体的`GET /v2/models/7`和`GET /v2/model-instances/14`均为curl 0、
+  HTTP 200并返回冻结字段。Worker 16 SYSTEM Token的唯一
+  `GET /v2/model-instances?watch=true`为HTTP 200、Content-Type `text/event-stream`；12秒观察窗口按
+  预期以curl 28结束，共1106字节、一个合法JSON事件。
+- watch内容：唯一事件为type 1、顶层和data ID均为14，name
+  `rust-rs5-server-driven-qwen25-05b-gpu0-hr0a0`、state pending、model_id 7、cluster_id 3，
+  worker/port为空、GPU indexes为空、changed fields为空；目标初始事件恰好1，其他Cluster事件0。
+- 原始分类：GET和watch门均true，但原脚本用整个Instance JSON执行字节级cmp，因而把isolation gate
+  判false并输出`FAIL/gate_mismatch`。只读diff证明唯一变化字段是`updated_at`，从
+  `2026-11-15T14:00:16.553516Z`推进至`2026-11-15T14:00:31.477374Z`；Model、状态消息、归属、
+  assignment和所有其他字段完全相同。原v2.2.3 scheduler在候选为空时也调用Instance update。
+- 离线裁决：不重发任何GET/watch，在独立证据目录删除`updated_at`后对完整对象排序比较，结果
+  `stable_fields_equal=true`、changed fields只有updated_at；重新核对既有GET/watch、maintenance、
+  Model 6、ModelFile、进程/端口、PID 1113114、active Context、Docker、GPU和Server commit均通过。
+  原始FAIL及manifest不修改，作为`NON_SCORING_FAILURE`保留；RS.5.5正式判定
+  `PASS/exact_get_and_initial_watch_replay`。
+- 正式证据：原始目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs5-instance-read-watch-20261115T140019Z`
+  为0700、文件0600、秘密扫描PASS，`SHA256SUMS`自身SHA-256为
+  `96cf5fc53f23ca39b9c6f0918d7f5cf332f8fb398d37c6933d8d980db97072a6`。离线裁决目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs5-instance-read-watch-adjudication-20261115T140346Z`
+  同样为0700/0600，未发网络请求，`SHA256SUMS`自身SHA-256为
+  `a2cef9615eb4cdf2a30d9d9846e01cade07baec83f1170c74ae5942819e85cef`。
+- 漂移审计：D292没有删除失败证据或放宽业务字段门，只纠正未冻结的时间戳字节比较；原版行为提供
+  oracle依据，结果仍可归因。结论为aligned。
+- 当前停止位置：RS.5.5为`ready_for_review`，Model 7与Instance 14继续保留pending。下一步必须先
+  讨论并冻结RS.6调度/运行前置：Worker 16的规范`worker-name`标签、maintenance解除与回滚、宿主机
+  Worker启动、GPU0排他和完整watch/状态链；本验收不授权任何这些写入或运行操作。

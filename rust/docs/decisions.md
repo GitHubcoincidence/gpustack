@@ -1428,3 +1428,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D291 | Instance精确读取与watch回放 | 管理主体只读GET Model 7和Instance 14；Worker 16 SYSTEM Token建立短时`GET /v2/model-instances?watch=true`，要求初始type=1事件精确回放Instance 14一次且字段与GET一致。其他Cluster额外事件按D284单独记录，不影响目标门；前后执行完整零副作用审计，curl观察窗口超时28为预期结束 | 该门直接验证Rust Worker实际消费的Instance list/watch wire，同时不需要外部创建接口、Server写入或运行Worker。以目标ID做本地精确过滤可在不掩盖跨Cluster缺陷的前提下继续主链证据。用户接受RS.5.4结果和该只读下一步。 |
+
+## 2026-11-15 M8-RS.5.5更新时间戳裁决
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D292 | pending调度重试的`updated_at`处理 | 保留原始`FAIL/gate_mismatch`，但将其标记为非评分harness分类失败；用独立、零网络请求的离线裁决删除`updated_at`后比较完整Instance对象。规范化对象相同且GET/watch/其余隔离门通过时，RS.5.5判PASS | 唯一变化字段是`updated_at`，业务状态、归属和分配均不变；原v2.2.3 scheduler在无候选Worker时也会调用ModelInstanceService.update。冻结协议要求资源语义不变，没有把调度重试时间戳定义为不可变；字节级cmp是实现过严，不应否定有效wire证据。 |

@@ -193,6 +193,13 @@ Worker 16同时收到其他实例；额外事件单独计数并保留为RS.7差�
 启动Worker、修改labels/maintenance、创建ModelFile或触发Docker生命周期。watch传输按固定短时窗口
 结束时，curl超时退出28是预期的观察终点，不视为Server失败。
 
+2026-11-15实际结果：两个精确GET均为HTTP 200；Worker watch为HTTP 200、`text/event-stream`，12秒
+窗口只收到一个type=1事件，精确为Instance 14，字段与GET一致且其他Cluster事件为0。原分类器因
+Instance 14的`updated_at`在调度器周期重试中自然推进约15秒而把字节级JSON差异判为FAIL；独立离线
+裁决确认除`updated_at`外完整对象相同，原v2.2.3调度器在无候选Worker时同样调用实例更新服务。
+原FAIL保留为非评分harness记录，未重发网络请求；RS.5.5正式判定为
+`PASS/exact_get_and_initial_watch_replay`。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；
