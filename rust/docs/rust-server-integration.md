@@ -332,6 +332,12 @@ Worker 16保持maintenance，Model 7保持replicas 0，Worker 16 ModelFile、目
 GPU0均无新增。新Model/Instance ID经证据冻结后替代D293中的Model 7/Instance 14用于余下RS.6，
 旧资源只保留到最终清理。
 
+实际恢复结果：第一次执行单元在GitHub fetch阶段卡住并被中断，POST未发送；第二次执行器在POST前
+因GPU0外部任务停止，同样未发送请求。资源创建不运行Worker或GPU，故第三次执行把GPU状态改为只
+记录外部基线，仍严格要求maintenance、无目标Worker/端口/容器。唯一CLI POST成功创建Model 9和
+Server内部Instance 19；Instance为pending且worker/port/GPU为空。Model 9与Instance 19正式替代
+Model 7/Instance 14用于余下RS.6；Worker启动前的90秒GPU0空闲门保持不变。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；

@@ -7330,3 +7330,27 @@
 - 漂移审计：这是用户接受的intentional change；Server版本、Worker、GPU、模型和参数未变，只替代
   被外部删除的控制面资源ID。通过后必须记录新ID并更新余下RS.6引用。
 - 当前停止位置：替代资源创建门为`authorized_pending_execution`；不得在新资源通过前启动Worker。
+
+### 2026-11-16：M8-RS.6替代Model 9与Instance 19创建通过
+
+- 源码与执行器：包含D301的本地/GitHub/90源码HEAD为
+  `b5c3c3fffc789b63229936dea5f04ef269e2dc8a`。第一次执行在90的`git fetch`卡住，只有空fetch stderr，
+  精确GET确认名称不存在后中断；通过本地小bundle快进90。第二次执行在POST前检测到用户`ckpt`的
+  新PID 879389占用GPU0，`model_post_sent=false`并停止。
+- 门修正：Model创建是纯Server控制面写入，目标Worker停止、maintenance启用且缺少`worker-name`
+  标签，不会运行容器或GPU；因此第三次执行只记录外部GPU基线，不把GPU0空闲作为POST前提。该修正
+  不影响后续Worker启动的完整90秒GPU0稳定硬门。
+- 唯一请求：非active Context `m8rs-rs5-control`只执行一次CLI deploy，exit 0。名称
+  `rust-rs6-server-driven-qwen25-05b-gpu0-attempt3`，Cluster 3、Worker 16、GPU0、Qwen路径、Runner
+  digest和五项vLLM参数与冻结输入完全一致，没有`--wait`或第二次POST。
+- 实际资源：创建Model ID 9，replicas 1/ready 0；约2秒后Server内部生成唯一Instance ID 19，状态
+  pending，worker_id/port/GPU indexes为空。Worker 16继续maintenance、labels不变；旧Model 7保持
+  replicas 0，Worker 16 ModelFile、目标进程、21150/21151、40000～40063和目标容器均为0。
+- 证据：正式目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-replacement-model-attempt3-20261116T082021Z`
+  为0700、文件0600，秘密扫描PASS；`SHA256SUMS`自身SHA-256为
+  `3d515db96fe857b06c7ee1d7cf1e3c0332a2cb1480210d10a46a09468b031aac`。
+- 判定：替代资源恢复为`PASS`。Model 9/Instance 19正式替代Model 7/Instance 14进入余下RS.6，旧资源
+  保留到最终清理。漂移审计结论为intentional change accepted并已落实。
+- 当前停止位置：RS.6.1 attempt 3尚未启动。GPU0外部任务已恢复运行，必须再次由用户确认空闲并通过
+  90秒逐秒稳定窗口；未满足前不得启动Worker或进入RS.6.2。
