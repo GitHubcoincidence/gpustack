@@ -7263,3 +7263,27 @@
   在包含D299的新干净HEAD上重新locked/offline构建并记录二进制身份，运行观察仍至少90秒。
 - 成功与停止：通过时唯一Worker PID继续运行、maintenance保持，等待RS.6.2单独验收；STOP/FAIL时
   不自动再次重试。当前状态为`authorized_pending_execution`。
+
+### 2026-11-16：M8-RS.6.1 attempt 2在启动前因外部GPU0任务停止
+
+- 冻结身份：包含D299的本地、GitHub和90源码HEAD为
+  `b0d0a447587ba6f8fb00f2c63185bbfd4d4c1034`，90工作树干净。Rust 1.99.1 locked/offline构建和
+  二进制内嵌commit门通过；106仍为v2.2.3 commit `fba334c`，Worker/Model/Instance/ModelFile、
+  端口和既有服务前置门通过。
+- 稳定窗口结果：正式Worker启动前开始90秒逐秒GPU取证，第一次采样即发现GPU0 UUID
+  `GPU-52e4ed55-c51a-56cc-7478-44e056a0b3b3`存在PID 3547519，进程路径为
+  `/home/ckpt/anaconda3/envs/ckpt/bin/python`，owner为`ckpt`，触发时占用4,626 MiB。随后只读复核显示
+  GPU0约36 GiB、100%利用率，证明它不是Rust Worker产生的瞬时NVML假象。
+- GPU1观察：GPU1继续由用户`jeff`的PID 1628716使用约67 GiB；两个外部进程均未停止、暂停、发送
+  信号或读取秘密。本门只保存nvidia-smi身份和非敏感进程元数据。
+- 停止与零副作用：结果为`STOP/external_gpu0_occupied`，`worker_started=false`；未创建目标PID、
+  21150/21151监听、运行端口、容器、ModelFile或attempt2 control/log目录。Worker 16继续maintenance，
+  Model 7 ready 0，Instance 14 pending未分配；Python Server/Worker和用户Worker health/metrics均200。
+- 证据：目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-maintenance-start-attempt2-20261116T020628Z`
+  为0700、文件0600，精确token和通用API key扫描PASS；`SHA256SUMS`自身SHA-256为
+  `15b4751cf7a928fc9e59a6c7610e284648353ee1c9b61a4b6c6db61236618cac`。
+- 解释与漂移审计：D299增强取证成功识别真实外部GPU0任务，fail-closed停止符合GPU0排他和他人任务
+  隔离；没有把STOP改判或归因到Worker。结论为aligned。
+- 当前停止位置：RS.6.1仍未通过且Worker未运行。等待用户确认GPU0空闲；此后须单独授权全新尝试并
+  重新执行完整90秒稳定窗口，不能从本次中途续跑，也不得进入RS.6.2。

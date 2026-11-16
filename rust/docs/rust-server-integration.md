@@ -306,6 +306,12 @@ Instance、容器、端口和GPU0计数外，必须在每次采样及任何触�
 显存和GPU总览，然后才执行SIGINT或条件回滚。运行观察仍至少90秒；成功终态、失败回滚和RS.6.2
 授权边界不变。
 
+attempt 2实际在稳定窗口第一次采样即捕获GPU0外部进程：用户`ckpt`、PID 3547519、Python路径
+`/home/ckpt/anaconda3/envs/ckpt/bin/python`，触发时使用4,626 MiB，随后GPU0达到约36 GiB和100%。
+GPU1同时由用户`jeff`的PID 1628716使用。门判定为`STOP/external_gpu0_occupied`，Worker未启动，
+未创建attempt2 control/log目录，也未对两个外部进程采取操作。后续只能在用户确认GPU0空闲后建立
+全新尝试，仍须重新通过完整稳定窗口。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；
