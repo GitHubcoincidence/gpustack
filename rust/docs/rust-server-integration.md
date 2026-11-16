@@ -297,6 +297,15 @@ GPU0及既有服务均恢复冻结基线。GPU1外部任务的PID同期从110041
 attempt 1保持正式失败，不自动重试；下次须先稳定观察GPU0并让watchdog在触发时保存完整
 compute-app快照。
 
+2026-11-16 attempt 2修订：保留attempt 1全部目录，使用新的attempt2 control/log/evidence子目录。
+正式启动前先连续90秒、每秒保存完整NVML compute-app快照；GPU0任一采样出现进程即判
+`STOP/gpu0_not_stable`且不得启动。GPU1进程、显存和PID变化只记录，不作为停止条件。
+
+通过稳定窗口后重新确认Server资源和既有服务，再启动唯一Worker PID。运行watchdog除原有maintenance、
+Instance、容器、端口和GPU0计数外，必须在每次采样及任何触发分支先写入完整GPU UUID、PID、进程名、
+显存和GPU总览，然后才执行SIGINT或条件回滚。运行观察仍至少90秒；成功终态、失败回滚和RS.6.2
+授权边界不变。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；

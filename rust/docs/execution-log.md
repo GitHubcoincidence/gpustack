@@ -7245,3 +7245,21 @@
 - 当前停止位置：RS.6.1仍未通过，Worker已停止，maintenance和Model/Instance保留。下一步须单独接受
   attempt 2：先做GPU0稳定观察，再用能在触发前保存完整compute-app身份的watchdog重新启动；不得
   自动重试或进入RS.6.2。
+
+### 2026-11-16：M8-RS.6.1 attempt 2授权与增强取证门冻结
+
+- 用户裁决：用户接受attempt 1正式失败、完整回滚和未证明的外部GPU1任务归因，明确授权attempt 2。
+  授权仍只覆盖maintenance下空载启动，不覆盖标签PUT、解除maintenance、模型调度或推理。
+- 恢复现场：本地/GitHub/90为干净同步HEAD
+  `9e898042271bf81bcadc24cca3eac258d93c79d7`；106仍为v2.2.3 commit `fba334c`。Worker 16
+  maintenance且目标进程/端口为空，Model 7 ready 0、Instance 14 pending未分配。GPU0为0 MiB/0%
+  且无计算进程；GPU1外部Python PID 1628716使用约67 GB，仅观察。结论为aligned。
+- 稳定窗口：使用全新attempt2证据目录，启动前连续90秒每秒写入GPU总览和完整compute-app CSV；
+  GPU0 UUID任一命中即`STOP/gpu0_not_stable`且不启动。GPU1负载和PID变化只进入证据。
+- 运行watchdog：每次循环及任何触发分支先原子写入完整GPU UUID、PID、process name和used memory，
+  再检查maintenance、Instance 14、目标容器、40000～40063及GPU0。发生失败时沿用D297精确回滚，
+  不再只记录GPU0进程计数。
+- 目录与可归因性：attempt 1的control/log/evidence原样保留；attempt 2使用独立control/log子目录。
+  在包含D299的新干净HEAD上重新locked/offline构建并记录二进制身份，运行观察仍至少90秒。
+- 成功与停止：通过时唯一Worker PID继续运行、maintenance保持，等待RS.6.2单独验收；STOP/FAIL时
+  不自动再次重试。当前状态为`authorized_pending_execution`。
