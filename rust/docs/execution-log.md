@@ -7287,3 +7287,30 @@
   隔离；没有把STOP改判或归因到Worker。结论为aligned。
 - 当前停止位置：RS.6.1仍未通过且Worker未运行。等待用户确认GPU0空闲；此后须单独授权全新尝试并
   重新执行完整90秒稳定窗口，不能从本次中途续跑，也不得进入RS.6.2。
+
+### 2026-11-16：M8-RS.6.1 attempt 3前检发现Server资源外部漂移
+
+- 用户输入与GPU：用户通知GPU0已空闲；即时NVML确认GPU0为0 MiB/0%且无compute-app。GPU1仍有
+  用户`jeff`的PID 1628716并只观察。该输入按约定授权全新attempt 3，但不授权改变Server资源。
+- 源码与Worker：本地/GitHub/90仍为干净同步HEAD
+  `b530fb9fc07bda0222392127b2cb75e5b33c7de3`；106仍为v2.2.3 commit `fba334c`。Worker 16
+  maintenance、unreachable false、labels仅`implementation=rust`，目标进程、21150/21151及运行端口
+  均为空。
+- 资源漂移：Model 7仍存在但replicas已从冻结值1变为0，`updated_at`为
+  `2026-11-16T07:21:37.573620Z`；Instance 14精确GET返回404。完整实例清单只有Cluster 1的Instance
+  18，Cluster 3实例数为0；Worker 16 ModelFile仍为0。该变化不来自本流程，执行记录中没有对应写入。
+- 停止判定：结果为`STOP/external_server_resource_drift`，发生在90秒GPU稳定窗口和Worker启动前。
+  `worker_started=false`，没有创建attempt3 runtime目录、监听、容器、ModelFile或GPU任务。
+- 方法影响：D297要求真实pending Instance在maintenance下保持未分配；在Instance缺失时做普通空载
+  启动会弱化实验且不能为后续RS.6.3提供资源。已知RS.5.2又证明106的Model PUT存在字段保留缺陷，
+  因此不能擅自把Model 7 replicas改回1。
+- 建议恢复：保留Model 7 replicas 0，通过已验证的CLI deploy创建全新唯一RS.6 Model，冻结相同
+  Cluster 3、Worker 16/GPU0、Qwen、Runner和vLLM参数，由Server内部生成新pending Instance；只读
+  验收新ID后再重启attempt 3。该写入是有意协议修订，必须用户单独授权。
+- 证据：目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-attempt3-drift-precheck-20261116T075434Z`
+  为0700、文件0600，秘密扫描PASS；`SHA256SUMS`自身SHA-256为
+  `7aee667ca4ec91b79c04f5788ad82071e882e41faa555e851b9536f0939eac57`。
+- 漂移审计：资源输入与D293/D297不一致，继续执行会成为accidental drift；已在任何运行写入前停止。
+- 当前停止位置：等待用户选择并授权资源恢复方案。未授权前不得创建/更新Model、启动Worker或进入
+  RS.6.2。

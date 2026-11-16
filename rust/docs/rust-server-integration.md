@@ -312,6 +312,16 @@ GPU1同时由用户`jeff`的PID 1628716使用。门判定为`STOP/external_gpu0_
 未创建attempt2 control/log目录，也未对两个外部进程采取操作。后续只能在用户确认GPU0空闲后建立
 全新尝试，仍须重新通过完整稳定窗口。
 
+用户确认GPU0空闲后的attempt 3只读前检发现Server资源已外部漂移：Model 7的replicas从1变为0，
+更新时间为2026-11-16T07:21:37Z；Instance 14精确GET为404，Cluster 3实例清单为0。GPU0当时确实
+空闲，Worker 16仍maintenance且没有目标进程或端口，但缺少真实pending Instance使D297隔离门失去
+输入，因此attempt 3在稳定窗口和Worker启动前判`STOP/external_server_resource_drift`。
+
+不得把空载启动替代该门，也不建议用已知会丢字段的Model PUT恢复Model 7。建议在获得独立授权后用
+已验证CLI deploy创建唯一替代Model，复用相同Cluster 3、Worker 16、GPU0、Qwen路径、Runner和vLLM
+参数，让Server内部生成新的pending Instance；新ID经只读验收后才能重启attempt 3。Model 7保持
+replicas 0作为历史资源，后续统一清理。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；
