@@ -7314,3 +7314,19 @@
 - 漂移审计：资源输入与D293/D297不一致，继续执行会成为accidental drift；已在任何运行写入前停止。
 - 当前停止位置：等待用户选择并授权资源恢复方案。未授权前不得创建/更新Model、启动Worker或进入
   RS.6.2。
+
+### 2026-11-16：M8-RS.6替代Model恢复方案接受
+
+- 用户裁决：用户同意推荐方案，授权创建唯一替代Model并在新pending Instance只读验收后继续
+  RS.6.1 attempt 3。授权不包括修改/删除Model 7、启动Worker之前的其他写入或进入RS.6.2。
+- 唯一请求：在包含D301的干净HEAD上locked/offline重建CLI，使用非active Context
+  `m8rs-rs5-control`执行一次不带`--wait`的`model deploy`。名称固定为
+  `rust-rs6-server-driven-qwen25-05b-gpu0-attempt3`，Cluster 3、Worker 16、GPU0、本地Qwen路径、
+  Runner digest及TP=1/max len 2048/memory utilization 0.5/dtype auto/enforce eager均与Model 7一致。
+- 幂等与失败：写前精确名称必须不存在；连接或响应不明确时只GET，禁止第二次POST。字段不符、没有
+  恰好一个Server生成的pending实例或出现调度/runtime副作用时保留资源和证据并停止。
+- 通过门：新Model replicas 1/ready 0且字段精确；唯一新Instance pending，worker/port/GPU为空。
+  Worker 16仍maintenance，Model 7仍replicas 0，Worker 16 ModelFile、进程、端口、容器和GPU0不变。
+- 漂移审计：这是用户接受的intentional change；Server版本、Worker、GPU、模型和参数未变，只替代
+  被外部删除的控制面资源ID。通过后必须记录新ID并更新余下RS.6引用。
+- 当前停止位置：替代资源创建门为`authorized_pending_execution`；不得在新资源通过前启动Worker。

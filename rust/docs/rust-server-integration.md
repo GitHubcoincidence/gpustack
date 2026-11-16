@@ -322,6 +322,16 @@ GPU1同时由用户`jeff`的PID 1628716使用。门判定为`STOP/external_gpu0_
 参数，让Server内部生成新的pending Instance；新ID经只读验收后才能重启attempt 3。Model 7保持
 replicas 0作为历史资源，后续统一清理。
 
+用户已授权替代资源。唯一名称固定为`rust-rs6-server-driven-qwen25-05b-gpu0-attempt3`，通过非active
+Context `m8rs-rs5-control`执行一次不带`--wait`的CLI `model deploy`。请求固定Cluster 3、Worker
+`rust-rs3-worker-90-20261113`、GPU0、本地Qwen2.5-0.5B路径、原Runner digest和五项vLLM参数；
+连接或响应不明确时只按精确名称GET，禁止第二次POST。
+
+通过门为新Model字段精确匹配且Server内部生成恰好一个pending Instance，worker/port/GPU为空；
+Worker 16保持maintenance，Model 7保持replicas 0，Worker 16 ModelFile、目标进程、端口、容器和
+GPU0均无新增。新Model/Instance ID经证据冻结后替代D293中的Model 7/Instance 14用于余下RS.6，
+旧资源只保留到最终清理。
+
 ## 真实联调执行粒度
 
 RS.2及以后采用“单一接口或单一功能门”推进：每次只冻结一个目标、请求、期望、证据和停止条件；
