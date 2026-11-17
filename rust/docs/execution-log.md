@@ -7429,10 +7429,13 @@
   `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-replacement-worker-r2-20261117T075448Z`
   保存无秘密请求、脱敏响应、`me`/管理GET、身份元数据、零runtime后审、执行器和后续环境事件；最终
   `SHA256SUMS`自身SHA-256为
-  `cfee83401888c628c6942def520dde296e0ef82afbdf59c00c9569fc9533ebb8`，秘密扫描PASS。
+  `dcd778a8f44af27fa9ab1e9447e1d8d160578ba9b364f177e77ece7ff4ec07ec`，秘密扫描PASS。
 - 后续环境事件：完成上述注册和独立GET后，106的`/version`连续10次连接被拒绝，发生时间晚于
   Worker 23的两项200验证。该事件不改判已完成的注册门，但使当前Server状态再次可变；证据追加时的
   本地`jq`摘要格式错误只产生三行非评分HTTP摘要，已单独裁决并纳入最终清单，没有重放注册请求。
-- 判定与停止位置：replacement身份门为`PASS/registered_in_maintenance`。Worker 23尚未运行，Model 9
-  仍为历史零副本资源。下一步必须先等待106恢复并重新验证版本、Worker 23、maintenance、Cluster 3
-  资源和新token；通过后才能单独冻结replacement Model创建，不自动启动Worker或使用GPU。
+- Server恢复复核：106随后恢复，`/version`返回v2.2.3 commit `fba334c`；Worker 23管理GET和新token
+  `me=true`再次为HTTP 200，ID/name/Cluster/maintenance/state/labels/端口全部保持，Cluster 3活动
+  Model和Instance仍为0。恢复后脱敏JSON已加入同一证据目录并重新生成最终清单。
+- 判定与停止位置：replacement身份门为`PASS/registered_in_maintenance`且Server恢复复核PASS。
+  Worker 23尚未运行，Model 9仍为历史零副本资源。下一步只允许讨论并冻结绑定Worker 23、新名称和
+  GPU0的replacement Model创建门；通过本阶段不自动创建Model、启动Worker或使用GPU。
