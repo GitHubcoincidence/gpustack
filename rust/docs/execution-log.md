@@ -7387,3 +7387,20 @@
   Server写入仅有一次失败POST，当前同名Worker仍不存在，旧身份已恢复但继续视为陈旧。RS.6.1
   attempt 3继续停止，不得直接启动Worker或重试同名POST。下一步需用户接受以下其一：由Rust Server
   修复删除语义后重试原名，或使用新名称注册新Worker并显式修订Model selector与后续RS.6资源基线。
+
+### 2026-11-17：M8-RS.6 replacement Worker方案接受
+
+- 用户裁决：用户接受使用新名称恢复推进。replacement名称固定为
+  `rust-rs3-worker-90-20261113-r2`，身份固定写入全新data dir
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/m8rs6/replacement-worker-r2`；Worker 16的旧身份、
+  Model 9和HTTP 409证据均保留且不再用作可运行输入。
+- 唯一注册边界：使用Cluster 3 registration token只发送一次`POST /v2/workers`；请求直接启用
+  maintenance，携带`implementation=rust`和新名称对应的规范`worker-name`，继续使用
+  r760xa/10.213.80.90/eno8403、21150/21151和v2.2.3。成功后保存Server签发的新ID、UUID和Worker
+  token，并以管理GET和`me=true`验证；不得启动Worker、容器、GPU任务或创建Model/Instance。
+- 下游修订：Model 9的旧名称/GPU selector保持历史原样。replacement Worker通过后，余下RS.6必须
+  单独冻结并创建绑定新名称和GPU0的新Model/Instance；不得通过已知有差异的Model PUT修改Model 9。
+- 漂移审计：Worker名称、身份目录及后续控制面资源ID属于用户接受的有意变化；Qwen模型、Runner、
+  vLLM参数、GPU0排他、GPU1只观察、maintenance分段和原版兼容标准均未改变。
+- 当前停止位置：replacement注册为`authorized_pending_execution`。下一步只允许提交并同步本冻结
+  记录后执行一次注册与零runtime后审；通过不自动授权启动Worker或创建replacement Model。

@@ -1449,3 +1449,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | D300 | attempt 2外部GPU0占用 | 第一次稳定采样捕获用户`ckpt`的PID 3547519在GPU0运行，attempt 2判`STOP/external_gpu0_occupied`且Worker不启动。不得停止、暂停或修改该进程；不轮询后自动续跑。等待用户确认GPU0空闲后再授权全新尝试，并重新执行完整稳定窗口 | 增强取证已把attempt 1的未知瞬时进程风险解析为真实外部工作负载。继续启动会违反GPU0排他和他人任务隔离；资源空闲是新的外部前置条件，不是Worker实现问题。 |
 | D301 | Model 7/Instance 14外部漂移后的替代资源 | 保留Model 7 replicas 0，不走已知字段丢失的Model PUT；使用非active管理Context只执行一次CLI deploy，创建`rust-rs6-server-driven-qwen25-05b-gpu0-attempt3`，完整复用Cluster 3、Worker 16/GPU0、Qwen、Runner和vLLM参数。Server生成的新pending Instance通过只读门后，其ID替代Model 7/Instance 14用于余下RS.6；旧Model 7最终统一清理 | 用户确认GPU0空闲并接受推荐恢复方案。新资源避免修改有历史证据的Model 7，也绕开106的Model PUT字段保留缺陷；配置、负载和隔离条件不变，属于对外部资源漂移的有意修订。 |
 | D302 | 替代资源的GPU前置边界与新ID | 纯控制面Model创建允许记录但不要求外部GPU0空闲，因为Worker停止、maintenance启用且缺少selector标签，POST不会调用本机容器/GPU；Worker启动的90秒GPU0空闲硬门不变。正式结果固定为Model 9、Instance 19，替代Model 7/Instance 14供余下RS.6使用 | 第二次资源执行器在POST前因外部GPU0任务停止，属于把后续运行门过早应用到控制面恢复。解耦两门避免外部长期任务阻塞无GPU写入，同时不放宽任何Worker/runtime排他条件。唯一POST和零runtime副作用证据证明恢复可归因。 |
+
+## 2026-11-17 M8-RS.6删除Worker后的替代身份
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D303 | Worker 16删除后的replacement身份 | 保留Worker 16陈旧身份、Model 9和同名注册HTTP 409为历史证据；使用新名称`rust-rs3-worker-90-20261113-r2`和全新data dir `/home/wujiaxing2/.local/state/gpustack-rust-worker/m8rs6/replacement-worker-r2`，通过Cluster 3注册主体只注册一次。注册请求直接设置maintenance、`implementation=rust`和规范`worker-name`，成功后只验证新ID/UUID/token和零runtime副作用，不启动Worker。后续RS.6须创建绑定新名称/GPU0的新Model资源，不修改Model 9来迁就新身份 | 106删除Worker后隐藏旧记录但同名重注册返回409，与原版本地Worker硬删除语义不一致。新名称和隔离目录绕开Server残留唯一性约束，同时不改Worker实现、GPU0工作负载、Runner或vLLM参数；maintenance和Cluster 3零活动资源保证注册不会进入调度。用户明确接受该有意基线变更。 |
