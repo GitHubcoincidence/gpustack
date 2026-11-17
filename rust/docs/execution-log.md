@@ -7456,3 +7456,36 @@
   为空；Cluster 3不得出现其他新活动资源，目标容器和运行端口保持0。
 - 当前停止位置：replacement Model创建为`authorized_pending_execution`。下一步只允许提交并同步
   D304后执行一次控制面创建及零runtime后审；通过不自动授权启动Worker、解除maintenance或使用GPU。
+
+### 2026-11-17：M8-RS.6 Worker 23 replacement Model 14创建通过
+
+- 冻结执行身份：包含D304的本地、GitHub和90源码HEAD为
+  `851cace7861015b4875b65d2251af3d5b9b28f50`。为避免替换用户Worker 22正在执行的旧binary，使用
+  独立target dir locked/offline构建CLI；内嵌commit为`851cace78610`，binary SHA-256为
+  `91df8e5284690c49bc4538d3daa6c7508cb539e96005896812436f41529874c9`，Cargo.lock SHA-256为
+  `3573ec9493671ebe67590500f841e0b7cbe1625241eb95250f36741d9f2e6599`。正式执行器通过`bash -n`，
+  SHA-256为`dbce29c8ed08ee9926d28067b0e5bc11e7a747d8d76e2e7798354af56d56cf33`。
+- 前置门：106为v2.2.3 commit `fba334c`；Worker 23处于maintenance且停止，21150/21151为空；
+  replacement名称不存在，Cluster 3活动Model/Instance为0，Model 9保持replicas 0/ready 0；本地模型
+  路径为999,604,126字节，Runner digest存在。GPU0当时有外部负载约50 GiB/96%，按D304只记录且
+  不操作；本门不能产生runtime，后续启动前的90秒GPU0独占门不变。
+- 唯一请求与资源：非active Context `m8rs-rs5-control`只执行一次无`--wait`的`model deploy`，CLI
+  exit 0且没有重试POST。创建Model ID 14、name`rust-rs6-worker23-qwen25-05b-gpu0`、Cluster 3、
+  replicas 1/ready 0；local path、vLLM、五项backend参数、固定Runner、Worker 23名称selector和唯一
+  `rust-rs3-worker-90-20261113-r2:cuda:0` selector全部精确。Server异步生成唯一Instance ID 29，
+  state pending，worker_id/worker_name/port/pid为空，state message为没有可用ready Worker。
+- 原始停止与裁决：原执行器要求`gpu_indexes=null`，实际返回空数组，因此保留原始
+  `STOP/instance_gate_mismatch`。原版`gpustack/schemas/models.py`中对应字段虽为Optional list但默认
+  `[]`；空数组同样表示未分配任何GPU。离线规则规范化为null或空数组，并以独立GET再次确认Model 14、
+  Instance 29和Worker 23，得到`PASS/replacement_model_and_pending_instance_created`，没有重放写请求。
+- 零runtime后审：Worker 23保持maintenance，replacement进程、21150/21151和目标容器均为0；Model 9
+  不变，用户Worker PID 3498814仍存活且未操作。后审时双GPU均为0 MiB/0%，该外部变化只记录，不归因
+  于本次控制面创建。
+- 证据：目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-worker23-model-20261117T090624Z`
+  保存原始STOP、脱敏CLI输出、Model/Instance/Worker、离线裁决和独立GET；最终`SHA256SUMS`自身
+  SHA-256为`b6db9bf24edc49a9b60e853c9c6fcdf4dc0c0a6e95426d0c1570e50a6d67e0fd`，秘密扫描PASS。
+- 判定与停止位置：replacement Model门最终PASS，余下RS.6正式使用Worker 23、Model 14和Instance 29；
+  Model 9保持历史零副本。原RS.6.2补`worker-name`步骤因Worker 23注册时已具备规范标签而取消。
+  下一步只允许讨论并冻结Worker 23在maintenance下的统一`worker run`启动和GPU0稳定窗口，不自动
+  启动Worker、解除maintenance、调度Instance 29或使用GPU。
