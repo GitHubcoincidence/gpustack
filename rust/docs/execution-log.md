@@ -7404,3 +7404,35 @@
   vLLM参数、GPU0排他、GPU1只观察、maintenance分段和原版兼容标准均未改变。
 - 当前停止位置：replacement注册为`authorized_pending_execution`。下一步只允许提交并同步本冻结
   记录后执行一次注册与零runtime后审；通过不自动授权启动Worker或创建replacement Model。
+
+### 2026-11-17：M8-RS.6 replacement Worker 23注册通过
+
+- 治理与执行器：包含D303的本地、GitHub和90源码HEAD为
+  `0f843b2bde9a3cf78860cf8556ff929954f7c3bb`。注册执行器先在90通过`bash -n`，SHA-256为
+  `3b93018de6977d555eb335644c79041d1eeb33057ece64bf290d347d403b33f9`；脚本不含凭据，只引用0600
+  受保护文件。
+- 前置门：replacement名称和data dir均未使用，Cluster 3活动Model和Instance为0，Model 9保持
+  replicas 0/ready 0，21150/21151空闲。第一次进程门因用户已运行的独立`worker-90` PID 3498814
+  停止在POST前；复核确认它是Cluster 1的Worker 22、使用20150/20151和独立data dir，因此将硬门
+  收窄为replacement名称、目录和端口精确隔离。该进程全程未停止、修改或读取秘密。
+- 唯一请求与响应：Cluster 3 registration token只发送一次`POST /v2/workers`，HTTP 200。Server创建
+  Worker ID 23、name`rust-rs3-worker-90-20261113-r2`、UUID
+  `2283a603-b6f8-4542-813f-acdcdafc0542`、cluster_id 3；maintenance enabled且state为maintenance，
+  labels精确为`implementation=rust`和规范`worker-name`，地址和端口为
+  r760xa/10.213.80.90/eno8403及21150/21151，版本v2.2.3。
+- 身份与接口后审：新identity和Worker token写入
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/m8rs6/replacement-worker-r2/managed`，均为0600、
+  owner`wujiaxing2:wujiaxing2`、单链接。管理精确GET和新token的`me=true`均HTTP 200，后者恰好返回
+  Worker 23且`me=true`。Cluster 3活动Model/Instance仍为0，replacement进程和21150/21151监听为0；
+  没有容器或GPU动作，用户Worker PID 3498814仍存活。
+- 证据：目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-replacement-worker-r2-20261117T075448Z`
+  保存无秘密请求、脱敏响应、`me`/管理GET、身份元数据、零runtime后审、执行器和后续环境事件；最终
+  `SHA256SUMS`自身SHA-256为
+  `cfee83401888c628c6942def520dde296e0ef82afbdf59c00c9569fc9533ebb8`，秘密扫描PASS。
+- 后续环境事件：完成上述注册和独立GET后，106的`/version`连续10次连接被拒绝，发生时间晚于
+  Worker 23的两项200验证。该事件不改判已完成的注册门，但使当前Server状态再次可变；证据追加时的
+  本地`jq`摘要格式错误只产生三行非评分HTTP摘要，已单独裁决并纳入最终清单，没有重放注册请求。
+- 判定与停止位置：replacement身份门为`PASS/registered_in_maintenance`。Worker 23尚未运行，Model 9
+  仍为历史零副本资源。下一步必须先等待106恢复并重新验证版本、Worker 23、maintenance、Cluster 3
+  资源和新token；通过后才能单独冻结replacement Model创建，不自动启动Worker或使用GPU。
