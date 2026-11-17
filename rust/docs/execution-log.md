@@ -7354,3 +7354,36 @@
   保留到最终清理。漂移审计结论为intentional change accepted并已落实。
 - 当前停止位置：RS.6.1 attempt 3尚未启动。GPU0外部任务已恢复运行，必须再次由用户确认空闲并通过
   90秒逐秒稳定窗口；未满足前不得启动Worker或进入RS.6.2。
+
+### 2026-11-17：M8-RS.6 Worker 16外部删除与同名恢复冲突
+
+- 漂移确认：用户指出被删除的是Rust测试Worker而非Python Worker。管理主体精确GET Worker 16返回
+  404，Worker列表中`rust-rs3-worker-90-20261113`匹配数为0；Worker token调用
+  `GET /v2/workers?me=true`为HTTP 200但items为空。90仍保存Worker 16的0600身份和token，因此该
+  本地身份已陈旧，直接`worker run`会在持久身份恢复门失败，不会自动创建第二个Worker。
+- 关联资源：Model 9仍存在但已被外部改为replicas 0/ready 0，Instance 19返回404；Cluster 3没有
+  活跃Model或Instance。目标Rust进程和20150/20151、21150/21151监听均为0，没有容器或GPU动作。
+  删除诊断证据目录为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-worker16-deletion-diagnosis-20261117T071919Z`，
+  `SHA256SUMS`自身SHA-256为
+  `fc4e673b9464266b93583228de9e951452592d5e2ec66e6a8079d4bab52804e7`，秘密扫描PASS。
+- 用户授权与恢复方案：用户接受备份旧身份、使用Cluster 3注册凭据同名重建、注册时直接启用
+  maintenance并验证新ID/UUID/token的方案。正式前检确认同名Worker为0、Cluster 3活动资源为0、
+  Model 9为零副本、凭据权限正确且目标进程/端口为空。两个预检harness分别因`jq`括号和
+  `pipefail`把零进程误判为失败，均发生在POST和身份移动之前，属于非评分本地工具失败。
+- 唯一注册结果：恢复执行器将旧身份临时移入0700 retired目录后，只发送一次
+  `POST /v2/workers`。请求固定原名称、r760xa/10.213.80.90/eno8403、21150/21151、v2.2.3、
+  `implementation=rust`与规范`worker-name`标签，并携带`maintenance.enabled=true`。106返回
+  HTTP 409；没有创建同名Worker，执行器自动把旧身份和token原子恢复到原路径，未重试POST。
+- 原版对照与归因：原版v2.2.3对`external_id=None`的Worker执行硬删除，同名注册应可重新创建；106
+  列表和精确GET均隐藏旧记录，OpenAPI又没有已删除Worker恢复接口，但同名注册仍冲突。当前最强归因
+  是Rust Server删除/唯一性语义差异，具体是残留名称、UUID还是关联主体约束仍需Server侧日志或数据库
+  证据确认，Rust Worker不应为该差异增加静默兼容。
+- 正式失败证据：目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-worker16-recovery-20261117T073720Z`
+  保存无秘密请求、HTTP 409、失败阶段、恢复后审计和执行器，`SHA256SUMS`自身SHA-256为
+  `4ed76c6131f76a15c1961d4d1a0ccb37d4141b80f59ad188063659587f484582`，秘密扫描PASS。
+- 判定与停止位置：本次同名恢复为`STOP/server_worker_name_conflict_after_delete`，不是Worker实现失败；
+  Server写入仅有一次失败POST，当前同名Worker仍不存在，旧身份已恢复但继续视为陈旧。RS.6.1
+  attempt 3继续停止，不得直接启动Worker或重试同名POST。下一步需用户接受以下其一：由Rust Server
+  修复删除语义后重试原名，或使用新名称注册新Worker并显式修订Model selector与后续RS.6资源基线。
