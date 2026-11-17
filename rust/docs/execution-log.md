@@ -7439,3 +7439,20 @@
 - 判定与停止位置：replacement身份门为`PASS/registered_in_maintenance`且Server恢复复核PASS。
   Worker 23尚未运行，Model 9仍为历史零副本资源。下一步只允许讨论并冻结绑定Worker 23、新名称和
   GPU0的replacement Model创建门；通过本阶段不自动创建Model、启动Worker或使用GPU。
+
+### 2026-11-17：M8-RS.6 Worker 23 replacement Model创建门冻结
+
+- 用户裁决：用户接受创建唯一`rust-rs6-worker23-qwen25-05b-gpu0`。资源固定属于Cluster 3，worker
+  selector只匹配`rust-rs3-worker-90-20261113-r2`，GPU selector只匹配该名称的cuda:0；Model 9保持
+  replicas 0且不修改。
+- 冻结输入：继续使用本地Qwen2.5-0.5B-Instruct、Runner digest
+  `sha256:f9c58b163ec7eb537404c7d268f3d96e101cbf19e05acb8df6b7637f9e64c3af`、vLLM、TP=1、
+  max model len 2048、GPU memory utilization 0.5、dtype auto和enforce eager，不支持分布式或GPU1。
+- 唯一动作：在包含D304的干净HEAD上使用非active管理Context执行一次不带`--wait`的
+  `model deploy`。响应不明确时只能按精确名称GET，禁止第二次POST。控制面创建不要求GPU0空闲，
+  但必须记录基线且不得操作用户Worker 22、其进程或GPU任务。
+- 通过门：Worker 23始终maintenance且replacement进程/21150/21151为空；新Model replicas 1/
+  ready 0且全部字段精确，Server只生成一个pending Instance，worker_id/worker_name/port/GPU indexes
+  为空；Cluster 3不得出现其他新活动资源，目标容器和运行端口保持0。
+- 当前停止位置：replacement Model创建为`authorized_pending_execution`。下一步只允许提交并同步
+  D304后执行一次控制面创建及零runtime后审；通过不自动授权启动Worker、解除maintenance或使用GPU。
