@@ -7489,3 +7489,30 @@
   Model 9保持历史零副本。原RS.6.2补`worker-name`步骤因Worker 23注册时已具备规范标签而取消。
   下一步只允许讨论并冻结Worker 23在maintenance下的统一`worker run`启动和GPU0稳定窗口，不自动
   启动Worker、解除maintenance、调度Instance 29或使用GPU。
+
+### 2026-11-20：M8-RS.6 Worker 23 maintenance空载启动门冻结
+
+- 用户裁决：接受D306，只启动replacement Worker 23，不解除maintenance、不调度Instance 29、
+  不启动vLLM。成功后保留精确Worker进程和maintenance，真实调度另行讨论和授权。
+- 恢复与漂移审计：本地和90均为干净治理HEAD
+  `e8973bafe36a24224e41e32d70540b704e0e026d`；106 `/version`为v2.2.3 commit `fba334c`。
+  Worker 23持久Token的`me=true`返回唯一ID 23、Cluster 3和maintenance；Model 14仍为replicas 1/
+  ready 0且本地Qwen路径、vLLM参数、Runner image_name、Worker名称selector和唯一GPU0 selector均未
+  漂移。Instance 29仍pending，worker/port/pid为空且`gpu_indexes=[]`；只有Server调度器刷新了
+  `updated_at`，未发生语义状态变化。
+- 运行基线：replacement进程、21150/21151、目标容器和40000-40063监听均为0；独立用户
+  `worker-90`为PID 1198182并正常监听20150/20151。GPU0为0 MiB/0%且无compute-app；GPU1存在外部
+  Python任务约37.7 GiB，只记录且不得操作。
+- 凭据边界：旧的106临时管理密钥返回401，Worker 23持久Token仍可200读取自身、Model 14和
+  Instance 29。本门没有Server写入，不依赖管理密钥；若maintenance、Instance归属或runtime发生
+  任何漂移，立即停止本次精确PID并判STOP，不通过额外Server写入掩盖结果。
+- 冻结动作：提交并同步本记录后，在独立Cargo target以locked/offline方式构建冻结HEAD；启动前
+  连续90秒逐秒保存完整GPU compute-app快照，GPU0任一命中即不启动。通过后使用普通
+  `gpustack-rs worker ... run`、replacement data dir、Cluster 3 registration token、21150/21151、
+  Qwen model root和Docker socket启动唯一PID，并以短周期watchdog观察至少120秒。
+- 通过门：Worker健康、metrics、持久身份和心跳正常且maintenance保持；Model 14/Instance 29继续
+  pending未分配，无目标容器、无runtime端口、GPU0无compute-app，`worker-90`和GPU1任务不变。
+  失败时只停止本次精确PID，目标容器只有完整Model 14/Instance 29/Worker 23 ownership匹配才允许
+  处理。
+- 当前停止位置：`authorized_pending_execution`。下一步只允许提交和同步D306、执行当天只读门禁、
+  隔离构建、90秒GPU0稳定窗口和maintenance空载启动；通过不自动授权解除maintenance或模型运行。
