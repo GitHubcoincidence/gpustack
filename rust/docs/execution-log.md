@@ -7556,3 +7556,13 @@
 - 判定与停止位置：D308更新为`ready_for_review`。Worker 23 PID 3689884保持运行且maintenance启用；
   本阶段没有解除maintenance或运行模型。下一步只能讨论并冻结Server调度Model 14/Instance 29、
   GPU0 vLLM完整状态链和回滚门，不能自动进入该阶段。
+
+### 2026-11-20：M8-RS.6 Worker 23 maintenance空载启动验收
+
+- 用户验收：用户审阅阶段报告后明确回复“没问题”，D308由`ready_for_review`更新为`accepted`。
+- 验收时现场复核：PID 3689884仍存活，health/metrics均为200；Worker 23保持maintenance，
+  Instance 29保持pending且未分配Worker、端口、PID或GPU。目标容器和40000-40063监听均为0，
+  双GPU无compute-app，独立`worker-90`仍存活。
+- 当前停止位置：maintenance空载启动阶段已经接受。下一步只允许讨论并冻结解除maintenance后的
+  Server调度、GPU0 vLLM状态链、推理验证和失败回滚；执行前须准备新的短期管理凭据并重新完成
+  现场漂移及GPU0稳定门，本验收不自动授权任何Server写入、容器或GPU动作。
