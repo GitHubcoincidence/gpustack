@@ -7516,3 +7516,43 @@
   处理。
 - 当前停止位置：`authorized_pending_execution`。下一步只允许提交和同步D306、执行当天只读门禁、
   隔离构建、90秒GPU0稳定窗口和maintenance空载启动；通过不自动授权解除maintenance或模型运行。
+
+### 2026-11-20：M8-RS.6 Worker 23 maintenance空载启动通过
+
+- 冻结身份与构建：包含D306的本地、GitHub和90治理HEAD为
+  `4078aa8e6b0336d4594bb9cd3f580df63198604e`。独立target中的binary内嵌commit
+  `4078aa8e6b03`、Rust 1.99.1，SHA-256为
+  `a30bc65e96aa1712150966b941f808f23143f86db22c5cdef7f71a5253f4cba6`；Cargo.lock SHA-256为
+  `3573ec9493671ebe67590500f841e0b7cbe1625241eb95250f36741d9f2e6599`。正式构建没有替换运行中的
+  `worker-90`进程inode。
+- 非评分构建诊断：正式执行前查看CLI帮助时误用默认Cargo target，更新了磁盘上的默认binary；
+  `worker-90`仍运行原独立inode并维持PID 1198182、20150/20151和全部服务状态。正式二进制随后只在
+  独立target构建，本偏差没有进入正式输入或改变现有进程，但作为D306隔离要求的诊断偏差保留。
+- attempt 1：当天只读门、隔离构建和90秒GPU0稳定窗口均PASS，Worker 23以精确PID 3655062建立
+  persisted身份、心跳、状态、全量同步和三类watch；没有desired ModelInstance、容器、runtime端口或
+  GPU0任务。watchdog错误访问`127.0.0.1:21150/21151`，而Worker按冻结配置只监听
+  `10.213.80.90:21150/21151`，因此在30秒门判`STOP/worker_health_not_200`。自动回滚以SIGINT停止
+  精确PID并确认maintenance、Instance 29、零runtime和`worker-90`全部保持，按D307判非评分harness
+  失败。
+- attempt 2修正：只把健康和metrics探针改为冻结Worker IP，使用同一binary但全新证据、log和control
+  目录；重新复核Worker/Model/Instance/端口/容器及binary身份，并重新完成90个逐秒GPU0稳定样本，
+  没有跳过失败后的稳定门。
+- 正式结果：Worker 23以PID 3689884启动，观察122秒并得到
+  `PASS/worker23_running_in_maintenance_no_runtime`。health和metrics均为200；
+  `rust_worker_ready`、heartbeat和status为1，models/model_instances/model_files三类watch连接为1且
+  reconnect为0。Worker 23全程及后审均为maintenance；Model 14保持replicas 1/ready 0，Instance 29
+  保持pending且worker/port/pid为空、`gpu_indexes=[]`。
+- 隔离与后审：21150/21151由唯一正式PID监听；Instance 29标签容器和40000-40063监听均为0，GPU0
+  无compute-app。`worker-90` PID 1198182和20150/20151保持；GPU1外部任务在后审前已自行结束，只
+  记录且不归因于本阶段。独立后审再次验证process inode、health、Server资源、容器、端口和GPU，
+  得到PASS；两类受保护token的逐值秘密扫描均未命中证据。
+- 证据：attempt 1目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-worker23-maintenance-start-20261120T014804Z`
+  的最终manifest SHA-256为
+  `d2147d51d3eb07c754afb18ffff8387a1cd473fcfce0e15156e7480f70725b65`；正式attempt 2目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-worker23-maintenance-start-attempt2-20261120T015642Z`
+  的最终manifest SHA-256为
+  `4bc8e203644aece632568f9480e5926ab947f666863938f96a15e0aca97dd990`。全部证据文件为0600。
+- 判定与停止位置：D308更新为`ready_for_review`。Worker 23 PID 3689884保持运行且maintenance启用；
+  本阶段没有解除maintenance或运行模型。下一步只能讨论并冻结Server调度Model 14/Instance 29、
+  GPU0 vLLM完整状态链和回滚门，不能自动进入该阶段。
