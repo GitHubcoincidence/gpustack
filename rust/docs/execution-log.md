@@ -7566,3 +7566,26 @@
 - 当前停止位置：maintenance空载启动阶段已经接受。下一步只允许讨论并冻结解除maintenance后的
   Server调度、GPU0 vLLM状态链、推理验证和失败回滚；执行前须准备新的短期管理凭据并重新完成
   现场漂移及GPU0稳定门，本验收不自动授权任何Server写入、容器或GPU动作。
+
+### 2026-11-20：M8-RS.6 Worker 23调度与GPU0 vLLM状态链冻结
+
+- 用户裁决：接受D309，将下一阶段限制为单次解除Worker 23 maintenance及Model 14/Instance 29的
+  Server调度、ModelFile、本地vLLM容器和GPU0完整状态链；推理、日志、正常删除和最终清理继续单独
+  验收。
+- 固定输入：沿用Worker 23/PID 3689884、Model 14、Instance 29、Qwen2.5-0.5B本地路径、固定Runner
+  digest、TP=1、max model len 2048、GPU memory utilization 0.5、dtype auto和enforce eager。
+  Worker selector只匹配replacement名称，GPU selector只允许该名称的cuda:0；GPU1、`worker-90`和
+  Python Worker均不在操作范围。
+- 凭据与写入：新建7天平台管理API Key，保存到独立0600文件并建立非active Context；旧过期密钥不
+  复用。完整漂移门和90秒GPU0稳定窗口通过、独立watchdog已运行后，只发送一次精确maintenance
+  disable。响应不明确时只读复核，禁止盲目重复写入。
+- 状态与runtime通过门：watch必须保存`pending -> analyzing -> pending -> scheduled -> initializing ->
+  downloading -> starting -> running`子序列；Instance唯一绑定Worker 23、GPU0和40000-40063端口。
+  ModelFile须为既有local path、999604126 bytes、100%且cleanup null/false。唯一Rust容器须使用固定
+  Runner和完整ownership，设备只含GPU0；vLLM健康不晚于running写回，restart count为0，无重复容器、
+  ModelFile或GPU1进程。
+- 回滚与成功终态：任一失败先恢复maintenance，再停止精确PID并只清理完整ownership匹配的目标容器；
+  Server不可达也执行本地安全回滚，Model 14/Instance 29保留取证。通过则保留running模型、Worker
+  进程和maintenance disabled，供下一独立推理/日志阶段使用；不在本门推理或正常清理。
+- 当前停止位置：`credential_pending`。下一步只允许创建和验证新的短期管理凭据；凭据就绪不自动
+  授权解除maintenance，正式运行前仍须提交同步本冻结记录并通过当天漂移、GPU和watchdog门。
