@@ -7589,3 +7589,25 @@
   进程和maintenance disabled，供下一独立推理/日志阶段使用；不在本门推理或正常清理。
 - 当前停止位置：`credential_pending`。下一步只允许创建和验证新的短期管理凭据；凭据就绪不自动
   授权解除maintenance，正式运行前仍须提交同步本冻结记录并通过当天漂移、GPU和watchdog门。
+
+### 2026-11-23：M8-RS.6.3短期管理凭据就绪
+
+- 用户在106 Web界面创建7天平台管理API Key，并按隔离约定直接保存到90受保护文件
+  `/home/wujiaxing2/.config/gpustack-rust/m8rs6-rs63-management-api-key`，没有在对话、命令行参数或
+  证据中回显密钥值。文件为0600、所有者`wujiaxing2:wujiaxing2`、硬链接数1，父目录为0700。
+- Server确认该密钥为唯一ID 32、名称`rust-worker-m8rs6-rs63-operator-20261120`、所有者主体ID 4，
+  创建时间`2026-11-23T06:36:02.589913Z`，到期时间`2026-11-30T06:36:02.589062`。
+  106把Web界面的“平台管理”规范化为wire `scope=["*"]`；`is_custom=false`不是权限否定字段。
+- 密钥分别读取API Key列表、Worker 23、Model 14和Instance 29，四个管理GET均为HTTP 200。Worker 23
+  仍为maintenance，Model 14为replicas 1/ready 0，Instance 29仍pending且未分配Worker、GPU或端口。
+- 验收工具裁决：先后把平台管理错误限定为`scope=["management"]`和`is_custom=true`，随后又把保存
+  证据路径的普通指针文件当作目录、并用loopback探测只绑定宿主IP的Worker端口；这些均为非评分
+  harness错误。修正后直接解析指针值并探测`10.213.80.90:21150/21151`，PID 3689884、health和
+  metrics全部正常。三次停止均没有Server写入、容器、runtime端口或GPU副作用。
+- 正式就绪证据目录为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-rs63-credential-readiness-20261123T065122Z`，
+  `SHA256SUMS`文件的SHA-256为
+  `78ea4bb81ea716d0ee8b7b9b89447c33bb8f16f7f47587afe770fedde4938f78`；证据只保存安全元数据，
+  不包含密钥值。
+- 当前停止位置：`credential_ready`。本结果只解除D309的凭据前置条件；尚未解除maintenance、启动
+  watchdog、执行90秒GPU0稳定门或调度模型。正式RS.6.3仍须用户明确授权一次维护窗口写入。
