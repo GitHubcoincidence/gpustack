@@ -7706,3 +7706,27 @@
   调度资格且不能启动runtime；完整稳定窗口留到后续解除maintenance前执行。
 - 当前停止位置：`authorized_pending_execution`。下一步只允许提交同步本冻结记录并执行上述唯一
   maintenance enable门；通过不自动授权创建Model。
+
+### 2026-11-23：106 Worker 17 maintenance attempt 1写入前停止
+
+- 包含D314的治理HEAD`2c56e4752f5847f61e391997c3ef51ea021aec5c`已提交、推送并同步90；
+  106现有Worker二进制和代码保持不变。正式脚本SHA-256为
+  `b0e071cee15c9ea342fdc0ce7032e230b785734e68aaa01bad51e4be285ec305`。
+- 写入前即时Server快照发现Worker 17已有Instance 71归属，门禁立即停止。Model 12
+  `Qwen2.5-0.5B1`为replicas 1，Instance 71状态running、绑定Worker 17/GPU0/端口40000；Rust managed
+  容器`gpustack-rs-managed-71`运行，RTX 5090约使用30.9 GiB且存在vLLM compute-app。该资源在
+  2026-11-23T09:08:41Z已running，晚于此前08:53只读基线，属于联调期间的外部动态调度漂移。
+- 本尝试在创建隔离Context和maintenance CLI调用之前停止；Worker 17仍为ready且maintenance null，
+  `maintenance-enable-response.json`不存在，`write_attempted=0`。未创建本项目Model、Instance、容器或
+  GPU任务，也没有停止或修改Model 12/Instance 71。
+- 原始目录
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-worker17-maintenance-20261123T092153Z`
+  因Python断言由`errexit`直接退出而未进入统一seal，固定为`UNSEALED_STOP`且不得作为正式manifest。
+  独立裁决目录
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-worker17-maintenance-attempt1-adjudication-20261123T092423Z`
+  保存原目录最终哈希、Worker/Model/Instance、精确安全容器字段和GPU/端口状态；manifest SHA-256为
+  `fd5c2dbfeaea59f991ca714e5501f92ca799922536e4b7165965e67fe6b40dc7`，秘密扫描PASS。
+- harness修正：所有Python契约断言必须显式转入`fail`和统一seal，不能依赖全局`errexit`。下一尝试
+  必须使用新证据目录和新脚本identity，不复用未封存目录。
+- 当前停止位置：`external_model_running_on_worker17`。maintenance不会停止既有运行实例，且单张5090
+  已无足够显存；在用户明确确认Model 12/Instance 71可停止或删除前，不得继续本联调写入。
