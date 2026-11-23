@@ -7611,3 +7611,28 @@
   不包含密钥值。
 - 当前停止位置：`credential_ready`。本结果只解除D309的凭据前置条件；尚未解除maintenance、启动
   watchdog、执行90秒GPU0稳定门或调度模型。正式RS.6.3仍须用户明确授权一次维护窗口写入。
+
+### 2026-11-23：M8-RS.6.3 attempt 1在GPU0稳定门停止
+
+- 用户在凭据就绪报告后明确回复“没问题”，授权按D309执行正式RS.6.3。执行器先创建隔离
+  `GPUSTACK_RS_CONTEXTS_FILE`，只引用既有0600密钥文件；该隔离store中的Context可被显式
+  `--context`选择，不修改用户默认Context文件。
+- 写入前门确认治理HEAD为`5a49322aae1be3786d8ba91196a09091f7faecf7`，Worker 23仍为
+  maintenance，Model 14为replicas 1/ready 0，Instance 29仍pending未分配；Worker 23和独立
+  `worker-90`的health/metrics均为200，目标容器和40000-40063监听均为0。
+- 90秒GPU0稳定门在第1个样本捕获GPU0使用19,481 MiB及compute PID 644337，立即判定
+  `STOP/gpu0_memory_sample_1`，未进入maintenance写入或watchdog阶段。只读归属审计显示该任务属于
+  用户`sco`，父进程链为宿主机vLLM基准脚本，compute进程名`VLLM::EngineCore`，不在Docker cgroup，
+  与Worker 23及Instance 29没有ownership关系；不得停止、暂停或修改。
+- 停止后复核Worker 23仍为maintenance，Instance 29仍pending且Worker/GPU/端口为空，目标容器为0，
+  因而本尝试没有Server写入、调度、容器或本项目GPU副作用。
+- 原始预检目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-rs63-preflight-20261123T070015Z`
+  的业务结论有效，但脚本在生成manifest后又由`tee`追加最终路径到`executor-output.txt`，原
+  `SHA256SUMS`因此标记为无效且不得作为封存manifest。原目录保持不改；独立裁决目录
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8rs6-rs63-preflight-attempt1-adjudication-20261123T070321Z`
+  对其最终静态内容重新哈希并保存后置安全状态，裁决manifest SHA-256为
+  `83224a6f904a6a2295bbca6a90078c3fee383ae76b33f3b82e3231b9c64ee3ca`。下一尝试的执行器已调整为
+  在封存前输出路径，封存后不再写证据文件。
+- 当前停止位置：`external_gpu0_occupied`。不得轮询后自动续跑；等待用户确认GPU0空闲并重新授权后，
+  attempt 2须从全新证据目录重新完成完整90秒稳定门，不能复用本次即时门结果。
