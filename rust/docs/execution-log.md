@@ -7730,3 +7730,27 @@
   必须使用新证据目录和新脚本identity，不复用未封存目录。
 - 当前停止位置：`external_model_running_on_worker17`。maintenance不会停止既有运行实例，且单张5090
   已无足够显存；在用户明确确认Model 12/Instance 71可停止或删除前，不得继续本联调写入。
+
+### 2026-11-23：106 Worker 17 maintenance attempt 2调度竞态
+
+- 用户确认既有模型已经停止；只读释放门随后验证Model 12 replicas 0、Instance 71为404、Worker 17
+  无归属Instance、无Rust managed运行容器、无40000段监听和无compute-app，RTX 5090回到约102 MiB
+  驱动基线。Worker 17仍为ready且maintenance null。
+- attempt 2使用修正方向的新脚本SHA-256
+  `fd1c4cc90d9808202251b776ee3eb1088b3e7575de31c56db2826251c1b01901`和全新证据目录。脚本中的
+  heredoc断言保护仍有语法位置错误，Python把`fail`行读为代码并产生`IndentationError`；该harness
+  偏差没有调用Server写入，后续已改为显式`if ! python ...; then fail; fi`结构。
+- 即使跳过该Python断言，下一独立本地门发现Worker 17已有Rust managed运行容器并以
+  `STOP/owned_container_before`封存。后审确认新的Model 8 `demo-qwen25-05bbbbb`在释放检查后把
+  Instance 76调度到Worker 17/GPU0/端口40000，状态running；容器`gpustack-rs-managed-76`运行，
+  RTX 5090约使用17.3 GiB并存在vLLM compute-app。Worker 17仍为ready且maintenance null。
+- 本尝试`write_attempted=0`，隔离Context、maintenance CLI和本项目Model均未创建；没有操作Model 8、
+  Instance 76或其容器。封存证据目录为
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-worker17-maintenance-20261123T093850Z`，
+  manifest SHA-256为
+  `1075bcf4ccda8dcddb28be0d86e0ea965aecba705d33c517c4beccc7dd07f642`。
+- 结论：在Worker 17保持ready时，逐个停止既有模型与“零Instance后再启用maintenance”之间存在可复现
+  竞态，队列中的其他replicas 1 Model会重新占用唯一GPU。建议把顺序修订为先对ready Worker启用
+  maintenance以封住新调度，但不停止当前Instance；随后由资源所有者停止Model 8，再验证空载并创建
+  本项目资源。该修订改变D314的写入前零Instance条件，须用户明确接受后才能执行。
+- 当前停止位置：`maintenance_order_revision_pending`。
