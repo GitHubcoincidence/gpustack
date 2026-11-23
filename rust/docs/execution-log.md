@@ -7667,3 +7667,21 @@
   本记录，后续只允许按精确label/ID保存安全字段，仍有效的旧token应在联调收尾时轮换。
 - 当前停止位置：`rs6_106_environment_baseline_ready`。下一步只允许冻结106专用资源名称、maintenance
   屏障、RTX 5090稳定门、凭据和回滚方案；本记录不授权启用maintenance、创建Model或启动容器。
+
+### 2026-11-23：106联调管理凭据就绪
+
+- 用户明确同意把90上既有RS.6.3七天平台管理API Key安全复制到106。复制通过106到90的直接SCP
+  完成，密钥不经过本地磁盘、命令参数或终端输出；先写入独立临时路径，只在正式目标不存在时落位。
+- 106目标文件为
+  `/home/wujiaxing/.config/gpustack-rust/m8rs6-rs63-management-api-key`，模式0600、所有者
+  `wujiaxing:wujiaxing`、硬链接数1、文件大小58字节，父目录0700。迁移后临时文件已不存在。
+- 只读授权验证确认唯一Key ID 32、名称`rust-worker-m8rs6-rs63-operator-20261120`、wire
+  `scope=["*"]`、所有者主体ID 4，到期时间`2026-11-30T06:36:02.589062`；读取Worker 17和API Key
+  列表均为HTTP 200。Worker 17仍为ready且maintenance为null，本步骤没有Server写入。
+- 106证据目录为
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-credential-readiness-20261123T090553Z`，
+  `SHA256SUMS`文件SHA-256为
+  `2152a7c69327ab4562ff4452c99a6ac54bc3e2af1123808a603186c7b1135687`；精确秘密扫描PASS，证据只含
+  安全元数据和Worker 17只读响应。
+- 当前停止位置：`rs6_106_credential_ready`。下一步只允许讨论并冻结Worker 17 maintenance屏障、
+  新Model名称、RTX 5090稳定门和rollback；凭据就绪不自动授权任何Server写入。
