@@ -7754,3 +7754,20 @@
   maintenance以封住新调度，但不停止当前Instance；随后由资源所有者停止Model 8，再验证空载并创建
   本项目资源。该修订改变D314的写入前零Instance条件，须用户明确接受后才能执行。
 - 当前停止位置：`maintenance_order_revision_pending`。
+
+### 2026-11-23：106 maintenance屏障顺序修订
+
+- 用户接受因连续调度竞态提出的顺序修订：允许在外部Model 8/Instance 76仍running时先对Worker 17
+  执行一次maintenance enable。maintenance只封住后续新调度，不应停止、重启或修改既有Instance、
+  容器、端口或GPU进程；本阶段仍不创建本项目Model。
+- 写入前固定外部基线：Model 8 `demo-qwen25-05bbbbb`、Instance 76、Worker 17、GPU0和端口40000；
+  保存精确容器ID、spec/ownership安全字段、进程、端口和GPU compute身份。若该基线在写入前消失或
+  换代，停止并重新裁决，不把陈旧快照用于通过判定。
+- 唯一写入仍使用即时Worker快照完整保留name和labels，只设置maintenance enabled及D314固定message。
+  独立GET须收敛为state maintenance；Instance 76的ID/state/worker/GPU/port、容器ID、restart count、
+  运行状态及GPU compute必须与写入前一致。不得调用Model、Instance或Docker写操作。
+- 成功终态保留Worker 17 maintenance和原Instance 76运行；随后停止并报告接口请求/响应。只有用户在
+  maintenance已确认后自行停止Model 8，或另行明确授权控制面停止，才进入空载复核与本项目Model创建。
+  结果不明确时只GET、不重复enable；失败也优先保留已生效maintenance。
+- 当前停止位置：`authorized_pending_execution`。下一步只允许提交同步本修订并执行唯一maintenance
+  enable，不授权停止Instance 76。
