@@ -7685,3 +7685,24 @@
   安全元数据和Worker 17只读响应。
 - 当前停止位置：`rs6_106_credential_ready`。下一步只允许讨论并冻结Worker 17 maintenance屏障、
   新Model名称、RTX 5090稳定门和rollback；凭据就绪不自动授权任何Server写入。
+
+### 2026-11-23：106 Worker 17 maintenance屏障冻结
+
+- 用户在比较ready直跑与maintenance分段方案后接受maintenance安全屏障。maintenance只把Worker 17
+  暂时移出Server调度候选，不停止Worker进程、heartbeat、watch、health或metrics；本阶段不创建
+  Model、Instance、ModelFile、容器或GPU任务。
+- 写入前门：106 Rust Server和Worker 17健康；Worker必须为ID 17、名称`jiaxingHaoyuNB-106`、
+  Cluster 1、state ready、maintenance null/false且标签保持`implementation=rust`及规范worker-name；
+  没有归属Worker 17的Instance、Rust managed运行容器、40000段监听或GPU compute-app。Worker 22/24
+  的Instance及Worker 17历史ModelFile 5/6只记录且不得操作。
+- 接口动作：使用106独立0600管理密钥和隔离Context，只发送一次Worker maintenance enable。语义请求
+  从即时Worker快照构造，完整保留name和labels，只把maintenance设置为`enabled=true`，message固定为
+  `M8-RS.6 106 integration scheduling barrier`。响应不明确时只读GET裁决，禁止盲目重复写入。
+- 通过门：独立GET收敛为maintenance enabled及固定message，state为maintenance，name、labels、IP、
+  20150/20151和进程身份不变；仍无Worker 17 Instance、目标容器、40000段监听或compute-app。成功后
+  保留maintenance供下一独立Model控制面创建门使用，不在本阶段关闭。
+- 失败边界：写入前任一门失败则零写入STOP；写入后异常优先保留已生效maintenance，不通过disable
+  掩盖结果，也不停止Worker或操作Docker/GPU。本阶段不需要90秒GPU稳定窗口，因为唯一动作只会减少
+  调度资格且不能启动runtime；完整稳定窗口留到后续解除maintenance前执行。
+- 当前停止位置：`authorized_pending_execution`。下一步只允许提交同步本冻结记录并执行上述唯一
+  maintenance enable门；通过不自动授权创建Model。
