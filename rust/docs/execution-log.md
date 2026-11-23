@@ -7771,3 +7771,35 @@
   结果不明确时只GET、不重复enable；失败也优先保留已生效maintenance。
 - 当前停止位置：`authorized_pending_execution`。下一步只允许提交同步本修订并执行唯一maintenance
   enable，不授权停止Instance 76。
+
+### 2026-11-23：106 Worker 17 maintenance屏障通过
+
+- attempt 3使用脚本SHA-256
+  `1130a8e6451566bcbcfee239d9f61c242256d8bd10274462c81826e311382f08`固定Model 8/Instance 76
+  运行基线；执行时用户已把Model 8降为replicas 0且Instance 76消失，故写入前以
+  `STOP/external_runtime_preflight_gate`停止。`write_attempted=0`、Context未创建、maintenance仍为null；
+  证据目录
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-worker17-maintenance-running-20261123T110501Z`
+  的manifest SHA-256为
+  `1774406747b36c63865c59476dcc556f3ca3c4a6ac5679c96140cf675653d9c9`。
+- attempt 4重新采用空载门并使用已修正所有Python断言封存路径的脚本，SHA-256为
+  `c9f48f9a3f777f856236650c43a7c75f2590b12eea654ccbe98db6135beb939f`。写入前确认Worker 17
+  ready/maintenance null、无归属Instance、无Rust managed运行容器、无40000段监听和无compute-app，
+  RTX 5090处于约102 MiB驱动基线。
+- 接口作用与输入：CLI通过隔离Context调用一次Worker maintenance enable，底层对Worker 17执行完整
+  更新；语义请求保留`name=jiaxingHaoyuNB-106`及labels
+  `implementation=rust, worker-name=jiaxingHaoyuNB-106`，只设置
+  `maintenance={enabled:true,message:"M8-RS.6 106 integration scheduling barrier"}`。
+- CLI响应为`worker_id=17`、`worker_name=jiaxingHaoyuNB-106`、`before=null`、
+  `after={enabled:true,message:<固定值>}`；`before=null`准确表示写入前Worker没有maintenance对象。
+  maintenance CLI退出码为0，没有重试。
+- 独立GET确认Worker 17收敛为state maintenance，maintenance enabled及message正确；name、labels、IP、
+  20150/20151、unreachable false和进程身份均保持。health/metrics为200，Worker 17归属Instance、Rust
+  managed运行容器、40000段监听和compute-app均为0。
+- 正式证据目录为
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-worker17-maintenance-20261123T110851Z`，
+  manifest SHA-256为
+  `deda62ac01c17ca2ae960541453f99d3699b99a7cc8159f2f120a82b88b3bf2a`；manifest自校验和秘密扫描
+  均PASS。
+- 当前停止位置：`ready_for_review`。maintenance屏障保持；本阶段没有创建Model或启动runtime，验收前
+  不进入下一控制面资源创建门。
