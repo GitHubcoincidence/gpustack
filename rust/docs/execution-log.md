@@ -7636,3 +7636,34 @@
   在封存前输出路径，封存后不再写证据文件。
 - 当前停止位置：`external_gpu0_occupied`。不得轮询后自动续跑；等待用户确认GPU0空闲并重新授权后，
   attempt 2须从全新证据目录重新完成完整90秒稳定门，不能复用本次即时门结果。
+
+### 2026-11-23：Rust Server联调实验迁移到106
+
+- 用户修正范围并明确接受：90继续作为Rust Worker主开发、Git管理和常规部署验证环境；只把
+  “Rust Worker与Rust Server联调计划”的实验执行迁移到独占的106，不迁移整个项目，也不改变
+  其他测试的默认环境。90上的Worker 23、Model 14、Instance 29和既有证据保留为历史输入，不搬迁、
+  不删除；D309及D311保留原结论，但不再等待90的GPU0继续该次执行。
+- 106只读基线：Rust Server为`10.213.80.106:18091`，`/healthz`为200，版本v2.2.3、
+  implementation rust；现有Rust Worker为ID 17、名称`jiaxingHaoyuNB-106`、Cluster 1，绑定
+  `10.213.80.106:20150/20151`，state ready、unreachable false、heartbeat正常，三类watch连接和
+  Worker health/metrics均正常。
+- Worker进程来自106仓库`/home/wujiaxing/gpustack`的干净`codex/rust-worker`分支，二进制内嵌
+  commit `b530fb9fc07b`。该commit是当前治理HEAD
+  `e43f36300cd3ab5f4e5535dad7de2672a1956782`的祖先；两者之间只有实验文档提交，Rust crate、
+  Cargo manifest、lockfile和toolchain均无差异，因此本迁移不要求仅为commit字符串重启现有Worker。
+- 106资源：只有一张NVIDIA GeForce RTX 5090 32 GB，UUID
+  `GPU-be80b448-dd25-a523-676f-a279bf5c9c9c`、host index 0；审计时显存基线约102 MiB且无
+  compute-app。后续门以“无compute-app及稳定基线”判断空闲，不错误要求RTX驱动基线显存为0。
+  本地Qwen路径为`/home/wujiaxing/models/Qwen2.5-0.5B-Instruct`，固定Runner digest已经存在，
+  Docker NVIDIA runtime和GPU0透传可用。
+- 调度冲突审计：Worker 17当前没有任何ModelInstance归属、没有GPUStack/vLLM运行容器、没有
+  40000段监听。Worker Token可见的Instance 59和69分别归属Worker 22和24，均不在操作范围；
+  Worker 17仅有历史ModelFile 5（local path ready）和6（ModelScope downloading），后续资源必须用
+  全新名称、精确Worker 17和GPU0 ownership，不复用或清理这些历史对象。Worker Token仍能看到其他
+  Cluster/Worker资源，D283的Server可见性缺口继续保留，执行器必须按目标ID和ownership本地过滤。
+- 审计偏差：Docker GPU透传探针因CUDA基础镜像本地缺失而拉取了该公开镜像，并运行一个`--rm`
+  临时容器；临时容器已删除、无compute-app，但镜像缓存属于实际磁盘写入。随后一次过宽的历史容器
+  列表在临时SSH终端显示了已停止旧容器的完整命令，其中包含历史token参数；值没有写入实验文件或
+  本记录，后续只允许按精确label/ID保存安全字段，仍有效的旧token应在联调收尾时轮换。
+- 当前停止位置：`rs6_106_environment_baseline_ready`。下一步只允许冻结106专用资源名称、maintenance
+  屏障、RTX 5090稳定门、凭据和回滚方案；本记录不授权启用maintenance、创建Model或启动容器。
