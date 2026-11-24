@@ -26,7 +26,7 @@ X-API-Key: <token>
 Bearer值。
 
 - 文件、日志、配置和`/token-auth`只接受Server为当前Worker颁发的per-Worker token；
-- Managed chat/completion代理接受per-Worker token或固定v2.2.3链路使用的Cluster registration
+- Managed chat/completion/embedding代理接受per-Worker token或固定v2.2.3链路使用的Cluster registration
   token；
 - token只能由受保护文件或受控运行环境提供，不能写入命令历史、日志、OpenAPI artifact或测试
   fixture。
@@ -39,12 +39,14 @@ OpenAPI按以下标签组织当前R1接口：
 - `Resources`：对 Worker 进程可见的绝对路径执行文件存在性、模型配置和权重大小检查；
 - `Logs`：ModelInstance当前/上一代日志发现、tail和follow；
 - `Configuration`：只读非敏感配置；`PUT /v2/config`明确返回405；
-- `Inference`：只代理`/v1/chat/completions`和`/v1/completions`到内部健康路由表中的本机vLLM。
+- `Inference`：只代理`/v1/chat/completions`、`/v1/completions`和`/v1/embeddings`到内部健康
+  路由表中的本机vLLM。
 
 推理请求必须携带`X-GPUStack-Model-Instance`，格式为
 `model-<model-id>-<instance-id>[-<alias>].<registry-type>`。Worker从该值解析实例ID并查询内部健康
 路由，客户端不能指定任意upstream。`stream=true`时成功响应为`text/event-stream`，否则通常为
-`application/json`。
+`application/json`。`/v1/embeddings`只接受非流式OpenAI兼容JSON，由上游vLLM处理字符串或字符串
+数组`input`并返回float或base64编码结果；Worker不计算、归一化或重排向量，只透明转发请求与响应。
 
 资源接口不使用模型根目录 allowlist。路径必须为绝对规范路径；现存目标会解析为 canonical path，
 `file-exists` 对尚不存在的绝对目标返回 `exists=false`。实际可见范围由 Worker 进程的文件权限及

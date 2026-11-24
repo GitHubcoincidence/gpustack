@@ -73,8 +73,8 @@ M4 有意不实现 `PUT /v2/config`、`/files/parse-gguf`、benchmark 日志、c
 
 探针和 metrics 无需认证，且不返回敏感信息。M4 其他 Worker HTTP endpoint 只接受注册后持久化的 per-Worker token，不接受 Cluster registration token。凭据比较必须 constant-time，失败统一返回通用 401，日志、CLI 和测试证据中只保留脱敏标识。
 
-M6-B 的 `--managed-runtime` 对上述规则增加一个严格限定的数据面兼容例外：只有
-`POST /v1/chat/completions` 和 `POST /v1/completions` 同时接受 per-Worker token 或
+当前唯一的 `worker run` 沿用 M6-B 建立的数据面兼容例外并由 M8-EMB 扩展：只有
+`POST /v1/chat/completions`、`POST /v1/completions` 和 `POST /v1/embeddings` 同时接受 per-Worker token 或
 Cluster registration token。固定 v2.2.3 Server 的 ai-proxy 使用 Cluster registration token
 访问自托管模型，而 Server 直接调用其他 Worker API 时仍使用 per-Worker token；因此
 `/token-auth`、文件、日志、config 和所有其他受保护路由继续保持 per-Worker-only。Managed

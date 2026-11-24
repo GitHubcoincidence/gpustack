@@ -45,6 +45,7 @@ const MAX_INFERENCE_BODY_BYTES: usize = 16 * 1024 * 1024;
 const MODEL_INSTANCE_HEADER: &str = "x-gpustack-model-instance";
 const CHAT_COMPLETIONS_PATH: &str = "/v1/chat/completions";
 const COMPLETIONS_PATH: &str = "/v1/completions";
+const EMBEDDINGS_PATH: &str = "/v1/embeddings";
 // Build-script variables are package-scoped, so the Worker crate owns the API identity.
 const BUILD_GIT_COMMIT: &str = env!("GPUSTACK_GIT_COMMIT");
 const BUILD_TARGET: &str = env!("GPUSTACK_BUILD_TARGET");
@@ -218,6 +219,7 @@ fn inference_routes() -> OpenApiRouter<Arc<WorkerApiState>> {
     OpenApiRouter::default()
         .routes(routes!(proxy_chat_completions))
         .routes(routes!(proxy_completions))
+        .routes(routes!(proxy_embeddings))
 }
 
 #[utoipa::path(
@@ -362,6 +364,34 @@ async fn proxy_completions(
     request: Request<Body>,
 ) -> Result<Response, ApiError> {
     proxy_managed_inference(&state, request, COMPLETIONS_PATH).await
+}
+
+#[utoipa::path(
+    post,
+    path = "/v1/embeddings",
+    tag = "Inference",
+    params((
+        "x-gpustack-model-instance" = String,
+        Header,
+        description = "Gateway destination in model-<model-id>-<instance-id>[-<alias>].<registry-type> form"
+    )),
+    request_body(content = Value, description = "OpenAI-compatible text embedding request with a string or string-array input", content_type = "application/json"),
+    responses(
+        (status = 200, description = "Upstream vLLM embedding response", body = Value, content_type = "application/json"),
+        (status = 400, description = "Invalid or missing model instance destination", body = ErrorResponse),
+        (status = 401, description = "Worker or Cluster credential was not accepted", body = ErrorResponse),
+        (status = 404, description = "No healthy managed route exists for the instance", body = ErrorResponse),
+        (status = 413, description = "Request body exceeds the Worker proxy limit", body = ErrorResponse),
+        (status = 500, description = "The managed route registry could not be read", body = ErrorResponse),
+        (status = 502, description = "The selected vLLM upstream could not be reached", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []), ("api_key_auth" = []))
+)]
+async fn proxy_embeddings(
+    State(state): State<Arc<WorkerApiState>>,
+    request: Request<Body>,
+) -> Result<Response, ApiError> {
+    proxy_managed_inference(&state, request, EMBEDDINGS_PATH).await
 }
 
 async fn proxy_managed_inference(
@@ -1371,6 +1401,7 @@ mod tests {
             "/token-auth",
             "/v1/chat/completions",
             "/v1/completions",
+            "/v1/embeddings",
             "/v2/config",
             "/version",
         ]);
@@ -1392,6 +1423,7 @@ mod tests {
             ("/v2/config", "put"),
             (CHAT_COMPLETIONS_PATH, "post"),
             (COMPLETIONS_PATH, "post"),
+            (EMBEDDINGS_PATH, "post"),
         ] {
             let security = paths[path][method]["security"]
                 .as_array()
@@ -1411,6 +1443,15 @@ mod tests {
                 .map(String::as_str)
                 .collect::<BTreeSet<_>>(),
             BTreeSet::from(["application/json", "text/event-stream"])
+        );
+        assert_eq!(
+            paths[EMBEDDINGS_PATH]["post"]["responses"]["200"]["content"]
+                .as_object()
+                .expect("embedding response content")
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["application/json"])
         );
         let serialized = serde_json::to_string(&document).expect("OpenAPI serialization");
         assert!(!serialized.contains("worker-token"));
@@ -1819,6 +1860,134 @@ mod tests {
             to_bytes(response.into_body(), 1024).await.expect("body"),
             Bytes::from_static(br#"{"error":"invalid prompt"}"#)
         );
+    }
+
+    #[tokio::test]
+    async fn embeddings_route_reuses_auth_routing_and_json_proxy_contracts() {
+        let response_body = Bytes::from_static(
+            br#"{"object":"list","data":[{"object":"embedding","index":0,"embedding":[0.25,-0.5]}],"model":"embed","usage":{"prompt_tokens":2,"total_tokens":2}}"#,
+        );
+        let mut response_headers = HeaderMap::new();
+        response_headers.insert(CONTENT_TYPE, "application/json".parse().expect("header"));
+        response_headers.insert(AUTHORIZATION, "Bearer upstream".parse().expect("header"));
+        let proxy = Arc::new(FakeInferenceProxy {
+            request: Mutex::new(None),
+            status: StatusCode::OK,
+            headers: response_headers,
+            chunks: vec![response_body.clone()],
+        });
+        let application = router(managed_state(proxy.clone()));
+
+        let unauthorized = application
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(EMBEDDINGS_PATH)
+                    .header(MODEL_INSTANCE_HEADER, "model-18-301.static")
+                    .body(Body::from(r#"{"model":"embed","input":"hello"}"#))
+                    .expect("unauthorized request"),
+            )
+            .await
+            .expect("unauthorized response");
+        assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+        assert!(proxy.request.lock().expect("proxy request lock").is_none());
+
+        let request_body = Bytes::from_static(br#"{"model":"embed","input":["hello","world"]}"#);
+        let response = application
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(EMBEDDINGS_PATH)
+                    .header(AUTHORIZATION, "Bearer cluster-registration-token")
+                    .header(MODEL_INSTANCE_HEADER, "model-18-301.static")
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(Body::from(request_body.clone()))
+                    .expect("embedding request"),
+            )
+            .await
+            .expect("embedding response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(CONTENT_TYPE).expect("content type"),
+            "application/json"
+        );
+        assert!(!response.headers().contains_key(AUTHORIZATION));
+        assert_eq!(
+            to_bytes(response.into_body(), 4096).await.expect("body"),
+            response_body
+        );
+
+        let forwarded = proxy
+            .request
+            .lock()
+            .expect("proxy request lock")
+            .take()
+            .expect("forwarded request");
+        assert_eq!(forwarded.target, "http://10.213.80.90:40000/v1/embeddings");
+        assert_eq!(forwarded.body, request_body);
+        assert!(!forwarded.headers.contains_key(AUTHORIZATION));
+        assert!(!forwarded.headers.contains_key(MODEL_INSTANCE_HEADER));
+        assert_eq!(
+            forwarded.headers.get(CONTENT_TYPE).expect("content type"),
+            "application/json"
+        );
+    }
+
+    #[tokio::test]
+    async fn embeddings_route_enforces_destination_and_body_limits_before_proxying() {
+        let proxy = Arc::new(FakeInferenceProxy {
+            request: Mutex::new(None),
+            status: StatusCode::OK,
+            headers: HeaderMap::new(),
+            chunks: Vec::new(),
+        });
+        let application = router(managed_state(proxy.clone()));
+
+        let missing_destination = application
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(EMBEDDINGS_PATH)
+                    .header(AUTHORIZATION, "Bearer worker-token")
+                    .body(Body::from("{}"))
+                    .expect("missing destination request"),
+            )
+            .await
+            .expect("missing destination response");
+        assert_eq!(missing_destination.status(), StatusCode::BAD_REQUEST);
+
+        let unknown_destination = application
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(EMBEDDINGS_PATH)
+                    .header(AUTHORIZATION, "Bearer worker-token")
+                    .header(MODEL_INSTANCE_HEADER, "model-18-999.static")
+                    .body(Body::from("{}"))
+                    .expect("unknown destination request"),
+            )
+            .await
+            .expect("unknown destination response");
+        assert_eq!(unknown_destination.status(), StatusCode::NOT_FOUND);
+
+        let oversized = application
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(EMBEDDINGS_PATH)
+                    .header(AUTHORIZATION, "Bearer worker-token")
+                    .header(MODEL_INSTANCE_HEADER, "model-18-301.static")
+                    .body(Body::from(vec![b'x'; MAX_INFERENCE_BODY_BYTES + 1]))
+                    .expect("oversized request"),
+            )
+            .await
+            .expect("oversized response");
+        assert_eq!(oversized.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert!(proxy.request.lock().expect("proxy request lock").is_none());
     }
 
     #[test]
