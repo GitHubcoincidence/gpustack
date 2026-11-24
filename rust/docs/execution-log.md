@@ -7951,3 +7951,48 @@
 - 当前停止位置：`implementation_checkpoint_complete`。后续使用
   `/opt/models/Qwen--Qwen3.8-27B-FP8`做真实部署时需单独执行运行验证；本检查点没有把只读路径
   验证冒充端到端部署通过。
+
+### 2026-11-24：90真实模型路径部署与推理验证通过
+
+- 运行门首先确认90仓库位于文档提交`791901fe`且工作树干净；106 Rust Server为v2.2.3，既有
+  `worker-90`是Worker 22。旧PID 1017089仍执行提交`4078aa8e6b03`的已删除inode，启动参数包含
+  `--model-root /home/wujiaxing2/flowscale-system-validation/models`，因此Instance 91对
+  `/opt/models/Qwen--Qwen3.8-27B-FP8`真实返回
+  `local model path escapes the configured model roots`。Model 20和ready ModelFile 18均已存在。
+- 两个历史平台管理Key均返回401。没有请求新高权限凭据，而是通过临时非active Context引用Worker
+  22持久系统token；106只允许该主体维护自身。一次maintenance enable成功，临时Context立即删除。
+  该最小权限路径没有修改其他Worker、Model或Instance。
+- 停止旧进程前保存其可执行inode和完整argv。新PID 2508470使用相同Worker身份、token、data/log、
+  20150/20151和Docker socket启动提交`791901fe`，唯一删除启动参数`--model-root`。health、ready和
+  metrics均为200，Server仍识别Worker 22且maintenance保持；自动接管Instance 91后路径错误消失。
+- 新的真实阻塞为`unsupported backend parameter --kv-cache-dtype`。Model 20实际参数为
+  `--gpu-memory-utilization=0.90`、`--max-model-len=32768`、`--kv-cache-dtype=fp8`、
+  `--max-num-seqs=1`、`--dtype=auto`和`--enable-prefix-caching`。实现只新增后三项受控解析与argv
+  传递，未开放任意参数；非法dtype、零序列数、重复参数和Worker控制参数继续拒绝。
+- 产品提交`b323bbfa`（`feat(worker): support common vllm cache parameters`）已推送。90上
+  `cargo fmt --check`、Managed runtime 12项测试、Rust workspace全套241项测试、另9项包/特征测试
+  及Clippy `-D warnings`全部通过。因90直连GitHub超时，提交通过仅含一个新提交的1491字节Git bundle
+  传输并快进；bundle和临时stash随后删除，90 HEAD、origin跟踪引用和工作树一致。
+- 从冻结HEAD构建的二进制报告commit`b323bbfa7983`，SHA-256为
+  `9145a5a5c283e267cf352671e0cc2b2513d2048790256e7ff4a53e73caad5df5`。当前版回滚件先保存，再把
+  Worker热替换为PID 2562596；health、ready、metrics和持久Worker 22身份均通过，未触发回滚。
+- 调度输入固定为Instance 91、Worker 22、GPU indexes `[0]`、端口40000、固定Runner digest和
+  `/opt/models/Qwen--Qwen3.8-27B-FP8`。模型顶层约28.77 GiB、66个权重分片。GPU0执行前为0 MiB且
+  无compute-app；GPU1只观察，不参与运行。
+- Instance 91从error进入starting并创建唯一容器`gpustack-rs-managed-91`。容器命令准确包含三项
+  新参数，模型架构解析为`Qwen3_5ForConditionalGeneration`，66/66分片加载完成；Instance最终于
+  16:19:42收敛为running，vLLM health为200，GPU0约使用71.6 GiB，GPU1保持0 MiB。
+- 推理通过Rust Worker的`POST /v1/chat/completions`代理执行，路由头只指向model 20/instance 91，
+  bearer值未记录。正式请求为模型`Qwen--Qwen3.8-27B-FP8`、用户消息
+  `Reply with exactly: OK`、`max_tokens=16`、temperature 0、stream false并关闭thinking模板；响应
+  HTTP 200、model名称一致、`finish_reason=stop`、assistant content为`OK`。
+- 临时maintenance disable成功；顶层Worker state在下一次heartbeat由短暂maintenance收敛为ready，
+  maintenance disabled。临时Context已删除。Model 20、ModelFile 18、Instance 91和目标vLLM容器
+  作为用户原部署继续运行，未被测试清理；Python Server/Worker、其他Rust资源和GPU1均未操作。
+- 运行证据位于
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/d318-model-path-20261124T160347`和
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/d318-vllm-params-b323bbfa`，包含两代受保护
+  回滚二进制、PID、构建哈希及Worker stdout；目录和文件不进入Git，未记录secret值。
+- 当前停止位置：`ready_for_review`。该门证明路径兼容、Server控制面、ModelFile、Docker/vLLM、GPU0
+  和Worker推理代理完整闭环；尚未把宿主机进程证据提升为M8容器化Worker证据，也不自动授权下一
+  容器化阶段。

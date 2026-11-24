@@ -1400,3 +1400,13 @@ Managed ModelFile、Managed workload planner、Worker文件API和Lab统一接受
 离线实现、OpenAPI再生成、90上无根目录配置验证和真实`/opt/models`只读可见性门均已通过，产品
 提交为`0b5e7a6a`。本检查点不启动容器或占用GPU；下一步是在独立运行门中使用该路径重新部署模型，
 验证Server到Worker、ModelFile和vLLM的完整链路。
+
+独立运行门已经完成。旧Worker进程首先真实复现Instance 91的`local model path escapes the
+configured model roots`；切换到`0b5e7a6a`后路径错误消失，并暴露Server实际下发的三个尚未支持的
+常用vLLM参数。产品提交`b323bbfa`以严格值域支持`--kv-cache-dtype`、`--max-num-seqs`和
+`--enable-prefix-caching`，未知或Worker控制的参数仍fail closed。
+
+90上的Worker 22最终运行`b323bbfa`，Model 20、ModelFile 18和Instance 91使用固定Runner、
+`/opt/models/Qwen--Qwen3.8-27B-FP8`和GPU0完成`error -> starting -> running`。Worker代理推理返回
+HTTP 200及`OK`，GPU1未使用。临时maintenance已关闭，Worker恢复ready，目标模型继续运行供用户
+审阅。本门为`ready_for_review`；接受后才把结果标记为accepted并继续后续容器化阶段。
