@@ -291,6 +291,8 @@ pub struct ModelPublic {
     pub id: i64,
     pub name: String,
     pub source: ModelSource,
+    #[serde(default)]
+    pub categories: Vec<String>,
     pub backend: Option<String>,
     pub backend_parameters: Option<Vec<String>>,
     pub env: Option<BTreeMap<String, String>>,
@@ -314,6 +316,8 @@ pub struct ModelCreate {
     pub cluster_id: Option<i64>,
     pub name: String,
     pub source: ModelSource,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub categories: Vec<String>,
     pub local_path: String,
     pub replicas: u32,
     pub backend: String,

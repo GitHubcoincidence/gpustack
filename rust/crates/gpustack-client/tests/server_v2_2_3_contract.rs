@@ -208,6 +208,23 @@ fn typed_responses_are_tolerant_and_preserve_the_update_contract() {
     assert_eq!(models.pagination.page, -1);
     assert_eq!(models.items[0].backend.as_deref(), Some("vLLM"));
     assert_eq!(models.items[0].restart_on_error, Some(true));
+    assert!(models.items[0].categories.is_empty());
+
+    let mut future_categories = parse_json("models", MODELS_FULL_SYNC);
+    future_categories["items"][0]["categories"] =
+        serde_json::json!(["embedding", "future-category"]);
+    let models: Paginated<ModelPublic> =
+        serde_json::from_value(future_categories).expect("forward-compatible Model categories");
+    assert_eq!(models.items[0].categories, ["embedding", "future-category"]);
+
+    let mut missing_categories = parse_json("models", MODELS_FULL_SYNC);
+    missing_categories["items"][0]
+        .as_object_mut()
+        .expect("Model object")
+        .remove("categories");
+    let models: Paginated<ModelPublic> =
+        serde_json::from_value(missing_categories).expect("Model without categories");
+    assert!(models.items[0].categories.is_empty());
 
     let workers: Paginated<WorkerPublic> =
         serde_json::from_str(WORKER_MAINTENANCE_ME).expect("typed maintenance Worker response");

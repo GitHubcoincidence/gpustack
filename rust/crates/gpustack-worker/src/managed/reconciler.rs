@@ -1904,6 +1904,7 @@ mod tests {
                 id: 201,
                 name: "qwen".to_string(),
                 source: ModelSource("local_path".to_string()),
+                categories: Vec::new(),
                 backend: Some("vLLM".to_string()),
                 backend_parameters: Some(vec!["--enforce-eager".to_string()]),
                 env: None,

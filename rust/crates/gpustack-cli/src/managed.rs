@@ -188,6 +188,9 @@ pub struct ModelFileDeleteArgs {
 pub struct ModelDeployArgs {
     /// Unique Managed model name.
     pub name: String,
+    /// Declare the model as a supported non-LLM category.
+    #[arg(long, value_enum)]
+    pub category: Option<ManagedModelCategory>,
     /// Exact target Worker name.
     #[arg(long)]
     pub worker: String,
@@ -221,6 +224,19 @@ pub struct ModelDeployArgs {
     /// Follow ModelInstance states until all run or any fails.
     #[arg(long)]
     pub wait: bool,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum ManagedModelCategory {
+    Embedding,
+}
+
+impl ManagedModelCategory {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Embedding => "embedding",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -749,10 +765,16 @@ fn build_model_create(arguments: ModelDeployArgs) -> Result<ModelCreate, Managed
         .collect();
     let mut worker_selector = BTreeMap::new();
     worker_selector.insert("worker-name".to_owned(), arguments.worker);
+    let categories = arguments
+        .category
+        .into_iter()
+        .map(|category| category.as_str().to_owned())
+        .collect();
     Ok(ModelCreate {
         cluster_id: None,
         name: arguments.name,
         source: ModelSource("local_path".to_owned()),
+        categories,
         local_path: arguments.local_path.display().to_string(),
         replicas: 1,
         backend: "vLLM".to_owned(),
@@ -2032,6 +2054,8 @@ mod tests {
             "model",
             "deploy",
             "demo",
+            "--category",
+            "embedding",
             "--worker",
             "rust-worker",
             "--local-path",
@@ -2074,6 +2098,7 @@ mod tests {
                 .expect("request JSON");
         assert_eq!(body["cluster_id"], 7);
         assert_eq!(body["source"], "local_path");
+        assert_eq!(body["categories"], json!(["embedding"]));
         assert_eq!(body["worker_selector"]["worker-name"], "rust-worker");
         assert_eq!(
             body["gpu_selector"]["gpu_ids"],
@@ -2090,6 +2115,36 @@ mod tests {
             ])
         );
         assert!(!format!("{requests:?}").contains("operator-secret"));
+    }
+
+    #[test]
+    fn deploy_without_a_category_preserves_the_existing_llm_request_shape() {
+        let cli = Cli::try_parse_from([
+            "gpustack-rs",
+            "model",
+            "deploy",
+            "demo",
+            "--worker",
+            "rust-worker",
+            "--local-path",
+            "/models/demo",
+            "--image",
+            "runner@sha256:aaaa",
+            "--gpu",
+            "0",
+        ])
+        .expect("parse deploy");
+        let Command::Model(ModelArgs {
+            command: ModelSubcommand::Deploy(arguments),
+        }) = cli.command
+        else {
+            panic!("model deploy command");
+        };
+
+        let request = build_model_create(arguments).expect("model create request");
+        let value = serde_json::to_value(request).expect("serialize request");
+
+        assert!(value.get("categories").is_none());
     }
 
     #[tokio::test]
@@ -2572,6 +2627,7 @@ mod tests {
         let arguments = ModelArgs {
             command: ModelSubcommand::Deploy(ModelDeployArgs {
                 name: "demo".to_owned(),
+                category: None,
                 worker: "rust-worker".to_owned(),
                 local_path: PathBuf::from("/models/demo"),
                 image: "runner@sha256:aaaa".to_owned(),
