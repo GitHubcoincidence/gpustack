@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
+use std::mem::size_of;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -128,6 +129,8 @@ pub enum InferenceSubcommand {
     Chat(InferenceRequestArgs),
     /// Send an OpenAI-compatible text completion through Server.
     Completion(InferenceRequestArgs),
+    /// Generate text embeddings through Server.
+    Embeddings(InferenceEmbeddingsArgs),
 }
 
 #[derive(Debug, Args)]
@@ -144,6 +147,34 @@ pub struct InferenceRequestArgs {
     /// Emit Server-Sent Events incrementally.
     #[arg(long)]
     pub stream: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct InferenceEmbeddingsArgs {
+    /// Server-routed embedding model name.
+    #[arg(long)]
+    pub model: String,
+    /// Input text; repeat the option to embed multiple texts in one request.
+    #[arg(long, required = true)]
+    pub input: Vec<String>,
+    /// Select the OpenAI-compatible vector encoding.
+    #[arg(long, value_enum)]
+    pub encoding_format: Option<EmbeddingEncodingFormat>,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum EmbeddingEncodingFormat {
+    Float,
+    Base64,
+}
+
+impl EmbeddingEncodingFormat {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Float => "float",
+            Self::Base64 => "base64",
+        }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -556,6 +587,11 @@ pub async fn run_inference_command<T: Transport>(
             )
             .await
         }
+        InferenceSubcommand::Embeddings(arguments) => {
+            let body = embeddings_body(arguments)?;
+            let response = client.embeddings(token, &body).await?;
+            render_embeddings_response(output_format, &response)
+        }
     }
 }
 
@@ -590,6 +626,30 @@ fn inference_body(
         body["max_tokens"] = json!(max_tokens);
     }
     Ok((body, arguments.stream))
+}
+
+fn embeddings_body(arguments: InferenceEmbeddingsArgs) -> Result<Value, ManagedError> {
+    if arguments.model.trim().is_empty()
+        || arguments.input.is_empty()
+        || arguments.input.iter().any(String::is_empty)
+    {
+        return Err(ManagedError::InvalidArgument(
+            "embedding model and every --input must be non-empty".to_owned(),
+        ));
+    }
+    let input = if arguments.input.len() == 1 {
+        Value::String(arguments.input.into_iter().next().expect("one input"))
+    } else {
+        json!(arguments.input)
+    };
+    let mut body = json!({
+        "model": arguments.model,
+        "input": input,
+    });
+    if let Some(encoding_format) = arguments.encoding_format {
+        body["encoding_format"] = json!(encoding_format.as_str());
+    }
+    Ok(body)
 }
 
 async fn render_inference_response(
@@ -629,6 +689,119 @@ fn render_openai_json(
     };
     output.push('\n');
     success(output)
+}
+
+fn render_embeddings_response(
+    output_format: OutputFormat,
+    value: &Value,
+) -> Result<Execution, ManagedError> {
+    if output_format == OutputFormat::Json {
+        return render_openai_json(output_format, value);
+    }
+
+    let model = value
+        .get("model")
+        .and_then(Value::as_str)
+        .ok_or_else(|| embedding_response_error("model must be a string"))?;
+    let data = value
+        .get("data")
+        .and_then(Value::as_array)
+        .ok_or_else(|| embedding_response_error("data must be an array"))?;
+    let usage = value
+        .get("usage")
+        .and_then(Value::as_object)
+        .ok_or_else(|| embedding_response_error("usage must be an object"))?;
+    let prompt_tokens = usage
+        .get("prompt_tokens")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| embedding_response_error("usage.prompt_tokens must be an integer"))?;
+    let total_tokens = usage
+        .get("total_tokens")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| embedding_response_error("usage.total_tokens must be an integer"))?;
+
+    let mut output = format!(
+        "model: {}\nusage.prompt_tokens: {prompt_tokens}\nusage.total_tokens: {total_tokens}\nINDEX\tDIMENSION\tENCODING\tPREVIEW\n",
+        table_value(model)
+    );
+    for item in data {
+        let index = item
+            .get("index")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| embedding_response_error("data index must be an integer"))?;
+        let embedding = item
+            .get("embedding")
+            .ok_or_else(|| embedding_response_error("data item is missing embedding"))?;
+        let (dimension, encoding, preview) = embedding_summary(embedding)?;
+        writeln!(
+            output,
+            "{index}\t{dimension}\t{encoding}\t{}",
+            table_value(&preview)
+        )
+        .expect("write to String");
+    }
+    success(output)
+}
+
+fn embedding_summary(embedding: &Value) -> Result<(usize, &'static str, String), ManagedError> {
+    if let Some(values) = embedding.as_array() {
+        if !values.iter().all(Value::is_number) {
+            return Err(embedding_response_error(
+                "float embedding contains a non-number",
+            ));
+        }
+        let preview_values = values.iter().take(4).collect::<Vec<_>>();
+        let mut preview = serde_json::to_string(&preview_values)?;
+        if values.len() > preview_values.len() {
+            preview.pop();
+            preview.push_str(",...]");
+        }
+        return Ok((values.len(), "float", preview));
+    }
+    if let Some(encoded) = embedding.as_str() {
+        let dimension = base64_float_dimension(encoded)
+            .ok_or_else(|| embedding_response_error("base64 embedding is invalid"))?;
+        let mut preview = encoded.chars().take(24).collect::<String>();
+        if encoded.len() > preview.len() {
+            preview.push_str("...");
+        }
+        return Ok((dimension, "base64", preview));
+    }
+    Err(embedding_response_error(
+        "embedding must be a float array or base64 string",
+    ))
+}
+
+fn base64_float_dimension(encoded: &str) -> Option<usize> {
+    let bytes = encoded.as_bytes();
+    if bytes.is_empty() || !bytes.len().is_multiple_of(4) {
+        return None;
+    }
+    let padding = bytes.iter().rev().take_while(|byte| **byte == b'=').count();
+    if padding > 2
+        || !bytes[..bytes.len() - padding]
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/'))
+        || !bytes[bytes.len() - padding..]
+            .iter()
+            .all(|byte| *byte == b'=')
+    {
+        return None;
+    }
+    // OpenAI base64 embeddings encode a contiguous float32 byte array.
+    let decoded_bytes = bytes
+        .len()
+        .checked_div(4)?
+        .checked_mul(3)?
+        .checked_sub(padding)?;
+    (decoded_bytes > 0 && decoded_bytes.is_multiple_of(size_of::<f32>()))
+        .then_some(decoded_bytes / size_of::<f32>())
+}
+
+fn embedding_response_error(message: &str) -> ManagedError {
+    ManagedError::Client(ClientError::Contract(format!(
+        "invalid embedding response: {message}"
+    )))
 }
 
 pub async fn run_worker_get_command<T: Transport>(
@@ -1629,6 +1802,12 @@ mod tests {
         include_str!("../../../fixtures/server-v2.2.3/model-files-full-sync.response.json");
     const WORKERS_ME: &str =
         include_str!("../../../fixtures/server-v2.2.3/workers-me.response.json");
+    const EMBEDDING_REQUEST: &str =
+        include_str!("../../../fixtures/m8emb/embeddings-multiple.request.json");
+    const EMBEDDING_FLOAT_RESPONSE: &str =
+        include_str!("../../../fixtures/m8emb/embeddings-float.response.json");
+    const EMBEDDING_BASE64_RESPONSE: &str =
+        include_str!("../../../fixtures/m8emb/embeddings-base64.response.json");
 
     #[derive(Clone, Default)]
     struct MockTransport {
@@ -1808,6 +1987,19 @@ mod tests {
                 "--prompt",
                 "hello",
             ],
+            vec![
+                "gpustack-rs",
+                "inference",
+                "embeddings",
+                "--model",
+                "contract-embed",
+                "--input",
+                "hello",
+                "--input",
+                "world",
+                "--encoding-format",
+                "float",
+            ],
             vec!["gpustack-rs", "worker", "get", "rust-worker"],
             vec![
                 "gpustack-rs",
@@ -1968,6 +2160,159 @@ mod tests {
         assert_eq!(completion["prompt"], "Once");
         assert_eq!(completion["stream"], true);
         assert!(!format!("{requests:?}").contains("operator-secret"));
+    }
+
+    #[tokio::test]
+    async fn embedding_inference_uses_server_path_and_renders_float_and_base64() {
+        let transport = MockTransport::default();
+        transport.push_json(200, EMBEDDING_FLOAT_RESPONSE);
+        transport.push_json(200, EMBEDDING_BASE64_RESPONSE);
+        let client = ServerClient::new(
+            Url::parse("http://127.0.0.1/base/").expect("URL"),
+            transport.clone(),
+        )
+        .expect("client");
+        let token = SecretToken::new("embedding-operator-secret").expect("token");
+
+        let json_output = run_inference_command(
+            OutputFormat::Json,
+            &client,
+            &token,
+            InferenceArgs {
+                command: InferenceSubcommand::Embeddings(InferenceEmbeddingsArgs {
+                    model: "contract-embed".to_string(),
+                    input: vec!["hello".to_string(), "world".to_string()],
+                    encoding_format: Some(EmbeddingEncodingFormat::Float),
+                }),
+            },
+            None,
+        )
+        .await
+        .expect("float embedding");
+        assert_eq!(
+            serde_json::from_str::<Value>(&json_output.output).expect("JSON output"),
+            serde_json::from_str::<Value>(EMBEDDING_FLOAT_RESPONSE).expect("float response")
+        );
+
+        let table_output = run_inference_command(
+            OutputFormat::Table,
+            &client,
+            &token,
+            InferenceArgs {
+                command: InferenceSubcommand::Embeddings(InferenceEmbeddingsArgs {
+                    model: "contract-embed".to_string(),
+                    input: vec!["hello".to_string()],
+                    encoding_format: Some(EmbeddingEncodingFormat::Base64),
+                }),
+            },
+            None,
+        )
+        .await
+        .expect("base64 embedding");
+        assert!(table_output.output.contains("model: contract-embed"));
+        assert!(table_output.output.contains("usage.prompt_tokens: 1"));
+        assert!(table_output.output.contains("0\t2\tbase64\tAACAPgAAAL8="));
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 2);
+        assert!(
+            requests
+                .iter()
+                .all(|request| request.url.path() == "/base/v1/embeddings")
+        );
+        assert!(
+            requests
+                .iter()
+                .all(|request| request.method == Method::Post)
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(
+                requests[0].body.as_deref().expect("float request body")
+            )
+            .expect("float request JSON"),
+            serde_json::from_str::<Value>(EMBEDDING_REQUEST).expect("request fixture")
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(
+                requests[1].body.as_deref().expect("base64 request body")
+            )
+            .expect("base64 request JSON"),
+            json!({
+                "model": "contract-embed",
+                "input": "hello",
+                "encoding_format": "base64"
+            })
+        );
+        assert!(!format!("{requests:?}").contains("embedding-operator-secret"));
+    }
+
+    #[test]
+    fn embedding_table_limits_float_preview_and_reports_dimension() {
+        let response = serde_json::from_str::<Value>(EMBEDDING_FLOAT_RESPONSE)
+            .expect("float embedding response");
+
+        let output = render_embeddings_response(OutputFormat::Table, &response)
+            .expect("table output")
+            .output;
+
+        assert!(output.contains("usage.total_tokens: 4"));
+        assert!(output.contains("0\t5\tfloat\t[0.1,-0.2,0.3,-0.4,...]"));
+        assert!(output.contains("1\t5\tfloat\t[-0.5,0.4,-0.3,0.2,...]"));
+    }
+
+    #[test]
+    fn embedding_arguments_fail_closed_before_transport() {
+        assert!(
+            Cli::try_parse_from([
+                "gpustack-rs",
+                "inference",
+                "embeddings",
+                "--model",
+                "contract-embed"
+            ])
+            .is_err()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "gpustack-rs",
+                "inference",
+                "embeddings",
+                "--model",
+                "contract-embed",
+                "--input",
+                "hello",
+                "--encoding-format",
+                "hex"
+            ])
+            .is_err()
+        );
+        let default_body = embeddings_body(InferenceEmbeddingsArgs {
+            model: "contract-embed".to_string(),
+            input: vec!["hello".to_string()],
+            encoding_format: None,
+        })
+        .expect("default embedding request");
+        assert_eq!(default_body["input"], "hello");
+        assert!(default_body.get("encoding_format").is_none());
+        for arguments in [
+            InferenceEmbeddingsArgs {
+                model: String::new(),
+                input: vec!["hello".to_string()],
+                encoding_format: None,
+            },
+            InferenceEmbeddingsArgs {
+                model: "contract-embed".to_string(),
+                input: Vec::new(),
+                encoding_format: None,
+            },
+            InferenceEmbeddingsArgs {
+                model: "contract-embed".to_string(),
+                input: vec![String::new()],
+                encoding_format: None,
+            },
+        ] {
+            assert!(embeddings_body(arguments).is_err());
+        }
     }
 
     #[test]

@@ -40,6 +40,10 @@ const MODEL_INSTANCE_WATCH: &str =
     include_str!("../../../fixtures/server-v2.2.3/model-instance-watch.ndjson");
 const MODEL_FILE_WATCH: &str =
     include_str!("../../../fixtures/server-v2.2.3/model-file-watch.ndjson");
+const EMBEDDING_REQUEST: &str =
+    include_str!("../../../fixtures/m8emb/embeddings-multiple.request.json");
+const EMBEDDING_FLOAT_RESPONSE: &str =
+    include_str!("../../../fixtures/m8emb/embeddings-float.response.json");
 
 #[derive(Clone, Default)]
 struct MockTransport {
@@ -362,6 +366,61 @@ async fn errors_are_bounded_and_redact_the_active_token() {
     let rendered = error.to_string();
     assert!(!rendered.contains("do-not-print-this"));
     assert!(rendered.contains("<redacted-token>"));
+}
+
+#[tokio::test]
+async fn embeddings_use_the_buffered_server_path_and_redact_operator_errors() {
+    let transport = MockTransport::default();
+    transport.push_response(200, EMBEDDING_FLOAT_RESPONSE);
+    transport.push_response(
+        401,
+        serde_json::to_vec(&json!({
+            "code": 401,
+            "reason": "Unauthorized",
+            "message": "rejected embedding-operator-secret"
+        }))
+        .expect("error JSON"),
+    );
+    let client = ServerClient::new(
+        Url::parse("http://127.0.0.1/base/").expect("base URL"),
+        transport.clone(),
+    )
+    .expect("client");
+    let token = SecretToken::new("embedding-operator-secret").expect("token");
+    let request: Value = serde_json::from_str(EMBEDDING_REQUEST).expect("embedding request");
+
+    let response = client
+        .embeddings(&token, &request)
+        .await
+        .expect("embedding response");
+    assert_eq!(
+        response,
+        serde_json::from_str::<Value>(EMBEDDING_FLOAT_RESPONSE).expect("embedding response JSON")
+    );
+
+    let error = client
+        .embeddings(&token, &request)
+        .await
+        .expect_err("embedding error");
+    assert!(matches!(error, ClientError::Api { status: 401, .. }));
+    assert!(!error.to_string().contains("embedding-operator-secret"));
+    assert!(error.to_string().contains("<redacted-token>"));
+
+    let requests = transport.requests();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0].method, gpustack_client::http::Method::Post);
+    assert_eq!(
+        requests[0].url.as_str(),
+        "http://127.0.0.1/base/v1/embeddings"
+    );
+    assert_eq!(requests[0].accept, "application/json");
+    assert!(requests[0].timeout.is_some());
+    assert_eq!(
+        serde_json::from_slice::<Value>(requests[0].body.as_deref().expect("request body"))
+            .expect("request JSON"),
+        request
+    );
+    assert!(!format!("{requests:?}").contains("embedding-operator-secret"));
 }
 
 #[tokio::test]

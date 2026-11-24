@@ -1,0 +1,15 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "embedding",
+      "index": 0,
+      "embedding": "AACAPgAAAL8="
+    }
+  ],
+  "model": "contract-embed",
+  "usage": {
+    "prompt_tokens": 1,
+    "total_tokens": 1
+  }
+}

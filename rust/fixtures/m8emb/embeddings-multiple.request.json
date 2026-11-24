@@ -1,0 +1,8 @@
+{
+  "model": "contract-embed",
+  "input": [
+    "hello",
+    "world"
+  ],
+  "encoding_format": "float"
+}

@@ -211,6 +211,25 @@ impl<T: Transport> ServerClient<T> {
         .await
     }
 
+    pub async fn embeddings(
+        &self,
+        operator_token: &SecretToken,
+        body: &Value,
+    ) -> Result<Value, ClientError> {
+        let body = encode_json(body, "OpenAI embedding request")?;
+        let response = self
+            .transport
+            .execute(self.request(
+                Method::Post,
+                "v1/embeddings",
+                Some(operator_token),
+                Some(body),
+                JSON_CONTENT_TYPE,
+            )?)
+            .await?;
+        self.decode_json(response, "embedding response", Some(operator_token))
+    }
+
     pub async fn model_instance_logs(
         &self,
         operator_token: &SecretToken,
