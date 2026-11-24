@@ -7827,3 +7827,31 @@
   停止Model 12或其runtime。下一步须重新讨论并授权恢复maintenance屏障；推荐复用D316顺序，先在
   完整保存Instance 85运行基线的情况下只启用maintenance且验证既有runtime完全不变，再由资源所有者
   停止Model 12，最后从全新证据目录重跑pending控制面创建门。
+
+### 2026-11-24：106 pending控制面资源创建门通过
+
+- 用户报告已停止既有模型并把Worker 17置于维护模式。写入前释放门独立确认Worker 17为maintenance、
+  maintenance enabled、目标名称`rust-rs6-106-qwen25-05b-gpu0`未使用、Worker 17归属Instance为0、
+  Rust managed运行容器为0、40000至40063监听为0、GPU compute-app为0；RTX 5090处于约102 MiB
+  驱动基线。本地Qwen2.5-0.5B-Instruct路径和固定Runner digest均存在。
+- 接口作用与输入：通过隔离Context只调用一次`model deploy`，创建Server托管的local-path vLLM Model；
+  精确Worker为`jiaxingHaoyuNB-106`、local path为
+  `/home/wujiaxing/models/Qwen2.5-0.5B-Instruct`、固定Runner digest、GPU0、TP 1、max model length
+  2048、GPU memory utilization 0.5、dtype auto及enforce eager。不使用`--wait`，不解除maintenance。
+- CLI退出码为0并返回Model 21：名称、source local_path、backend vLLM、backend parameters、
+  worker selector、`gpu_ids=["jiaxingHaoyuNB-106:cuda:0"]`、replicas 1和ready replicas 0均符合输入。
+  创建响应当下`instances=[]`；执行器在2秒后GET仍未看到Instance，按严格即时门写出STOP后因
+  `errexit`在封存前退出。该原始目录
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-pending-control-create-20261124T014919Z`
+  固定为`UNSEALED_EARLY_SNAPSHOT`，不得作为正式失败manifest，也没有触发重试。
+- 独立只读裁决确认Instance 87在Model创建约5秒后出现；两个间隔快照均为pending，worker ID/name为
+  null、GPU indexes为空、port为null。Worker 17持续maintenance，Model 21持续replicas 1/ready 0，
+  Rust managed运行容器、40000段监听和GPU compute-app均为0，RTX 5090保持约102 MiB基线。
+- 正式裁决目录为
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-pending-control-create-adjudication-20261124T015136Z`，
+  manifest SHA-256为
+  `e3d9340e3f06008f11f93b601f7a38a26bbcdc00d347f2f053fa94f5c0ddffda`；manifest自校验和秘密扫描
+  均PASS。正式结论为PASS，`write_attempted=1`、`write_retried=0`。
+- 当前停止位置：`ready_for_review`。本阶段只证明Rust CLI到Rust Server的Model创建、异步Instance
+  生成以及maintenance下pending隔离正确；尚未解除maintenance、调度Instance 87、启动vLLM或发起推理。
+  后续创建类门应以有限时间的GET最终一致性裁决为准，不能因创建响应暂未附带Instance而重复POST。
