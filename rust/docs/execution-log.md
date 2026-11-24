@@ -7855,3 +7855,35 @@
 - 当前停止位置：`ready_for_review`。本阶段只证明Rust CLI到Rust Server的Model创建、异步Instance
   生成以及maintenance下pending隔离正确；尚未解除maintenance、调度Instance 87、启动vLLM或发起推理。
   后续创建类门应以有限时间的GET最终一致性裁决为准，不能因创建响应暂未附带Instance而重复POST。
+
+### 2026-11-24：106真实调度运行门通过
+
+- 用户接受只解除Worker 17 maintenance并允许Model 21/Instance 87在GPU0启动；异常回滚严格限定为
+  恢复Worker 17 maintenance和删除本次Model 21，不得操作其他Model、Instance或容器。本阶段只验证
+  调度、容器启动和running，不发起生成请求。
+- 写入前门确认Worker 17仍为maintenance，Model 21为replicas 1/ready 0，Instance 87为pending且
+  Worker/GPU/port未分配；Rust managed运行容器和40000段监听为0。本地模型和固定Runner digest存在。
+  90秒GPU0稳定门取得10个间隔10秒的样本，全部为约102 MiB驱动基线且compute-app为0；写入前即时
+  快照再次通过相同控制面、容器、端口和GPU门。
+- 回滚watchdog脚本SHA-256为
+  `70f12f871dce138ec63e9f95d1884ac24a0b992d718afe004b6c731878d46f00`，独立进程PID 3433623在写入前
+  armed。其作用域固定为Worker 17、Model 21和Instance 87；超时或显式触发时先恢复maintenance，再
+  验证Model身份后删除Model 21，并只在控制面清理失败时停止精确容器`gpustack-rs-managed-87`。
+- 接口作用与响应：CLI只调用一次`worker maintenance disable 17 --yes`，使精确Worker重新可调度；
+  返回`worker_id=17`、`worker_name=jiaxingHaoyuNB-106`、before enabled true、after enabled false，
+  退出码0且没有重试。
+- Instance 87随后绑定Worker 17、GPU0和端口40000，于`2026-11-24T02:02:14Z`观察为starting，
+  于`2026-11-24T02:05:01Z`收敛为running。最终两个间隔快照均确认Worker 17为ready且maintenance
+  disabled、Model 21为replicas 1/ready 1、Instance 87为running且分配身份不变。
+- 运行面验收：唯一Rust managed运行容器为`gpustack-rs-managed-87`，状态running、restart count 0、
+  镜像为冻结Runner digest；唯一40000段监听为`10.213.80.106:40000`，GPU0只有目标
+  `VLLM::EngineCore` compute-app。Worker health、Worker metrics、vLLM `/health`和vLLM `/v1/models`
+  均返回HTTP 200，`/v1/models`包含至少一个模型条目。
+- 全部门通过后watchdog于`2026-11-24T02:06:45Z`正常disarm并退出，未生成trigger、未执行回滚。
+  正式证据目录为
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-runtime-release-20261124T015657Z`，
+  manifest SHA-256为
+  `cb1874483601561dcae673af16b42fb9c43c1434423e98ce869db5ca3b7c8dd4`；manifest自校验和秘密扫描
+  均PASS。
+- 当前停止位置：`ready_for_review`。成功终态保留Model 21/Instance 87 running、Worker 17 ready和
+  maintenance disabled，供下一独立推理与日志门使用；本阶段没有调用chat/completion，也没有清理模型。
