@@ -1477,3 +1477,15 @@ M8-EMB.0现为`accepted`。当前停止位置为`M8-EMB.1 ready_to_implement`：
 categories和部署CLI契约及其离线测试；不得在本授权下连接真实Server、启动Worker/vLLM、创建或
 删除Server资源、操作Docker或占用GPU。M8-EMB.1完成后必须先交付详细实现与验证报告，用户接受后
 才进入M8-EMB.2。
+
+M8-EMB.1产品提交`6f90926baa251063829b732883cf2b9ed46ce4c7`为`ModelPublic`增加默认空数组且
+保留未知字符串的`categories`，为`ModelCreate`增加空值不发送的同名字段，并在CLI加入唯一首版值
+`model deploy --category embedding`。显式embedding部署发送`["embedding"]`；未指定category的
+旧LLM部署继续省略该JSON字段，因此保持既有请求形状。Worker reconciler只补齐测试构造字段，未改
+运行时、readiness、状态机或Docker行为。
+
+90固定Rust 1.99.1环境中的Rustfmt、client契约8项、CLI deploy定向4项、workspace 248项测试、
+all-targets Clippy `-D warnings`和locked/offline build全部通过；真实CLI help只显示可选category且
+唯一值为embedding，`worker run`继续拒绝四个历史模式参数。本门没有网络业务请求、Server写入、
+Worker/vLLM进程、Docker或GPU操作。当前为`M8-EMB.1 ready_for_review`；用户接受详细报告后才能
+进入M8-EMB.2 pooling argv专用回归。

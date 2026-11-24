@@ -8062,3 +8062,29 @@
 - 当前停止位置：`M8-EMB.0 accepted`，`M8-EMB.1 ready_to_implement`。下一步只实现categories和
   `model deploy --category embedding`及离线测试；完成后先交付详细实现报告，用户接受后才进入
   EMB.2。M8-B继续暂停。
+
+### 2026-11-24：M8-EMB.1 Model category与部署CLI实现完成
+
+- 产品实现：提交`6f90926baa251063829b732883cf2b9ed46ce4c7`（
+  `feat(cli): support embedding model category`）只修改四个Rust源码/测试文件。`ModelPublic`把
+  `categories`提升为默认空数组的类型化字符串列表，既兼容字段缺失，也保留未知未来category；
+  `ModelCreate`仅在非空时序列化categories，避免改变未指定category的既有LLM POST形状。
+- CLI契约：`model deploy`新增可选`--category`，首版唯一允许值为`embedding`。显式选择后创建请求
+  携带`categories=["embedding"]`；未选择时字段完全省略。Worker、local path、Runner、GPU、TP和
+  其他参数的既有校验及Server托管创建流程未改变。本门没有提前注入`--runner=pooling`，该行为仍
+  属于EMB.2。
+- 回归覆盖：client固定fixture继续读取空categories；新增未知值`future-category`保留和字段缺失
+  回退测试。CLI mock transport验证embedding请求的精确JSON，并新增默认部署不含categories的回归。
+  Worker reconciler测试fixture只补空列表以适配公共类型，没有生产行为修改。
+- 90离线证据：Rustfmt和`git diff --check`通过；client v2.2.3契约8项、CLI deploy定向4项、Rust
+  workspace全套248项测试全部通过；all-targets Clippy `-D warnings`及workspace locked/offline
+  build通过。真实`model deploy --help`只新增可选category且
+  possible values为embedding，`worker run --help`中四个历史模式参数仍全部不存在。
+- 环境与外部边界：验证使用90既有Rust 1.99.1/Cargo 1.99.1和离线依赖缓存，未连接业务Server、
+  未启动Worker或vLLM、未创建/修改Server资源、未操作Docker或占用GPU。90到GitHub push无进度后
+  中断，使用SHA-256为`013b77c7372694e9fcc48d7bdf9b3ed779c5565ad8faafed1473533e984a57da`的
+  2.3 KiB单提交bundle传回本机并由本机推送；bundle和源码传输包均已从90删除，本地/GitHub/90
+  最终源码提交一致，90及两端已跟踪文件均干净；本地既有未跟踪`output/`未进入提交。
+- 当前停止位置：`M8-EMB.1 ready_for_review`。用户接受本阶段详细报告后才允许进入EMB.2，验证
+  `--runner=pooling`经现有安全`extra_argv`贯穿spec hash、manifest和最终命令；M8-B及所有真实
+  Server/Docker/GPU阶段继续暂停。
