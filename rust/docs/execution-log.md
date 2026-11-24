@@ -8101,3 +8101,24 @@
   CLI拒绝。该修订不改变categories、Worker API、Server路由或后续真实环境边界。
 - 当前停止位置：`M8-EMB.2 ready_to_implement`。下一步只实现CLI runner选择和离线贯穿回归，
   不连接Server、不启动Worker/vLLM、不操作Docker或GPU；完成后仍须先交付详细报告和用户验收。
+
+### 2026-11-24：M8-EMB.2显式vLLM runner选择实现完成
+
+- 产品实现：提交`a20abc39919b21cfa052db37135e987bc81dce67`（
+  `feat(cli): select vllm runner explicitly`）只修改CLI部署编排与Worker运行时测试两个Rust文件。
+  `model deploy`新增`--runner auto|pooling`，默认auto不下发runner参数；显式pooling才把
+  `--runner=pooling`追加到Model创建请求的`backend_parameters`。category和runner继续保持正交。
+- 贯穿契约：Worker沿用D320通用`extra_argv`，没有新增专用解析器或第二套运行路径。新回归以同一
+  fixture比较auto与pooling，验证pooling参数进入`WorkloadSpec`、改变spec hash、同步进入容器label、
+  通过manifest校验和序列化，并保序到达最终`vllm_command()`。CLI精确JSON回归同时验证TP、runner、
+  max-model-len和enforce-eager的顺序；默认请求仍只有既有TP参数，未知runner在解析期被拒绝。
+- 90离线证据：Rustfmt和`git diff --check`通过；CLI deploy定向5项、Worker贯穿定向1项以及Rust
+  workspace全套250项测试全部通过；all-targets Clippy `-D warnings`与workspace locked/offline
+  build通过。真实CLI help显示默认auto及唯一值auto、pooling，`worker run`中四个历史模式参数仍
+  全部不存在。
+- 环境与同步：验证使用90既有Rust 1.99.1/Cargo 1.99.1及离线依赖缓存。2.1 KiB产品bundle仅作
+  回退传输件；90直接push成功后已连同前序docs bundle、源码传输包和临时测试日志精确删除。
+  90、GitHub和本地源码HEAD均为`a20abc39`，90工作树干净，本地只保留用户既有未跟踪`output/`。
+- 外部边界与停止位置：本门没有发起业务Server请求、启动或重启Worker/vLLM、创建Server资源、
+  操作Docker或占用GPU。当前为`M8-EMB.2 ready_for_review`；只有用户接受本阶段详细报告后才允许
+  实现M8-EMB.3生产`POST /v1/embeddings`路由，M8-B及真实环境门继续暂停。

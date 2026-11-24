@@ -1495,3 +1495,15 @@ Worker/vLLM进程、Docker或GPU操作。当前为`M8-EMB.1 ready_for_review`；
 用途，不再暗中强制vLLM runner；新增独立`--runner auto|pooling`，默认auto并保持当前无runner参数
 请求形状，只有显式pooling才下发`--runner=pooling`。M8-EMB.1现为`accepted`，M8-EMB.2为
 `ready_to_implement`；本授权仍仅限离线代码、fixture和测试。
+
+M8-EMB.2产品提交`a20abc39919b21cfa052db37135e987bc81dce67`为`model deploy`增加独立的
+`--runner auto|pooling`。默认auto不生成任何runner后端参数，保持既有LLM及自动检测模型的请求
+形状；只有显式pooling才按原顺序追加`--runner=pooling`。该参数继续经过D320的安全通用argv层，
+没有增加第二套Worker解析器、运行模式、readiness或Docker生命周期。
+
+专用回归证明显式pooling进入Model创建请求、`WorkloadSpec.vllm.extra_argv`、spec hash、容器label、
+持久manifest及最终vLLM命令；不支持的runner由Clap在发请求前拒绝。90上的Rustfmt、定向CLI 5项、
+Worker贯穿1项、workspace 250项测试、all-targets Clippy `-D warnings`和locked/offline build全部
+通过，CLI help与历史Worker模式参数检查也通过。本门没有业务Server请求、Worker/vLLM进程、Docker
+或GPU操作。当前为`M8-EMB.2 ready_for_review`；用户接受详细报告后才进入M8-EMB.3 Worker
+`POST /v1/embeddings`接口实现。
