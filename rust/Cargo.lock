@@ -760,6 +760,7 @@ dependencies = [
  "serde-saphyr",
  "serde_json",
  "sha2",
+ "shlex",
  "sysinfo",
  "tempfile",
  "thiserror 2.0.21",

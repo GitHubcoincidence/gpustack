@@ -275,36 +275,46 @@ fn parse_vllm_parameters(
     tensor_parallel_size: u32,
 ) -> Result<VllmOptions, ManagedRuntimePlanError> {
     let mut options = VllmOptions::default();
-    let mut seen = BTreeSet::new();
-    for parameter in parameters.unwrap_or_default() {
-        let parameter = parameter.trim();
-        if parameter.is_empty()
-            || parameter.contains(char::is_whitespace)
-            || parameter.contains('\0')
-        {
-            return Err(contract(
-                "backend parameters must be one non-empty argv token per entry",
-            ));
+    let parameters = flatten_backend_parameters(parameters)?;
+    let mut seen_structured = BTreeSet::new();
+    let mut index = 0;
+    while index < parameters.len() {
+        let start = index;
+        let (flag, inline_value) = split_parameter_token(&parameters[index])?;
+        index += 1;
+        let mut values = inline_value.into_iter().collect::<Vec<_>>();
+        while index < parameters.len() && !is_parameter_token(&parameters[index]) {
+            values.push(parameters[index].as_str());
+            index += 1;
         }
-        let (flag, value) = parameter
-            .split_once('=')
-            .map_or((parameter, None), |(flag, value)| (flag, Some(value)));
-        if !seen.insert(flag.to_string()) {
+        let structured = matches!(
+            flag,
+            "--tensor-parallel-size"
+                | "--max-model-len"
+                | "--gpu-memory-utilization"
+                | "--dtype"
+                | "--trust-remote-code"
+                | "--enforce-eager"
+                | "--kv-cache-dtype"
+                | "--max-num-seqs"
+                | "--enable-prefix-caching"
+        );
+        if structured && !seen_structured.insert(flag.to_string()) {
             return Err(contract(format!("duplicate backend parameter {flag}")));
         }
         match flag {
             "--tensor-parallel-size" => {
-                if parse_positive_u32(flag, value)? != tensor_parallel_size {
+                if parse_positive_u32(flag, &values)? != tensor_parallel_size {
                     return Err(contract(
                         "tensor parallel size must equal the assigned GPU count",
                     ));
                 }
             }
             "--max-model-len" => {
-                options.max_model_len = Some(parse_positive_u32(flag, value)?);
+                options.max_model_len = Some(parse_positive_u32(flag, &values)?);
             }
             "--gpu-memory-utilization" => {
-                let value = required_value(flag, value)?
+                let value = required_value(flag, &values)?
                     .parse::<f64>()
                     .map_err(|_| contract("GPU memory utilization must be numeric"))?;
                 if !value.is_finite() || value <= 0.0 || value > 1.0 {
@@ -313,7 +323,7 @@ fn parse_vllm_parameters(
                 options.gpu_memory_utilization = Some(value);
             }
             "--dtype" => {
-                options.dtype = Some(match required_value(flag, value)? {
+                options.dtype = Some(match required_value(flag, &values)? {
                     "auto" => VllmDtype::Auto,
                     "half" => VllmDtype::Half,
                     "float16" => VllmDtype::Float16,
@@ -324,15 +334,15 @@ fn parse_vllm_parameters(
                 });
             }
             "--trust-remote-code" => {
-                require_flag(flag, value)?;
+                require_flag(flag, &values)?;
                 options.trust_remote_code = true;
             }
             "--enforce-eager" => {
-                require_flag(flag, value)?;
+                require_flag(flag, &values)?;
                 options.enforce_eager = true;
             }
             "--kv-cache-dtype" => {
-                let value = required_value(flag, value)?;
+                let value = required_value(flag, &values)?;
                 if !matches!(value, "auto" | "fp8" | "fp8_e4m3" | "fp8_e5m2" | "fp8_inc") {
                     return Err(contract("unsupported vLLM KV cache dtype"));
                 }
@@ -344,20 +354,150 @@ fn parse_vllm_parameters(
             "--max-num-seqs" => {
                 options.extra_args.push(VllmExtraArg {
                     flag: flag.to_string(),
-                    value: Some(parse_positive_u32(flag, value)?.to_string()),
+                    value: Some(parse_positive_u32(flag, &values)?.to_string()),
                 });
             }
             "--enable-prefix-caching" => {
-                require_flag(flag, value)?;
+                require_flag(flag, &values)?;
                 options.extra_args.push(VllmExtraArg {
                     flag: flag.to_string(),
                     value: None,
                 });
             }
-            _ => return Err(contract(format!("unsupported backend parameter {flag}"))),
+            _ => options
+                .extra_argv
+                .extend(parameters[start..index].iter().cloned()),
         }
     }
     Ok(options)
+}
+
+fn flatten_backend_parameters(
+    parameters: Option<&[String]>,
+) -> Result<Vec<String>, ManagedRuntimePlanError> {
+    let mut tokens = Vec::new();
+    for parameter in parameters.unwrap_or_default() {
+        if parameter.contains(['\0', '\u{1f}']) {
+            return Err(contract(
+                "backend parameters contain a forbidden control character",
+            ));
+        }
+        let parameter = parameter.trim();
+        if parameter.is_empty() {
+            continue;
+        }
+        let first = parameter.split_whitespace().next().unwrap_or_default();
+        if is_parameter_token(first) {
+            tokens.extend(split_backend_expression(parameter)?);
+        } else {
+            tokens.push(parameter.to_string());
+        }
+    }
+    Ok(tokens)
+}
+
+fn split_backend_expression(expression: &str) -> Result<Vec<String>, ManagedRuntimePlanError> {
+    let (masked, replacements) = mask_inline_json(expression)?;
+    let normalized = normalize_backend_continuations(&masked);
+    let mut tokens = shlex::split(&normalized)
+        .ok_or_else(|| contract("backend parameters contain invalid quoting or escaping"))?;
+    for token in &mut tokens {
+        for (placeholder, json) in &replacements {
+            if token.contains(placeholder) {
+                *token = token.replace(placeholder, json);
+            }
+        }
+    }
+    Ok(tokens)
+}
+
+fn normalize_backend_continuations(expression: &str) -> String {
+    let mut normalized = expression.replace("\\\r\n", " ").replace("\\\n", " ");
+    let trimmed_len = normalized.trim_end().len();
+    let trailing_backslashes = normalized[..trimmed_len]
+        .chars()
+        .rev()
+        .take_while(|character| *character == '\\')
+        .count();
+    if trailing_backslashes % 2 == 1 {
+        normalized.truncate(trimmed_len - 1);
+    }
+    normalized
+}
+
+fn mask_inline_json(
+    expression: &str,
+) -> Result<(String, Vec<(String, String)>), ManagedRuntimePlanError> {
+    let characters = expression.chars().collect::<Vec<_>>();
+    let mut masked = String::new();
+    let mut replacements = Vec::new();
+    let mut index = 0;
+    while index < characters.len() {
+        if characters[index] == '='
+            && characters
+                .get(index + 1)
+                .is_some_and(|character| matches!(character, '{' | '['))
+        {
+            let start = index + 1;
+            let mut cursor = start;
+            let mut depth = 0_u32;
+            let mut in_string = false;
+            let mut escaped = false;
+            while cursor < characters.len() {
+                let character = characters[cursor];
+                if escaped {
+                    escaped = false;
+                } else if character == '\\' {
+                    escaped = true;
+                } else if character == '"' {
+                    in_string = !in_string;
+                } else if !in_string {
+                    if matches!(character, '{' | '[') {
+                        depth += 1;
+                    } else if matches!(character, '}' | ']') {
+                        depth = depth.saturating_sub(1);
+                        if depth == 0 {
+                            cursor += 1;
+                            break;
+                        }
+                    }
+                }
+                cursor += 1;
+            }
+            if depth != 0 || in_string {
+                return Err(contract(
+                    "backend parameters contain unterminated inline JSON",
+                ));
+            }
+            let json = characters[start..cursor].iter().collect::<String>();
+            let placeholder = format!("\u{1f}JSON_{}\u{1f}", replacements.len());
+            replacements.push((placeholder.clone(), json));
+            masked.push('=');
+            masked.push_str(&placeholder);
+            index = cursor;
+            continue;
+        }
+        masked.push(characters[index]);
+        index += 1;
+    }
+    Ok((masked, replacements))
+}
+
+fn is_parameter_token(token: &str) -> bool {
+    let flag = token.split_once('=').map_or(token, |(flag, _)| flag);
+    flag.starts_with("--") && flag.len() > 2
+}
+
+fn split_parameter_token(token: &str) -> Result<(&str, Option<&str>), ManagedRuntimePlanError> {
+    let (flag, value) = token
+        .split_once('=')
+        .map_or((token, None), |(flag, value)| (flag, Some(value)));
+    if !is_parameter_token(flag) || flag.chars().any(char::is_whitespace) {
+        return Err(contract(
+            "backend parameter values must follow a valid --flag",
+        ));
+    }
+    Ok((flag, value))
 }
 
 pub(super) fn managed_gpu_indexes_in_scope(indexes: Option<&[u32]>) -> bool {
@@ -367,8 +507,8 @@ pub(super) fn managed_gpu_indexes_in_scope(indexes: Option<&[u32]>) -> bool {
     (1..=2).contains(&indexes.len()) && indexes.windows(2).all(|pair| pair[0] < pair[1])
 }
 
-fn parse_positive_u32(flag: &str, value: Option<&str>) -> Result<u32, ManagedRuntimePlanError> {
-    let value = required_value(flag, value)?
+fn parse_positive_u32(flag: &str, values: &[&str]) -> Result<u32, ManagedRuntimePlanError> {
+    let value = required_value(flag, values)?
         .parse::<u32>()
         .map_err(|_| contract(format!("{flag} must be a positive integer")))?;
     if value == 0 {
@@ -377,17 +517,16 @@ fn parse_positive_u32(flag: &str, value: Option<&str>) -> Result<u32, ManagedRun
     Ok(value)
 }
 
-fn required_value<'a>(
-    flag: &str,
-    value: Option<&'a str>,
-) -> Result<&'a str, ManagedRuntimePlanError> {
-    value
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| contract(format!("{flag} requires an inline value")))
+fn required_value<'a>(flag: &str, values: &[&'a str]) -> Result<&'a str, ManagedRuntimePlanError> {
+    match values {
+        [value] if !value.is_empty() => Ok(value),
+        [] | [""] => Err(contract(format!("{flag} requires a value"))),
+        _ => Err(contract(format!("{flag} accepts exactly one value"))),
+    }
 }
 
-fn require_flag(flag: &str, value: Option<&str>) -> Result<(), ManagedRuntimePlanError> {
-    if value.is_some() {
+fn require_flag(flag: &str, values: &[&str]) -> Result<(), ManagedRuntimePlanError> {
+    if !values.is_empty() {
         return Err(contract(format!("{flag} does not accept a value")));
     }
     Ok(())
@@ -639,6 +778,7 @@ mod tests {
         assert_eq!(spec.vllm.dtype, Some(VllmDtype::Auto));
         assert!(spec.vllm.enforce_eager);
         assert!(spec.vllm.extra_args.is_empty());
+        assert!(spec.vllm.extra_argv.is_empty());
         assert_eq!(
             spec.labels.get(LABEL_MODEL_INSTANCE_ID).map(String::as_str),
             Some("301")
@@ -668,6 +808,29 @@ mod tests {
                 .any(|pair| pair == ["--max-num-seqs", "1"])
         );
         assert!(command.contains(&"--enable-prefix-caching".to_string()));
+    }
+
+    #[test]
+    fn planner_accepts_space_separated_structured_parameters() {
+        let mut fixture = Fixture::new();
+        fixture.model.backend_parameters = Some(vec![
+            "--tensor-parallel-size".to_string(),
+            "1".to_string(),
+            "--max-model-len 2048".to_string(),
+            "--gpu-memory-utilization 0.5".to_string(),
+            "--dtype auto".to_string(),
+            "--trust-remote-code".to_string(),
+            "--enforce-eager".to_string(),
+        ]);
+
+        let spec = fixture.spec();
+
+        assert_eq!(spec.vllm.max_model_len, Some(2048));
+        assert_eq!(spec.vllm.gpu_memory_utilization, Some(0.5));
+        assert_eq!(spec.vllm.dtype, Some(VllmDtype::Auto));
+        assert!(spec.vllm.trust_remote_code);
+        assert!(spec.vllm.enforce_eager);
+        assert!(spec.vllm.extra_argv.is_empty());
     }
 
     #[test]
@@ -757,7 +920,7 @@ mod tests {
     }
 
     #[test]
-    fn planner_rejects_unknown_parameters_and_assignment_drift() {
+    fn planner_rejects_protected_parameters_and_assignment_drift() {
         let mut fixture = Fixture::new();
         fixture
             .model
@@ -769,9 +932,9 @@ mod tests {
             fixture
                 .planner
                 .plan(&fixture.model, &fixture.instance)
-                .expect_err("unknown flag")
+                .expect_err("protected flag")
                 .to_string()
-                .contains("unsupported backend parameter")
+                .contains("Worker-controlled")
         );
 
         fixture.model.backend_parameters = Some(vec!["--tensor-parallel-size=1".to_string()]);
@@ -784,6 +947,57 @@ mod tests {
                 .to_string()
                 .contains("assigned to worker")
         );
+    }
+
+    #[test]
+    fn planner_passes_through_unknown_parameters_with_python_compatible_shapes() {
+        let mut fixture = Fixture::new();
+        fixture.model.backend_parameters.as_mut().unwrap().extend([
+            "--safetensors-load-strategy prefetch".to_string(),
+            "--lora-modules adapter-a adapter-b".to_string(),
+            "--disable-log-requests".to_string(),
+            "--disable-log-requests".to_string(),
+            "--compilation-config={\"level\": 3, \"use_cudagraph\": true}".to_string(),
+        ]);
+
+        let spec = fixture.spec();
+
+        assert_eq!(
+            spec.vllm.extra_argv,
+            [
+                "--safetensors-load-strategy",
+                "prefetch",
+                "--lora-modules",
+                "adapter-a",
+                "adapter-b",
+                "--disable-log-requests",
+                "--disable-log-requests",
+                "--compilation-config={\"level\": 3, \"use_cudagraph\": true}",
+            ]
+        );
+        assert!(spec.vllm_command().ends_with(&spec.vllm.extra_argv));
+    }
+
+    #[test]
+    fn planner_tolerates_a_pasted_trailing_line_continuation() {
+        let mut fixture = Fixture::new();
+        fixture.model.backend_parameters = Some(vec!["--disable-log-requests \\".to_string()]);
+
+        assert_eq!(fixture.spec().vllm.extra_argv, ["--disable-log-requests"]);
+    }
+
+    #[test]
+    fn planner_rejects_malformed_or_orphan_backend_parameters() {
+        for parameter in [
+            "orphan-value",
+            "--flag='unterminated",
+            "--compilation-config={\"level\": 3",
+        ] {
+            let mut fixture = Fixture::new();
+            fixture.model.backend_parameters = Some(vec![parameter.to_string()]);
+
+            assert!(!fixture.spec_error().is_empty());
+        }
     }
 
     #[test]

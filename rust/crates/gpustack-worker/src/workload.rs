@@ -108,6 +108,8 @@ pub struct VllmOptions {
     pub trust_remote_code: bool,
     pub enforce_eager: bool,
     pub extra_args: Vec<VllmExtraArg>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_argv: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -312,6 +314,7 @@ impl WorkloadSpecV2 {
                 command.push(value.clone());
             }
         }
+        command.extend(self.vllm.extra_argv.iter().cloned());
         command
     }
 
@@ -547,6 +550,7 @@ fn validate_request(request: &WorkloadBuildRequest) -> Result<(), WorkloadError>
     for argument in &request.vllm.extra_args {
         validate_extra_arg(argument)?;
     }
+    validate_extra_argv(&request.vllm.extra_argv)?;
     Ok(())
 }
 
@@ -609,43 +613,88 @@ fn validate_container_user(value: &str) -> Result<(), WorkloadError> {
 }
 
 fn validate_extra_arg(argument: &VllmExtraArg) -> Result<(), WorkloadError> {
-    if !argument.flag.starts_with("--")
-        || argument.flag.len() <= 2
-        || argument.flag.contains('=')
-        || argument.flag.chars().any(char::is_whitespace)
-    {
-        return invalid("extra vLLM arguments must use a standalone --flag");
-    }
-    const PROTECTED: &[&str] = &[
-        "--host",
-        "--port",
-        "--served-model-name",
-        "--tensor-parallel-size",
-        "--pipeline-parallel-size",
-        "--data-parallel-size",
-        "--distributed-executor-backend",
-        "--device",
-        "--model",
-        "--model-tag",
-        "--download-dir",
-        "--max-model-len",
-        "--gpu-memory-utilization",
-        "--dtype",
-        "--trust-remote-code",
-        "--enforce-eager",
-        "--api-key",
-        "--ssl-keyfile",
-        "--ssl-certfile",
-    ];
-    if PROTECTED.contains(&argument.flag.as_str()) {
-        return invalid("extra vLLM argument overrides a Worker-controlled option");
-    }
+    validate_extra_flag(&argument.flag)?;
     if argument
         .value
         .as_deref()
         .is_some_and(|value| value.starts_with("--") || value.contains('\0'))
     {
         return invalid("extra vLLM argument value cannot inject another flag or contain NUL");
+    }
+    Ok(())
+}
+
+const PROTECTED_VLLM_FLAGS: &[&str] = &[
+    "--host",
+    "--port",
+    "--served-model-name",
+    "--served_model_name",
+    "--tensor-parallel-size",
+    "--tensor_parallel_size",
+    "--pipeline-parallel-size",
+    "--pipeline_parallel_size",
+    "--data-parallel-size",
+    "--data_parallel_size",
+    "--distributed-executor-backend",
+    "--distributed_executor_backend",
+    "--device",
+    "--model",
+    "--model-tag",
+    "--model_tag",
+    "--download-dir",
+    "--download_dir",
+    "--max-model-len",
+    "--max_model_len",
+    "--gpu-memory-utilization",
+    "--gpu_memory_utilization",
+    "--dtype",
+    "--trust-remote-code",
+    "--trust_remote_code",
+    "--enforce-eager",
+    "--enforce_eager",
+    "--api-key",
+    "--api_key",
+    "--ssl-keyfile",
+    "--ssl_keyfile",
+    "--ssl-certfile",
+    "--ssl_certfile",
+    "--config",
+];
+
+fn validate_extra_flag(flag: &str) -> Result<(), WorkloadError> {
+    if !flag.starts_with("--")
+        || flag.len() <= 2
+        || flag.contains('=')
+        || flag.chars().any(char::is_whitespace)
+    {
+        return invalid("extra vLLM arguments must use a standalone --flag");
+    }
+    if PROTECTED_VLLM_FLAGS.contains(&flag) {
+        return invalid("extra vLLM argument overrides a Worker-controlled option");
+    }
+    Ok(())
+}
+
+fn validate_extra_argv(arguments: &[String]) -> Result<(), WorkloadError> {
+    let mut saw_flag = false;
+    for argument in arguments {
+        if argument.contains('\0') {
+            return invalid("extra vLLM argv cannot contain NUL");
+        }
+        if argument.starts_with("--") {
+            let flag = argument
+                .split_once('=')
+                .map_or(argument.as_str(), |(flag, _)| flag);
+            validate_extra_flag(flag)?;
+            saw_flag = true;
+            continue;
+        }
+        if argument == "--"
+            || (argument.starts_with('-') && argument.parse::<f64>().is_err())
+            || !saw_flag
+        {
+            return invalid("extra vLLM argv values must follow a valid --flag");
+        }
     }
     Ok(())
 }
@@ -740,6 +789,7 @@ mod tests {
                     flag: "--disable-log-requests".to_string(),
                     value: None,
                 }],
+                extra_argv: Vec::new(),
             },
             environment: BTreeMap::from([
                 ("B_KEY".to_string(), "b".to_string()),
@@ -769,6 +819,13 @@ mod tests {
         assert_eq!(first.spec_hash, second.spec_hash);
         assert_eq!(first.spec_hash.len(), 64);
         assert_eq!(first.labels.get(LABEL_SPEC_HASH), Some(&first.spec_hash));
+    }
+
+    #[test]
+    fn empty_generic_argv_keeps_the_legacy_vllm_manifest_shape() {
+        let value = serde_json::to_value(VllmOptions::default()).expect("serialize options");
+
+        assert!(value.get("extra_argv").is_none());
     }
 
     #[test]
@@ -862,6 +919,40 @@ mod tests {
         let error = WorkloadSpecV2::build(request).expect_err("port override must fail");
 
         assert!(error.to_string().contains("Worker-controlled"));
+    }
+
+    #[test]
+    fn generic_vllm_argv_preserves_order_repetition_and_multiple_values() {
+        let mut request = request();
+        request.vllm.extra_argv = vec![
+            "--lora-modules".to_string(),
+            "adapter-a".to_string(),
+            "adapter-b".to_string(),
+            "--disable-log-requests".to_string(),
+            "--disable-log-requests".to_string(),
+            "--rope-scaling={\"type\": \"linear\", \"factor\": 2}".to_string(),
+        ];
+
+        let spec = WorkloadSpecV2::build(request).expect("build generic vLLM argv");
+        let command = spec.vllm_command();
+
+        assert!(command.ends_with(&spec.vllm.extra_argv));
+        assert!(spec.verify_integrity().is_ok());
+    }
+
+    #[test]
+    fn generic_vllm_argv_rejects_protected_flags_and_orphan_values() {
+        for arguments in [
+            vec!["--host=0.0.0.0".to_string()],
+            vec!["--tensor_parallel_size=2".to_string()],
+            vec!["--config".to_string(), "/tmp/vllm.yaml".to_string()],
+            vec!["orphan".to_string()],
+        ] {
+            let mut request = request();
+            request.vllm.extra_argv = arguments;
+
+            assert!(WorkloadSpecV2::build(request).is_err());
+        }
     }
 
     #[test]

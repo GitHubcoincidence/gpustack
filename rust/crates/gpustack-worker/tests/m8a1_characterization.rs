@@ -38,6 +38,7 @@ fn managed_request(gpus: Vec<WorkloadGpu>) -> WorkloadBuildRequest {
             trust_remote_code: false,
             enforce_eager: true,
             extra_args: Vec::new(),
+            extra_argv: Vec::new(),
         },
         environment: BTreeMap::new(),
     }

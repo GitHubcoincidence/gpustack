@@ -541,6 +541,7 @@ fn build_lab_deploy_request(arguments: LabDeployArgs) -> Result<LabDeployRequest
             trust_remote_code: arguments.trust_remote_code,
             enforce_eager: arguments.enforce_eager,
             extra_args,
+            extra_argv: Vec::new(),
         },
         environment: Default::default(),
     })
