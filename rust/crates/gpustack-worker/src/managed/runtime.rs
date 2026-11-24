@@ -13,8 +13,8 @@ use crate::runtime_core::{
     OwnedContainer, RuntimeCoreError, discover_owned_container, resolve_immutable_image,
 };
 use crate::workload::{
-    LABEL_MODEL_INSTANCE_ID, VllmDtype, VllmOptions, WorkloadBuildRequest, WorkloadError,
-    WorkloadGpu, WorkloadMode, WorkloadSpecV2,
+    LABEL_MODEL_INSTANCE_ID, VllmDtype, VllmExtraArg, VllmOptions, WorkloadBuildRequest,
+    WorkloadError, WorkloadGpu, WorkloadMode, WorkloadSpecV2,
 };
 
 use super::{LocalModelResolver, MANAGED_PORT_END, MANAGED_PORT_START, ResolveError};
@@ -331,6 +331,29 @@ fn parse_vllm_parameters(
                 require_flag(flag, value)?;
                 options.enforce_eager = true;
             }
+            "--kv-cache-dtype" => {
+                let value = required_value(flag, value)?;
+                if !matches!(value, "auto" | "fp8" | "fp8_e4m3" | "fp8_e5m2" | "fp8_inc") {
+                    return Err(contract("unsupported vLLM KV cache dtype"));
+                }
+                options.extra_args.push(VllmExtraArg {
+                    flag: flag.to_string(),
+                    value: Some(value.to_string()),
+                });
+            }
+            "--max-num-seqs" => {
+                options.extra_args.push(VllmExtraArg {
+                    flag: flag.to_string(),
+                    value: Some(parse_positive_u32(flag, value)?.to_string()),
+                });
+            }
+            "--enable-prefix-caching" => {
+                require_flag(flag, value)?;
+                options.extra_args.push(VllmExtraArg {
+                    flag: flag.to_string(),
+                    value: None,
+                });
+            }
             _ => return Err(contract(format!("unsupported backend parameter {flag}"))),
         }
     }
@@ -621,6 +644,59 @@ mod tests {
             Some("301")
         );
         assert_eq!(spec.spec_hash.len(), 64);
+    }
+
+    #[test]
+    fn planner_accepts_common_safe_vllm_cache_and_batching_options() {
+        let mut fixture = Fixture::new();
+        fixture.model.backend_parameters.as_mut().unwrap().extend([
+            "--kv-cache-dtype=fp8".to_string(),
+            "--max-num-seqs=1".to_string(),
+            "--enable-prefix-caching".to_string(),
+        ]);
+
+        let command = fixture.spec().vllm_command();
+
+        assert!(
+            command
+                .windows(2)
+                .any(|pair| pair == ["--kv-cache-dtype", "fp8"])
+        );
+        assert!(
+            command
+                .windows(2)
+                .any(|pair| pair == ["--max-num-seqs", "1"])
+        );
+        assert!(command.contains(&"--enable-prefix-caching".to_string()));
+    }
+
+    #[test]
+    fn planner_rejects_invalid_safe_vllm_option_values() {
+        let mut invalid_dtype = Fixture::new();
+        invalid_dtype
+            .model
+            .backend_parameters
+            .as_mut()
+            .unwrap()
+            .push("--kv-cache-dtype=unknown".to_string());
+        assert!(
+            invalid_dtype
+                .spec_error()
+                .contains("unsupported vLLM KV cache dtype")
+        );
+
+        let mut invalid_batch_size = Fixture::new();
+        invalid_batch_size
+            .model
+            .backend_parameters
+            .as_mut()
+            .unwrap()
+            .push("--max-num-seqs=0".to_string());
+        assert!(
+            invalid_batch_size
+                .spec_error()
+                .contains("--max-num-seqs must be a positive integer")
+        );
     }
 
     #[test]
