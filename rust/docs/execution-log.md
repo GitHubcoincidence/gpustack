@@ -7887,3 +7887,38 @@
   均PASS。
 - 当前停止位置：`ready_for_review`。成功终态保留Model 21/Instance 87 running、Worker 17 ready和
   maintenance disabled，供下一独立推理与日志门使用；本阶段没有调用chat/completion，也没有清理模型。
+
+### 2026-11-24：106推理通过、CLI日志因Rust Server过滤契约停止
+
+- 用户接受对running的Model 21执行独立推理与日志门，不改变replicas、maintenance、容器或GPU配置。
+  正式输入固定为Model `rust-rs6-106-qwen25-05b-gpu0`、prompt
+  `Reply with exactly RUST_WORKER_OK.`、max tokens 16、非stream；日志请求固定为Model 21、tail 80。
+- `inference models`退出码0并包含目标模型；`inference chat`退出码0，返回非空content
+  `Rust worker process is successfully started.`，usage为prompt 38、completion 9、total 47。模型未逐字
+  遵循prompt不影响本门链路判定；请求前后Model 21/Instance 87均running、容器ID不变且restart count 0，
+  vLLM health为200。
+- CLI `model logs 21 --tail 80`退出码30且没有日志正文，错误为该Model有3个ModelInstance而R1日志要求
+  恰好1个。原始目录
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-inference-logs-20261124T021214Z`
+  在严格日志门返回STOP后因`errexit`于封存前退出，固定为`UNSEALED_PARTIAL_RESULT`；其中推理结果有效，
+  但该目录不得作为正式manifest。
+- 接口对照确认Rust Server的`GET /v2/model-instances?page=-1&model_id=21`等价查询忽略`model_id`，返回
+  全局Instance 83、87和90；其OpenAPI也只声明page、perPage和watch。原始Python GPUStack同一路由明确
+  支持model_id过滤，Rust CLI的Model status/logs及deploy wait均依赖该契约，因此Rust Server当前实现
+  不符合原始接口。Rust Server的`GET /v2/models/21/instances`正确只返回Instance 87。
+- 直接调用`GET /v2/model-instances/87/logs?tail=80&follow=false`返回HTTP 200和7194字节真实vLLM日志，
+  证明Rust Server到Rust Worker的精确Instance日志传输链可用；CLI诊断重试仍因被忽略的model_id过滤
+  看到3个全局Instance并退出30。该失败不是Worker日志采集、vLLM容器或日志内容失败。
+- 诊断期间曾观察18091短暂拒绝连接，随后出现启动于`2026-11-24 10:15:20 +08:00`的新
+  `gpustack-server`进程并恢复Server、Worker和vLLM health 200。直接日志请求在拒绝连接后才准备执行，
+  现有证据不能证明日志请求导致重启，故因果固定为undetermined，不作推断。重启后Model 21/Instance 87
+  持续running、Worker 17 ready、容器restart count 0且GPU0仅有目标compute进程。
+- 正式裁决目录为
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-inference-logs-adjudication-20261124T021651Z`，
+  manifest SHA-256为
+  `021533c45521e4088b170867a62bdea09e4941b3727ad6938d692a9bec1cbd97`；manifest自校验和秘密扫描均
+  PASS。
+- 当前停止位置：`server_model_id_filter_compatibility_bug`。推理子门PASS，CLI日志子门STOP；不得把直接
+  Instance日志PASS冒充CLI日志PASS。下一步须决定双轨修正：Rust Server补齐原始GPUStack的model_id
+  过滤契约，同时Rust CLI可改用双方均已实现的规范`/v2/models/{id}/instances`端点进行兼容加固；修改后
+  必须补回归测试并在106重跑`model status`、`model logs`，无需重建或重启当前vLLM模型。
