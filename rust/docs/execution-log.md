@@ -7996,3 +7996,46 @@
 - 当前停止位置：`ready_for_review`。该门证明路径兼容、Server控制面、ModelFile、Docker/vLLM、GPU0
   和Worker推理代理完整闭环；尚未把宿主机进程证据提升为M8容器化Worker证据，也不自动授权下一
   容器化阶段。
+
+### 2026-11-24：vLLM参数安全透传实现与无重建接管验证
+
+- 用户接受D320分层方案：TP、最大模型长度、显存比例、dtype、remote code、eager及D319三项继续
+  由Rust结构化解析；其他合法vLLM argv保序透传。模型/监听/GPU与并行所有权、下载目录、凭据、TLS、
+  配置文件和对应下划线别名保持保护，畸形引用、NUL、孤立值及非法flag继续拒绝。
+- 产品实现为`VllmOptions.extra_argv`增加空值不序列化的通用argv层，使用`shlex`并对齐Python
+  Worker的列表拼接、粘贴命令、引号、内联JSON和行继续符语义。既有三项常用参数仍生成原
+  `extra_args`形状，因此当前实例的spec hash不变；CLI/Lab构造显式初始化空通用argv。
+- 新增回归覆盖顺序、重复、多值、空格/等号结构化参数、内联JSON、尾随行继续符、保护参数横线/
+  下划线别名、孤立值和旧manifest序列化形状。90上Rustfmt、全workspace离线测试及
+  all-targets Clippy `-D warnings`全部通过；Worker crate为178项单测、3项特征测试和6项包契约测试。
+  第一次最终门因文件上传到错误的`src/runtime.rs`而未覆盖`managed/runtime.rs`最后补丁，判为无效；
+  误传文件删除并按正确路径重跑完整门后通过，没有修改运行服务。
+- 产品提交`c0ee0c1ab6b88aa1ae97a58962de6f3d6f1dd410`（
+  `refactor(worker): pass through safe vllm parameters`）已推送。90弱网同步使用5,556字节Git bundle，
+  精确stash七个同内容文件后fast-forward；stash、远端bundle和本地bundle均删除，90工作树干净。
+- 从该提交构建的二进制报告commit`c0ee0c1ab6b8`，SHA-256为
+  `9977d7bc9c48203351effd7fcc5b810af3d723ab69924946e691638889d31aa7`。构建成功后的第一次身份命令
+  错用`version --json`，仅CLI参数解析失败；改用受支持的`--output json version`后身份门通过。
+- 正式窗口前发现用户侧运行基线已从Instance 91变化为Instance 95；旧名字容器不存在的预检因此
+  STOP且没有写入。重新只读冻结Model 20唯一Instance 95、Worker 22、GPU0和容器
+  `gpustack-rs-managed-95`后继续；GPU1的外部任务始终只观察。升级前直连vLLM返回HTTP 200及非空
+  生成内容，模型因`max_tokens=8`输出思考文本并以length结束，未把非字面`OK`误判为接口失败。
+- 临时非active self Context只引用Worker 22的0600持久系统token。旧PID 2562596运行
+  `b323bbfa7983`；其inode先保存为回滚件。启用maintenance后精确停止旧PID，以原argv启动新PID
+  3178404。新进程health/metrics、Server心跳和maintenance门通过后观察15秒，再恢复ready。
+- 升级前后保持同一Instance 95、端口40000和容器ID
+  `f59cb3341115e0059b587f7fd3a1a1873182511bec46f2c2fb77dba649aec072`；容器启动时间仍为
+  `2026-11-24T08:33:48.380816276Z`、restart count为0、spec hash仍为
+  `f9afcc651007bfaa5e55f050c104f94d041d2b256924ea0780531e4dea9054c4`。升级后及独立后审推理均
+  HTTP 200且返回非空内容，证明Worker接管没有重建或重启vLLM。
+- 最终Worker 22为ready、unreachable false、maintenance disabled；Model 20的Instance 95仍running
+  且绑定GPU0。GPU0 vLLM约使用71.66 GiB；GPU1后审时是外部Python进程约78.998 GiB，本阶段没有
+  操作GPU1。临时Context和约178 MiB回滚二进制已删除，持久registration token原文件保持0600、
+  单硬链接且未输出内容。
+- 证据目录为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/vllm-parameter-passthrough`：52个文件、
+  876,636字节、全部0600、无symlink、秘密扫描0命中；`manifest.sha256`自身SHA-256为
+  `2078452196e6885c77067f31459b718acbbb237eac3620575814fbdfdb301228`。原始日志不进入Git。
+- 当前停止位置：`ready_for_review`。产品实现、离线兼容门和现有vLLM无重建接管均已完成；通用
+  passthrough的真实新参数样本留待后续Server下发时补充。本结果不等同于Worker容器化验证，下一步
+  只能由用户审阅并决定是否接受，再继续M8容器化。

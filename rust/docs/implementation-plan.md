@@ -1410,3 +1410,24 @@ configured model roots`；切换到`0b5e7a6a`后路径错误消失，并暴露Se
 `/opt/models/Qwen--Qwen3.8-27B-FP8`和GPU0完成`error -> starting -> running`。Worker代理推理返回
 HTTP 200及`OK`，GPU1未使用。临时maintenance已关闭，Worker恢复ready，目标模型继续运行供用户
 审阅。本门为`ready_for_review`；接受后才把结果标记为accepted并继续后续容器化阶段。
+
+## 2026-11-24 vLLM参数分层解析与安全透传
+
+在D319证明三个真实参数可运行后，把Managed参数兼容从逐项allowlist收敛为两层契约：Worker拥有的
+资源与安全参数继续由Rust结构化解析、校验并生成规范命令；其他合法vLLM参数按原Python Worker的
+argv语义透明传递。透明层必须保留参数顺序、重复项和多值，兼容`--key=value`、`--key value`、
+粘贴命令、引号、行继续符及内联JSON。保护列表同时覆盖横线与下划线别名，防止通过别名覆盖模型、
+监听、GPU/并行、下载目录、凭据、TLS或配置文件边界。
+
+实现门包含：引入已在lockfile中的`shlex`直接依赖；在`VllmOptions`增加空值不序列化的
+`extra_argv`；对通用argv执行语法和保护列表验证；增加Python兼容形状、顺序/重复/多值、JSON、
+行继续符、孤立值、保护参数及旧manifest形状回归。接受门为Rustfmt、全workspace离线测试和
+all-targets Clippy `-D warnings`全部通过，且本地与90源码哈希一致。
+
+运行回归只验证升级安全，不通过改动用户Model来制造新的通用参数：在maintenance和旧二进制回滚
+保护下，用相同argv热替换Worker；要求新进程恢复相同Worker身份，并在稳定窗口内保持同一Instance、
+容器ID、启动时间、restart count和spec hash，推理仍成功。该门证明空`extra_argv`不会重建已有
+vLLM；通用参数实际传递由离线命令构造测试证明，未来遇到真实新参数时再补端到端样本。
+
+产品提交`c0ee0c1a`已完成实现和90运行验证。当前为`ready_for_review`；它不把宿主机进程验证提升为
+Worker容器化证据，也不自动进入M8真实容器部署。
