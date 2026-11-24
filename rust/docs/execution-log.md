@@ -8174,3 +8174,31 @@
 - 当前停止位置：`M8-EMB.4 ready_to_implement`。下一步实现非流式embeddings client、重复input与
   可选encoding-format请求、完整JSON和有限table摘要，并补URL/认证/请求、float/base64响应、错误
   脱敏和chat/completion无回归测试；不连接真实Server、不操作Worker、Docker或GPU。
+
+### 2026-11-25：M8-EMB.4 Server client与CLI实现完成
+
+- 产品实现：提交`92184388070f961e8bbc1fbed4a3ec3c84691829`（
+  `feat(cli): invoke embedding inference`）为既有`ServerClient`增加带操作员token的非流式
+  `POST v1/embeddings`，复用统一URL拼接、JSON编码、超时、错误解码和secret脱敏；没有新增传输层
+  或Worker直连入口。
+- CLI契约：新增
+  `inference embeddings --model --input [--input ...] [--encoding-format float|base64]`。单个input
+  保持OpenAI兼容字符串，多次input按原顺序生成数组，省略encoding-format时请求中也省略该字段；
+  空模型、缺失或空input及未知编码在传输前拒绝。命令始终使用active Context指向的Server。
+- 输出契约：JSON模式对Server完整响应做语义等价输出，不删除向量或usage字段。table模式验证响应
+  结构后输出model、prompt/total tokens、每项index、dimension、encoding及有限preview；float维度
+  使用数组长度，base64只接受标准字符与padding并按解码后的float32字节数计算维度。非法响应在
+  人类可读模式按client contract错误失败，不猜测或截断为成功结果。
+- 回归证据：client测试验证精确URL`/base/v1/embeddings`、POST、JSON accept、请求body、超时和
+  401正文中的操作员token脱敏；CLI测试验证单/多输入请求、字段省略、float完整JSON、float/base64
+  table摘要、预览上限及参数fail closed。固定fixture只包含合成模型和向量，不依赖网络、数据库或
+  GPU。
+- 90离线质量门：固定Rust 1.99.1/Cargo 1.99.1下Rustfmt与`git diff --check`通过；client定向1项、
+  CLI embedding定向3项和workspace全套256项测试通过；all-targets Clippy `-D warnings`及workspace
+  locked/offline build通过。第一次Clippy只报告可用`is_multiple_of`替代手写取模，修正两处后重新
+  执行定向测试、Clippy、完整256项测试和最终构建，全部退出0；前次结果不作为最终计分证据。
+- 同步与外部边界：本地和90的六个实现/fixture文件在提交前逐项SHA-256一致。90生成单提交Git
+  bundle并由本机fast-forward后推送GitHub；用户既有未跟踪`output/`未暂存或修改。本阶段未连接
+  业务Server、未启动或重启Worker/vLLM、未创建或修改Server资源、未操作Docker或占用GPU。
+- 当前停止位置：`M8-EMB.4 ready_for_review`。下一步只允许用户审阅实现与验证报告；接受后才能
+  标记EMB.4为`accepted`并进入M8-EMB.5聚合离线质量门。M8-B及EMB.6/EMB.7真实环境验证均未授权。

@@ -1533,3 +1533,15 @@ Clippy `-D warnings`和locked/offline build全部通过。本门无业务Server�
 `inference embeddings --model --input [--input ...] [--encoding-format float|base64]`。JSON输出保留
 完整响应，table输出只显示model、index、维度、编码、usage和有限预览；命令只调用active Context
 的Server，不连接Worker或实例端口。本授权仍不包含真实Server、Worker/vLLM、Docker或GPU操作。
+
+M8-EMB.4产品提交`92184388070f961e8bbc1fbed4a3ec3c84691829`已在既有Server client增加
+非流式`POST /v1/embeddings`，并把`inference embeddings`接入active Context。单个`--input`
+序列化为字符串，重复输入序列化为数组；未指定`--encoding-format`时不发送该字段。JSON模式保留
+完整响应，table模式只输出model、usage、index、维度、编码和有界预览；base64维度按标准编码的
+float32字节数计算，没有引入新依赖或Worker直连路径。
+
+90上的Rustfmt、client与CLI定向回归、workspace 256项测试、all-targets Clippy `-D warnings`和
+locked/offline build全部通过；认证URL、请求JSON、float/base64响应、错误脱敏和参数前置拒绝均有
+离线回归。本门没有连接业务Server、启动Worker/vLLM、操作Docker或使用GPU。当前为
+`M8-EMB.4 ready_for_review`；用户接受详细报告后才进入M8-EMB.5聚合离线质量门，M8-B和真实环境
+验证继续暂停。
