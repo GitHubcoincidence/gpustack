@@ -8122,3 +8122,14 @@
 - 外部边界与停止位置：本门没有发起业务Server请求、启动或重启Worker/vLLM、创建Server资源、
   操作Docker或占用GPU。当前为`M8-EMB.2 ready_for_review`；只有用户接受本阶段详细报告后才允许
   实现M8-EMB.3生产`POST /v1/embeddings`路由，M8-B及真实环境门继续暂停。
+
+### 2026-11-24：M8-EMB.2验收与M8-EMB.3启动门
+
+- 用户验收：用户接受M8-EMB.2的CLI语义、D320贯穿实现、250项workspace回归与外部零影响报告。
+  产品提交`a20abc39`和治理提交`78c4c592`标记为`accepted`。
+- 漂移审计：当前分支、GitHub和90已验证基线均为`78c4c592`；唯一公开入口仍为普通
+  `worker run`，七项全局readiness、同一健康route table及既有认证边界未变。EMB.3不引入新依赖、
+  新状态或第二套代理，只把冻结的embedding路径接入现有推理router，因此结论为`aligned`。
+- 当前停止位置：`M8-EMB.3 ready_to_implement`。下一步只实现生产`POST /v1/embeddings`路由、
+  同源OpenAPI、静态artifact、人工指南和离线回归；不连接业务Server、不启动Worker/vLLM、不操作
+  Docker或GPU。完成后先交付详细实现报告和用户验收，再进入EMB.4。

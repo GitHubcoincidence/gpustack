@@ -1507,3 +1507,9 @@ Worker贯穿1项、workspace 250项测试、all-targets Clippy `-D warnings`和l
 通过，CLI help与历史Worker模式参数检查也通过。本门没有业务Server请求、Worker/vLLM进程、Docker
 或GPU操作。当前为`M8-EMB.2 ready_for_review`；用户接受详细报告后才进入M8-EMB.3 Worker
 `POST /v1/embeddings`接口实现。
+
+用户已接受M8-EMB.2的显式runner契约、贯穿证据与250项workspace回归，产品提交`a20abc39`及
+治理提交`78c4c592`标记为`accepted`。M8-EMB.3现为`ready_to_implement`：只在既有生产
+`inference_routes`、同源OpenAPI和Worker API指南中增加`POST /v1/embeddings`，并补认证、目标
+路由、请求/响应、header和错误边界的离线回归。不得增加embedding专用runtime/readiness，也不得
+在本授权下连接业务Server、启动Worker/vLLM、操作Docker或使用GPU。
