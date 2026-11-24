@@ -33,22 +33,6 @@ pub fn run_doctor(config: &WorkerConfig) -> DoctorReport {
     checks.push(inspect_or_defer_directory("data_dir", &config.data_dir));
     checks.push(inspect_or_defer_directory("log_dir", &config.log_dir));
 
-    if config.model_roots.is_empty() {
-        checks.push(DiagnosticCheck::warn(
-            "model_roots",
-            "no local model root is configured",
-        ));
-    } else {
-        checks.extend(config.model_roots.iter().enumerate().map(|(index, path)| {
-            inspect_path(
-                &format!("model_root[{index}]"),
-                path,
-                PathKind::Directory,
-                true,
-            )
-        }));
-    }
-
     if let Some(token_file) = &config.token_file {
         checks.push(inspect_path("token_file", token_file, PathKind::File, true));
         checks.push(check_token_permissions(token_file));
@@ -130,7 +114,6 @@ mod tests {
             token_file: None,
             data_dir: directory.path().join("data"),
             log_dir: directory.path().join("logs"),
-            model_roots: vec![directory.path().to_path_buf()],
             docker_socket: socket_path,
         };
 

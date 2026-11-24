@@ -869,7 +869,6 @@ fn render_config_table(result: &ConfigValidation<'_>) -> String {
     writeln!(output, "data_dir: {}", config.data_dir.display()).expect("write to String");
     writeln!(output, "log_dir: {}", config.log_dir.display()).expect("write to String");
     writeln!(output, "docker_socket: {}", config.docker_socket.display()).expect("write to String");
-    writeln!(output, "model_roots: {}", config.model_roots.len()).expect("write to String");
     writeln!(
         output,
         "token_file: {}",
@@ -1132,6 +1131,7 @@ mod tests {
             "--resource-api-only",
             "--managed-file-only",
             "--managed-runtime",
+            "--model-root",
         ] {
             assert!(
                 Cli::try_parse_from(["gpustack-rs", "worker", "run", removed_mode]).is_err(),

@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
 use std::time::Duration;
 
 use futures_util::StreamExt;
@@ -34,7 +33,6 @@ pub struct LabService<'a> {
     http: &'a dyn LabHttpClient,
     clock: &'a dyn LabClock,
     ids: &'a dyn LabIdSource,
-    model_roots: &'a [PathBuf],
     container_user: &'a str,
 }
 
@@ -50,7 +48,6 @@ impl<'a> LabService<'a> {
         http: &'a dyn LabHttpClient,
         clock: &'a dyn LabClock,
         ids: &'a dyn LabIdSource,
-        model_roots: &'a [PathBuf],
         container_user: &'a str,
     ) -> Self {
         Self {
@@ -62,7 +59,6 @@ impl<'a> LabService<'a> {
             http,
             clock,
             ids,
-            model_roots,
             container_user,
         }
     }
@@ -82,7 +78,7 @@ impl<'a> LabService<'a> {
             .as_ref()
             .map(|deployment| deployment.lab_id.clone())
             .map_or_else(|| self.ids.next_id(), Ok)?;
-        let model_path = self.paths.resolve(self.model_roots, &request.model_path)?;
+        let model_path = self.paths.resolve(&request.model_path)?;
         let image = self.resolve_image(&request.image).await?;
         let gpu = self.gpus.resolve(&request.gpu)?;
         let port = match (request.port, existing.as_ref()) {
@@ -647,7 +643,6 @@ pub struct LabEnvironment {
     http: ReqwestLabHttpClient,
     clock: SystemLabClock,
     ids: KernelUuidSource,
-    model_roots: Vec<PathBuf>,
     container_user: String,
 }
 
@@ -662,7 +657,6 @@ impl LabEnvironment {
             http: ReqwestLabHttpClient::new(request_timeout)?,
             clock: SystemLabClock,
             ids: KernelUuidSource,
-            model_roots: config.model_roots.clone(),
             container_user: current_container_user()?,
         })
     }
@@ -678,7 +672,6 @@ impl LabEnvironment {
             &self.http,
             &self.clock,
             &self.ids,
-            &self.model_roots,
             &self.container_user,
         )
     }
@@ -900,6 +893,7 @@ fn state_name(state: LabState) -> &'static str {
 mod tests {
     use std::collections::{BTreeMap, BTreeSet, VecDeque};
     use std::future::Future;
+    use std::path::PathBuf;
     use std::pin::Pin;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
@@ -1215,11 +1209,7 @@ mod tests {
     struct FakePath;
 
     impl ModelPathResolver for FakePath {
-        fn resolve(
-            &self,
-            _roots: &[PathBuf],
-            requested: &std::path::Path,
-        ) -> Result<PathBuf, LabError> {
+        fn resolve(&self, requested: &std::path::Path) -> Result<PathBuf, LabError> {
             Ok(requested.to_path_buf())
         }
     }
@@ -1305,7 +1295,6 @@ mod tests {
         http: FakeHttp,
         clock: FakeClock,
         ids: FakeIds,
-        roots: Vec<PathBuf>,
         container_user: String,
     }
 
@@ -1326,7 +1315,6 @@ mod tests {
                     "lab-a".to_string(),
                     "lab-b".to_string(),
                 ]))),
-                roots: vec![PathBuf::from("/models")],
                 container_user: "1004:1004".to_string(),
             }
         }
@@ -1341,7 +1329,6 @@ mod tests {
                 &self.http,
                 &self.clock,
                 &self.ids,
-                &self.roots,
                 &self.container_user,
             )
         }

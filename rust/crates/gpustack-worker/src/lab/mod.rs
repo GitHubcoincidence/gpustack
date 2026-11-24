@@ -191,7 +191,7 @@ pub trait LabStoreSession: Send {
 }
 
 pub trait ModelPathResolver: Send + Sync {
-    fn resolve(&self, roots: &[PathBuf], requested: &Path) -> Result<PathBuf, LabError>;
+    fn resolve(&self, requested: &Path) -> Result<PathBuf, LabError>;
 }
 
 pub trait LabGpuProbe: Send + Sync {

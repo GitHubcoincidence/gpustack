@@ -128,7 +128,7 @@
           {
             "name": "path",
             "in": "query",
-            "description": "Absolute path below one of the configured model roots.",
+            "description": "Absolute path visible to the Worker process.",
             "required": true,
             "schema": {
               "type": "string"
@@ -137,7 +137,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Contained path existence and type",
+            "description": "Canonical path existence and type",
             "content": {
               "application/json": {
                 "schema": {
@@ -167,7 +167,7 @@
             }
           },
           "403": {
-            "description": "The path escapes the configured model roots",
+            "description": "The path cannot be inspected with the Worker process permissions",
             "content": {
               "application/json": {
                 "schema": {
@@ -207,7 +207,7 @@
           {
             "name": "path",
             "in": "query",
-            "description": "Absolute path below one of the configured model roots.",
+            "description": "Absolute path visible to the Worker process.",
             "required": true,
             "schema": {
               "type": "string"
@@ -244,7 +244,7 @@
             }
           },
           "403": {
-            "description": "The path escapes the configured model roots",
+            "description": "The path cannot be read with the Worker process permissions",
             "content": {
               "application/json": {
                 "schema": {
@@ -304,7 +304,7 @@
           {
             "name": "path",
             "in": "query",
-            "description": "Absolute path below one of the configured model roots.",
+            "description": "Absolute path visible to the Worker process.",
             "required": true,
             "schema": {
               "type": "string"
@@ -343,7 +343,7 @@
             }
           },
           "403": {
-            "description": "The path escapes the configured model roots",
+            "description": "The path cannot be inspected with the Worker process permissions",
             "content": {
               "application/json": {
                 "schema": {

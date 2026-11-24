@@ -383,7 +383,7 @@ impl<A: ManagedApi, P: PortProbe> ManagedCoordinator<A, P> {
         }
 
         let path = PathBuf::from(observed.local_path.as_deref().unwrap_or_default());
-        let resolver = self.resolver.clone();
+        let resolver = self.resolver;
         let resolution = tokio::task::spawn_blocking(move || resolver.resolve(&path)).await;
         let resolution = match resolution {
             Ok(result) => result,
@@ -685,7 +685,7 @@ mod tests {
 
     fn coordinator(
         api: FakeApi,
-        root: PathBuf,
+        _root: PathBuf,
         range: RangeInclusive<u16>,
     ) -> ManagedCoordinator<FakeApi, FakeProbe> {
         ManagedCoordinator::new(
@@ -693,7 +693,7 @@ mod tests {
             SecretToken::new("worker-token").expect("token"),
             101,
             "127.0.0.1".parse().expect("IP"),
-            LocalModelResolver::new([root]).expect("resolver"),
+            LocalModelResolver::new(),
             ManagedPortAllocator::new(range, FakeProbe).expect("port allocator"),
         )
     }

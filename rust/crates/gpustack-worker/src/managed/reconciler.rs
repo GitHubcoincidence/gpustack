@@ -60,7 +60,7 @@ pub async fn run_production_managed_runtime<F>(
 where
     F: FnMut(ManagedRuntimeResult),
 {
-    let resolver = LocalModelResolver::new(config.model_roots.clone())?;
+    let resolver = LocalModelResolver::new();
     let runtime = Arc::new(DockerRuntime::connect(
         &config.docker_socket,
         Duration::from_secs(30),
@@ -1122,7 +1122,7 @@ where
             self.worker_id,
             self.worker_uuid.clone(),
             self.worker_ip,
-            self.resolver.clone(),
+            self.resolver,
             self.store.cache_root(),
             self.container_user.clone(),
             self.gpus.snapshot()?,
@@ -1157,7 +1157,7 @@ where
             self.worker_id,
             self.worker_uuid.clone(),
             self.worker_ip,
-            self.resolver.clone(),
+            self.resolver,
             self.store.cache_root(),
             self.container_user.clone(),
             self.gpus.snapshot()?,
@@ -1188,7 +1188,7 @@ where
             self.worker_id,
             self.worker_uuid.clone(),
             self.worker_ip,
-            self.resolver.clone(),
+            self.resolver,
             self.store.cache_root(),
             self.container_user.clone(),
             self.gpus.snapshot()?,
@@ -1950,7 +1950,7 @@ mod tests {
                 101,
                 "worker-uuid".to_string(),
                 "127.0.0.1".parse().expect("worker IP"),
-                LocalModelResolver::new([model_root]).expect("resolver"),
+                LocalModelResolver::new(),
                 "1000:1000".to_string(),
                 runtime.clone(),
                 health.clone(),
@@ -2299,7 +2299,6 @@ mod tests {
         fixture.set_running();
         let data_dir = fixture.data_dir.clone();
         let log_dir = fixture.log_dir.clone();
-        let model_root = data_dir.parent().expect("fixture root").join("models");
         let api = fixture.api.clone();
         let runtime = Arc::clone(&fixture.runtime);
         let health = Arc::clone(&fixture.health);
@@ -2316,7 +2315,7 @@ mod tests {
             101,
             "worker-uuid".to_string(),
             "127.0.0.1".parse().expect("worker IP"),
-            LocalModelResolver::new([model_root]).expect("resolver"),
+            LocalModelResolver::new(),
             "1000:1000".to_string(),
             runtime.clone(),
             health,
@@ -2379,7 +2378,6 @@ mod tests {
 
         let data_dir = fixture.data_dir.clone();
         let worker_log_dir = fixture.log_dir.clone();
-        let model_root = data_dir.parent().expect("fixture root").join("models");
         let api = fixture.api.clone();
         let runtime = Arc::clone(&fixture.runtime);
         let health = Arc::clone(&fixture.health);
@@ -2393,7 +2391,7 @@ mod tests {
             101,
             "worker-uuid".to_string(),
             "127.0.0.1".parse().expect("worker IP"),
-            LocalModelResolver::new([model_root]).expect("resolver"),
+            LocalModelResolver::new(),
             "1000:1000".to_string(),
             runtime,
             health,

@@ -59,9 +59,6 @@ struct WorkerProfile {
 
 impl WorkerProfile {
     fn from_config(config: &WorkerConfig) -> Result<Self, WorkerRunError> {
-        if config.model_roots.is_empty() {
-            return Err(WorkerRunError::MissingConfiguration("model_roots"));
-        }
         Ok(Self {
             server_url: config
                 .server_url
@@ -481,12 +478,10 @@ where
         .as_ref()
         .ok_or(WorkerRunError::MissingConfiguration("token_file"))?;
     let registration_token = CredentialStore::new(token_file).load()?;
-    // Canonicalizing roots before network setup keeps unsafe model paths fail-closed.
-    let resolver = LocalModelResolver::new(config.model_roots.clone())?;
+    let resolver = LocalModelResolver::new();
     let mut collector = ResourceCollector::new(SysinfoProbe::new(), NvmlGpuProbe::new()?);
     let initial_resources = collector.collect()?;
     verify_gpu_inventory(&initial_resources)?;
-    verify_model_root_mounts(config, &initial_resources)?;
     set_readiness(&readiness, ReadinessGate::Resources, true);
 
     // Both listeners are reserved before contacting Server so a partial bind
@@ -767,7 +762,6 @@ where
                     .map_err(WorkerRunError::from)
                     .and_then(|resources| {
                         verify_gpu_inventory(&resources)?;
-                        verify_model_root_mounts(config, &resources)?;
                         Ok(resources)
                     })
                 {
@@ -944,25 +938,6 @@ fn verify_gpu_inventory(resources: &CollectedResources) -> Result<(), WorkerRunE
     Ok(())
 }
 
-fn verify_model_root_mounts(
-    config: &WorkerConfig,
-    resources: &CollectedResources,
-) -> Result<(), WorkerRunError> {
-    let filesystems = resources.status.filesystem.as_deref().unwrap_or_default();
-    let all_roots_covered = config.model_roots.iter().all(|root| {
-        filesystems.iter().any(|filesystem| {
-            let mount = std::path::Path::new(&filesystem.mount_point);
-            root.starts_with(mount)
-        })
-    });
-    if !all_roots_covered {
-        return Err(WorkerRunError::SafetyInvariant(
-            "resource snapshot must cover every configured model root mount",
-        ));
-    }
-    Ok(())
-}
-
 fn verify_production_worker(
     worker: &WorkerPublic,
     identity: &WorkerIdentity,
@@ -1011,7 +986,6 @@ mod tests {
             token_file: None,
             data_dir: directory.clone(),
             log_dir: directory.join("logs"),
-            model_roots: vec![directory.join("models")],
             docker_socket: PathBuf::from("/var/run/docker.sock"),
         }
     }
@@ -1204,18 +1178,6 @@ mod tests {
     }
 
     #[test]
-    fn missing_model_roots_fails_before_any_runtime_or_network_work() {
-        let directory = tempfile::tempdir().expect("temp directory");
-        let mut config = config(directory.path().to_path_buf());
-        config.model_roots.clear();
-
-        assert!(matches!(
-            WorkerProfile::from_config(&config),
-            Err(WorkerRunError::MissingConfiguration("model_roots"))
-        ));
-    }
-
-    #[test]
     fn identity_source_names_are_stable() {
         assert_eq!(
             identity_source_name(&IdentitySource::Persisted),
@@ -1229,25 +1191,5 @@ mod tests {
             identity_source_name(&IdentitySource::Recovered),
             "recovered"
         );
-    }
-
-    #[test]
-    fn every_model_root_must_have_a_reported_mount() {
-        let directory = tempfile::tempdir().expect("temp directory");
-        let config = config(directory.path().to_path_buf());
-        let status: WorkerResourceStatus = serde_json::from_slice(include_bytes!(
-            "../../../fixtures/server-v2.2.3/worker-status-resource.request.json"
-        ))
-        .map(|value: serde_json::Value| serde_json::from_value(value["status"].clone()))
-        .expect("fixture envelope")
-        .expect("fixture status");
-        let mut resources = CollectedResources {
-            machine_id: Some("contract-machine-id".to_owned()),
-            status,
-        };
-
-        assert!(verify_model_root_mounts(&config, &resources).is_err());
-        resources.status.filesystem.as_mut().expect("filesystems")[0].mount_point = "/".to_owned();
-        verify_model_root_mounts(&config, &resources).expect("root mount covers model path");
     }
 }

@@ -430,7 +430,7 @@ mod tests {
             let model_path = root.path().join("model");
             fs::create_dir(&model_path).expect("model directory");
             fs::write(model_path.join("config.json"), b"{}").expect("model config");
-            let resolver = LocalModelResolver::new([root.path().to_path_buf()]).expect("resolver");
+            let resolver = LocalModelResolver::new();
             let models: Paginated<ModelPublic> = serde_json::from_str(include_str!(
                 "../../../../fixtures/server-v2.2.3/models-full-sync.response.json"
             ))
@@ -711,17 +711,20 @@ mod tests {
     }
 
     #[test]
-    fn planner_rejects_paths_outside_the_allowed_roots_and_busy_gpu() {
+    fn planner_accepts_visible_absolute_paths_and_rejects_a_busy_gpu() {
         let mut fixture = Fixture::new();
         let outside = tempfile::tempdir().expect("outside");
-        fixture.instance.resolved_path = Some(outside.path().display().to_string());
+        let outside_path = outside.path().display().to_string();
+        fixture.instance.resolved_path = Some(outside_path.clone());
+        let spec = fixture
+            .planner
+            .plan(&fixture.model, &fixture.instance)
+            .expect("visible absolute model path");
+        assert_eq!(spec.model_path, outside_path);
         assert!(
-            fixture
-                .planner
-                .plan(&fixture.model, &fixture.instance)
-                .expect_err("outside root")
-                .to_string()
-                .contains("escapes")
+            spec.mounts
+                .iter()
+                .any(|mount| mount.source == spec.model_path && mount.read_only)
         );
 
         let mut fixture = Fixture::new();

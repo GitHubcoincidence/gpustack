@@ -19,12 +19,7 @@ use super::{
 pub struct FsModelPathResolver;
 
 impl ModelPathResolver for FsModelPathResolver {
-    fn resolve(&self, roots: &[PathBuf], requested: &Path) -> Result<PathBuf, LabError> {
-        if roots.is_empty() {
-            return Err(LabError::Invalid(
-                "at least one --model-root is required for Lab deployment".to_string(),
-            ));
-        }
+    fn resolve(&self, requested: &Path) -> Result<PathBuf, LabError> {
         if !requested.is_absolute()
             || requested
                 .components()
@@ -42,18 +37,7 @@ impl ModelPathResolver for FsModelPathResolver {
                 "Lab model path must resolve to a directory".to_string(),
             ));
         }
-        for root in roots {
-            let canonical_root = fs::canonicalize(root).map_err(|error| {
-                LabError::filesystem("canonicalize configured model root", root, error)
-            })?;
-            if requested.starts_with(root) && canonical.starts_with(&canonical_root) {
-                return Ok(canonical);
-            }
-        }
-        Err(LabError::Unsafe(format!(
-            "model path is outside every configured model root: {}",
-            requested.display()
-        )))
+        Ok(canonical)
     }
 }
 
@@ -254,7 +238,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn model_path_resolver_rejects_symlink_escape() {
+    fn model_path_resolver_follows_symlinks_to_visible_directories() {
         let directory = tempfile::tempdir().expect("temporary directory");
         let root = directory.path().join("models");
         let outside = directory.path().join("outside");
@@ -263,23 +247,23 @@ mod tests {
         #[cfg(unix)]
         {
             std::os::unix::fs::symlink(&outside, root.join("escape")).expect("symlink");
-            let error = FsModelPathResolver
-                .resolve(std::slice::from_ref(&root), &root.join("escape"))
-                .expect_err("escape must fail");
-            assert!(matches!(error, LabError::Unsafe(_)));
+            let resolved = FsModelPathResolver
+                .resolve(&root.join("escape"))
+                .expect("visible symlink target");
+            assert_eq!(resolved, fs::canonicalize(outside).expect("canonical path"));
         }
     }
 
     #[test]
-    fn model_path_resolver_accepts_a_canonical_directory_inside_a_root() {
+    fn model_path_resolver_accepts_any_visible_absolute_directory() {
         let directory = tempfile::tempdir().expect("temporary directory");
         let root = directory.path().join("models");
         let model = root.join("demo");
         fs::create_dir_all(&model).expect("model directory");
 
         let resolved = FsModelPathResolver
-            .resolve(&[root], &model)
-            .expect("allowed model path");
+            .resolve(&model)
+            .expect("visible model path");
 
         assert_eq!(resolved, fs::canonicalize(model).expect("canonical path"));
     }

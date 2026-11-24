@@ -62,27 +62,16 @@ const MODEL_WEIGHT_EXTENSIONS: [&str; 4] = ["safetensors", "bin", "pt", "pth"];
 
 #[derive(Debug, Error)]
 pub enum WorkerApiBuildError {
-    #[error("model root must be an absolute path")]
-    RelativeModelRoot,
-    #[error("failed to canonicalize model root: {0}")]
-    ModelRoot(io::Error),
     #[error("failed to build Managed inference client: {0}")]
     InferenceClient(reqwest::Error),
     #[error("managed inference requires worker_ip")]
     MissingWorkerIp,
 }
 
-#[derive(Debug, Clone)]
-struct AllowedRoot {
-    configured: PathBuf,
-    canonical: PathBuf,
-}
-
 #[derive(Clone)]
 pub struct WorkerApiState {
     token: SecretToken,
     managed_inference_token: Option<SecretToken>,
-    roots: Arc<Vec<AllowedRoot>>,
     log_dir: PathBuf,
     managed: Option<ManagedApiState>,
 }
@@ -112,21 +101,9 @@ impl ManagedReadiness {
 
 impl WorkerApiState {
     pub fn new(config: &WorkerConfig, token: SecretToken) -> Result<Self, WorkerApiBuildError> {
-        let mut roots = Vec::with_capacity(config.model_roots.len());
-        for root in &config.model_roots {
-            if !root.is_absolute() {
-                return Err(WorkerApiBuildError::RelativeModelRoot);
-            }
-            let canonical = fs::canonicalize(root).map_err(WorkerApiBuildError::ModelRoot)?;
-            roots.push(AllowedRoot {
-                configured: root.clone(),
-                canonical,
-            });
-        }
         Ok(Self {
             token,
             managed_inference_token: None,
-            roots: Arc::new(roots),
             log_dir: config.log_dir.clone(),
             managed: None,
         })
@@ -613,7 +590,7 @@ async fn token_auth() -> Json<&'static str> {
 #[derive(Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 struct FileQuery {
-    /// Absolute path below one of the configured model roots.
+    /// Absolute path visible to the Worker process.
     path: String,
 }
 
@@ -631,20 +608,19 @@ struct FileExistsResponse {
     tag = "Resources",
     params(FileQuery),
     responses(
-        (status = 200, description = "Contained path existence and type", body = FileExistsResponse),
+        (status = 200, description = "Canonical path existence and type", body = FileExistsResponse),
         (status = 400, description = "The path is not absolute or contains forbidden components", body = ErrorResponse),
         (status = 401, description = "The per-Worker credential was not accepted", body = ErrorResponse),
-        (status = 403, description = "The path escapes the configured model roots", body = ErrorResponse),
+        (status = 403, description = "The path cannot be inspected with the Worker process permissions", body = ErrorResponse),
         (status = 500, description = "The path metadata could not be inspected", body = ErrorResponse)
     ),
     security(("bearer_auth" = []), ("api_key_auth" = []))
 )]
 async fn file_exists(
-    State(state): State<Arc<WorkerApiState>>,
     query: Result<Query<FileQuery>, QueryRejection>,
 ) -> Result<Json<FileExistsResponse>, ApiError> {
     let query = valid_query(query)?;
-    let resolved = resolve_model_path(&state.roots, Path::new(&query.path), true)?;
+    let resolved = resolve_model_path(Path::new(&query.path), true)?;
     let metadata = match fs::metadata(&resolved) {
         Ok(metadata) => Some(metadata),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
@@ -652,7 +628,7 @@ async fn file_exists(
     };
     Ok(Json(FileExistsResponse {
         exists: metadata.is_some(),
-        path: query.path.clone(),
+        path: resolved.to_string_lossy().into_owned(),
         is_file: metadata.as_ref().is_some_and(fs::Metadata::is_file),
         is_dir: metadata.as_ref().is_some_and(fs::Metadata::is_dir),
     }))
@@ -667,7 +643,7 @@ async fn file_exists(
         (status = 200, description = "Parsed JSON from an allowed model configuration file", body = Value),
         (status = 400, description = "The path or JSON document is invalid", body = ErrorResponse),
         (status = 401, description = "The per-Worker credential was not accepted", body = ErrorResponse),
-        (status = 403, description = "The path escapes the configured model roots", body = ErrorResponse),
+        (status = 403, description = "The path cannot be read with the Worker process permissions", body = ErrorResponse),
         (status = 404, description = "The configuration file does not exist", body = ErrorResponse),
         (status = 413, description = "The configuration file exceeds 16 MiB", body = ErrorResponse),
         (status = 500, description = "The configuration file could not be read", body = ErrorResponse)
@@ -675,11 +651,10 @@ async fn file_exists(
     security(("bearer_auth" = []), ("api_key_auth" = []))
 )]
 async fn model_config(
-    State(state): State<Arc<WorkerApiState>>,
     query: Result<Query<FileQuery>, QueryRejection>,
 ) -> Result<Json<Value>, ApiError> {
     let query = valid_query(query)?;
-    let path = resolve_model_path(&state.roots, Path::new(&query.path), false)?;
+    let path = resolve_model_path(Path::new(&query.path), false)?;
     let name = path.file_name().and_then(|name| name.to_str());
     if !name.is_some_and(|name| MODEL_CONFIG_NAMES.contains(&name)) {
         return Err(ApiError::bad_request());
@@ -716,18 +691,17 @@ struct ModelWeightSizeResponse {
         (status = 200, description = "Total bytes of supported model weight files", body = ModelWeightSizeResponse),
         (status = 400, description = "The path is invalid or is not a directory", body = ErrorResponse),
         (status = 401, description = "The per-Worker credential was not accepted", body = ErrorResponse),
-        (status = 403, description = "The path escapes the configured model roots", body = ErrorResponse),
+        (status = 403, description = "The path cannot be inspected with the Worker process permissions", body = ErrorResponse),
         (status = 404, description = "The model directory does not exist", body = ErrorResponse),
         (status = 500, description = "The model directory could not be inspected", body = ErrorResponse)
     ),
     security(("bearer_auth" = []), ("api_key_auth" = []))
 )]
 async fn model_weight_size(
-    State(state): State<Arc<WorkerApiState>>,
     query: Result<Query<FileQuery>, QueryRejection>,
 ) -> Result<Json<ModelWeightSizeResponse>, ApiError> {
     let query = valid_query(query)?;
-    let path = resolve_model_path(&state.roots, Path::new(&query.path), false)?;
+    let path = resolve_model_path(Path::new(&query.path), false)?;
     let metadata = fs::metadata(&path).map_err(map_io_error)?;
     if !metadata.is_dir() {
         return Err(ApiError::bad_request());
@@ -1141,11 +1115,7 @@ fn valid_logical_name(value: &str) -> bool {
         && value != ".."
 }
 
-fn resolve_model_path(
-    roots: &[AllowedRoot],
-    requested: &Path,
-    allow_missing: bool,
-) -> Result<PathBuf, ApiError> {
+fn resolve_model_path(requested: &Path, allow_missing: bool) -> Result<PathBuf, ApiError> {
     if !requested.is_absolute()
         || requested
             .components()
@@ -1153,16 +1123,8 @@ fn resolve_model_path(
     {
         return Err(ApiError::bad_request());
     }
-    let root = roots
-        .iter()
-        .find(|root| requested.starts_with(&root.configured))
-        .ok_or_else(ApiError::forbidden)?;
     if path_exists(requested)? {
-        let canonical = fs::canonicalize(requested).map_err(map_io_error)?;
-        return canonical
-            .starts_with(&root.canonical)
-            .then_some(canonical)
-            .ok_or_else(ApiError::forbidden);
+        return fs::canonicalize(requested).map_err(map_io_error);
     }
     if !allow_missing {
         return Err(ApiError::not_found());
@@ -1175,9 +1137,6 @@ fn resolve_model_path(
         ancestor = ancestor.parent().ok_or_else(ApiError::bad_request)?;
     }
     let canonical_ancestor = fs::canonicalize(ancestor).map_err(map_io_error)?;
-    if !canonical_ancestor.starts_with(&root.canonical) {
-        return Err(ApiError::forbidden());
-    }
     let mut resolved = canonical_ancestor;
     for component in missing.into_iter().rev() {
         resolved.push(component);
@@ -1377,7 +1336,6 @@ mod tests {
             managed_inference_token: Some(
                 SecretToken::new("cluster-registration-token").expect("test token"),
             ),
-            roots: Arc::new(Vec::new()),
             log_dir: PathBuf::new(),
             managed: Some(ManagedApiState {
                 readiness: ManagedReadiness::LegacyRegistry(Arc::clone(&registry)),
@@ -1551,13 +1509,6 @@ mod tests {
         assert_eq!(response.git_commit, env!("GPUSTACK_GIT_COMMIT"));
         assert_eq!(response.target, env!("GPUSTACK_BUILD_TARGET"));
         assert_eq!(response.server_baseline.version, SERVER_BASELINE_VERSION);
-    }
-
-    fn allowed_root(directory: &TempDir) -> AllowedRoot {
-        AllowedRoot {
-            configured: directory.path().to_owned(),
-            canonical: fs::canonicalize(directory.path()).expect("canonical root"),
-        }
     }
 
     #[test]
@@ -1871,32 +1822,25 @@ mod tests {
     }
 
     #[test]
-    fn path_resolution_rejects_relative_parent_and_outside_paths() {
+    fn path_resolution_rejects_relative_and_non_normalized_paths() {
         let root = TempDir::new().expect("root");
-        let roots = vec![allowed_root(&root)];
 
         assert_eq!(
-            resolve_model_path(&roots, Path::new("relative"), true)
+            resolve_model_path(Path::new("relative"), true)
                 .expect_err("relative path")
                 .status,
             StatusCode::BAD_REQUEST
         );
         assert_eq!(
-            resolve_model_path(&roots, &root.path().join("a/../b"), true)
+            resolve_model_path(&root.path().join("a/../b"), true)
                 .expect_err("parent path")
                 .status,
             StatusCode::BAD_REQUEST
         );
-        assert_eq!(
-            resolve_model_path(&roots, Path::new("/outside"), true)
-                .expect_err("outside path")
-                .status,
-            StatusCode::FORBIDDEN
-        );
     }
 
     #[test]
-    fn path_resolution_blocks_final_and_ancestor_symlink_escape() {
+    fn path_resolution_follows_final_and_ancestor_symlinks() {
         let root = TempDir::new().expect("root");
         let outside = TempDir::new().expect("outside");
         fs::write(outside.path().join("config.json"), b"{}").expect("outside file");
@@ -1906,31 +1850,33 @@ mod tests {
         )
         .expect("final symlink");
         symlink(outside.path(), root.path().join("ancestor")).expect("ancestor symlink");
-        let roots = vec![allowed_root(&root)];
 
-        for path in [
-            root.path().join("final.json"),
-            root.path().join("ancestor/config.json"),
-            root.path().join("ancestor/missing.json"),
-        ] {
-            assert_eq!(
-                resolve_model_path(&roots, &path, true)
-                    .expect_err("symlink escape")
-                    .status,
-                StatusCode::FORBIDDEN
-            );
-        }
+        assert_eq!(
+            resolve_model_path(&root.path().join("final.json"), true).expect("final symlink"),
+            fs::canonicalize(outside.path().join("config.json")).expect("canonical file")
+        );
+        assert_eq!(
+            resolve_model_path(&root.path().join("ancestor/config.json"), true)
+                .expect("ancestor symlink"),
+            fs::canonicalize(outside.path().join("config.json")).expect("canonical file")
+        );
+        assert_eq!(
+            resolve_model_path(&root.path().join("ancestor/missing.json"), true)
+                .expect("missing path below symlink"),
+            fs::canonicalize(outside.path())
+                .expect("canonical directory")
+                .join("missing.json")
+        );
     }
 
     #[test]
-    fn missing_path_inside_root_is_allowed_only_for_exists_checks() {
+    fn missing_absolute_path_is_allowed_only_for_exists_checks() {
         let root = TempDir::new().expect("root");
-        let roots = vec![allowed_root(&root)];
         let missing = root.path().join("model/missing.json");
 
-        assert!(resolve_model_path(&roots, &missing, true).is_ok());
+        assert!(resolve_model_path(&missing, true).is_ok());
         assert_eq!(
-            resolve_model_path(&roots, &missing, false)
+            resolve_model_path(&missing, false)
                 .expect_err("missing resource")
                 .status,
             StatusCode::NOT_FOUND

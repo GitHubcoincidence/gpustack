@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use thiserror::Error;
 
@@ -13,49 +13,29 @@ pub struct ResolvedModelFile {
     pub size: u64,
 }
 
-#[derive(Debug, Clone)]
-pub struct LocalModelResolver {
-    roots: Vec<PathBuf>,
-}
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LocalModelResolver;
 
 impl LocalModelResolver {
-    pub fn new<I>(roots: I) -> Result<Self, ResolveError>
-    where
-        I: IntoIterator<Item = PathBuf>,
-    {
-        let mut canonical_roots = Vec::new();
-        for root in roots {
-            if !root.is_absolute() {
-                return Err(ResolveError::RootNotAbsolute);
-            }
-            let canonical = fs::canonicalize(root).map_err(|error| ResolveError::Io {
-                operation: "canonicalize model root",
-                kind: error.kind(),
-            })?;
-            if !canonical.is_dir() {
-                return Err(ResolveError::RootNotDirectory);
-            }
-            canonical_roots.push(canonical);
-        }
-        if canonical_roots.is_empty() {
-            return Err(ResolveError::EmptyRoots);
-        }
-        canonical_roots.sort();
-        canonical_roots.dedup();
-        Ok(Self {
-            roots: canonical_roots,
-        })
+    #[must_use]
+    pub const fn new() -> Self {
+        Self
     }
 
     pub fn resolve(&self, input: &Path) -> Result<ResolvedModelFile, ResolveError> {
         if !input.is_absolute() {
             return Err(ResolveError::InputNotAbsolute);
         }
+        if input
+            .components()
+            .any(|component| matches!(component, Component::ParentDir | Component::CurDir))
+        {
+            return Err(ResolveError::InputNotNormalized);
+        }
         let canonical = fs::canonicalize(input).map_err(|error| ResolveError::Io {
             operation: "canonicalize model path",
             kind: error.kind(),
         })?;
-        self.require_allowed(&canonical)?;
 
         let metadata = fs::metadata(&canonical).map_err(|error| ResolveError::Io {
             operation: "read model metadata",
@@ -121,7 +101,6 @@ impl LocalModelResolver {
                 operation: "canonicalize shard",
                 kind: error.kind(),
             })?;
-            self.require_allowed(&canonical)?;
             if !canonical.is_file() || matches.insert(candidate.index, canonical).is_some() {
                 return Err(ResolveError::InvalidShardSet);
             }
@@ -140,7 +119,6 @@ impl LocalModelResolver {
             operation: "canonicalize model tree entry",
             kind: error.kind(),
         })?;
-        self.require_allowed(&canonical)?;
         if !visited.insert(canonical.clone()) {
             return Ok(0);
         }
@@ -169,14 +147,6 @@ impl LocalModelResolver {
                 let length = self.path_size(&entry.path(), visited)?;
                 total.checked_add(length).ok_or(ResolveError::SizeOverflow)
             })
-    }
-
-    fn require_allowed(&self, path: &Path) -> Result<(), ResolveError> {
-        if self.roots.iter().any(|root| path.starts_with(root)) {
-            Ok(())
-        } else {
-            Err(ResolveError::OutsideAllowedRoots)
-        }
     }
 }
 
@@ -219,16 +189,10 @@ fn parse_five_digits(value: &str) -> Option<u16> {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ResolveError {
-    #[error("at least one model root is required")]
-    EmptyRoots,
-    #[error("model roots must be absolute")]
-    RootNotAbsolute,
-    #[error("model root must be a directory")]
-    RootNotDirectory,
     #[error("local model path must be absolute")]
     InputNotAbsolute,
-    #[error("local model path escapes the configured model roots")]
-    OutsideAllowedRoots,
+    #[error("local model path must not contain '.' or '..' components")]
+    InputNotNormalized,
     #[error("local model path contains unsupported non-UTF-8 components")]
     NonUtf8Path,
     #[error("local model path has an unsupported file type")]
@@ -262,7 +226,7 @@ mod tests {
         fs::create_dir(model.join("nested")).expect("nested directory");
         fs::write(model.join("config.json"), b"1234").expect("config");
         fs::write(model.join("nested/weights.bin"), b"123456").expect("weights");
-        let resolver = LocalModelResolver::new([root.path().to_path_buf()]).expect("resolver");
+        let resolver = LocalModelResolver::new();
 
         let resolved = resolver.resolve(&model).expect("resolved model");
 
@@ -282,7 +246,7 @@ mod tests {
         fs::write(&third, b"333").expect("third shard");
         fs::write(&first, b"1").expect("first shard");
         fs::write(&second, b"22").expect("second shard");
-        let resolver = LocalModelResolver::new([root.path().to_path_buf()]).expect("resolver");
+        let resolver = LocalModelResolver::new();
 
         let resolved = resolver.resolve(&second).expect("resolved shards");
 
@@ -300,7 +264,7 @@ mod tests {
         fs::write(&first, b"1").expect("first shard");
         fs::write(root.path().join("model-00002-of-00002.safetensors"), b"2")
             .expect("inconsistent shard");
-        let resolver = LocalModelResolver::new([root.path().to_path_buf()]).expect("resolver");
+        let resolver = LocalModelResolver::new();
 
         assert_eq!(
             resolver.resolve(&first).expect_err("inconsistent total"),
@@ -316,10 +280,9 @@ mod tests {
     }
 
     #[test]
-    fn rejects_relative_and_outside_paths() {
-        let root = tempfile::tempdir().expect("model root");
-        let outside = tempfile::NamedTempFile::new().expect("outside model");
-        let resolver = LocalModelResolver::new([root.path().to_path_buf()]).expect("resolver");
+    fn rejects_relative_and_non_normalized_paths_and_accepts_existing_absolute_paths() {
+        let model = tempfile::NamedTempFile::new().expect("model");
+        let resolver = LocalModelResolver::new();
 
         assert_eq!(
             resolver
@@ -328,45 +291,47 @@ mod tests {
             ResolveError::InputNotAbsolute
         );
         assert_eq!(
-            resolver.resolve(outside.path()).expect_err("outside path"),
-            ResolveError::OutsideAllowedRoots
+            resolver
+                .resolve(&model.path().join("../model"))
+                .expect_err("non-normalized path"),
+            ResolveError::InputNotNormalized
+        );
+        assert_eq!(
+            resolver.resolve(model.path()).expect("absolute path").paths,
+            [fs::canonicalize(model.path()).expect("canonical model")]
         );
     }
 
     #[cfg(unix)]
     #[test]
-    fn rejects_symlinks_that_escape_a_model_root() {
+    fn resolves_symlinks_to_existing_absolute_targets() {
         use std::os::unix::fs::symlink;
 
         let root = tempfile::tempdir().expect("model root");
         let outside = tempfile::NamedTempFile::new().expect("outside model");
         let link = root.path().join("escaped-model");
         symlink(outside.path(), &link).expect("model symlink");
-        let resolver = LocalModelResolver::new([root.path().to_path_buf()]).expect("resolver");
+        let resolver = LocalModelResolver::new();
 
         assert_eq!(
-            resolver.resolve(&link).expect_err("escaped symlink"),
-            ResolveError::OutsideAllowedRoots
+            resolver.resolve(&link).expect("resolved symlink").paths,
+            [fs::canonicalize(outside.path()).expect("canonical target")]
         );
     }
 
     #[cfg(unix)]
     #[test]
-    fn rejects_nested_symlinks_that_escape_a_model_directory() {
+    fn counts_nested_symlink_targets_visible_to_the_worker() {
         use std::os::unix::fs::symlink;
 
         let root = tempfile::tempdir().expect("model root");
         let model = root.path().join("model");
         fs::create_dir(&model).expect("model directory");
         let outside = tempfile::NamedTempFile::new().expect("outside model");
+        fs::write(outside.path(), b"weights").expect("outside weights");
         symlink(outside.path(), model.join("escaped-weights")).expect("nested symlink");
-        let resolver = LocalModelResolver::new([root.path().to_path_buf()]).expect("resolver");
+        let resolver = LocalModelResolver::new();
 
-        assert_eq!(
-            resolver
-                .resolve(&model)
-                .expect_err("escaped nested symlink"),
-            ResolveError::OutsideAllowedRoots
-        );
+        assert_eq!(resolver.resolve(&model).expect("resolved model").size, 7);
     }
 }

@@ -29,7 +29,6 @@ pub struct WorkerConfig {
     pub token_file: Option<PathBuf>,
     pub data_dir: PathBuf,
     pub log_dir: PathBuf,
-    pub model_roots: Vec<PathBuf>,
     pub docker_socket: PathBuf,
 }
 
@@ -81,9 +80,6 @@ impl WorkerConfig {
         validate_absolute_path("data_dir", Some(&self.data_dir))?;
         validate_absolute_path("log_dir", Some(&self.log_dir))?;
         validate_absolute_path("docker_socket", Some(&self.docker_socket))?;
-        for model_root in &self.model_roots {
-            validate_absolute_path("model_roots", Some(model_root))?;
-        }
         Ok(())
     }
 }
@@ -100,7 +96,6 @@ pub struct ConfigOverrides {
     pub token_file: Option<PathBuf>,
     pub data_dir: Option<PathBuf>,
     pub log_dir: Option<PathBuf>,
-    pub model_roots: Option<Vec<PathBuf>>,
     pub docker_socket: Option<PathBuf>,
 }
 
@@ -123,7 +118,6 @@ struct ConfigLayer {
     token_file: Option<PathBuf>,
     data_dir: Option<PathBuf>,
     log_dir: Option<PathBuf>,
-    model_roots: Option<Vec<PathBuf>>,
     docker_socket: Option<PathBuf>,
 }
 
@@ -160,9 +154,6 @@ impl ConfigLayer {
         }
         if other.log_dir.is_some() {
             self.log_dir = other.log_dir;
-        }
-        if other.model_roots.is_some() {
-            self.model_roots = other.model_roots;
         }
         if other.docker_socket.is_some() {
             self.docker_socket = other.docker_socket;
@@ -202,18 +193,6 @@ impl ConfigLayer {
                 "GPUSTACK_RS_TOKEN_FILE" => layer.token_file = Some(PathBuf::from(value)),
                 "GPUSTACK_RS_DATA_DIR" => layer.data_dir = Some(PathBuf::from(value)),
                 "GPUSTACK_RS_LOG_DIR" => layer.log_dir = Some(PathBuf::from(value)),
-                "GPUSTACK_RS_MODEL_ROOTS" => {
-                    let roots = value
-                        .split(',')
-                        .map(str::trim)
-                        .filter(|item| !item.is_empty())
-                        .map(PathBuf::from)
-                        .collect::<Vec<_>>();
-                    if roots.is_empty() {
-                        return Err(ConfigError::InvalidEnvironment { key });
-                    }
-                    layer.model_roots = Some(roots);
-                }
                 "GPUSTACK_RS_DOCKER_SOCKET" => {
                     layer.docker_socket = Some(PathBuf::from(value));
                 }
@@ -237,7 +216,6 @@ impl From<ConfigOverrides> for ConfigLayer {
             token_file: value.token_file,
             data_dir: value.data_dir,
             log_dir: value.log_dir,
-            model_roots: value.model_roots,
             docker_socket: value.docker_socket,
         }
     }
@@ -351,7 +329,6 @@ fn build_config(layer: ConfigLayer) -> Result<WorkerConfig, ConfigError> {
         log_dir: layer
             .log_dir
             .unwrap_or_else(|| PathBuf::from(DEFAULT_LOG_DIR)),
-        model_roots: layer.model_roots.unwrap_or_default(),
         docker_socket: layer
             .docker_socket
             .unwrap_or_else(|| PathBuf::from(DEFAULT_DOCKER_SOCKET)),
@@ -419,5 +396,21 @@ mod tests {
         .expect_err("inline token must be rejected");
 
         assert!(!error.to_string().contains(secret));
+    }
+
+    #[test]
+    fn legacy_model_roots_are_rejected_in_yaml() {
+        let directory = tempfile::tempdir().expect("create temporary directory");
+        let config_path = directory.path().join("worker.yaml");
+        fs::write(&config_path, "model_roots:\n  - /opt/models\n").expect("write configuration");
+
+        let error = load_config_with_environment(
+            Some(&config_path),
+            std::iter::empty::<(String, String)>(),
+            ConfigOverrides::default(),
+        )
+        .expect_err("legacy model roots must not be accepted");
+
+        assert!(matches!(error, ConfigError::Parse { .. }));
     }
 }

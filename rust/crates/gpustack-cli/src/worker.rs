@@ -39,8 +39,6 @@ pub struct WorkerConfigArgs {
     pub data_dir: Option<PathBuf>,
     #[arg(long, global = true)]
     pub log_dir: Option<PathBuf>,
-    #[arg(long = "model-root", global = true)]
-    pub model_roots: Vec<PathBuf>,
     #[arg(long, global = true)]
     pub docker_socket: Option<PathBuf>,
 }
@@ -58,7 +56,6 @@ impl From<WorkerConfigArgs> for ConfigOverrides {
             token_file: value.token_file,
             data_dir: value.data_dir,
             log_dir: value.log_dir,
-            model_roots: (!value.model_roots.is_empty()).then_some(value.model_roots),
             docker_socket: value.docker_socket,
         }
     }
@@ -76,7 +73,6 @@ impl WorkerConfigArgs {
             || self.token_file.is_some()
             || self.data_dir.is_some()
             || self.log_dir.is_some()
-            || !self.model_roots.is_empty()
             || self.docker_socket.is_some()
     }
 }
