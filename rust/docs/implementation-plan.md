@@ -1526,3 +1526,10 @@ runtime、readiness或Worker启动模式。
 与destination header被删除。90上的Rustfmt、OpenAPI漂移门、workspace 252项测试、all-targets
 Clippy `-D warnings`和locked/offline build全部通过。本门无业务Server、Worker/vLLM、Docker或GPU
 操作，当前为`M8-EMB.3 ready_for_review`；用户接受后才进入M8-EMB.4 Server client与CLI实现。
+
+用户已接受M8-EMB.3的Worker路由、认证/代理边界、OpenAPI和252项workspace回归，产品提交
+`0214c871`及治理提交`5a4c750a`标记为`accepted`。M8-EMB.4现为`ready_to_implement`：只增加
+非流式Server `POST /v1/embeddings` client和
+`inference embeddings --model --input [--input ...] [--encoding-format float|base64]`。JSON输出保留
+完整响应，table输出只显示model、index、维度、编码、usage和有限预览；命令只调用active Context
+的Server，不连接Worker或实例端口。本授权仍不包含真实Server、Worker/vLLM、Docker或GPU操作。

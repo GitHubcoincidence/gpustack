@@ -8163,3 +8163,14 @@
   `output/`。
 - 当前停止位置：`M8-EMB.3 ready_for_review`。用户接受详细报告后才允许进入M8-EMB.4，增加
   Server `/v1/embeddings` client与非流式CLI；M8-B和真实Server/Docker/GPU门继续暂停。
+
+### 2026-11-25：M8-EMB.3验收与M8-EMB.4启动门
+
+- 用户验收：用户接受M8-EMB.3的生产路由、共享代理实现、安全边界、OpenAPI和252项workspace
+  回归报告。产品提交`0214c871`与治理提交`5a4c750a`标记为`accepted`。
+- 漂移审计：本地、GitHub和90基线均为`5a4c750a`；唯一公开入口、Worker route table、Server权威
+  模型流程和真实阶段授权边界未变。EMB.4只扩展现有Server client和CLI命令树，不增加依赖、直连
+  Worker路径、流式协议或运行时状态，结论为`aligned`。
+- 当前停止位置：`M8-EMB.4 ready_to_implement`。下一步实现非流式embeddings client、重复input与
+  可选encoding-format请求、完整JSON和有限table摘要，并补URL/认证/请求、float/base64响应、错误
+  脱敏和chat/completion无回归测试；不连接真实Server、不操作Worker、Docker或GPU。
