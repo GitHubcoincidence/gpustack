@@ -1513,3 +1513,16 @@ Worker贯穿1项、workspace 250项测试、all-targets Clippy `-D warnings`和l
 `inference_routes`、同源OpenAPI和Worker API指南中增加`POST /v1/embeddings`，并补认证、目标
 路由、请求/响应、header和错误边界的离线回归。不得增加embedding专用runtime/readiness，也不得
 在本授权下连接业务Server、启动Worker/vLLM、操作Docker或使用GPU。
+
+M8-EMB.3产品提交`0214c8717bd25b887cf9ca48cb05a27de42d9880`已把
+`POST /v1/embeddings`注册到既有生产`inference_routes`。新入口只选择固定上游路径，认证、
+ModelInstance destination解析、健康route table、16 MiB请求上限、敏感与hop-by-hop header清理、
+上游状态/body透传均继续由同一个`proxy_managed_inference`拥有；没有解析或变换向量，也没有新增
+runtime、readiness或Worker启动模式。
+
+同源OpenAPI和静态3.1 artifact已加入embedding操作，声明JSON请求/响应、双凭据认证及
+`200/400/401/404/413/500/502`边界；Worker API、架构和协议指南同步更新。路由级回归证明未认证、
+缺失目标、未知实例及超限请求不会到达上游，合法字符串数组请求和float响应逐字节透传，内部凭据
+与destination header被删除。90上的Rustfmt、OpenAPI漂移门、workspace 252项测试、all-targets
+Clippy `-D warnings`和locked/offline build全部通过。本门无业务Server、Worker/vLLM、Docker或GPU
+操作，当前为`M8-EMB.3 ready_for_review`；用户接受后才进入M8-EMB.4 Server client与CLI实现。

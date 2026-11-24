@@ -8133,3 +8133,33 @@
 - 当前停止位置：`M8-EMB.3 ready_to_implement`。下一步只实现生产`POST /v1/embeddings`路由、
   同源OpenAPI、静态artifact、人工指南和离线回归；不连接业务Server、不启动Worker/vLLM、不操作
   Docker或GPU。完成后先交付详细实现报告和用户验收，再进入EMB.4。
+
+### 2026-11-24：M8-EMB.3 Worker embedding接口实现完成
+
+- 产品实现：提交`0214c8717bd25b887cf9ca48cb05a27de42d9880`（
+  `feat(worker): proxy embedding inference`）在既有生产`inference_routes`注册
+  `POST /v1/embeddings`。handler只把固定路径交给共享`proxy_managed_inference`，因此继续复用
+  Worker/Cluster双凭据认证、严格destination解析、内部健康route table、16 MiB请求上限、敏感与
+  hop-by-hop header清理以及上游状态、header和body透传；未增加请求schema拦截、向量计算或变换。
+- 接口与文档：同一Rust路由定义生成运行时OpenAPI和静态
+  `rust/docs/openapi/worker-managed.openapi.json`。规范保持OpenAPI 3.1.0，embedding操作只声明
+  `application/json`请求/200响应、两种security scheme及`200/400/401/404/413/500/502`状态。
+  Worker API指南、架构和当前协议同步为三条推理路径；历史决策与旧实验记录未改写。
+- 回归覆盖：合法字符串数组输入与float响应逐字节透传到精确的本机
+  `http://10.213.80.90:40000/v1/embeddings`；Cluster token被Worker消费，Authorization与内部
+  destination header不会到达vLLM，响应中的Authorization也被删除。独立回归证明未认证请求返回
+  401、缺失destination返回400、未知实例返回404、超过16 MiB返回413，四类请求均不会调用上游。
+- 离线质量门：90固定Rust 1.99.1/Cargo 1.99.1下Rustfmt和`git diff --check`通过；embedding路由
+  定向2项、OpenAPI路由与静态漂移定向门通过，workspace 252项测试全部通过；all-targets Clippy
+  `-D warnings`及workspace locked/offline build通过。CLI审计确认四个历史Worker模式参数仍不存在。
+- 无效非计分尝试：第一次从`rust/`工作目录生成静态规范时错误使用`../docs/...`，`install`因目标
+  不存在而失败，未覆盖任何仓库文件，随后漂移测试按预期失败。改用正确的`docs/openapi/...`后由
+  同一生成器重新输出，JSON解析和逐字节漂移测试通过；失败尝试不计入验收证据。
+- 安全与外部边界：新路由只位于既有inference认证层，未增加租户查询或记录秘密；OpenAPI秘密
+  扫描回归继续通过。本阶段未连接业务Server、未启动或重启Worker/vLLM、未创建Server资源、未操作
+  Docker或占用GPU。90到GitHub push超时后使用SHA-256为
+  `5c0b0aeec4991642acfd414b2c6a0388e5a6604e809238da6848e2838e7f15c0`的2.8 KiB单提交
+  bundle回传本机并推送；全部传输件和测试日志已精确删除，90工作树干净，本地仅保留用户既有
+  `output/`。
+- 当前停止位置：`M8-EMB.3 ready_for_review`。用户接受详细报告后才允许进入M8-EMB.4，增加
+  Server `/v1/embeddings` client与非流式CLI；M8-B和真实Server/Docker/GPU门继续暂停。
