@@ -312,6 +312,36 @@ runtime stdout/stderr 保存为 `<log_dir>/serve/<instance-id>.<restart-count>.l
 0600；M6-B 的 restart count 固定为 0。Server 的 model-instance log API继续代理既有 Worker
 `/serveLogOptions/{id}` 与 `/serveLogs/{id}`，因此用户日志 CLI 不直接读取 Docker socket。
 
+### M8-EMB embedding 横切能力
+
+M8-EMB 在第一次真实 Worker 容器构建前，把文本 embedding 接入已经统一的生产链路。它不是新的
+Worker 运行模式，也不增加 daemon、supervisor 或 readiness 分支；普通 `worker run` 继续一次性
+组装 Worker API、控制面、文件准备和 workload runtime。源码中的 `managed` 仅表示 Server 托管
+工作负载领域，不能重新解释为公开启动选项。
+
+冻结的数据面链路为：
+
+```text
+CLI inference embeddings -> Server /v1/embeddings
+                         -> Worker /v1/embeddings + X-GPUStack-Model-Instance
+                         -> 同一健康 runtime route table
+                         -> 本机 vLLM pooling workload
+```
+
+Worker只负责认证、实例路由、敏感与hop-by-hop header清理及HTTP响应透传，不计算、归一化或重排
+向量。`/v1/embeddings`复用chat/completion的请求体上限、目标端口约束和错误边界；它不形成新的
+全局readiness门。单个embedding workload是否可用继续由ModelInstance状态和健康route决定。
+
+模型控制面使用`categories=["embedding"]`表达用途。Rust client以可向前兼容的字符串列表保存
+categories；未知category不能导致整个Model反序列化失败。embedding模型所需的
+`--runner=pooling`通过D320已经验收的安全vLLM `extra_argv`层保序进入WorkloadSpec、spec hash、
+manifest和最终命令，并继续受Worker控制参数保护列表约束；不为它恢复逐参数allowlist或创建第二套
+VllmOptions字段。只有真实Runner证明还需要其他参数时，才按独立证据修订契约。
+
+首版只支持vLLM文本embedding、字符串或字符串数组输入及OpenAI兼容响应。rerank、pooling私有
+接口、多模态或稀疏向量、跨Worker分布式推理、embedding专用Lab命令和其他后端均不属于本阶段。
+CLI始终调用Server，不直接连接Worker或实例端口。
+
 ## 故障行为
 
 - Server 不可用：保留健康工作负载、停止破坏性协调、重试连接；超过配置阈值后将 readiness 设为 false，并在恢复后执行 full sync。

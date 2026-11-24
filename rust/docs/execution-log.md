@@ -8039,3 +8039,26 @@
 - 当前停止位置：`ready_for_review`。产品实现、离线兼容门和现有vLLM无重建接管均已完成；通用
   passthrough的真实新参数样本留待后续Server下发时补充。本结果不等同于Worker容器化验证，下一步
   只能由用户审阅并决定是否接受，再继续M8容器化。
+
+### 2026-11-24：M8-EMB文本embedding方案冻结
+
+- 目的与用户决定：用户要求在继续Worker镜像构建前先实现embedding接口，并在审阅完整方案后确认
+  按该计划推进。M8-EMB作为M8-B前的横切阶段，不重开M8-A；公开启动保持唯一普通
+  `worker run`，不存在或恢复`Managed Runtime`启动模式。
+- 最新基线复核：本地与`origin/codex/rust-worker`均为
+  `981594fa9ae6d9f4bdd64eb3104c151010a87ed3`，除既有未跟踪`output/`外无工作树改动。当前Worker
+  只代理`/v1/chat/completions`和`/v1/completions`，client/CLI没有embeddings，Model类型没有显式
+  categories；Python实现已通过通用OpenAI路由和embedding category支持`/v1/embeddings`。
+- 漂移裁决：上一轮只读审计的HEAD为`791901fe`，其后产品提交`c0ee0c1a`已经实现安全通用vLLM
+  argv透传并由`981594fa`记录。正式方案因此不再为`--runner=pooling`新增专用allowlist或字段，而是
+  复用`extra_argv`并验证spec hash、manifest和最终命令。该调整不改变用户接受的能力范围或接口。
+- 冻结门禁：EMB.1 Model categories/部署CLI；EMB.2 pooling argv回归；EMB.3 Worker路由与OpenAPI；
+  EMB.4 Server client/CLI；EMB.5离线质量门；EMB.6另行授权的90 Python Server/GPU0兼容验证；
+  EMB.7另行授权的106 Rust Server审计和端到端验证。真实阶段必须独立preflight、watchdog、cleanup
+  和post-audit，GPU1只观察。
+- 非目标与授权边界：本检查点没有修改产品代码、连接真实Server、启动Worker/vLLM、创建或删除
+  Server资源、操作Docker或使用GPU。rerank、私有pooling、多模态/稀疏embedding、token ID输入、
+  跨Worker、embedding Lab及其他后端不属于首版。
+- 当前停止位置：`M8-EMB.0 accepted`，`M8-EMB.1 ready_to_implement`。下一步只实现categories和
+  `model deploy --category embedding`及离线测试；完成后先交付详细实现报告，用户接受后才进入
+  EMB.2。M8-B继续暂停。

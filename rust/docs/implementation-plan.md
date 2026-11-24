@@ -21,6 +21,7 @@
 | M8 Worker 容器与 R1 candidate | Worker 镜像、socket/NVML/network/path 契约、持久化状态、容器重启恢复与回滚 | M7 | 容器化 Rust Worker release candidate | 重跑单/双 GPU 套件、镜像摘要、回滚到 Python Worker、最终审计 |
 | M8-API Worker接口契约 | OpenAPI 3.1生成、Swagger UI、静态规范、人工使用指南和漂移门 | M8-A已接受、M8-B尚未开始 | 可在线交互且可离线消费的Worker API文档 | 规范解析、路由覆盖、认证/错误/流式契约、artifact一致性、完整离线质量门 |
 | M8-RS Rust Server联调 | 以原GPUStack v2.2.3为标准，核对Rust Worker与Rust Server的身份、控制资源、watch、状态机和推理契约 | M8-API实现完成、M8-B尚未开始 | 可归因、可重复、可清理的双Rust联调证据与差异闭环 | 原始源码/90 Python oracle对照、离线矩阵、隔离注册、空载Worker、GPU0端到端、清理与凭据退役 |
+| M8-EMB embedding横切能力 | 在唯一`worker run`中补齐Model category、vLLM pooling参数、Worker代理和CLI | M8-A/M8-API已接受，D320安全参数透传已实现，M8-B尚未开始 | 通过Server托管流程部署并调用文本embedding模型 | 离线契约/代理/CLI回归、90 Python Server兼容门、106 Rust Server端到端门、清理与文档一致性 |
 
 ## M1 门禁
 
@@ -447,6 +448,38 @@ M8-RS.0现为`accepted`。M8-RS.1产品提交
 用户审阅后，M8-API.1/2和M8-RS.1均已标记为`accepted`。M8-RS.2只能按单一接口或单一功能门
 逐步授权、执行、解释和记录；每一门结束后必须停下，不得把后续探测合并执行。RS.3～RS.7及
 M8-B仍未授权。
+
+2026-11-24用户接受在恢复M8-B真实Worker镜像阶段前增加`M8-EMB`横切阶段。该阶段建立在唯一
+`worker run`上，不重开M8-A，不恢复`--managed-runtime`或其他历史模式参数，也不改变七项全局
+readiness。M8-EMB按以下门禁顺序推进：
+
+1. **M8-EMB.0契约冻结**：固定文本embedding范围、Model category、OpenAI请求/响应fixture、
+   Worker代理边界、CLI语法和排除项。只修改治理与CLI目标设计文档，不改产品代码或外部状态。
+2. **M8-EMB.1 Model与部署契约**：为Rust client的Model public/create类型增加默认空数组且保留
+   未知值的`categories`；`model deploy --category embedding`生成`["embedding"]`，未指定时保持
+   当前LLM兼容语义。不得重新引入模型根目录或任意Worker直连部署路径。
+3. **M8-EMB.2 workload pooling参数**：用D320的安全`extra_argv`层接受并保序传递
+   `--runner=pooling`，验证其进入WorkloadSpec、spec hash、manifest和最终vLLM命令。补充专用正反
+   回归；除非固定Runner的真实证据证明必要，不新增重复的结构化字段或embedding专用runtime。
+4. **M8-EMB.3 Worker接口**：在生产`inference_routes`中注册`POST /v1/embeddings`，复用现有
+   Worker认证、实例header解析、健康route table、请求体上限、敏感/header清理和上游错误透传。
+   同源生成OpenAPI并更新静态artifact和人工指南；不增加readiness门或请求向量变换。
+5. **M8-EMB.4 Server client与CLI**：增加非流式`embeddings` client方法和
+   `inference embeddings --model --input [--input ...] [--encoding-format float|base64]`。JSON输出
+   保留完整兼容响应，table/text只显示模型、index、维度、usage和有限预览；CLI只调用Server。
+6. **M8-EMB.5离线质量门**：覆盖category兼容、部署请求、pooling argv/spec hash、认证、路由、
+   float/base64响应、错误和header边界、OpenAPI漂移及chat/completion无回归；执行workspace fmt、
+   locked/offline test/build、all-targets Clippy `-D warnings`和`git diff --check`。
+7. **M8-EMB.6 Python Server兼容门**：另获真实运行授权后，在90冻结源码/Runner/模型身份，只用
+   GPU0运行统一`worker run`，验证完整Model/Instance状态链、Worker和Server embeddings、CLI、
+   重复请求及删除零残留；GPU1只观察。模型revision、大小、哈希和维度在预检时固定。
+8. **M8-EMB.7 Rust Server端到端门**：在106先只读审计Rust Server是否实现与Python oracle一致的
+   `/v1/embeddings`认证、Model解析、目标选择和Worker转发；缺失能力归属Rust Server修复，不能由
+   Worker绕过。另获授权后重跑CLI端到端、清理和凭据退役。
+
+首版明确排除rerank、私有pooling接口、多模态/稀疏embedding、token ID输入、跨Worker分布式、
+embedding专用Lab命令、其他推理后端和自动语义质量评测。单个embedding模型是否RUNNING不决定
+整个Worker readiness。M8-EMB接受后，M8-B必须从包含该能力和更新OpenAPI的新HEAD构建候选镜像。
 
 每个真实阶段都使用独立 preflight、窗口外 watchdog、正常 cleanup 和独立 post-audit。M8-C～F
 分别需要精确授权；前一阶段通过不能自动授权下一阶段。非特权 NVML 失败时必须停在诊断边界，
@@ -1431,3 +1464,16 @@ vLLM；通用参数实际传递由离线命令构造测试证明，未来遇到�
 
 产品提交`c0ee0c1a`已完成实现和90运行验证。当前为`ready_for_review`；它不把宿主机进程验证提升为
 Worker容器化证据，也不自动进入M8真实容器部署。
+
+## 2026-11-24 M8-EMB方案冻结
+
+用户接受在M8-B前实现文本embedding。漂移审计以最新分支HEAD
+`981594fa9ae6d9f4bdd64eb3104c151010a87ed3`为准：公开启动入口仍只有普通`worker run`，Worker API
+目前只代理chat/completion，CLI也尚无embeddings；与此同时D320已经提供安全通用vLLM argv透传。
+因此原讨论中“为`--runner=pooling`扩展专用解析器”的实现细节被最新事实取代，正式方案固定为复用
+`extra_argv`并增加embedding专用回归，其余范围、接口与验收标准不变。
+
+M8-EMB.0现为`accepted`。当前停止位置为`M8-EMB.1 ready_to_implement`：下一步只允许实现Model
+categories和部署CLI契约及其离线测试；不得在本授权下连接真实Server、启动Worker/vLLM、创建或
+删除Server资源、操作Docker或占用GPU。M8-EMB.1完成后必须先交付详细实现与验证报告，用户接受后
+才进入M8-EMB.2。

@@ -22,7 +22,7 @@ gpustack-rs
   worker lab deploy|list|status|logs|infer|stop|remove|cleanup
   model deploy|list|get|status|logs|delete
   model file list|get|delete
-  inference models|chat|completion
+  inference models|chat|completion|embeddings
   version
 ```
 
@@ -150,6 +150,18 @@ gpustack-rs inference completion --model <name> --prompt <text> [--max-tokens <n
 两种形式绝不静默切换 endpoint，也不允许 Managed CLI 直接访问 Worker 或实例端口。
 
 流式命令保留增量输出，并在处理中断时确保认证 header 不会泄露。
+
+M8-EMB在同一Server托管工作流中增加：
+
+```text
+gpustack-rs inference embeddings --model <name> --input <text> [--input <text> ...]
+  [--encoding-format float|base64]
+```
+
+该命令非流式并调用active Context的Server `/v1/embeddings`，不直接连接Worker或vLLM。JSON输出
+保留完整OpenAI兼容响应；table/text只显示model、index、向量维度、usage和有限预览。它不复用
+completion的`--prompt`、`--max-tokens`或`--stream`。`model deploy --category embedding`负责把
+Model categories设置为`["embedding"]`；未指定category时保持当前LLM兼容语义。
 
 ## Lab 命令
 
