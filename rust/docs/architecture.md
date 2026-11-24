@@ -334,9 +334,11 @@ Worker只负责认证、实例路由、敏感与hop-by-hop header清理及HTTP�
 
 模型控制面使用`categories=["embedding"]`表达用途。Rust client以可向前兼容的字符串列表保存
 categories；未知category不能导致整个Model反序列化失败。embedding模型所需的
-`--runner=pooling`通过D320已经验收的安全vLLM `extra_argv`层保序进入WorkloadSpec、spec hash、
-manifest和最终命令，并继续受Worker控制参数保护列表约束；不为它恢复逐参数allowlist或创建第二套
-VllmOptions字段。只有真实Runner证明还需要其他参数时，才按独立证据修订契约。
+CLI把vLLM runner与category分开表达：`--runner auto`为默认值且不下发runner参数，
+`--runner pooling`才显式生成`--runner=pooling`。该参数通过D320已经验收的安全vLLM
+`extra_argv`层保序进入WorkloadSpec、spec hash、manifest和最终命令，并继续受Worker控制参数
+保护列表约束；不为它恢复逐参数allowlist或创建第二套VllmOptions字段。只有真实Runner证明还需要
+其他参数时，才按独立证据修订契约。
 
 首版只支持vLLM文本embedding、字符串或字符串数组输入及OpenAI兼容响应。rerank、pooling私有
 接口、多模态或稀疏向量、跨Worker分布式推理、embedding专用Lab命令和其他后端均不属于本阶段。

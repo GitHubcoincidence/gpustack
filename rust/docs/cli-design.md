@@ -161,7 +161,10 @@ gpustack-rs inference embeddings --model <name> --input <text> [--input <text> .
 该命令非流式并调用active Context的Server `/v1/embeddings`，不直接连接Worker或vLLM。JSON输出
 保留完整OpenAI兼容响应；table/text只显示model、index、向量维度、usage和有限预览。它不复用
 completion的`--prompt`、`--max-tokens`或`--stream`。`model deploy --category embedding`负责把
-Model categories设置为`["embedding"]`；未指定category时保持当前LLM兼容语义。
+Model categories设置为`["embedding"]`；未指定category时保持当前LLM兼容语义。部署命令另提供
+`--runner auto|pooling`：默认`auto`且不发送vLLM runner参数，只有显式`pooling`才发送
+`--runner=pooling`。category描述GPUStack控制面用途，runner描述vLLM执行方式，二者不能互相隐式
+推导。
 
 ## Lab 命令
 

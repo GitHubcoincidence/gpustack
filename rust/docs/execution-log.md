@@ -8088,3 +8088,16 @@
 - 当前停止位置：`M8-EMB.1 ready_for_review`。用户接受本阶段详细报告后才允许进入EMB.2，验证
   `--runner=pooling`经现有安全`extra_argv`贯穿spec hash、manifest和最终命令；M8-B及所有真实
   Server/Docker/GPU阶段继续暂停。
+
+### 2026-11-24：M8-EMB.1验收与runner语义修订
+
+- 用户验收：用户接受M8-EMB.1的字段、CLI、兼容性和248项workspace回归报告，产品提交
+  `6f90926b`及治理提交`25cf7b2c`保持有效，M8-EMB.1标记为`accepted`。
+- 语义澄清：Model category是GPUStack控制面元数据，vLLM runner是数据面执行方式。原catalog既有
+  显式`--runner=pooling`的模型，也有依赖vLLM自动识别的embedding模型，因此不能从
+  `category=embedding`暗中强制runner。
+- 用户决定：EMB.2新增独立`--runner auto|pooling`，默认auto且不下发runner参数；只有显式pooling
+  才生成`--runner=pooling`并进入D320安全`extra_argv`。正式实验命令必须显示选择，其他runner值由
+  CLI拒绝。该修订不改变categories、Worker API、Server路由或后续真实环境边界。
+- 当前停止位置：`M8-EMB.2 ready_to_implement`。下一步只实现CLI runner选择和离线贯穿回归，
+  不连接Server、不启动Worker/vLLM、不操作Docker或GPU；完成后仍须先交付详细报告和用户验收。

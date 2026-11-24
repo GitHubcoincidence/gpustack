@@ -458,9 +458,10 @@ readiness。M8-EMB按以下门禁顺序推进：
 2. **M8-EMB.1 Model与部署契约**：为Rust client的Model public/create类型增加默认空数组且保留
    未知值的`categories`；`model deploy --category embedding`生成`["embedding"]`，未指定时保持
    当前LLM兼容语义。不得重新引入模型根目录或任意Worker直连部署路径。
-3. **M8-EMB.2 workload pooling参数**：用D320的安全`extra_argv`层接受并保序传递
-   `--runner=pooling`，验证其进入WorkloadSpec、spec hash、manifest和最终vLLM命令。补充专用正反
-   回归；除非固定Runner的真实证据证明必要，不新增重复的结构化字段或embedding专用runtime。
+3. **M8-EMB.2 workload pooling参数**：部署CLI增加独立`--runner auto|pooling`，默认`auto`且不
+   下发runner参数；显式`pooling`用D320的安全`extra_argv`层保序传递`--runner=pooling`，验证其
+   进入WorkloadSpec、spec hash、manifest和最终vLLM命令。category不能隐式决定runner。补充专用
+   正反回归；除非固定Runner的真实证据证明必要，不新增重复结构化字段或embedding专用runtime。
 4. **M8-EMB.3 Worker接口**：在生产`inference_routes`中注册`POST /v1/embeddings`，复用现有
    Worker认证、实例header解析、健康route table、请求体上限、敏感/header清理和上游错误透传。
    同源生成OpenAPI并更新静态artifact和人工指南；不增加readiness门或请求向量变换。
@@ -1489,3 +1490,8 @@ all-targets Clippy `-D warnings`和locked/offline build全部通过；真实CLI 
 唯一值为embedding，`worker run`继续拒绝四个历史模式参数。本门没有网络业务请求、Server写入、
 Worker/vLLM进程、Docker或GPU操作。当前为`M8-EMB.1 ready_for_review`；用户接受详细报告后才能
 进入M8-EMB.2 pooling argv专用回归。
+
+用户已接受M8-EMB.1实现报告并修订EMB.2的公开语义：`--category embedding`只声明GPUStack控制面
+用途，不再暗中强制vLLM runner；新增独立`--runner auto|pooling`，默认auto并保持当前无runner参数
+请求形状，只有显式pooling才下发`--runner=pooling`。M8-EMB.1现为`accepted`，M8-EMB.2为
+`ready_to_implement`；本授权仍仅限离线代码、fixture和测试。
