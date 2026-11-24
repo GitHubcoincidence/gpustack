@@ -282,6 +282,10 @@
   返回401，三类保留凭据和其他Context保持不变；退役证据manifest文件SHA-256为
   `75602c50d11aa578c6d7888654ec869f73996bafeac6b73295b406a0c96b7653`。M7-F现为
   `accepted`；下一步只允许讨论和冻结M8容器化Worker方案，不自动授权真实部署或GPU操作。
+- 2026-11-24已接受D318模型路径兼容修订：当前Rust Worker不再接收`--model-root`、YAML
+  `model_roots`或`GPUSTACK_RS_MODEL_ROOTS`，Managed、Worker API和Lab统一使用进程可见的现存
+  绝对路径并保留canonicalization、文件类型/分片/大小、配置白名单和vLLM只读mount。旧的允许
+  根目录内容只作为历史实验记录保留；当前执行状态与验证证据见`execution-log.md`末尾。
 
 环境基线见 `environment-baseline.md`，实时停止位置与准确 commit/证据 identity 以
 `execution-log.md` 为准。

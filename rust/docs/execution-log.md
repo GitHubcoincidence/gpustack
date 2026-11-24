@@ -7922,3 +7922,32 @@
   Instance日志PASS冒充CLI日志PASS。下一步须决定双轨修正：Rust Server补齐原始GPUStack的model_id
   过滤契约，同时Rust CLI可改用双方均已实现的规范`/v2/models/{id}/instances`端点进行兼容加固；修改后
   必须补回归测试并在106重跑`model status`、`model logs`，无需重建或重启当前vLLM模型。
+
+### 2026-11-24：Rust Worker模型根目录约束移除并完成90只读验证
+
+- 用户接受按原Python Worker语义修订本地路径：删除CLI `--model-root`、YAML `model_roots`和
+  `GPUSTACK_RS_MODEL_ROOTS`。旧CLI参数由Clap拒绝，旧YAML字段由严格反序列化拒绝；正常
+  `validate-config`输出不再包含模型根目录。
+- Managed ModelFile resolver、Managed planner、Worker文件API和Lab均改为接受Worker进程可见的
+  现存绝对路径并解析canonical target。保留相对路径/`..`拒绝、目标存在与类型、分片完整性、递归
+  大小与溢出、配置basename与16 MiB限制、GPU门和vLLM只读bind mount。`file-exists`仍可对尚不
+  存在的绝对目标返回false。
+- 受检入OpenAPI由同一Rust路由定义重新生成。格式检查、`cargo clippy --locked --offline`的
+  `-D warnings`门、Worker/CLI全套212项测试以及Rust workspace全套241项测试通过；其中新增旧
+  YAML拒绝、旧CLI参数拒绝、任意可见绝对路径、symlink canonicalization和只读模型mount回归。
+  仓库`make lint`已尝试，但90缺少`uv`，在pre-commit执行前以`uv: command not found`停止；该环境
+  限制未被误记为lint通过，且未修改工作树。
+- 产品实现提交为`0b5e7a6a`（`refactor(worker): remove model root requirement`）。提交只包含Rust
+  Worker/CLI源码和生成的OpenAPI，不包含凭据、运行证据目录或本地`output/`。
+- 90上使用新debug二进制执行无`model_root`的`worker validate-config`，结果`valid=true`且未创建
+  data/log路径。公开Worker帮助中`--model-root`已不存在。该命令未注册Worker、未启动listener、
+  未连接调度、未创建容器且未占用GPU。
+- 真实问题路径`/opt/models/Qwen--Qwen3.8-27B-FP8`解析后保持同一canonical path，运行用户可读；
+  目录属主为`dell:dell`、模式`0775`，`config.json`为51350字节，顶层识别到66个权重文件。该门
+  只证明路径可见性与新准入契约，不把只读检查冒充vLLM部署成功。
+- 用户指定退役的`rust-rs3-worker-90-20261113-r2`已在改动前完成精确清理：PID 3689884优雅停止，
+  21150/21151释放，Server记录已不存在，没有归属Managed容器；其data/log目录保留供审计。Python
+  Server、Python Worker和其他Rust Worker未被停止或删除。
+- 当前停止位置：`implementation_checkpoint_complete`。后续使用
+  `/opt/models/Qwen--Qwen3.8-27B-FP8`做真实部署时需单独执行运行验证；本检查点没有把只读路径
+  验证冒充端到端部署通过。

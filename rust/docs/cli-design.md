@@ -157,7 +157,7 @@ Lab 模式用于在完成 Server 集成前演示真实 Worker runtime。它复�
 
 Lab 状态只保存在隔离的本地记录中：`CREATED -> PREPARING -> STARTING -> RUNNING`，并包含 `FAILED`、`STOPPED`。它们不是 `ModelInstanceStateEnum`，不得通过任何 Server API 上报。Lab status 的机器可读输出必须明确标记 `mode=lab`。
 
-Lab 对 `local_path` 直接执行允许根目录校验、symlink canonicalization 和模型分片解析，不创建 ModelFile；这些解析原语必须与后续 Managed ModelFile manager 复用。Docker 容器 running 只表示进程存在，只有 vLLM 健康检查成功后 Lab 才能进入本地 `RUNNING`。
+Lab 对 Worker 进程可见的绝对 `local_path` 执行 symlink canonicalization、目录类型校验和模型分片解析，不创建 ModelFile；这些解析原语必须与后续 Managed ModelFile manager 复用。Docker 容器 running 只表示进程存在，只有 vLLM 健康检查成功后 Lab 才能进入本地 `RUNNING`。
 
 出现以下任一情况时，Lab deploy 拒绝执行：Rust Managed 数据目录锁处于活动状态、目标 GPU 已被占用、目标端口已占用或存在同名 Lab 工作负载。正式测试还要求先 drain 并停止 Python Worker；Rust 自身的锁无法证明它独占物理 GPU。
 

@@ -152,7 +152,7 @@ entrypoint固定为二进制，默认命令固定为普通`worker run`，不包�
 模型。
 
 受保护运行定义在创建容器前校验完整image ID、源码revision、组件标签、entrypoint/CMD、私密
-配置/token权限、持久目录所有权、模型根目录和Docker socket。容器使用host network、
+配置/token权限、持久目录所有权、预期模型路径的容器挂载和Docker socket。容器使用host network、
 `unless-stopped`、NVIDIA runtime、宿主UID/GID与socket supplementary GID、只读根文件系统、
 最小capability和相同绝对路径mount。Worker容器标签不携带Managed Runner ownership tuple；
 停止定义只有在名称、image ID、revision和Worker标签全部匹配且Runner标签全部缺失时才允许
@@ -216,7 +216,7 @@ management/inference API Key、Worker名称、端口和持久目录。先由不�
 
 1. 解析配置，并获取数据目录的排他进程锁。
 2. 启动 HTTP listener；liveness 可用，但 readiness 为 false。
-3. 验证 Docker、NVML、目录、模型根目录与服务端口范围。
+3. 验证 Docker、NVML、持久目录与服务端口范围。
 4. 验证与已冻结 Server 基线的兼容性。
 5. 注册 Worker，并原子保存返回的身份与凭据。
 6. 发布初始系统与 GPU 状态。
@@ -276,7 +276,7 @@ UNREACHABLE 由 Server 在 Worker 失联时解释。
   `40000-40063` 分配或复用服务端口并执行真实 bind 检查后，把 `port`、`ports` 与
   `INITIALIZING` 一起完整写回。端口不是 Server 预先分配的。
 - Server Controller 为 `INITIALIZING` 实例创建或关联 `ModelFile`。当文件处于准备中时，Server 把实例推进为 `DOWNLOADING`。
-- Worker 的 ModelFile manager 只处理分配给自身的文件。即使来源是 `local_path`，仍要执行允许根目录校验、symlink canonicalization、分片解析，并把 `resolved_paths`、progress 和 `READY` 或 `ERROR` 写回完整 `ModelFileUpdate`。本地路径不发生网络下载，但不能绕过 ModelFile 控制链。
+- Worker 的 ModelFile manager 只处理分配给自身的文件。`local_path` 必须是 Worker 进程可见的绝对路径；Worker canonicalize symlink、验证目标存在且类型正确、解析完整分片并计算大小，再把 `resolved_paths`、progress 和 `READY` 或 `ERROR` 写回完整 `ModelFileUpdate`。本地路径不发生网络下载，但不能绕过 ModelFile 控制链。
 - Server Controller 聚合关联文件；全部 `READY` 后写入解析结果，并把实例推进为 `STARTING`。Worker 不得自行跳过到该状态。
 - Worker 只在观察到 `STARTING` 后创建或接管 vLLM 工作负载。Docker 容器处于 running 不是模型就绪证据；vLLM 健康探针成功后才能把实例更新为 `RUNNING`。
 - 文件准备、启动、健康或运行时故障进入 `ERROR`；具体写入者由发生故障的层和固定 Server 协议决定，状态消息必须简洁、可执行且脱敏。
@@ -428,10 +428,10 @@ Lab 默认只监听 `127.0.0.1`，自动端口范围为 `42000-42063`；它只�
 ModelInstance 已记录端口，分配时和 container start 前都进行真实 bind 检查；发现占用
 时失败，不能终止占用者。已有实例端口在重试和恢复时保持不变。
 
-M6-A 的本地 ModelFile resolver 只接受允许模型根目录内的绝对路径。所有输入先解析
-symlink 并验证 canonical path 不越界；目录和普通文件返回 canonical path，分片文件要求
+本地 ModelFile resolver 接受 Worker 进程可见的现存绝对路径。所有输入先解析
+symlink；目录和普通文件返回 canonical path，分片文件要求
 同一目录中的编号从 1 到声明总数完整、无重复且总数一致，再按编号稳定排序。resolver
-递归计算实际字节数；不存在、不可读、越界或不完整分片均在 Docker 之前失败。
+递归计算实际字节数；不存在、不可读、类型不符、大小溢出或不完整分片均在 Docker 之前失败。
 
 GPU 的用户输入可以是宿主机 index，但 planner 必须先解析并记录稳定 UUID，Docker
 DeviceRequest 也使用 UUID。M5 拒绝多于一张 GPU、活跃 compute process、已被 Rust
@@ -484,13 +484,21 @@ dry-run，只列出当前 owner 的 Lab 容器、记录和 cache；执行清理�
 
 ## 路径契约
 
-Docker bind source 由宿主机 Docker daemon 解释，而不是由 Worker 容器解释。因此，R1 要求配置的模型根目录在宿主机和 Worker 容器中使用相同路径，例如：
+宿主机进程形态的 Worker 可以使用其用户有权读取的任意现存绝对模型路径。Worker 对路径执行
+canonicalization，拒绝相对路径、`..`、不存在目标和错误类型，但不维护模型根目录 allowlist。
+Worker API 的配置文件读取仍受固定 basename 白名单和 16 MiB 上限约束，模型权重统计仍受固定
+文件布局、扩展名和 `u64` 溢出检查约束；传给 vLLM 的模型 bind mount 始终只读。
+
+Docker bind source 由宿主机 Docker daemon 解释，而不是由 Worker 容器解释。Worker 容器化后，
+部署者必须把计划使用的宿主机模型路径映射到 Worker 容器内相同的绝对路径，例如：
 
 ```text
 host /data/models -> Worker /data/models -> vLLM /data/models
 ```
 
-每个文件系统 API 都必须解析 symlink，并确保结果仍位于允许的模型根目录之下。禁止任意访问宿主机文件系统。
+这是一项容器部署可见性要求，不是 `gpustack-rs worker` 的启动参数。Worker 不会自动挂载宿主机
+根目录，也不会因为删除应用层 allowlist 而获得额外文件权限；实际可见范围仍由宿主机用户权限和
+Worker 容器 bind mounts 决定。
 
 ## 配置与敏感信息
 
@@ -509,7 +517,7 @@ CLI > environment > YAML file > defaults
 /var/log/gpustack-rust-worker/
 ```
 
-准确运行时路径在 M1 期间验证。配置中记录 secret 文件引用，而不是 secret 值。Worker 系统凭据、运维 API 凭据与 Git 凭据彼此分离。未来只有少量非敏感运行配置白名单可以支持热更新；身份、Docker endpoint、根目录与数据目录的变更都要求重启。
+准确运行时路径在 M1 期间验证。配置中记录 secret 文件引用，而不是 secret 值。Worker 系统凭据、运维 API 凭据与 Git 凭据彼此分离。未来只有少量非敏感运行配置白名单可以支持热更新；身份、Docker endpoint 与数据目录的变更都要求重启。`--model-root`、YAML `model_roots` 和 `GPUSTACK_RS_MODEL_ROOTS` 不属于当前配置契约。
 
 ## R1 容器化拓扑
 
@@ -525,8 +533,8 @@ UID/GID 和 Docker socket 的 supplementary GID 非特权运行；Docker socket 
 高权限控制面处理，非 root 只收紧文件所有权而不被解释成安全隔离。若非特权 NVML 访问失败，
 必须先停止并审阅准确的设备/权限缺口，不能静默退回 `--privileged`。
 
-Worker 状态和日志目录以读写方式挂载，Cluster 注册 token 以只读方式挂载，模型根目录优先
-只读挂载。所有 bind source 在宿主机和 Worker 容器中保持相同绝对路径，因为同级 Runner 的
+Worker 状态和日志目录以读写方式挂载，Cluster 注册 token 以只读方式挂载；计划使用的模型路径
+按部署需要映射给 Worker，并在 vLLM workload 中只读挂载。所有模型 bind source 在宿主机和 Worker 容器中保持相同绝对路径，因为同级 Runner 的
 bind source 最终由宿主机 Docker daemon 解释。Worker 容器自身使用与 Managed workload 不同的
 固定名称和标签，不能被 workload 枚举或清理逻辑识别为 Runner。
 

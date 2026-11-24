@@ -36,7 +36,7 @@ Bearer值。
 OpenAPI按以下标签组织当前R1接口：
 
 - `Probes`：进程存活、完整Worker readiness和构建/Server基线身份；
-- `Resources`：受允许模型根目录约束的文件存在性、模型配置和权重大小检查；
+- `Resources`：对 Worker 进程可见的绝对路径执行文件存在性、模型配置和权重大小检查；
 - `Logs`：ModelInstance当前/上一代日志发现、tail和follow；
 - `Configuration`：只读非敏感配置；`PUT /v2/config`明确返回405；
 - `Inference`：只代理`/v1/chat/completions`和`/v1/completions`到内部健康路由表中的本机vLLM。
@@ -45,6 +45,11 @@ OpenAPI按以下标签组织当前R1接口：
 `model-<model-id>-<instance-id>[-<alias>].<registry-type>`。Worker从该值解析实例ID并查询内部健康
 路由，客户端不能指定任意upstream。`stream=true`时成功响应为`text/event-stream`，否则通常为
 `application/json`。
+
+资源接口不使用模型根目录 allowlist。路径必须为绝对规范路径；现存目标会解析为 canonical path，
+`file-exists` 对尚不存在的绝对目标返回 `exists=false`。实际可见范围由 Worker 进程的文件权限及
+容器 bind mounts 决定。配置文件读取仍只允许固定 basename 并受大小上限约束，不能借此读取任意
+普通文件。
 
 ## metrics
 

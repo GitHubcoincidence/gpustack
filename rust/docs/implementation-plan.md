@@ -1379,3 +1379,24 @@ offline build全部通过，测试只使用fake边界。下一步只讨论并冻
 27个0600文件、0 symlink的退役证据完成清单复算、秘密扫描和独立状态审计，manifest文件SHA-256
 为`75602c50d11aa578c6d7888654ec869f73996bafeac6b73295b406a0c96b7653`。M7-F现为
 `accepted`，M7宿主机Worker阶段完成；下一步只讨论和冻结M8容器化Worker，不自动授权真实部署。
+
+## 2026-11-24 模型路径兼容修订
+
+在继续容器化之前，先把Rust Worker的本地模型路径语义对齐原Python Worker。产品配置、CLI和
+环境变量统一删除模型根目录：不再接受`--model-root`、YAML `model_roots`或
+`GPUSTACK_RS_MODEL_ROOTS`。旧CLI参数由Clap明确拒绝，旧YAML字段由`deny_unknown_fields`明确
+拒绝，避免表面接受但不生效。
+
+Managed ModelFile、Managed workload planner、Worker文件API和Lab统一接受Worker进程可见的现存
+绝对路径，解析symlink后使用canonical path。继续保留绝对路径/规范化、存在性、目标类型、完整
+分片、递归大小与溢出、配置basename和16 MiB上限、GPU门以及vLLM只读bind mount。`file-exists`
+继续允许查询尚不存在的绝对目标并返回false。容器化Worker不会自动暴露宿主机文件系统；部署者
+必须把要使用的模型路径以相同绝对路径映射进Worker容器。
+
+执行顺序固定为：离线实现与回归测试、OpenAPI再生成、90上无`model_root`配置验证、90上真实
+`/opt/models/Qwen--Qwen3.8-27B-FP8`只读路径门、提交推送。真实vLLM部署仍是独立运行门，不与本次
+配置兼容修订混在同一写窗口。
+
+离线实现、OpenAPI再生成、90上无根目录配置验证和真实`/opt/models`只读可见性门均已通过，产品
+提交为`0b5e7a6a`。本检查点不启动容器或占用GPU；下一步是在独立运行门中使用该路径重新部署模型，
+验证Server到Worker、ModelFile和vLLM的完整链路。

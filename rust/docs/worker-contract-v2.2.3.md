@@ -8,6 +8,10 @@
 只读现场响应、静态 fixture 和依赖可构建性证据，不包含 Rust Worker API、
 NVML、metrics 或资源上报实现。
 
+> 当前产品路径契约已由 2026-11-24 的 D318 修订：Rust Worker 不再接收模型根目录启动配置，
+> 文件接口、Managed ModelFile 和 Lab 接受进程可见的绝对路径并执行 canonicalization。本文以下
+> “允许根目录”内容仅保留为 M4-B 历史基线和当时证据，不能作为当前启动命令或验收标准。
+
 M4 只允许显式 `--resource-api-only` 模式。它复用已经持久化的 per-Worker
 身份，启动资源采集、Worker HTTP API 和 metrics，但保持 maintenance，并禁止
 Docker、ModelFile/ModelInstance reconciler、vLLM 和模型状态写入。M3-D 的
