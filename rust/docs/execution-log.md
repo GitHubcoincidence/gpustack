@@ -7803,3 +7803,27 @@
   均PASS。
 - 当前停止位置：`ready_for_review`。maintenance屏障保持；本阶段没有创建Model或启动runtime，验收前
   不进入下一控制面资源创建门。
+
+### 2026-11-24：106 pending控制面创建门写入前漂移停止
+
+- 用户接受下一独立阶段只创建并验证pending控制面资源：目标Model固定为
+  `rust-rs6-106-qwen25-05b-gpu0`；前提是Worker 17保持maintenance、目标名称未使用、无Worker 17
+  Instance、无Rust managed运行容器、无40000段监听和无GPU compute-app。该阶段不得解除maintenance、
+  启动vLLM或占用GPU，任一前提不满足必须零写入停止。
+- 2026-11-24写入前即时GET发现Worker 17已从已验证的maintenance漂移为ready，maintenance为
+  `{enabled:false,message:""}`；目标Model名称仍未使用，但Worker 17已有Instance 85
+  `Qwen2.5-0.5B1-bp6jn`归属。该Instance属于既有Model 12 `Qwen2.5-0.5B1`，状态running、GPU0、
+  端口40000，对应容器`gpustack-rs-managed-85`且restart count为0；RTX 5090约使用30.9 GiB并存在
+  `VLLM::EngineCore` compute-app。
+- 本尝试在任何Server写入前以
+  `STOP/maintenance_disabled_and_external_model_running_on_worker17`结束，`write_attempted=0`；没有
+  创建目标Model或Instance，没有修改Worker、Model 12、Instance 85、容器、端口或GPU进程。API只能
+  证明maintenance当前已关闭，不能可靠归因关闭动作的操作者或流程，故不作推断。
+- 封存证据目录为
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8rs6-106-pending-control-preflight-20261124T014218Z`，
+  manifest SHA-256为
+  `2da63ae6a65fbf907ae0c3a9fb8c5d6046d952b0d1160cd4cd8e3556b81bc2b5`；秘密扫描PASS。
+- 当前停止位置：`maintenance_barrier_lost_external_model_running`。不得直接创建目标Model，也不得擅自
+  停止Model 12或其runtime。下一步须重新讨论并授权恢复maintenance屏障；推荐复用D316顺序，先在
+  完整保存Instance 85运行基线的情况下只启用maintenance且验证既有runtime完全不变，再由资源所有者
+  停止Model 12，最后从全新证据目录重跑pending控制面创建门。
