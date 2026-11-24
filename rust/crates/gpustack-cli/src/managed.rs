@@ -191,6 +191,9 @@ pub struct ModelDeployArgs {
     /// Declare the model as a supported non-LLM category.
     #[arg(long, value_enum)]
     pub category: Option<ManagedModelCategory>,
+    /// Select vLLM's runner explicitly, or let vLLM detect it.
+    #[arg(long, value_enum, default_value = "auto")]
+    pub runner: ManagedVllmRunner,
     /// Exact target Worker name.
     #[arg(long)]
     pub worker: String,
@@ -235,6 +238,21 @@ impl ManagedModelCategory {
     const fn as_str(self) -> &'static str {
         match self {
             Self::Embedding => "embedding",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum ManagedVllmRunner {
+    Auto,
+    Pooling,
+}
+
+impl ManagedVllmRunner {
+    const fn backend_parameter(self) -> Option<&'static str> {
+        match self {
+            Self::Auto => None,
+            Self::Pooling => Some("--runner=pooling"),
         }
     }
 }
@@ -743,6 +761,9 @@ fn build_model_create(arguments: ModelDeployArgs) -> Result<ModelCreate, Managed
     }
 
     let mut backend_parameters = vec![format!("--tensor-parallel-size={tensor_parallel_size}")];
+    if let Some(parameter) = arguments.runner.backend_parameter() {
+        backend_parameters.push(parameter.to_owned());
+    }
     if let Some(value) = arguments.max_model_len {
         backend_parameters.push(format!("--max-model-len={value}"));
     }
@@ -2056,6 +2077,8 @@ mod tests {
             "demo",
             "--category",
             "embedding",
+            "--runner",
+            "pooling",
             "--worker",
             "rust-worker",
             "--local-path",
@@ -2110,6 +2133,7 @@ mod tests {
             body["backend_parameters"],
             json!([
                 "--tensor-parallel-size=2",
+                "--runner=pooling",
                 "--max-model-len=2048",
                 "--enforce-eager"
             ])
@@ -2145,6 +2169,32 @@ mod tests {
         let value = serde_json::to_value(request).expect("serialize request");
 
         assert!(value.get("categories").is_none());
+        assert_eq!(
+            value["backend_parameters"],
+            json!(["--tensor-parallel-size=1"])
+        );
+    }
+
+    #[test]
+    fn deploy_rejects_an_unsupported_vllm_runner() {
+        let result = Cli::try_parse_from([
+            "gpustack-rs",
+            "model",
+            "deploy",
+            "demo",
+            "--runner",
+            "generate",
+            "--worker",
+            "rust-worker",
+            "--local-path",
+            "/models/demo",
+            "--image",
+            "runner@sha256:aaaa",
+            "--gpu",
+            "0",
+        ]);
+
+        assert!(result.is_err());
     }
 
     #[tokio::test]
@@ -2628,6 +2678,7 @@ mod tests {
             command: ModelSubcommand::Deploy(ModelDeployArgs {
                 name: "demo".to_owned(),
                 category: None,
+                runner: ManagedVllmRunner::Auto,
                 worker: "rust-worker".to_owned(),
                 local_path: PathBuf::from("/models/demo"),
                 image: "runner@sha256:aaaa".to_owned(),

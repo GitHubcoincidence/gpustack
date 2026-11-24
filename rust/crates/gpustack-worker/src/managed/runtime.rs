@@ -574,6 +574,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::managed::store::{MANAGED_MANIFEST_SCHEMA_VERSION, ManagedRuntimeManifest};
     use crate::workload::{LABEL_SPEC_HASH, VllmDtype};
 
     const IMAGE: &str =
@@ -976,6 +977,45 @@ mod tests {
             ]
         );
         assert!(spec.vllm_command().ends_with(&spec.vllm.extra_argv));
+    }
+
+    #[test]
+    fn pooling_runner_reaches_the_spec_hash_manifest_and_final_command() {
+        let mut fixture = Fixture::new();
+        let automatic = fixture.spec();
+        fixture
+            .model
+            .backend_parameters
+            .as_mut()
+            .expect("parameters")
+            .push("--runner=pooling".to_string());
+
+        let pooling = fixture.spec();
+
+        assert_eq!(pooling.vllm.extra_argv, ["--runner=pooling"]);
+        assert_ne!(pooling.spec_hash, automatic.spec_hash);
+        assert_eq!(
+            pooling.labels.get(LABEL_SPEC_HASH),
+            Some(&pooling.spec_hash)
+        );
+        assert!(pooling.vllm_command().ends_with(&pooling.vllm.extra_argv));
+
+        let manifest = ManagedRuntimeManifest {
+            schema_version: MANAGED_MANIFEST_SCHEMA_VERSION,
+            instance_id: fixture.instance.id,
+            worker_uuid: "worker-uuid".to_string(),
+            spec: pooling,
+            container_id: "container-pooling".to_string(),
+            restart_count: 0,
+            started_at_unix: 10,
+            last_observed_state: "starting".to_string(),
+        };
+        manifest.validate().expect("valid pooling manifest");
+        let value = serde_json::to_value(manifest).expect("serialize pooling manifest");
+        assert_eq!(
+            value["spec"]["vllm"]["extra_argv"],
+            serde_json::json!(["--runner=pooling"])
+        );
     }
 
     #[test]
