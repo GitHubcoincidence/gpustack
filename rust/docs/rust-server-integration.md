@@ -433,3 +433,8 @@ RS.5.2又确认`PUT /v2/models/{id}`返回HTTP 200并发布UPDATED事件，但�
 RS.5.3确认106没有实现原版`POST /v2/model-instances`：唯一合法请求返回HTTP 405且未创建资源，
 OpenAPI也只列集合GET。详细请求、原版依据、零副作用审计和建议回归见
 [Rust Server ModelInstance创建接口缺失报告](rust-server-model-instance-create-missing-issue.md)。
+
+RS.6运行联调确认`GET /v2/model-instances?page=-1&model_id=<id>`忽略`model_id`并返回全局可见
+Instance集合，导致Rust CLI把无关Model的实例计入`model logs/status/wait`；精确Instance日志接口
+本身可正常返回目标vLLM日志。完整最小复现、原版契约、影响边界和服务端回归建议见
+[Rust Server ModelInstance列表过滤缺陷报告](rust-server-model-instance-filter-ignored-issue.md)。
