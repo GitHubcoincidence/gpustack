@@ -8217,3 +8217,26 @@
 - 授权边界与停止位置：`M8-EMB.5 ready_to_run`。本门只允许90上的离线编译、测试与静态审计，不
   连接业务Server、不启动Worker/vLLM、不创建或修改Server资源、不操作Docker或GPU。通过后状态
   只能进入`ready_for_review`；M8-EMB.6 Python Server/GPU0真实兼容门仍须另行讨论和授权。
+
+### 2026-11-25：M8-EMB.5聚合离线质量门完成
+
+- 固定输入：治理HEAD及90的origin跟踪引用均为
+  `6cbb082e818debbbfa818ea98b924c28ee8fc4d9`，Rust/Cargo均为1.99.1，工作树干净，Cargo.lock在
+  `CARGO_NET_OFFLINE=true`下可解析。本地仅有用户既有未跟踪`output/`，未进入同步或质量门。
+- 格式与测试：workspace Rustfmt和`git diff --check`通过；
+  `cargo test --workspace --locked --offline`共256项通过、0失败。各测试二进制通过数为
+  36、7、5、5、8、5、181、3和6，doc-test为0项，合计与前一阶段基线一致。
+- 契约覆盖：本次完整日志明确包含默认LLM部署不发送category、CLI embedding参数/float/base64、
+  Server client路径与token脱敏、pooling runner贯穿spec hash/manifest/最终命令、Worker embeddings
+  认证/路由/body上限、OpenAPI artifact漂移，以及既有chat/completion和stream chunks回归。
+- 静态与构建：`cargo clippy --workspace --all-targets --locked --offline -- -D warnings`通过且无
+  warning；`cargo build --workspace --locked --offline`通过。构建二进制报告commit
+  `6cbb082e818d`、target `x86_64-unknown-linux-gnu`和toolchain 1.99.1。
+- CLI与漂移后审：真实`inference embeddings --help`显示必需model/input、可重复input和可选
+  float/base64编码；`worker run --help`继续不含`control-plane-only`、`resource-api-only`、
+  `managed-file-only`或`managed-runtime`。测试和构建后HEAD未变，工作树及`git diff --check`通过。
+- 外部边界：本门没有修改产品代码，没有连接业务Server、启动或重启Worker/vLLM、创建或修改
+  Server资源、调用Docker或占用GPU；只使用90既有Rust工具链和本地依赖缓存。
+- 当前停止位置：`M8-EMB.5 ready_for_review`。下一步只允许用户审阅聚合质量报告；接受后才把
+  EMB.5标记为`accepted`并讨论、冻结EMB.6 Python Server/GPU0兼容门。EMB.6真实运行与维护窗口
+  均未授权，M8-B继续暂停。

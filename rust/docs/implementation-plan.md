@@ -1552,3 +1552,13 @@ locked/offline build全部通过；认证URL、请求JSON、float/base64响应�
 `-D warnings`、OpenAPI漂移和`git diff --check`，并审计category、runner、Worker路由、Server
 client/CLI及chat/completion回归仍同时存在。该门仍禁止连接业务Server、启动Worker/vLLM、操作
 Docker或使用GPU；通过后先交付汇总报告，用户接受后才讨论M8-EMB.6真实兼容验证。
+
+M8-EMB.5已在固定治理HEAD`6cbb082e818debbbfa818ea98b924c28ee8fc4d9`完成。90上的
+Rustfmt、`git diff --check`、locked/offline workspace 256项测试、all-targets Clippy
+`-D warnings`及locked/offline build全部通过；同一测试集明确覆盖category默认兼容、显式pooling
+贯穿、Worker embeddings认证/路由/OpenAPI、Server client/CLI float与base64，以及既有
+chat/completion路径。构建后源码HEAD和工作树未变化，四个历史Worker模式参数继续不存在。
+
+本门没有产品代码变更，也没有连接业务Server、启动Worker/vLLM、操作Docker或使用GPU。当前为
+`M8-EMB.5 ready_for_review`；用户接受汇总报告后才能把EMB.5标记为`accepted`，下一步仅允许讨论
+和冻结M8-EMB.6 Python Server/GPU0兼容验证，真实运行仍须独立授权。
