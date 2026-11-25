@@ -1606,3 +1606,9 @@ D326将EMB.6真实执行主机迁移到106：兼容目标仍是90 Python Server�
 固定BGE模型已原子安装为0555/0444；Python operator、Cluster registration、106 operator引用和
 隔离Context均为0600单硬链接。候选HEAD`7c0769df`的7组自测、只读preflight和缺失授权拒绝均
 通过；记录提交后必须在最终HEAD重跑preflight并只使用新manifest申请维护窗口。
+
+M8-EMB.6C-106最终在工具HEAD`668bf92b`通过：Model 39、Instance 59和唯一GPU0容器完成embedding
+部署，Server/Worker两条路径、float/base64、table及三次幂等请求全部通过；formal、cleanup和独立
+post-audit均为PASS。实验资源归零，原Worker 17、Model 21、Instance 87、同一容器/镜像/spec
+hash/GPU UUID和maintenance=false均恢复，恢复进程运行`668bf92b`二进制。阶段状态为
+`ready_for_review`；只允许交付详细报告和用户审阅，接受后再退役短期凭据并讨论EMB.7。

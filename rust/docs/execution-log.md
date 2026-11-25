@@ -8366,3 +8366,45 @@
 - 当前停止位置：记录提交后要在最终HEAD再跑一次只读preflight，使授权绑定最终治理提交。之后状态
   为`ready_for_maintenance_authorization`；尚未改变maintenance、停止Worker/容器、创建实验Server
   资源或启动BGE，正式窗口必须由用户明确授权。
+
+### 2026-11-25：M8-EMB.6C-106正式embedding兼容门完成
+
+- 授权与边界：用户在审阅维护范围和模型位置后明确继续。每次正式执行均使用0600一次性JSON绑定
+  当次HEAD、preflight manifest和随机nonce；每次工具修正都使旧授权失效并重新运行7组自测及
+  7步只读preflight。所有窗口只操作106 Worker 17、原Instance 87容器、唯一实验身份和GPU0，
+  没有删除原Model、Instance或容器。
+- 非计分attempt 1：`e0a765d6`的watchdog直接执行0644 `executor.sh`而返回126，formal/cleanup目录
+  均未创建，Worker和模型保持200。`a5b7e349`改为显式`bash`调用executor/cleanup并增加完整wrapper
+  拒绝测试；旧授权删除。
+- 非计分attempt 2：Model 37、Instance 57完成全部embedding业务门，但cleanup把已终止、尚未由
+  父executor回收的实验Worker僵尸进程误判为存活。首轮cleanup保留FAIL，watchdog第二次幂等cleanup
+  PASS，独立post-audit manifest为
+  `ecbc4fc6b63a09b51ea5d15fc6bc8eeacc365bfe46e3373d355304bd8ee4527e`并证明完整恢复。
+  `4008a0ec`增加`/proc`状态识别、`waitpid`回收及真实僵尸回归。
+- 非计分attempt 3：Model 38、Instance 58到达running，Worker与vLLM健康，但第一条Server float
+  请求在Python Server/Higress ingress更新窗口内建立并于120秒后返回传输失败。cleanup和独立
+  post-audit均PASS，后者manifest为
+  `fd6295b0651d3e34c8d8604f47c508a6b2bdf9ac1eb6f3f4743eaee94dea0c43`。90 Server日志证明ingress
+  创建与running实例更新相差约4分钟；`668bf92b`增加20秒单次、最多12次、间隔5秒的Server路由
+  就绪探针，并以第一次退出30、第二次返回JSON的真实子进程回归验证重试契约。
+- 最终attempt 4：最终preflight目录为
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8emb6-106/preflight-668bf92b-final`，
+  manifest SHA-256为`6a88d29d767778477d055dbb9be3ad9b6b78d94e5a49882fa47aec0646cd2380`。
+  Model 39、Instance 59、容器
+  `60aed8a11913d78b6a516bc3f69b4a448a3823514d92372b910c7f5ea234ed5c`和spec hash
+  `adaacdf64717b0057d5e176bdc4b082cdb52c1b9940ed193e25977acf6830995`被精确固定；restart count为0。
+- 业务证据：状态序列包含`pending -> analyzing -> scheduled -> initializing -> downloading -> starting
+  -> running`；Model categories为`["embedding"]`，Runner命令含pooling且DeviceRequest只含106
+  GPU0。双输入float均512维，base64解码为2,048字节，table与Worker直连均报告512维；三次重复
+  推理均512维且容器ID、spec hash和restart count不变。
+- 正式结果：formal为PASS（`smoke_passed=true`、`cleanup_ok=true`），manifest SHA-256为
+  `ee00c7229f2b2e855fc7c705f39332c07fa7a16348fef05d72c33b534bc01a92`；cleanup为PASS，manifest为
+  `b099715581429068b3fc4c50493c268134015510512ea90f25eb40aba13627c9`；独立post-audit为PASS，
+  manifest为`53a4ec02e43c742f275051dc8a9fe8afdaf943ec001981b2426054b34de21f25`。四个证据目录均逐文件
+  SHA-256复核通过。
+- 恢复结果：实验Worker、Model、Instance、ModelFile、容器、manifest、端口、data/log全部归零；
+  原Worker ID 17/UUID、Model 21、Instance 87、容器ID、Runner镜像、spec hash、GPU UUID和
+  maintenance=false恢复。恢复Worker运行`668bf92b`最新二进制；90 Python Server、106 Rust Server、
+  Worker health/ready/metrics和原Qwen模型均返回200，106工作树与origin跟踪引用一致。
+- 当前停止位置：`M8-EMB.6 ready_for_review`。短期operator Context/API key、registration token和
+  固定模型暂保留；用户接受详细报告后执行凭据退役并标记`accepted`，不得自动进入EMB.7或M8-B。

@@ -111,7 +111,8 @@ operator Context/API key、registration token和一次性授权文件，再把�
 
 ## 8. 当前停止点
 
-方案已按D326改写，106专用准备、executor、cleanup、watchdog和post-audit工具已完成离线自测。
-固定模型、双Context和三个受保护token/identity输入就绪；最终只读preflight将在记录提交后重新封存。
-当前状态最多为`ready_for_maintenance_authorization`：在取得绑定最终HEAD和preflight manifest的明确
-授权前，不停止原Worker或容器、不改变maintenance，也不使用GPU运行新模型。
+M8-EMB.6C-106已在工具HEAD`668bf92b`通过正式验证、cleanup和独立post-audit。固定BGE模型继续
+保留；实验Worker、Model、Instance、ModelFile、容器、manifest、端口和data/log已经归零，原
+Worker 17、Model 21、Instance 87和同一容器已由最新二进制恢复。当前为`ready_for_review`；用户
+接受详细报告后才能退役短期Python operator Context/API key、registration token和一次性授权输入，
+并把M8-EMB.6标记为`accepted`。在此之前不得据此自动启动EMB.7或M8-B。

@@ -1199,12 +1199,13 @@ def perform_cleanup(
         evidence.log(f'cleanup failure at {failed_step}: {error}')
     finally:
         status = 'PASS' if cleanup_succeeded else 'FAIL'
+        reported_step = 'none' if cleanup_succeeded else failed_step
         evidence.text(
             'result.txt',
             (
                 f'status={status}\n'
                 'stage=M8-EMB.6C-106-cleanup\n'
-                f'failed_step={failed_step}\n'
+                f'failed_step={reported_step}\n'
             ),
         )
         try:
