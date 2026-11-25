@@ -201,8 +201,11 @@ def command_baseline(args: argparse.Namespace) -> None:
     worker = load_json(args.worker)
     model = load_json(args.model)
     instance = load_json(args.instance)
+    identity = load_json(args.identity)
     inspect_value = load_json(args.container)
-    if not all(isinstance(value, dict) for value in (worker, model, instance)):
+    if not all(
+        isinstance(value, dict) for value in (worker, model, instance, identity)
+    ):
         fail('Server resource baseline is malformed')
     if not isinstance(inspect_value, list) or len(inspect_value) != 1:
         fail('container inspect response is malformed')
@@ -210,7 +213,11 @@ def command_baseline(args: argparse.Namespace) -> None:
 
     if worker.get('id') != args.worker_id or worker.get('name') != args.worker_name:
         fail('original Worker identity drifted')
-    worker_uuid = worker.get('uuid')
+    if identity.get('worker_id') != args.worker_id:
+        fail('local Worker identity has the wrong Worker ID')
+    if identity.get('worker_name') != args.worker_name:
+        fail('local Worker identity has the wrong Worker name')
+    worker_uuid = identity.get('worker_uuid')
     if not isinstance(worker_uuid, str) or not re.fullmatch(
         r'[0-9a-fA-F-]{36}', worker_uuid
     ):
@@ -325,6 +332,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     baseline = commands.add_parser('baseline')
     baseline.add_argument('--worker', required=True)
+    baseline.add_argument('--identity', required=True)
     baseline.add_argument('--model', required=True)
     baseline.add_argument('--instance', required=True)
     baseline.add_argument('--container', required=True)

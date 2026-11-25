@@ -151,6 +151,14 @@ python3 "$M8EMB6106_JSON_TOOL" sanitize-argv \
 
 current_step='original_resources'
 announce 5 '固定原Worker、Model、Instance和容器所有权'
+m8emb6106_require_private_file "$M8EMB6106_ORIGINAL_TOKEN"
+m8emb6106_require_private_file "$M8EMB6106_ORIGINAL_IDENTITY"
+m8emb6106_require_private_file "$M8EMB6106_ORIGINAL_WORKER_TOKEN"
+m8emb6106_require_private_file "$M8EMB6106_ORIGINAL_MANIFEST"
+install -m 0600 "$M8EMB6106_ORIGINAL_IDENTITY" \
+  "$EVIDENCE/original-worker-identity.json"
+install -m 0600 "$M8EMB6106_ORIGINAL_MANIFEST" \
+  "$EVIDENCE/original-instance-manifest.json"
 rust_status="$(m8emb6106_auth_request GET \
   "${M8EMB6106_RUST_SERVER_URL}v2/workers/$M8EMB6106_ORIGINAL_WORKER_ID" \
   "$M8EMB6106_RUST_OPERATOR_TOKEN" "$EVIDENCE/original-worker.json")"
@@ -175,6 +183,7 @@ docker inspect "$original_container_id" >"$EVIDENCE/original-container.json"
 docker image inspect "$M8EMB6106_RUNNER_IMAGE_ID" >"$EVIDENCE/runner-image.json"
 python3 "$M8EMB6106_JSON_TOOL" baseline \
   --worker "$EVIDENCE/original-worker.json" \
+  --identity "$EVIDENCE/original-worker-identity.json" \
   --model "$EVIDENCE/original-model.json" \
   --instance "$EVIDENCE/original-instance.json" \
   --container "$EVIDENCE/original-container.json" \
