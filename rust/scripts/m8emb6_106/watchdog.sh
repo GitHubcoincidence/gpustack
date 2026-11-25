@@ -10,14 +10,14 @@ readonly FORMAL="${M8EMB6106_EVIDENCE:?M8EMB6106_EVIDENCE is required}"
 
 set +o errexit
 timeout --foreground --signal=TERM --kill-after=180 1800 \
-  "$SCRIPT_DIR/executor.sh"
+  bash "$SCRIPT_DIR/executor.sh"
 executor_exit=$?
 set -o errexit
 
 if [[ "$executor_exit" -ne 0 && -d "$FORMAL" && \
   ! -e "$WATCHDOG_CLEANUP" && ! -L "$WATCHDOG_CLEANUP" ]]; then
   M8EMB6106_CLEANUP_EVIDENCE="$WATCHDOG_CLEANUP" \
-    "$SCRIPT_DIR/cleanup.sh" || true
+    bash "$SCRIPT_DIR/cleanup.sh" || true
 fi
 
 exit "$executor_exit"

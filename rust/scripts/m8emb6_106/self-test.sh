@@ -100,6 +100,8 @@ if grep -REn -- 'docker system prune|docker volume prune|--privileged|rm -rf' \
   printf 'STOP: formal tools contain a broad destructive command\n' >&2
   exit 1
 fi
+grep -q 'bash "$SCRIPT_DIR/executor.sh"' "$SCRIPT_DIR/watchdog.sh"
+grep -q 'bash "$SCRIPT_DIR/cleanup.sh"' "$SCRIPT_DIR/watchdog.sh"
 
 printf '[7/7] fixed model and evidence identity\n'
 m8emb6106_verify_model
