@@ -8291,11 +8291,15 @@
 
 ### 2026-11-25：M8-EMB.6A固定复验与现场漂移
 
-- 固定提交：`b01a7829099fe771e0729a758600be0b39796680`（
-  `test(worker): prepare embedding compatibility gate`）。本地、GitHub和90最终指向同一提交；90工作树
-  干净，本地仅保留用户既有未跟踪`output/`。90到GitHub直接push无进度后中断，改用SHA-256为
+- 工具提交：`b01a7829099fe771e0729a758600be0b39796680`（
+  `test(worker): prepare embedding compatibility gate`）。90到GitHub直接push无进度后中断，改用SHA-256为
   `a8f00b9eda0cd76376491b5735af04ba2bfe566c71d4b745a5a2cb648eab600d`的单提交bundle传回本机，
   校验目标tree完全一致后fast-forward并推送。
+- 清理回归：清除下载stage时发现GNU `unlink`每次只接受一个路径，而helper的批量`-exec ... +`
+  会失败。修复提交`01162a57a10def01f14d467aa7533ee83bf20980`改为逐文件unlink，并新增含两个
+  文件、嵌套目录和symlink的回归；首次失败未删除任何正式模型、证据或服务资源，修复后精确stage
+  清理通过。该提交也经校验bundle同步，本地、GitHub和90源码一致且90工作树干净；本地只保留用户
+  既有未跟踪`output/`。
 - 固定HEAD复验：全部8个脚本通过`bash -n`；self-test的语法、禁止宽泛操作/GPU1设备请求、进程
   identity正反门、无维护授权拒绝、模型身份、证据可执行副本权限六组检查全部通过。90未安装
   shellcheck，因此该可选静态工具未计入通过门。
@@ -8303,9 +8307,10 @@
   `7999e1d3359715c523056ef9478215996d62a620`和逐文件SHA-256再次通过；模型目录0555、文件0444，
   第二次安装返回`already_valid`，证明幂等且未改写模型。
 - 外部零影响门：Python Server、Python Worker、Python metrics和106 Rust Server均返回200；实验
-  端口20250/20251空闲，实验Worker进程为0。证据目录为
-  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8emb6/emb6a-b01a7829`，manifest文件
-  SHA-256为`4ba70714b0114468dea675bcea4513bea726a7f8f17f85876b18bb47dcd3a958`，完整校验和秘密扫描通过。
+  端口20250/20251空闲，实验Worker进程为0。`b01a7829`的初始证据保留为修复前记录；最终计分证据
+  在`01162a57`重新生成，目录为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8emb6/emb6a-01162a57`，manifest文件
+  SHA-256为`dc40494b5c860d776b463d199549f7d9d07c0e980c0857191f16f704983b749f`，完整校验和秘密扫描通过。
 - 后置只读漂移：GPU0现在由宿主机外部`/home/ckpt/.../python`任务占用约80.7 GiB；GPU1由106
   Rust Server管理的Instance 101容器占用约71.7 GiB，容器ID为
   `044dc48a27b434bc7765556ac900014a7ea53481f65519c2a6a06b3bc0eb0318`、restart count 0。原
