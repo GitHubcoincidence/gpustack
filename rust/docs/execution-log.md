@@ -8202,3 +8202,18 @@
   业务Server、未启动或重启Worker/vLLM、未创建或修改Server资源、未操作Docker或占用GPU。
 - 当前停止位置：`M8-EMB.4 ready_for_review`。下一步只允许用户审阅实现与验证报告；接受后才能
   标记EMB.4为`accepted`并进入M8-EMB.5聚合离线质量门。M8-B及EMB.6/EMB.7真实环境验证均未授权。
+
+### 2026-11-25：M8-EMB.4验收与M8-EMB.5聚合门冻结
+
+- 用户验收：用户接受M8-EMB.4的Server client、CLI单/多输入与编码契约、完整JSON/有限table输出、
+  secret脱敏和256项workspace回归。产品提交`92184388`与治理提交`6d7841cd`标记为`accepted`。
+- 漂移审计：本机和GitHub基线均为`6d7841cd`，本地仅有用户既有未跟踪`output/`。EMB.5不修改
+  产品代码、接口、依赖、验收解释或真实环境，只在同一HEAD复验EMB.1至EMB.4及既有推理能力，
+  结论为`aligned`。
+- 固定聚合门：执行workspace Rustfmt、`git diff --check`、locked/offline workspace test与build、
+  all-targets Clippy `-D warnings`和OpenAPI漂移测试；同时确认category部署、显式pooling贯穿、Worker
+  embeddings认证/路由、Server client/CLI float与base64、错误/header边界以及chat/completion回归
+  均由当前测试集覆盖。任何失败均保持EMB.5未通过，不以分阶段旧结果替代本次聚合结果。
+- 授权边界与停止位置：`M8-EMB.5 ready_to_run`。本门只允许90上的离线编译、测试与静态审计，不
+  连接业务Server、不启动Worker/vLLM、不创建或修改Server资源、不操作Docker或GPU。通过后状态
+  只能进入`ready_for_review`；M8-EMB.6 Python Server/GPU0真实兼容门仍须另行讨论和授权。

@@ -1545,3 +1545,10 @@ locked/offline build全部通过；认证URL、请求JSON、float/base64响应�
 离线回归。本门没有连接业务Server、启动Worker/vLLM、操作Docker或使用GPU。当前为
 `M8-EMB.4 ready_for_review`；用户接受详细报告后才进入M8-EMB.5聚合离线质量门，M8-B和真实环境
 验证继续暂停。
+
+用户已接受M8-EMB.4的Server client、CLI请求/输出契约、错误脱敏与256项workspace回归，产品提交
+`92184388`及治理提交`6d7841cd`标记为`accepted`。M8-EMB.5现为`ready_to_run`：不修改产品代码，
+只在同一固定HEAD执行workspace Rustfmt、locked/offline test与build、all-targets Clippy
+`-D warnings`、OpenAPI漂移和`git diff --check`，并审计category、runner、Worker路由、Server
+client/CLI及chat/completion回归仍同时存在。该门仍禁止连接业务Server、启动Worker/vLLM、操作
+Docker或使用GPU；通过后先交付汇总报告，用户接受后才讨论M8-EMB.6真实兼容验证。
