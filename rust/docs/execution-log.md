@@ -8288,3 +8288,29 @@
   GPU0/GPU1进程，本阶段没有启动Worker/vLLM、创建Server资源、调用Docker写操作或使用GPU。
 - 当前等待把工具固定为Git提交并在该HEAD重跑语法、自测、模型身份、服务/GPU无影响检查及证据
   封存。完成后M8-EMB.6A进入`ready_for_review`，不会自动进入凭据或维护阶段。
+
+### 2026-11-25：M8-EMB.6A固定复验与现场漂移
+
+- 固定提交：`b01a7829099fe771e0729a758600be0b39796680`（
+  `test(worker): prepare embedding compatibility gate`）。本地、GitHub和90最终指向同一提交；90工作树
+  干净，本地仅保留用户既有未跟踪`output/`。90到GitHub直接push无进度后中断，改用SHA-256为
+  `a8f00b9eda0cd76376491b5735af04ba2bfe566c71d4b745a5a2cb648eab600d`的单提交bundle传回本机，
+  校验目标tree完全一致后fast-forward并推送。
+- 固定HEAD复验：全部8个脚本通过`bash -n`；self-test的语法、禁止宽泛操作/GPU1设备请求、进程
+  identity正反门、无维护授权拒绝、模型身份、证据可执行副本权限六组检查全部通过。90未安装
+  shellcheck，因此该可选静态工具未计入通过门。
+- 模型结果：11个文件、96,378,336字节、revision
+  `7999e1d3359715c523056ef9478215996d62a620`和逐文件SHA-256再次通过；模型目录0555、文件0444，
+  第二次安装返回`already_valid`，证明幂等且未改写模型。
+- 外部零影响门：Python Server、Python Worker、Python metrics和106 Rust Server均返回200；实验
+  端口20250/20251空闲，实验Worker进程为0。证据目录为
+  `/home/wujiaxing2/.local/state/gpustack-rust-worker/evidence/m8emb6/emb6a-b01a7829`，manifest文件
+  SHA-256为`4ba70714b0114468dea675bcea4513bea726a7f8f17f85876b18bb47dcd3a958`，完整校验和秘密扫描通过。
+- 后置只读漂移：GPU0现在由宿主机外部`/home/ckpt/.../python`任务占用约80.7 GiB；GPU1由106
+  Rust Server管理的Instance 101容器占用约71.7 GiB，容器ID为
+  `044dc48a27b434bc7765556ac900014a7ea53481f65519c2a6a06b3bc0eb0318`、restart count 0。原
+  `gpustack-rs-managed-95`已不存在，90上的普通Rust Worker仍连接106并运行。没有停止、修改或
+  重启上述任何进程、容器或Server资源。
+- 裁决：M8-EMB.6A为`ready_for_review`；外部漂移不影响模型/工具准备结论，但使D325基于Instance
+  95/GPU0的恢复协议失效。M8-EMB.6B为`intentional_change_pending`，必须先讨论新隔离方案；现有
+  executor不得执行，GPU0外部任务和GPU1 Instance 101均不在当前操作授权内。

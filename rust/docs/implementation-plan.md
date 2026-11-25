@@ -1584,3 +1584,10 @@ M8-EMB.6A只允许提交上述工具和fixture、安装只读模型并运行静�
 API Key、Worker或Model，不授权停止现有进程/容器、执行Docker写操作或使用GPU。准备完成后状态只能
 进入`ready_for_review`；M8-EMB.6B凭据与只读preflight、M8-EMB.6C正式维护窗口和M8-EMB.6D凭据
 退役均须分别授权。
+
+M8-EMB.6A固定提交`b01a7829099fe771e0729a758600be0b39796680`和只读模型已完成复验，状态为
+`ready_for_review`。但复验后的只读漂移审计发现D325现场前提已经失效：GPU0现由宿主机外部Python
+任务占用，GPU1运行106管理的Rust Instance 101，原Instance 95容器已不存在。该变化不否定无GPU
+副作用的EMB.6A结果，但使现有preflight中“GPU0上唯一106 Rust容器”和后续停止/恢复95的协议不可
+执行。M8-EMB.6B暂时保持`intentional_change_pending`；必须先与用户修订隔离和维护方案，不得直接
+使用现有正式executor，也不得操作GPU0外部进程或GPU1 Instance 101。
