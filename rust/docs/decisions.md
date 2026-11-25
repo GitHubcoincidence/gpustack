@@ -1504,3 +1504,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D327 | M8-EMB.6正式验收与106副本退役 | 接受工具HEAD`668bf92b`的最终正式结果及完整恢复证据，把M8-EMB.6标记为`accepted`。精确删除106实验专用operator token副本、registration token副本、隔离Context和一次性授权输入；保留固定BGE模型、证据链和日常代码维护SSH密钥。因本阶段未新建90 Server API Key，90共享operator及Cluster原始凭据保持不变。下一步只讨论和冻结EMB.7，不自动授权真实操作或M8-B | 正式attempt 4同时满足Server/Worker两条embedding路径、编码与维度、幂等、cleanup、post-audit及原现场恢复。只退役执行主机副本可缩小秘密暴露面，又不会撤销被现有Worker和其他实验共享的90凭据；固定模型与证据保留可避免重复下载并支持复验。用户审阅详细报告后明确接受。 |
+
+## 2026-11-25 M8-EMB.7外部Server开发等待门
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D328 | 等待Rust Server新embedding接口完成 | M8-EMB.7停在`waiting_on_rust_server_embedding_interface`。开发期间只保留一次无凭据基线，不把临时404或进程重启判为最终兼容失败；不在Worker仓库实现Server路由，不让CLI直连Worker绕过Server。Rust Server开发方明确提供已部署commit/版本后，重新冻结OpenAPI、认证与路由，再分别讨论无GPU控制面验证和真实BGE端到端门 | 106 Server源码属于独立、当前账号不可读的工作树，且用户确认新`/v1/embeddings`仍在开发。现在继续测试会把移动目标当成产品结果并制造低价值失败；等待明确构建身份后重测，能保持问题归属清晰，也避免提前准备凭据或扰动现有Worker、模型和GPU现场。 |

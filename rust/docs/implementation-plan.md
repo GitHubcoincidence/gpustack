@@ -1616,3 +1616,9 @@ hash/GPU UUID和maintenance=false均恢复，恢复进程运行`668bf92b`二进�
 和一次性授权输入已删除；本阶段未新建90 Server API Key，90共享原始凭据保持不变。退役后两端
 Server、106 Worker及原Qwen模型健康，固定BGE模型与证据链保留。M8-EMB.6现为`accepted`；下一步
 只允许讨论EMB.7，不自动授权真实运行或M8-B。
+
+M8-EMB.7当前为`waiting_on_rust_server_embedding_interface`。2026-11-25只读基线看到106 Rust
+Server仍处于接口开发期间；用户确认Server开发方正在实现新的`POST /v1/embeddings`，要求等待其
+完成后再测试。开发期间的路由和进程状态不作为最终兼容结论。恢复本阶段前必须先取得已部署的
+Rust Server commit/版本并重新冻结OpenAPI、认证和路由基线；在此之前不得准备阶段凭据、创建模型、
+改变maintenance、操作Docker或使用GPU。

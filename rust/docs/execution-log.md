@@ -8424,3 +8424,18 @@
   96,378,336字节，原`gpustack-rs-managed-87`容器继续运行。
 - 当前停止位置：`M8-EMB.6 accepted`。固定模型与证据链作为可复验资产保留；下一步只允许讨论并
   冻结M8-EMB.7，不因本次验收自动授权新的Server写入、维护窗口、Docker或GPU操作，M8-B仍暂停。
+
+### 2026-11-25：M8-EMB.7只读基线与外部开发等待门
+
+- 只读识别：106运行的是独立`/home/lenovo/rust-server`构建的`gpustack-server`，版本响应为
+  v2.2.3、Rust实现、commit `2190f6d`。Worker重写仓库不包含该Server源码，当前`wujiaxing`账号
+  也不能读取Server工作树；本阶段不得在Worker仓库伪造Server实现或让CLI绕过Server。
+- 临时接口基线：无凭据`GET /v1/models`进入认证并返回401；当时的OpenAPI未声明
+  `/v1/chat/completions`、`/v1/completions`或`/v1/embeddings`，对应POST返回404。审计期间Server
+  进程发生一次重启并恢复health 200，说明现场正有开发或部署漂移；这些结果只用于说明必须重新
+  冻结版本，不能判定待交付的新embedding接口失败。
+- 用户裁决：Rust Server开发方正在实现新的embedding接口，等待其开发和部署完成后再测试。
+  M8-EMB.7更新为`waiting_on_rust_server_embedding_interface`，不继续认证请求、CLI推理或源码修改。
+- 恢复门：开发方提供已部署commit/版本后，先执行无凭据只读OpenAPI、认证顺序和路由基线，再单独
+  讨论现有Qwen无回归及BGE端到端门。当前不准备凭据、不改变Worker/Model/Instance/maintenance，
+  不操作Docker或GPU；M8-B继续暂停。
