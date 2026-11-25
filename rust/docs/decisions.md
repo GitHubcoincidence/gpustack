@@ -1510,3 +1510,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D328 | 等待Rust Server新embedding接口完成 | M8-EMB.7停在`waiting_on_rust_server_embedding_interface`。开发期间只保留一次无凭据基线，不把临时404或进程重启判为最终兼容失败；不在Worker仓库实现Server路由，不让CLI直连Worker绕过Server。Rust Server开发方明确提供已部署commit/版本后，重新冻结OpenAPI、认证与路由，再分别讨论无GPU控制面验证和真实BGE端到端门 | 106 Server源码属于独立、当前账号不可读的工作树，且用户确认新`/v1/embeddings`仍在开发。现在继续测试会把移动目标当成产品结果并制造低价值失败；等待明确构建身份后重测，能保持问题归属清晰，也避免提前准备凭据或扰动现有Worker、模型和GPU现场。 |
+
+## 2026-11-25 M8-EMB.7新接口测试裁决
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D329 | 非阻塞接口差异与最终链停止门 | 按用户决定，不以embedding未进入OpenAPI和无凭据不存在模型返回404阻断本次功能测试；两项仍记录为Rust Server差异。现成Worker 24模型只验证Server新接口功能，最终验收仍必须是Rust CLI→Rust Server→Worker 17→vLLM。唯一Model 23在字段正确但长期没有Instance时判`STOP/server_did_not_create_model_instance`，精确删除并恢复现场；禁止手工创建Instance或Worker直连绕过，等待Rust Server副本控制器修复 | 现成模型的float/base64、双输入和重复请求已证明新路由可用，但不能替代目标Rust Worker链。Model 23在Server持久化后始终没有Instance，失败发生在Worker、Docker和GPU之前；绕过副本控制器会破坏Server托管验收含义。精确cleanup保住原Qwen并给开发方留下单一、可复现的控制面问题。 |

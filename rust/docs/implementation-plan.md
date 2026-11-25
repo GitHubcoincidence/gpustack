@@ -1622,3 +1622,14 @@ Server仍处于接口开发期间；用户确认Server开发方正在实现新�
 完成后再测试。开发期间的路由和进程状态不作为最终兼容结论。恢复本阶段前必须先取得已部署的
 Rust Server commit/版本并重新冻结OpenAPI、认证和路由基线；在此之前不得准备阶段凭据、创建模型、
 改变maintenance、操作Docker或使用GPU。
+
+开发方部署新接口后，用户明确允许不以OpenAPI缺失和无凭据不存在模型先返回404阻断本次功能
+验证。现成Model 17经Rust CLI调用Rust Server完成float/base64、双输入和三次重复embedding请求，
+均返回2048维；该模型运行在Worker 24，只证明Server新接口的解析、选择和转发能力。
+
+随后以独立0600 Context、30分钟精确删除watchdog和固定BGE模型尝试最终Rust Worker链。Model 23
+正确保存`categories=["embedding"]`、Worker 17/GPU0 selector、pooling和低显存参数，但CLI等待超过
+3分钟且另行观察90秒后，Rust Server仍未创建任何ModelInstance。实验Model已精确删除，Context、
+watchdog和实验runtime归零，原Model 21/Instance 87/容器及全部健康门保持。M8-EMB.7现为
+`waiting_on_rust_server_instance_creation`；不得通过手工创建Instance或Worker直连绕过Server，
+须待Rust Server副本控制器修复后重跑最终链。

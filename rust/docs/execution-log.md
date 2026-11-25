@@ -8439,3 +8439,30 @@
 - 恢复门：开发方提供已部署commit/版本后，先执行无凭据只读OpenAPI、认证顺序和路由基线，再单独
   讨论现有Qwen无回归及BGE端到端门。当前不准备凭据、不改变Worker/Model/Instance/maintenance，
   不操作Docker或GPU；M8-B继续暂停。
+
+### 2026-11-25：M8-EMB.7 Rust Server新接口验证与最终链安全停止
+
+- 部署识别：开发方确认新接口已部署且只保留一个Server进程。项目按用户修订以实际行为而非未提交
+  的Git commit作为身份门；进程在短观察窗口中唯一且health连续200。动态`POST /v1/embeddings`
+  虽未出现在OpenAPI，但业务404正文证明路由已注册。
+- 非阻塞差异：无凭据请求已存在模型返回401，不存在模型先返回404，存在模型名枚举差异；OpenAPI
+  也未声明embedding路径。用户明确决定这两项不影响本次功能测试，保留为Rust Server差异但不作为
+  EMB.7当前阻断门。
+- Server功能链：使用现成Model 17 `Qwen3-VL-Embedding-2B-new`、Instance 98和Worker 24验证新
+  接口。float和base64均返回2048维；双输入返回两个2048维向量；三次重复float请求均成功且Instance
+  保持running、restart count 1。不存在模型的已认证CLI请求按预期返回404。该证据只证明Rust
+  Server解析、目标选择和转发，不冒充106 Rust Worker最终链。
+- 最终链预检：Worker 17 ready且非maintenance；Model 21 ready，精确GET确认Instance 87在Worker
+  17/GPU0/端口40000 running；原容器`3233adac6f2a`、Qwen健康和约17.3 GiB显存基线稳定。固定BGE
+  目录为0555、11个文件、96,378,336字节。使用既有0600管理凭据引用创建独立Context，未复制或
+  输出secret；30分钟watchdog只允许按唯一名称删除实验Model。
+- 唯一部署请求：CLI创建Model 23 `m8emb7-bge-small-zh-gpu0`，固定Cluster 1、Worker 17、GPU0、
+  `categories=["embedding"]`、`--runner=pooling`、max length 512、显存比例0.1、eager、固定Runner
+  digest和固定BGE路径。Server正确持久化全部字段，但CLI等待超过3分钟、随后10个间隔10秒的样本
+  始终显示目标ModelInstance为0；没有创建容器、端口或新增GPU进程。
+- 裁决与恢复：结果为`STOP/server_did_not_create_model_instance`，归属Rust Server的Model副本
+  控制面。项目没有手工POST ModelInstance、没有直连Worker部署，也没有停止原Qwen来绕过问题。
+  Model 23精确删除后目标资源为0；watchdog disarm并删除，隔离Context删除，管理凭据保留。精确
+  Instance 87、同一原容器、Server/Worker/ready/Qwen健康和GPU基线全部恢复或保持。
+- 当前停止位置：`M8-EMB.7 waiting_on_rust_server_instance_creation`。Rust Server修复后应使用新
+  模型名重跑同一最终链；M8-B继续暂停，本结果不能标记为accepted。
