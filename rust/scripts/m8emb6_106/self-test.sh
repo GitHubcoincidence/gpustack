@@ -17,20 +17,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
-printf '[1/5] shell and Python syntax\n'
+printf '[1/7] shell and Python syntax\n'
 source /home/wujiaxing/.cargo/env
 command -v cargo >/dev/null
 for script in "$SCRIPT_DIR"/*.sh; do
   bash -n "$script"
 done
-python3 - "$M8EMB6106_JSON_TOOL" <<'PY'
+python3 - "$M8EMB6106_JSON_TOOL" "$SCRIPT_DIR/runtime_tool.py" <<'PY'
 import sys
 
-with open(sys.argv[1], encoding='utf-8') as stream:
-    compile(stream.read(), sys.argv[1], 'exec')
+for path in sys.argv[1:]:
+    with open(path, encoding='utf-8') as stream:
+        compile(stream.read(), path, 'exec')
 PY
 
-printf '[2/5] preparation tools contain no service mutation\n'
+printf '[2/7] preparation tools contain no service mutation\n'
 if grep -REn -- \
   'docker (rm|stop|start)|worker maintenance|model deploy|kill -|--privileged|rm -rf' \
   "$SCRIPT_DIR/common.sh" "$SCRIPT_DIR/prepare-model.sh" \
@@ -39,7 +40,7 @@ if grep -REn -- \
   exit 1
 fi
 
-printf '[3/5] process identity accepts deleted executable and rejects drift\n'
+printf '[3/7] process identity accepts deleted executable and rejects drift\n'
 install -m 0700 /bin/sleep "$TEMP_ROOT/deleted-sleep"
 "$TEMP_ROOT/deleted-sleep" 30 &
 test_pid=$!
@@ -56,7 +57,7 @@ fi
 kill -TERM "$test_pid"
 wait "$test_pid" 2>/dev/null || true
 
-printf '[4/5] argv sanitization removes only obsolete model-root\n'
+printf '[4/7] argv sanitization removes only obsolete model-root\n'
 printf '%s\0' /old/gpustack-rs --output json worker --server-url \
   http://127.0.0.1:18091/ --model-root /home/wujiaxing/models run \
   >"$TEMP_ROOT/cmdline.bin"
@@ -75,7 +76,32 @@ assert value['argv'][-1] == 'run'
 assert value['removed_model_root'] == 1
 PY
 
-printf '[5/5] fixed model and evidence identity\n'
+printf '[5/7] missing maintenance authorization is rejected\n'
+python3 - "$SCRIPT_DIR/runtime_tool.py" "$TEMP_ROOT/missing.json" <<'PY'
+import importlib.util
+import sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location('runtime_tool', sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+try:
+    module.validate_authorization(Path(sys.argv[2]), '0' * 40, '0' * 64)
+except module.GateError:
+    pass
+else:
+    raise SystemExit('missing authorization was accepted')
+PY
+
+printf '[6/7] formal tools contain no broad destructive command\n'
+if grep -REn -- 'docker system prune|docker volume prune|--privileged|rm -rf' \
+  "$SCRIPT_DIR/runtime_tool.py" "$SCRIPT_DIR/executor.sh" \
+  "$SCRIPT_DIR/cleanup.sh" "$SCRIPT_DIR/watchdog.sh"; then
+  printf 'STOP: formal tools contain a broad destructive command\n' >&2
+  exit 1
+fi
+
+printf '[7/7] fixed model and evidence identity\n'
 m8emb6106_verify_model
 install -d -m 0700 "$TEMP_ROOT/evidence"
 printf 'payload\n' >"$TEMP_ROOT/evidence/value.txt"
