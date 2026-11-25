@@ -13,6 +13,7 @@ readonly EVIDENCE="${M8EMB6106_PREFLIGHT_EVIDENCE:?M8EMB6106_PREFLIGHT_EVIDENCE 
 
 [[ ! -e "$EVIDENCE" && ! -L "$EVIDENCE" ]] ||
   m8emb6106_die "preflight evidence path already exists: $EVIDENCE"
+source /home/wujiaxing/.cargo/env
 m8emb6106_require_commands cargo curl docker find git install nvidia-smi pgrep \
   python3 sha256sum ss stat
 for token_file in \
@@ -49,7 +50,6 @@ announce() {
 current_step='source_identity'
 announce 1 '固定源码、最新二进制、Context和模型身份'
 cd "$M8EMB6106_REPO"
-source /home/wujiaxing/.cargo/env
 [[ "$(git branch --show-current)" == 'codex/rust-worker' ]]
 [[ "$(git rev-parse HEAD)" == "$EXPECTED_HEAD" ]]
 [[ "$(git rev-parse origin/codex/rust-worker)" == "$EXPECTED_HEAD" ]]

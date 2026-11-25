@@ -18,6 +18,8 @@ cleanup() {
 trap cleanup EXIT
 
 printf '[1/5] shell and Python syntax\n'
+source /home/wujiaxing/.cargo/env
+command -v cargo >/dev/null
 for script in "$SCRIPT_DIR"/*.sh; do
   bash -n "$script"
 done
