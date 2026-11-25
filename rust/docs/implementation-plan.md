@@ -1572,3 +1572,15 @@ chat/completion路径。构建后源码HEAD和工作树未变化，四个历史W
 进入讨论时的只读现场与原假设存在重要差异：GPU0由连接106 Rust Server的统一Worker及其Instance
 95占用，GPU1为外部任务占用，90上没有可复用的小型embedding模型缓存。任何临时释放GPU0并恢复
 106 workload的方案都属于显式维护边界修订，必须由用户选择并单独授权；不得以EMB.5验收替代。
+
+用户已接受D325分段兼容方案并只授权M8-EMB.6A。固定模型为
+`BAAI/bge-small-zh-v1.5@7999e1d3359715c523056ef9478215996d62a620`，只选择11个运行必需文件，
+以逐文件SHA-256、96,378,336总字节、512维和CLS pooling元数据固定；目标目录为
+`/home/wujiaxing2/.local/share/gpustack-rust-worker/models/bge-small-zh-v1.5-7999e1d`。
+`rust/scripts/m8emb6/`提供模型原子安装、preflight、一次性授权执行器、watchdog、精确cleanup、独立
+post-audit和离线self-test；完整协议见`rust/docs/m8emb6-python-server-compatibility.md`。
+
+M8-EMB.6A只允许提交上述工具和fixture、安装只读模型并运行静态/离线检查。它不授权创建Context、
+API Key、Worker或Model，不授权停止现有进程/容器、执行Docker写操作或使用GPU。准备完成后状态只能
+进入`ready_for_review`；M8-EMB.6B凭据与只读preflight、M8-EMB.6C正式维护窗口和M8-EMB.6D凭据
+退役均须分别授权。

@@ -1491,3 +1491,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D324 | vLLM参数安全透传阶段验收 | 用户审阅D320实现范围、保护边界、离线质量门、90上Instance 95无重建接管、推理、清理和证据封存结果后明确接受。产品提交`c0ee0c1a`和治理提交`981594fa`支持验收，本阶段更新为`accepted`。真实新通用参数的端到端样本作为未来增量证据，不阻塞本次验收；M8容器化继续暂停，不由本次接受自动启动 | 已有证据证明解析与命令构造契约、旧manifest兼容以及运行中vLLM无重建升级；用户接受使阶段可以正式收口。把未来样本和容器化保留为独立工作，避免将尚未执行的证据或阶段权限混入当前结论。 |
+
+## 2026-11-25 M8-EMB.6 Python Server兼容门冻结
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D325 | embedding真实兼容门与106 workload维护边界 | 固定`BAAI/bge-small-zh-v1.5` revision `7999e1d3359715c523056ef9478215996d62a620`、512维CLS pooling、固定Runner digest和GPU0。先独立完成模型/工具准备，再分别授权凭据与只读preflight、正式维护窗口、审阅与凭据退役。正式窗口不删除106的Model、Instance或原容器：先封存原Worker进程、二进制、NUL argv及容器身份，启用maintenance后精确停止原Worker并只停止原容器；实验结束清除唯一Python Server资源，再原样启动原容器和原Worker并恢复窗口前maintenance。GPU1只观察，禁止进入DeviceRequest或生命周期操作 | 现场GPU0已被连接106的统一Rust Worker及Instance 95占用，直接启动第二个vLLM会破坏排他和显存边界；删除控制面对象又会扩大恢复风险。分段授权把无副作用准备、凭据、控制面写入和真实GPU窗口隔开，精确identity、watchdog、cleanup及独立post-audit保证失败时可归因且可恢复。用户接受完整方案，并只授权EMB.6A准备阶段。 |

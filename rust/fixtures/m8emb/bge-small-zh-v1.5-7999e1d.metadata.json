@@ -1,0 +1,11 @@
+{
+  "repository": "BAAI/bge-small-zh-v1.5",
+  "revision": "7999e1d3359715c523056ef9478215996d62a620",
+  "file_count": 11,
+  "total_bytes": 96378336,
+  "weight_file": "model.safetensors",
+  "weight_sha256": "354763b9b1357bc9c44f62c6be2276321081ed2567773608c0d0785b61d5a026",
+  "embedding_dimension": 512,
+  "max_model_len": 512,
+  "pooling_type": "CLS"
+}

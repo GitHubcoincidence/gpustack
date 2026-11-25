@@ -8271,3 +8271,20 @@
 - 当前停止位置：`M8-EMB.6 discussion_pending`。下一步向用户提交隔离、维护、恢复、正式验收和
   失败回滚方案，并明确选择“等待GPU0自然释放”或“授权临时暂停并原样恢复106 workload”。本条
   只记录只读事实，不构成下载、凭据、Server写入、Docker或GPU授权。
+
+### 2026-11-25：M8-EMB.6方案接受与EMB.6A准备
+
+- 用户接受D325的独立Python Server Worker、固定GPU0、106 workload停止但不删除、精确恢复、
+  watchdog、cleanup和post-audit方案；本次只授权EMB.6A模型与工具准备，真实维护窗口未授权。
+- 固定模型revision为`7999e1d3359715c523056ef9478215996d62a620`。选择11个运行文件，合计
+  96,378,336字节；`model.safetensors`为95,827,648字节，SHA-256为
+  `354763b9b1357bc9c44f62c6be2276321081ed2567773608c0d0785b61d5a026`。fixture同时固定完整
+  文件manifest、512维、最大长度512和CLS pooling。
+- 工具实现按统一生命周期拆为共享identity门、模型原子安装、只读preflight、一次性授权executor、
+  30分钟watchdog、精确cleanup、独立post-audit和无授权拒绝self-test。脚本只通过受保护文件和curl
+  配置FD读取凭据，正式动作由固定HEAD、preflight manifest和一次性nonce共同解锁。
+- 模型已安装到90的固定只读目录；首次安装和幂等复验均通过，目录模式0555、11个文件模式0444。
+  安装后本机Python Server、Python Worker和106 Server health均为200；只读GPU观察仍只看到既有
+  GPU0/GPU1进程，本阶段没有启动Worker/vLLM、创建Server资源、调用Docker写操作或使用GPU。
+- 当前等待把工具固定为Git提交并在该HEAD重跑语法、自测、模型身份、服务/GPU无影响检查及证据
+  封存。完成后M8-EMB.6A进入`ready_for_review`，不会自动进入凭据或维护阶段。
