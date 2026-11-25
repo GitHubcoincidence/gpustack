@@ -301,6 +301,47 @@ def cli_json(
         raise GateError(f'CLI output is not JSON: {name}') from error
 
 
+def cli_json_retry(
+    config: Config,
+    evidence: Evidence,
+    name: str,
+    context: str,
+    arguments: List[str],
+    attempts: int = 12,
+    request_timeout: int = 20,
+    delay: int = 5,
+) -> Any:
+    command = [
+        str(config.binary),
+        '--timeout',
+        str(request_timeout),
+        '--context',
+        context,
+        '--output',
+        'json',
+        *arguments,
+    ]
+    exit_codes = []
+    for attempt in range(1, attempts + 1):
+        result = evidence.run(
+            f'{name}-attempt-{attempt}',
+            command,
+            timeout=request_timeout + 10,
+            check=False,
+        )
+        exit_codes.append(result.returncode)
+        if result.returncode == 0:
+            try:
+                value = json.loads(result.stdout)
+            except json.JSONDecodeError as error:
+                raise GateError(f'CLI output is not JSON: {name}') from error
+            evidence.json(f'{name}.json', value)
+            return value
+        if attempt < attempts:
+            time.sleep(delay)
+    raise GateError(f'CLI route did not become ready: {name}, exits={exit_codes}')
+
+
 def set_maintenance(
     config: Config,
     evidence: Evidence,
@@ -717,7 +758,7 @@ def inference_gates(
     state: Dict[str, Any],
 ) -> None:
     evidence.log('[5/7] 验证Server CLI、Worker直连及float/base64响应')
-    float_value = cli_json(
+    float_value = cli_json_retry(
         config,
         evidence,
         'server-embeddings-float',

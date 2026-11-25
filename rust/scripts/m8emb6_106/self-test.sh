@@ -76,9 +76,12 @@ assert value['argv'][-1] == 'run'
 assert value['removed_model_root'] == 1
 PY
 
-printf '[5/7] missing maintenance authorization is rejected\n'
-python3 - "$SCRIPT_DIR/runtime_tool.py" "$TEMP_ROOT/missing.json" <<'PY'
+printf '[5/7] authorization, zombie, and route retry behavior\n'
+python3 - "$SCRIPT_DIR/runtime_tool.py" "$TEMP_ROOT/missing.json" \
+  "$TEMP_ROOT" <<'PY'
 import importlib.util
+import json
+import os
 import subprocess
 import sys
 import time
@@ -99,6 +102,38 @@ time.sleep(0.1)
 module.wait_process_exit(child.pid, 2)
 if Path(f'/proc/{child.pid}').exists():
     raise SystemExit('zombie process was not reaped')
+
+root = Path(sys.argv[3])
+mock = root / 'mock-cli.py'
+counter = root / 'mock-cli.count'
+mock.write_text(
+    '#!/usr/bin/env python3\n'
+    'import json\n'
+    'from pathlib import Path\n'
+    f'counter = Path({str(counter)!r})\n'
+    'count = int(counter.read_text()) + 1 if counter.exists() else 1\n'
+    'counter.write_text(str(count))\n'
+    'if count < 2:\n'
+    '    raise SystemExit(30)\n'
+    'print(json.dumps({"ready": True}))\n',
+    encoding='utf-8',
+)
+mock.chmod(0o700)
+os.environ['M8EMB6106_REPO'] = str(root)
+config = type('Config', (), {'binary': mock})()
+evidence = module.Evidence(root / 'retry-evidence')
+value = module.cli_json_retry(
+    config,
+    evidence,
+    'route-readiness',
+    'test-context',
+    ['inference', 'embeddings'],
+    attempts=3,
+    request_timeout=1,
+    delay=0,
+)
+if value != {'ready': True} or counter.read_text() != '2':
+    raise SystemExit('route readiness retry contract failed')
 PY
 
 printf '[6/7] formal tools contain no broad destructive command\n'
@@ -110,6 +145,7 @@ if grep -REn -- 'docker system prune|docker volume prune|--privileged|rm -rf' \
 fi
 grep -q 'bash "$SCRIPT_DIR/executor.sh"' "$SCRIPT_DIR/watchdog.sh"
 grep -q 'bash "$SCRIPT_DIR/cleanup.sh"' "$SCRIPT_DIR/watchdog.sh"
+grep -q 'cli_json_retry(' "$SCRIPT_DIR/runtime_tool.py"
 
 printf '[7/7] fixed model and evidence identity\n'
 m8emb6106_verify_model
