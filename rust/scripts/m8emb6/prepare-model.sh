@@ -40,7 +40,7 @@ install -d -m 0755 "$MODEL_PARENT"
 cleanup_temp() {
   if [[ -d "$TEMP_TARGET" && ! -L "$TEMP_TARGET" ]]; then
     find "$TEMP_TARGET" -type f -exec chmod 0600 {} + 2>/dev/null || true
-    find "$TEMP_TARGET" -type f -exec unlink {} + 2>/dev/null || true
+    find "$TEMP_TARGET" -type f -exec unlink {} \; 2>/dev/null || true
     rmdir "$TEMP_TARGET/1_Pooling" 2>/dev/null || true
     rmdir "$TEMP_TARGET" 2>/dev/null || true
   fi

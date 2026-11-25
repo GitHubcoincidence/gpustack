@@ -260,8 +260,8 @@ m8emb6_remove_owned_tree() {
   [[ ! -e "$path" ]] && return 0
   [[ -d "$path" ]] || return 1
   [[ "$(stat -c '%U:%G' "$path")" == 'wujiaxing2:wujiaxing2' ]] || return 1
-  find "$path" -xdev -type f -exec unlink {} +
-  find "$path" -xdev -type l -exec unlink {} +
+  find "$path" -xdev -type f -exec unlink {} \;
+  find "$path" -xdev -type l -exec unlink {} \;
   find "$path" -xdev -depth -type d -exec rmdir {} +
 }
 

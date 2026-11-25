@@ -11,7 +11,7 @@ source "$SCRIPT_DIR/common.sh"
 readonly TEMP_ROOT="$(mktemp -d /tmp/m8emb6-self-test.XXXXXX)"
 cleanup() {
   if [[ -d "$TEMP_ROOT" && ! -L "$TEMP_ROOT" ]]; then
-    find "$TEMP_ROOT" -type f -exec unlink {} + 2>/dev/null || true
+    find "$TEMP_ROOT" -type f -exec unlink {} \; 2>/dev/null || true
     find "$TEMP_ROOT" -depth -type d -exec rmdir {} + 2>/dev/null || true
   fi
 }
@@ -84,5 +84,12 @@ m8emb6_seal_directory "$TEMP_ROOT/seal"
 [[ "$(stat -c '%a' "$TEMP_ROOT/seal/existing-worker-binary")" == '700' ]]
 [[ "$(stat -c '%a' "$TEMP_ROOT/seal/payload.txt")" == '600' ]]
 (cd "$TEMP_ROOT/seal" && sha256sum --check manifest.sha256) >/dev/null
+
+install -d -m 0700 "$TEMP_ROOT/owned-tree/nested"
+printf 'one\n' >"$TEMP_ROOT/owned-tree/one.txt"
+printf 'two\n' >"$TEMP_ROOT/owned-tree/nested/two.txt"
+ln -s one.txt "$TEMP_ROOT/owned-tree/one.link"
+m8emb6_remove_owned_tree "$TEMP_ROOT/owned-tree" "$TEMP_ROOT/owned-tree"
+[[ ! -e "$TEMP_ROOT/owned-tree" && ! -L "$TEMP_ROOT/owned-tree" ]]
 
 printf 'm8emb6_toolchain_self_test=PASS\n'
