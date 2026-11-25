@@ -8240,3 +8240,24 @@
 - 当前停止位置：`M8-EMB.5 ready_for_review`。下一步只允许用户审阅聚合质量报告；接受后才把
   EMB.5标记为`accepted`并讨论、冻结EMB.6 Python Server/GPU0兼容门。EMB.6真实运行与维护窗口
   均未授权，M8-B继续暂停。
+
+### 2026-11-25：M8-EMB.5验收与M8-EMB.6现场差异审计
+
+- 用户验收：用户接受M8-EMB.5在固定HEAD`6cbb082e`上的256项workspace测试、OpenAPI漂移、
+  all-targets Clippy、locked/offline build和外部零影响报告；记录提交`c07b841f`保持有效，EMB.5
+  标记为`accepted`。
+- 只读现场：90本机Python Server和Python Worker health均为200；统一Rust `worker run`当前连接
+  106 Rust Server而非本机Python Server，并管理容器`gpustack-rs-managed-95`。GPU0约占72.4 GiB，
+  GPU1外部任务约占80.7 GiB，本地未发现BGE/E5/GTE embedding缓存。
+- Runner身份：现有不可变镜像为
+  `quay.io/gpustack/runner@sha256:f9c58b163ec7eb537404c7d268f3d96e101cbf19e05acb8df6b7637f9e64c3af`，
+  标签报告vLLM 0.25.1；Instance 95容器ID和restart count只读记录，未执行stop/start/rename。
+- 候选但未冻结：建议使用`BAAI/bge-small-zh-v1.5`，其safetensors约95.8 MB、中文向量维度512，
+  以固定revision和逐文件SHA-256下载到独立绝对路径，并显式选择`category=embedding`与
+  `runner=pooling`。revision、下载方式和最终目录身份须在用户接受方案后由预检冻结。
+- 漂移裁决：原EMB.6只描述90 Python Server/GPU0门；临时释放GPU0现在会影响106 Worker及其
+  workload，属于`intentional change pending`。不得在未讨论恢复语义和取得维护授权时停止现有
+  Worker/容器、删除或修改Instance 95，也不得改用GPU1绕过固定边界。
+- 当前停止位置：`M8-EMB.6 discussion_pending`。下一步向用户提交隔离、维护、恢复、正式验收和
+  失败回滚方案，并明确选择“等待GPU0自然释放”或“授权临时暂停并原样恢复106 workload”。本条
+  只记录只读事实，不构成下载、凭据、Server写入、Docker或GPU授权。

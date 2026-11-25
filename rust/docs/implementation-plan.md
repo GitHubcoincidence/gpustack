@@ -1562,3 +1562,12 @@ chat/completion路径。构建后源码HEAD和工作树未变化，四个历史W
 本门没有产品代码变更，也没有连接业务Server、启动Worker/vLLM、操作Docker或使用GPU。当前为
 `M8-EMB.5 ready_for_review`；用户接受汇总报告后才能把EMB.5标记为`accepted`，下一步仅允许讨论
 和冻结M8-EMB.6 Python Server/GPU0兼容验证，真实运行仍须独立授权。
+
+用户已接受M8-EMB.5的256项聚合回归、OpenAPI漂移、Clippy和离线构建结果，固定质量门标记为
+`accepted`。M8-EMB.6现为`discussion_pending`：只允许冻结模型、Runner、独立Python Server Worker
+身份、GPU0维护与恢复、凭据、watchdog、cleanup和post-audit方案，不授权下载模型、停止现有
+106 Worker或容器、创建Server资源、启动实验Worker/vLLM或使用GPU。
+
+进入讨论时的只读现场与原假设存在重要差异：GPU0由连接106 Rust Server的统一Worker及其Instance
+95占用，GPU1为外部任务占用，90上没有可复用的小型embedding模型缓存。任何临时释放GPU0并恢复
+106 workload的方案都属于显式维护边界修订，必须由用户选择并单独授权；不得以EMB.5验收替代。
