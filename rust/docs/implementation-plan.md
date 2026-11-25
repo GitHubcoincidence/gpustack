@@ -1610,5 +1610,9 @@ D326将EMB.6真实执行主机迁移到106：兼容目标仍是90 Python Server�
 M8-EMB.6C-106最终在工具HEAD`668bf92b`通过：Model 39、Instance 59和唯一GPU0容器完成embedding
 部署，Server/Worker两条路径、float/base64、table及三次幂等请求全部通过；formal、cleanup和独立
 post-audit均为PASS。实验资源归零，原Worker 17、Model 21、Instance 87、同一容器/镜像/spec
-hash/GPU UUID和maintenance=false均恢复，恢复进程运行`668bf92b`二进制。阶段状态为
-`ready_for_review`；只允许交付详细报告和用户审阅，接受后再退役短期凭据并讨论EMB.7。
+hash/GPU UUID和maintenance=false均恢复，恢复进程运行`668bf92b`二进制。
+
+用户接受详细报告后，106上的实验专用operator token副本、registration token副本、隔离Context
+和一次性授权输入已删除；本阶段未新建90 Server API Key，90共享原始凭据保持不变。退役后两端
+Server、106 Worker及原Qwen模型健康，固定BGE模型与证据链保留。M8-EMB.6现为`accepted`；下一步
+只允许讨论EMB.7，不自动授权真实运行或M8-B。

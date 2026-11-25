@@ -1498,3 +1498,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 |---|---|---|---|
 | D325 | embedding真实兼容门与106 workload维护边界 | 固定`BAAI/bge-small-zh-v1.5` revision `7999e1d3359715c523056ef9478215996d62a620`、512维CLS pooling、固定Runner digest和GPU0。先独立完成模型/工具准备，再分别授权凭据与只读preflight、正式维护窗口、审阅与凭据退役。正式窗口不删除106的Model、Instance或原容器：先封存原Worker进程、二进制、NUL argv及容器身份，启用maintenance后精确停止原Worker并只停止原容器；实验结束清除唯一Python Server资源，再原样启动原容器和原Worker并恢复窗口前maintenance。GPU1只观察，禁止进入DeviceRequest或生命周期操作 | 现场GPU0已被连接106的统一Rust Worker及Instance 95占用，直接启动第二个vLLM会破坏排他和显存边界；删除控制面对象又会扩大恢复风险。分段授权把无副作用准备、凭据、控制面写入和真实GPU窗口隔开，精确identity、watchdog、cleanup及独立post-audit保证失败时可归因且可恢复。用户接受完整方案，并只授权EMB.6A准备阶段。 |
 | D326 | EMB.6迁移到106执行并保留最新Worker | Python兼容目标仍为90既有Server，但Rust Worker、模型和GPU实验迁移到106。106仓库直接更新并在既有target构建，不保留或恢复旧二进制；窗口后以最新二进制复用原token、data和identity恢复Worker 17，并原样恢复Model 21、Instance 87及既有容器。实验使用唯一Worker/端口/目录/Context及106唯一GPU0；旧`m8emb6`脚本保留为历史证据但禁止正式执行，改用106专用工具。正式窗口仍需在只读preflight后单独授权 | 90的GPU持续被其他任务占用，而106已有可精确停止和恢复的Rust Worker模型现场，并能双向访问90 Python Server。分离控制面兼容目标与GPU执行主机可避免操作90外部任务；保留最新Worker符合重写项目的升级目标，恢复稳定的Server/模型身份比恢复旧可执行文件更重要。用户明确接受直接更新最新二进制、实验后恢复原模型实例，并允许连接90 Python Server验证。 |
+
+## 2026-11-25 M8-EMB.6验收与凭据退役
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D327 | M8-EMB.6正式验收与106副本退役 | 接受工具HEAD`668bf92b`的最终正式结果及完整恢复证据，把M8-EMB.6标记为`accepted`。精确删除106实验专用operator token副本、registration token副本、隔离Context和一次性授权输入；保留固定BGE模型、证据链和日常代码维护SSH密钥。因本阶段未新建90 Server API Key，90共享operator及Cluster原始凭据保持不变。下一步只讨论和冻结EMB.7，不自动授权真实操作或M8-B | 正式attempt 4同时满足Server/Worker两条embedding路径、编码与维度、幂等、cleanup、post-audit及原现场恢复。只退役执行主机副本可缩小秘密暴露面，又不会撤销被现有Worker和其他实验共享的90凭据；固定模型与证据保留可避免重复下载并支持复验。用户审阅详细报告后明确接受。 |

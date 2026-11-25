@@ -8408,3 +8408,19 @@
   Worker health/ready/metrics和原Qwen模型均返回200，106工作树与origin跟踪引用一致。
 - 当前停止位置：`M8-EMB.6 ready_for_review`。短期operator Context/API key、registration token和
   固定模型暂保留；用户接受详细报告后执行凭据退役并标记`accepted`，不得自动进入EMB.7或M8-B。
+
+### 2026-11-25：M8-EMB.6验收与106实验凭据退役
+
+- 用户验收：用户审阅最终attempt 4的部署、两条推理路径、float/base64、重复请求、完整cleanup、
+  独立post-audit和原现场恢复报告后明确同意收口，M8-EMB.6更新为`accepted`。
+- 退役范围：精确删除106上的`m8emb6-106-python-operator-token`、
+  `m8emb6-106-registration-token`、`m8emb6-106-contexts.json`和已使用的一次性授权输入；四个路径
+  均复核为不存在。没有删除固定BGE模型、证据目录或106日常代码维护SSH密钥。
+- 共享凭据边界：本阶段复用90既有operator和Cluster registration凭据并只在106建立副本，没有
+  新建独立Server API Key。90的两个原始文件继续为0600、单硬链接且owner不变，未读取内容、未撤销
+  或删除，避免影响现有Worker及其他实验。
+- 退役后复核：106 Worker health/ready/metrics、原Qwen模型和Rust Server均返回200；90 Python
+  Server health及Python Worker health/metrics均返回200。106固定BGE目录保持0555、11个文件、
+  96,378,336字节，原`gpustack-rs-managed-87`容器继续运行。
+- 当前停止位置：`M8-EMB.6 accepted`。固定模型与证据链作为可复验资产保留；下一步只允许讨论并
+  冻结M8-EMB.7，不因本次验收自动授权新的Server写入、维护窗口、Docker或GPU操作，M8-B仍暂停。

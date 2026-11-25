@@ -92,8 +92,9 @@ formal失败；恢复成功不能把业务失败改判为通过。
 
 ### EMB.6D-106 审阅与凭据退役
 
-formal、cleanup和独立post-audit均PASS后先进入`ready_for_review`。用户接受后删除短期Python
-operator Context/API key、registration token和一次性授权文件，再把阶段标记为`accepted`。
+formal、cleanup和独立post-audit均PASS后先进入`ready_for_review`。用户接受后删除106上的隔离
+Context、operator与registration token副本和一次性授权文件，再把阶段标记为`accepted`。共享
+Server凭据只有在本阶段独立创建时才撤销；不得撤销被既有环境复用的原始凭据。
 
 ## 7. 正式验收门
 
@@ -113,6 +114,10 @@ operator Context/API key、registration token和一次性授权文件，再把�
 
 M8-EMB.6C-106已在工具HEAD`668bf92b`通过正式验证、cleanup和独立post-audit。固定BGE模型继续
 保留；实验Worker、Model、Instance、ModelFile、容器、manifest、端口和data/log已经归零，原
-Worker 17、Model 21、Instance 87和同一容器已由最新二进制恢复。当前为`ready_for_review`；用户
-接受详细报告后才能退役短期Python operator Context/API key、registration token和一次性授权输入，
-并把M8-EMB.6标记为`accepted`。在此之前不得据此自动启动EMB.7或M8-B。
+Worker 17、Model 21、Instance 87和同一容器已由最新二进制恢复。
+
+用户接受详细报告后，106上的实验专用Python operator副本、Cluster registration token副本、
+隔离Context和一次性授权输入均已精确删除。该阶段没有新建90 Server API Key，因此未撤销或删除
+90上的共享operator与Cluster原始凭据；它们继续供既有环境使用。退役后106 Worker、原Qwen模型、
+106 Rust Server以及90 Python Server/Worker健康检查均为200，固定BGE模型和完整证据链继续保留。
+M8-EMB.6现为`accepted`；不得据此自动启动EMB.7或M8-B，下一步只允许先讨论后续范围。
