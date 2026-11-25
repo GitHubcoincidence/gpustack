@@ -26,6 +26,7 @@
 - [m7e3-control-connection-recovery.md](m7e3-control-connection-recovery.md)：已冻结的 M7-E.3 Rust Worker专用 Server/Docker代理串行故障、运行时保留、恢复收敛和回滚协议。
 - [m7f-dual-gpu-tp2.md](m7f-dual-gpu-tp2.md)：已冻结的 M7-F 本机双 GPU TP=2产品契约、离线实现门、正式验证和回滚方案。
 - [m8emb6-python-server-compatibility.md](m8emb6-python-server-compatibility.md)：M8-EMB.6 Python Server embedding兼容门、GPU0维护隔离、watchdog与恢复边界。
+- [rust-server-embedding-model-instance-creation-issue.md](rust-server-embedding-model-instance-creation-issue.md)：Rust Server创建embedding Model后未生成ModelInstance的完整复现、归因、修复建议和验收标准。
 
 ## 文档语言
 
