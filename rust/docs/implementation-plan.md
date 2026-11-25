@@ -1600,3 +1600,9 @@ D326将EMB.6真实执行主机迁移到106：兼容目标仍是90 Python Server�
 旧`rust/scripts/m8emb6/`只保留历史证据，正式门改用106专用手册和工具。下一步完成模型/凭据准备、
 只读preflight和证据封存，状态最多进入`ready_for_maintenance_authorization`；未取得独立维护授权前
 不得停止106 Worker或容器、改变maintenance或启动BGE vLLM。
+
+106专用工具现已实现：Shell只负责固定环境与参数，Python标准库runtime负责带token文件的API、
+精确进程/容器身份、一次性授权、正式部署/推理、幂等cleanup和独立post-audit，不依赖sudo或jq。
+固定BGE模型已原子安装为0555/0444；Python operator、Cluster registration、106 operator引用和
+隔离Context均为0600单硬链接。候选HEAD`7c0769df`的7组自测、只读preflight和缺失授权拒绝均
+通过；记录提交后必须在最终HEAD重跑preflight并只使用新manifest申请维护窗口。

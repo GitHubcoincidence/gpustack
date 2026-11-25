@@ -8340,3 +8340,29 @@
 - 治理裁决：D326取代D325的执行主机和旧二进制恢复细节。旧90脚本禁止正式执行；下一步实现106
   专用普通用户工具、准备只读BGE模型和受保护凭据，再执行无写入preflight。当前停止位置为
   `M8-EMB.6B-106 tooling_in_progress`，没有停止Worker/容器、修改Server资源或启动新GPU任务。
+
+### 2026-11-25：M8-EMB.6B-106工具、模型和只读preflight完成
+
+- 工具提交：`f39b231b`建立106专用runbook、标准库JSON校验器、模型/Context准备和只读preflight；
+  `f844c5ba`修正非交互shell在检查Cargo前未加载固定Rust环境；`674bff44`把恢复UUID权威来源改为
+  原data目录的`managed/worker-identity.json`并与容器label交叉验证；`7c0769df`增加一次性授权
+  executor、幂等cleanup、30分钟watchdog和独立post-audit。旧90工具明确标记为历史方案。
+- 凭据与模型：90的Python operator token和Cluster registration token通过双密钥`scp -3`流式
+  传到106，没有在本机落盘或输出内容；目标文件均为0600、单硬链接。隔离Context文件同时固定90
+  Python Server和106 Rust Server。BGE stage精确为11个文件、96,378,336字节，经revision及逐文件
+  SHA-256验证后原子安装到固定路径，目录0555、文件0444。
+- 自测：最终工具7组全部通过，包括Shell/Python语法、非交互Cargo、已删除可执行文件身份正反门、
+  仅删除废弃`--model-root`的恢复argv、缺失授权拒绝、宽泛破坏命令扫描和模型/证据manifest。
+  runtime Python无超过88字符的行，仓库`git diff --check`和工作树检查通过。
+- 非计分失败：第一次preflight在创建证据前发现非交互PATH没有Cargo，前移环境加载后修复；第二次
+  在原资源门发现Rust Server Worker响应不含`uuid`，改为本地identity与容器label双重固定。两次
+  都发生在maintenance、进程停止和Docker写操作之前；第二次STOP证据已封存，不作为通过依据。
+  一次拒绝测试收尾误把两个文件传给GNU `unlink`，两份无秘密临时日志随后逐个删除，不影响拒绝门。
+- 通过证据：`674bff44`开发preflight先通过；加入正式工具后，`7c0769df`重新构建最新二进制并完成
+  7步只读preflight，证据目录为
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8emb6-106/preflight-7c0769df-formal`，
+  manifest SHA-256为`069a59b9c913caf1adb480c4d2622b9103b1d0781ea1202c2dfc591378e2a950`。
+  真实executor使用不存在的授权文件退出1且没有创建formal/cleanup目录。
+- 当前停止位置：记录提交后要在最终HEAD再跑一次只读preflight，使授权绑定最终治理提交。之后状态
+  为`ready_for_maintenance_authorization`；尚未改变maintenance、停止Worker/容器、创建实验Server
+  资源或启动BGE，正式窗口必须由用户明确授权。

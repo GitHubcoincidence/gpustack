@@ -111,6 +111,7 @@ operator Context/API key、registration token和一次性授权文件，再把�
 
 ## 8. 当前停止点
 
-方案已按D326改写，106已直接构建当前HEAD且旧Worker/模型仍健康。下一步只允许完成106专用工具、
-模型和凭据准备及只读preflight；在取得正式维护授权前，不停止原Worker或容器，也不使用GPU运行
-新模型。
+方案已按D326改写，106专用准备、executor、cleanup、watchdog和post-audit工具已完成离线自测。
+固定模型、双Context和三个受保护token/identity输入就绪；最终只读preflight将在记录提交后重新封存。
+当前状态最多为`ready_for_maintenance_authorization`：在取得绑定最终HEAD和preflight manifest的明确
+授权前，不停止原Worker或容器、不改变maintenance，也不使用GPU运行新模型。
