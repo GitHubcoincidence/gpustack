@@ -1025,13 +1025,14 @@ def restore_original(
 
     maintenance = worker_value.get('maintenance') or {}
     current_maintenance = bool(maintenance.get('enabled', False))
-    if current_maintenance != bool(plan.get('maintenance_enabled', False)):
+    expected_maintenance = bool(plan.get('maintenance_enabled', False))
+    if current_maintenance != expected_maintenance:
         set_maintenance(
             config,
             evidence,
             config.rust_context,
             config.original_worker_id,
-            False,
+            expected_maintenance,
             'original-maintenance-restore',
         )
     wait_health(
@@ -1059,22 +1060,38 @@ def restore_original(
         container.get('RestartCount') == plan['container_restart_count'],
         'original container restart count drifted',
     )
-    status, model = api_request(
-        'GET',
-        f'{config.rust_server_url}v2/models/{config.original_model_id}',
-        config.rust_operator_token,
-    )
-    require(status == 200 and isinstance(model, dict), 'original Model unavailable')
-    require(model.get('ready_replicas') == 1, 'original Model is not ready')
-    status, instance = api_request(
-        'GET',
-        f'{config.rust_server_url}v2/model-instances/{config.original_instance_id}',
-        config.rust_operator_token,
-    )
-    require(
-        status == 200 and isinstance(instance, dict), 'original instance unavailable'
-    )
-    require(instance.get('state') == 'running', 'original instance is not running')
+    deadline = time.monotonic() + 240
+    model: Any = None
+    instance: Any = None
+    while time.monotonic() < deadline:
+        model_status, model = api_request(
+            'GET',
+            f'{config.rust_server_url}v2/models/{config.original_model_id}',
+            config.rust_operator_token,
+        )
+        instance_status, instance = api_request(
+            'GET',
+            (
+                f'{config.rust_server_url}v2/model-instances/'
+                f'{config.original_instance_id}'
+            ),
+            config.rust_operator_token,
+        )
+        model_ready = (
+            model_status == 200
+            and isinstance(model, dict)
+            and model.get('ready_replicas') == 1
+        )
+        instance_ready = (
+            instance_status == 200
+            and isinstance(instance, dict)
+            and instance.get('state') == 'running'
+        )
+        if model_ready and instance_ready:
+            break
+        time.sleep(1)
+    require(model_ready, 'original Model did not become ready')
+    require(instance_ready, 'original ModelInstance did not become running')
     status, worker_value = api_request(
         'GET',
         f'{config.rust_server_url}v2/workers/{config.original_worker_id}',
@@ -1100,7 +1117,7 @@ def perform_cleanup(
     plan = load_json(preflight / 'recovery-plan.json')
     require(isinstance(plan, dict), 'recovery plan is malformed')
     evidence = Evidence(cleanup_path)
-    status = 'FAIL'
+    cleanup_succeeded = False
     failed_step = 'initialization'
     try:
         state_path = formal / 'runtime-state.json'
@@ -1121,12 +1138,11 @@ def perform_cleanup(
             health_status(f'{config.rust_server_url}healthz') == 200,
             'Rust Server health failed after cleanup',
         )
-        status = 'PASS'
-        return True
+        cleanup_succeeded = True
     except Exception as error:  # cleanup must always seal its failure evidence
         evidence.log(f'cleanup failure at {failed_step}: {error}')
-        return False
     finally:
+        status = 'PASS' if cleanup_succeeded else 'FAIL'
         evidence.text(
             'result.txt',
             (
@@ -1144,6 +1160,16 @@ def perform_cleanup(
             )
         except Exception as error:
             print(f'cleanup evidence sealing failed: {error}', file=sys.stderr)
+            cleanup_succeeded = False
+            evidence.text(
+                'result.txt',
+                (
+                    'status=FAIL\n'
+                    'stage=M8-EMB.6C-106-cleanup\n'
+                    'failed_step=evidence_seal\n'
+                ),
+            )
+    return cleanup_succeeded
 
 
 def execute(args: argparse.Namespace) -> int:
