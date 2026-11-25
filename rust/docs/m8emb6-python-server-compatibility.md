@@ -1,5 +1,11 @@
 # M8-EMB.6 Python Server embedding兼容验证方案
 
+> **历史方案，禁止正式执行。** 本文和`rust/scripts/m8emb6/`固定的是90本机GPU及
+> 106远程恢复语义。现场GPU所有权变化后，D326已把执行主机迁移到106，并规定实验后保留
+> 最新Worker二进制。正式验证只能使用
+> `rust/docs/m8emb6-106-python-server-compatibility.md`及其配套工具；本文只保留EMB.6A
+> 模型准备和方案演进证据。
+
 ## 1. 目标与结论边界
 
 本阶段在90服务器验证统一Rust `worker run`能被既有Python GPUStack Server管理，并通过同一

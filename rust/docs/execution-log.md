@@ -8319,3 +8319,24 @@
 - 裁决：M8-EMB.6A为`ready_for_review`；外部漂移不影响模型/工具准备结论，但使D325基于Instance
   95/GPU0的恢复协议失效。M8-EMB.6B为`intentional_change_pending`，必须先讨论新隔离方案；现有
   executor不得执行，GPU0外部任务和GPU1 Instance 101均不在当前操作授权内。
+
+### 2026-11-25：M8-EMB.6迁移106并直接更新Worker
+
+- 用户修订：真实embedding验证改在106运行Rust Worker，但仍连接90既有Python Server，以保留
+  Python控制面兼容目标。106直接更新最新二进制，不在独立target构建，也不恢复旧可执行文件；实验
+  结束只要求恢复原模型实例和Worker稳定身份，并让原Worker由最新二进制接管。
+- 106只读基线：主机只有一张RTX 5090，GPU0 UUID为
+  `GPU-be80b448-dd25-a523-676f-a279bf5c9c9c`。Worker 17（`jiaxingHaoyuNB-106`）连接106 Rust
+  Server，管理Model 21、Instance 87和容器`gpustack-rs-managed-87`；模型健康端口为40000。原
+  Worker data、token、identity和manifest均存在，容器restart count为0。
+- 源码与构建：106仓库从`b530fb9f`fast-forward到治理HEAD`f0345bb6`，在既有
+  `rust/target`执行locked/offline workspace build成功；新二进制SHA-256为
+  `5cfa315f3342a62b675048e596eaa2bb4da788c3d369172aa939ed39aa6656eb`并报告commit
+  `f0345bb6b7fd`。旧Worker进程仍持有已删除inode并保持health/ready/metrics 200，未发生重启；
+  Model 21和端口40000仍健康。
+- 网络与Server门：106可以访问90 Python Server及Python Worker；90也可以访问106预留Worker端口
+  和现有模型端口。90当前副本数大于0的两个Model都精确绑定`rust-m3d-r760xa`及其GPU ID，因而
+  不会调度到唯一实验名`rust-m8emb6-106`。正式preflight仍须重新执行同一fail-closed检查。
+- 治理裁决：D326取代D325的执行主机和旧二进制恢复细节。旧90脚本禁止正式执行；下一步实现106
+  专用普通用户工具、准备只读BGE模型和受保护凭据，再执行无写入preflight。当前停止位置为
+  `M8-EMB.6B-106 tooling_in_progress`，没有停止Worker/容器、修改Server资源或启动新GPU任务。

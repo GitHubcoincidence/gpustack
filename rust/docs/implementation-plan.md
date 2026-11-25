@@ -1593,3 +1593,10 @@ M8-EMB.6A工具提交`b01a7829099fe771e0729a758600be0b39796680`及精确清理�
 执行。最终EMB.6A证据固定在`01162a57`；M8-EMB.6B暂时保持`intentional_change_pending`。必须先
 与用户修订隔离和维护方案，不得直接
 使用现有正式executor，也不得操作GPU0外部进程或GPU1 Instance 101。
+
+D326将EMB.6真实执行主机迁移到106：兼容目标仍是90 Python Server，106负责最新Rust Worker、
+固定BGE模型和唯一GPU0。106直接在既有target构建最新二进制，不再备份或恢复旧Worker程序；窗口
+结束复用原data/token/identity运行最新Worker，并恢复原Model 21、Instance 87和同一容器身份。
+旧`rust/scripts/m8emb6/`只保留历史证据，正式门改用106专用手册和工具。下一步完成模型/凭据准备、
+只读preflight和证据封存，状态最多进入`ready_for_maintenance_authorization`；未取得独立维护授权前
+不得停止106 Worker或容器、改变maintenance或启动BGE vLLM。
