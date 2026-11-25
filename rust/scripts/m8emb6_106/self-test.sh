@@ -79,7 +79,9 @@ PY
 printf '[5/7] missing maintenance authorization is rejected\n'
 python3 - "$SCRIPT_DIR/runtime_tool.py" "$TEMP_ROOT/missing.json" <<'PY'
 import importlib.util
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location('runtime_tool', sys.argv[1])
@@ -91,6 +93,12 @@ except module.GateError:
     pass
 else:
     raise SystemExit('missing authorization was accepted')
+
+child = subprocess.Popen(['/bin/true'])
+time.sleep(0.1)
+module.wait_process_exit(child.pid, 2)
+if Path(f'/proc/{child.pid}').exists():
+    raise SystemExit('zombie process was not reaped')
 PY
 
 printf '[6/7] formal tools contain no broad destructive command\n'

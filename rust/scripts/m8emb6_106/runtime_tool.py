@@ -336,6 +336,15 @@ def process_starttime(pid: int) -> str:
     return Path(f'/proc/{pid}/stat').read_text().split()[21]
 
 
+def process_state(pid: int) -> str:
+    raw = Path(f'/proc/{pid}/stat').read_text(encoding='utf-8')
+    command_end = raw.rfind(')')
+    require(command_end > 0, f'process stat is malformed: {pid}')
+    fields = raw[command_end + 2 :].split()
+    require(bool(fields), f'process state is unavailable: {pid}')
+    return fields[0]
+
+
 def process_identity(pid: int) -> Dict[str, Any]:
     proc = Path(f'/proc/{pid}')
     require(proc.exists(), f'process is unavailable: {pid}')
@@ -359,6 +368,12 @@ def wait_process_exit(pid: int, timeout: int) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if not Path(f'/proc/{pid}').exists():
+            return
+        if process_state(pid) == 'Z':
+            try:
+                os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                pass
             return
         time.sleep(0.5)
     raise GateError(f'process did not exit: {pid}')
