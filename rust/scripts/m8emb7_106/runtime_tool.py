@@ -28,11 +28,29 @@ SPEC.loader.exec_module(base)
 
 # The accepted evidence runner resolves every command from this fixed repository.
 os.environ['M8EMB6106_REPO'] = str(Config().repo)
-base.AUTHORIZATION_STAGE = 'M8-EMB.7-cookie-runtime-maintenance-window'
-base.MAINTENANCE_MESSAGE = 'M8-EMB.7 cookie-session runtime window'
-base.FORMAL_STAGE = 'M8-EMB.7-cookie-runtime-formal'
-base.CLEANUP_STAGE = 'M8-EMB.7-cookie-runtime-cleanup'
-base.AUDIT_STAGE = 'M8-EMB.7-cookie-runtime-post-audit'
+base.AUTHORIZATION_STAGE = 'M8-EMB.7-worker-embedding-diagnostic-window'
+base.MAINTENANCE_MESSAGE = 'M8-EMB.7 Worker embedding diagnostic window'
+base.FORMAL_STAGE = 'M8-EMB.7-worker-embedding-diagnostic'
+base.CLEANUP_STAGE = 'M8-EMB.7-worker-embedding-diagnostic-cleanup'
+base.AUDIT_STAGE = 'M8-EMB.7-worker-embedding-diagnostic-post-audit'
+
+FULL_STATE_SEQUENCE = [
+    'pending',
+    'analyzing',
+    'scheduled',
+    'initializing',
+    'downloading',
+    'starting',
+    'running',
+]
+WORKER_DIAGNOSTIC_SEQUENCE = [
+    'pending',
+    'scheduled',
+    'initializing',
+    'starting',
+    'running',
+]
+KNOWN_MISSING_SERVER_STATES = ['analyzing', 'downloading']
 
 
 def cookie_opener(cookie_file: Path) -> urllib.request.OpenerDirector:
@@ -87,7 +105,7 @@ def validate_authorization(
     value = base.load_json(path)
     base.require(isinstance(value, dict), 'authorization is not a JSON object')
     base.require(
-        value.get('stage') == 'M8-EMB.7-cookie-runtime-maintenance-window',
+        value.get('stage') == 'M8-EMB.7-worker-embedding-diagnostic-window',
         'authorization stage invalid',
     )
     base.require(value.get('approved') is True, 'maintenance window is not approved')
@@ -120,7 +138,9 @@ def set_maintenance(
     base.require(status == 200 and isinstance(before, dict), 'Worker GET failed')
     maintenance = {
         'enabled': enabled,
-        'message': ('M8-EMB.7 cookie-session runtime window' if enabled else None),
+        'message': (
+            'M8-EMB.7 Worker embedding diagnostic window' if enabled else None
+        ),
     }
     body = {
         'name': before.get('name'),
@@ -182,17 +202,8 @@ def stop_watch(process: subprocess.Popen[bytes]) -> None:
         process.wait(timeout=5)
 
 
-def has_state_sequence(states: List[str]) -> bool:
+def has_state_sequence(states: List[str], required: List[str]) -> bool:
     """Check the managed lifecycle while allowing repeated intermediate states."""
-    required = [
-        'pending',
-        'analyzing',
-        'scheduled',
-        'initializing',
-        'downloading',
-        'starting',
-        'running',
-    ]
     index = 0
     for state in states:
         if index < len(required) and state == required[index]:
@@ -200,9 +211,220 @@ def has_state_sequence(states: List[str]) -> bool:
     return index == len(required)
 
 
-def require_state_sequence(states: List[str]) -> None:
-    """Require the complete managed lifecycle from pending through running."""
-    base.require(has_state_sequence(states), f'incomplete state sequence: {states}')
+def classify_state_sequence(states: List[str]) -> Dict[str, Any]:
+    """Separate the Worker diagnostic gate from the Server lifecycle contract."""
+    worker_complete = has_state_sequence(states, WORKER_DIAGNOSTIC_SEQUENCE)
+    server_complete = has_state_sequence(states, FULL_STATE_SEQUENCE)
+    missing_server_states = [
+        state for state in KNOWN_MISSING_SERVER_STATES if state not in states
+    ]
+    known_server_gap = missing_server_states == KNOWN_MISSING_SERVER_STATES
+    return {
+        'observed': states,
+        'worker_required': WORKER_DIAGNOSTIC_SEQUENCE,
+        'server_required': FULL_STATE_SEQUENCE,
+        'worker_sequence_complete': worker_complete,
+        'server_contract_complete': server_complete,
+        'missing_server_states': missing_server_states,
+        'known_server_gap_only': known_server_gap,
+        'diagnostic_sequence_accepted': worker_complete
+        and (server_complete or known_server_gap),
+    }
+
+
+def require_diagnostic_state_sequence(states: List[str]) -> Dict[str, Any]:
+    """Accept only the full contract or the two frozen Server-owned omissions."""
+    classification = classify_state_sequence(states)
+    base.require(
+        classification['diagnostic_sequence_accepted'],
+        f'invalid diagnostic state sequence: {classification}',
+    )
+    return classification
+
+
+def sql_literal(value: str) -> str:
+    """Quote one frozen text value for a PostgreSQL evidence statement."""
+    base.require('\x00' not in value, 'SQL value contains a NUL byte')
+    return "'" + value.replace("'", "''") + "'"
+
+
+def validate_database_container(config: Config) -> Dict[str, Any]:
+    """Require the frozen Compose database identity before any SQL command."""
+    container = base.docker_inspect(config.database_container)
+    labels = container.get('Config', {}).get('Labels') or {}
+    base.require(
+        container.get('Name') == f'/{config.database_container}',
+        'database container name drifted',
+    )
+    base.require(
+        container.get('Config', {}).get('Image') == config.database_image,
+        'database image drifted',
+    )
+    base.require(
+        labels.get('com.docker.compose.project') == config.database_compose_project,
+        'database Compose project drifted',
+    )
+    base.require(
+        labels.get('com.docker.compose.service') == config.database_compose_service,
+        'database Compose service drifted',
+    )
+    base.require(container.get('State', {}).get('Running') is True, 'database stopped')
+    return container
+
+
+def run_database_sql(
+    config: Config,
+    evidence: Any,
+    name: str,
+    sql: str,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run one recorded SQL program without exposing database credentials."""
+    validate_database_container(config)
+    evidence.text(f'{name}.sql', sql)
+    return evidence.run(
+        name,
+        [
+            'docker',
+            'exec',
+            '-i',
+            config.database_container,
+            'sh',
+            '-lc',
+            (
+                'exec psql --username "$POSTGRES_USER" --dbname "$1" '
+                '--set=ON_ERROR_STOP=1 --no-psqlrc --tuples-only --no-align'
+            ),
+            'sh',
+            config.database_name,
+        ],
+        input_data=sql.encode('utf-8'),
+    )
+
+
+def validate_db_cleanup_candidate(
+    config: Config,
+    model_file: Dict[str, Any],
+) -> Tuple[int, int]:
+    """Validate the API identity before constructing an exact database delete."""
+    model_file_id = model_file.get('id')
+    worker_id = model_file.get('worker_id')
+    base.require(
+        isinstance(model_file_id, int) and model_file_id > 0,
+        'ModelFile ID is invalid',
+    )
+    base.require(
+        isinstance(worker_id, int) and worker_id > 0,
+        'ModelFile Worker ID is invalid',
+    )
+    base.require(model_file.get('source') == 'local_path', 'ModelFile source drifted')
+    base.require(
+        model_file.get('local_path') == config.model_path,
+        'ModelFile local path drifted',
+    )
+    base.require(
+        model_file.get('cleanup_on_delete') in (None, False),
+        'ModelFile may delete shared local data',
+    )
+    owner = model_file.get('owner_principal_id')
+    base.require(
+        owner in (None, config.database_owner_principal_id),
+        'ModelFile owner drifted',
+    )
+    return model_file_id, worker_id
+
+
+def build_orphan_model_file_delete_sql(
+    config: Config,
+    model_file: Dict[str, Any],
+) -> str:
+    """Build a transaction that deletes one unreferenced exact ModelFile row."""
+    model_file_id, worker_id = validate_db_cleanup_candidate(config, model_file)
+    path = sql_literal(config.model_path)
+    return f"""BEGIN;
+DO $m8emb7_cleanup$
+DECLARE
+    matching_rows integer;
+    primary_links integer;
+    draft_links integer;
+BEGIN
+    SELECT count(*) INTO matching_rows
+      FROM model_files
+     WHERE id = {model_file_id}
+       AND worker_id = {worker_id}
+       AND cluster_id = {config.database_cluster_id}
+       AND owner_principal_id = {config.database_owner_principal_id}
+       AND local_path = {path};
+    IF matching_rows <> 1 THEN
+        RAISE EXCEPTION 'exact ModelFile identity mismatch';
+    END IF;
+
+    SELECT count(*) INTO primary_links
+      FROM modelinstancemodelfilelink
+     WHERE model_file_id = {model_file_id};
+    SELECT count(*) INTO draft_links
+      FROM modelinstancedraftmodelfilelink
+     WHERE model_file_id = {model_file_id};
+    IF primary_links <> 0 OR draft_links <> 0 THEN
+        RAISE EXCEPTION 'ModelFile is still referenced';
+    END IF;
+END
+$m8emb7_cleanup$;
+WITH deleted AS (
+    DELETE FROM model_files
+     WHERE id = {model_file_id}
+       AND worker_id = {worker_id}
+       AND cluster_id = {config.database_cluster_id}
+       AND owner_principal_id = {config.database_owner_principal_id}
+       AND local_path = {path}
+    RETURNING id
+)
+SELECT 'deleted_count=' || count(*) FROM deleted;
+COMMIT;
+"""
+
+
+def delete_model_file_metadata(
+    config: Config,
+    evidence: Any,
+    model_file: Dict[str, Any],
+) -> None:
+    """Use the API first, then the approved exact-row fallback only for HTTP 405."""
+    model_file_id, _ = validate_db_cleanup_candidate(config, model_file)
+    status, response = api_request(
+        'DELETE',
+        (
+            f'{config.rust_server_url}v2/model-files/'
+            f'{model_file_id}?cleanup=false'
+        ),
+        config.cookie_file,
+    )
+    evidence.json(
+        f'model-file-{model_file_id}-api-delete.json',
+        {'status': status, 'response': response},
+    )
+    if status in (200, 204):
+        return
+    base.require(status == 405, f'ModelFile delete failed: HTTP {status}')
+
+    sql = build_orphan_model_file_delete_sql(config, model_file)
+    result = run_database_sql(
+        config,
+        evidence,
+        f'model-file-{model_file_id}-database-delete',
+        sql,
+    )
+    lines = result.stdout.decode('utf-8', errors='replace').splitlines()
+    base.require('deleted_count=1' in lines, 'database delete count is not one')
+    verify_status, verify_response = api_request(
+        'GET',
+        f'{config.rust_server_url}v2/model-files/{model_file_id}',
+        config.cookie_file,
+    )
+    evidence.json(
+        f'model-file-{model_file_id}-delete-verify.json',
+        {'status': verify_status, 'response': verify_response},
+    )
+    base.require(verify_status == 404, 'deleted ModelFile remains API-visible')
 
 
 def deploy_and_validate(
@@ -323,13 +545,19 @@ def deploy_and_validate(
 
         event_deadline = time.monotonic() + 10
         while time.monotonic() < event_deadline:
-            if has_state_sequence(collect_instance_states(watch_body, model_id)):
+            if has_state_sequence(
+                collect_instance_states(watch_body, model_id),
+                WORKER_DIAGNOSTIC_SEQUENCE,
+            ):
                 break
             time.sleep(0.2)
     finally:
         stop_watch(watch)
 
     base.require(instance is not None, 'ModelInstance is unavailable')
+    state['instance_id'] = int(instance['id'])
+    state['instance_port'] = int(instance['port'])
+    base.write_state(evidence, state)
     watch_header_text = watch_headers.read_text(encoding='utf-8', errors='replace')
     base.require(
         re.search(r'^HTTP/\S+ 200(?:\s|$)', watch_header_text, re.MULTILINE)
@@ -338,21 +566,30 @@ def deploy_and_validate(
     )
     watch_states = collect_instance_states(watch_body, int(state['model_id']))
     combined_states = watch_states if watch_states else transitions
-    require_state_sequence(combined_states)
+    classification = classify_state_sequence(combined_states)
     evidence.json(
         'model-transitions.json',
-        {'watch': watch_states, 'poll': transitions},
+        {
+            'watch': watch_states,
+            'poll': transitions,
+            'classification': classification,
+        },
     )
+    state['worker_state_sequence_complete'] = classification[
+        'worker_sequence_complete'
+    ]
+    state['server_managed_state_contract_passed'] = classification[
+        'server_contract_complete'
+    ]
+    state['missing_server_states'] = classification['missing_server_states']
+    base.write_state(evidence, state)
+    require_diagnostic_state_sequence(combined_states)
     base.require(model.get('categories') == ['embedding'], 'category is invalid')
     base.require(
         instance.get('worker_id') == state['experimental_worker_id'],
         'Worker assignment is invalid',
     )
     base.require(instance.get('gpu_indexes') == [0], 'GPU assignment is invalid')
-    state['instance_id'] = int(instance['id'])
-    state['instance_port'] = int(instance['port'])
-    base.write_state(evidence, state)
-
     filters = [
         'label=io.gpustack.implementation=rust',
         'label=io.gpustack.mode=managed',
@@ -527,6 +764,71 @@ def repeat_gates(
         )
         base.require(container.get('State', {}).get('Running') is True, 'stopped')
         evidence.json(f'container-repeat-{sample}.json', container)
+    state['worker_embedding_diagnostic_passed'] = True
+    base.write_state(evidence, state)
+    evidence.json(
+        'diagnostic-classification.json',
+        {
+            'worker_embedding_diagnostic_passed': True,
+            'server_managed_state_contract_passed': state.get(
+                'server_managed_state_contract_passed', False
+            ),
+            'missing_server_states': state.get('missing_server_states', []),
+            'interpretation': (
+                'The Worker diagnostic result does not promote an incomplete '
+                'Server-managed lifecycle contract to PASS.'
+            ),
+        },
+    )
+
+
+def post_audit_extra(
+    config: Config,
+    evidence: Any,
+    _plan: Dict[str, Any],
+    args: Any,
+) -> None:
+    """Prove the formal Worker left no API-visible or database ModelFile residue."""
+    base.require(args.formal_evidence is not None, 'formal evidence is required')
+    formal_path = Path(args.formal_evidence)
+    manifest = formal_path / 'manifest.sha256'
+    base.verify_manifest(formal_path, base.file_sha256(manifest))
+    state = base.load_json(formal_path / 'runtime-state.json')
+    worker_id = state.get('experimental_worker_id')
+    base.require(
+        isinstance(worker_id, int) and worker_id > 0,
+        'formal evidence has no experimental Worker ID',
+    )
+
+    status, value = api_request(
+        'GET',
+        f'{config.rust_server_url}v2/model-files?page=-1&worker_id={worker_id}',
+        config.cookie_file,
+    )
+    base.require(status == 200, 'cannot list ModelFiles during post-audit')
+    matches = base.model_files_for_worker(value, worker_id)
+    evidence.json('experimental-model-files-post-audit.json', matches)
+    base.require(not matches, 'experimental ModelFile remains API-visible')
+
+    container = validate_database_container(config)
+    evidence.json('database-container.json', container)
+    path = sql_literal(config.model_path)
+    sql = f"""SELECT 'worker_model_files=' || count(*)
+  FROM model_files
+ WHERE worker_id = {worker_id};
+SELECT 'orphan_target_model_files=' || count(*)
+  FROM model_files AS mf
+  LEFT JOIN workers AS w ON w.id = mf.worker_id
+ WHERE mf.local_path = {path}
+   AND w.id IS NULL;
+"""
+    result = run_database_sql(config, evidence, 'database-residue-audit', sql)
+    lines = result.stdout.decode('utf-8', errors='replace').splitlines()
+    base.require('worker_model_files=0' in lines, 'Worker ModelFile residue remains')
+    base.require(
+        'orphan_target_model_files=0' in lines,
+        'orphan target ModelFile residue remains',
+    )
 
 
 base.Config = Config
@@ -536,6 +838,8 @@ base.set_maintenance = set_maintenance
 base.deploy_and_validate = deploy_and_validate
 base.inference_gates = inference_gates
 base.repeat_gates = repeat_gates
+base.delete_model_file_metadata = delete_model_file_metadata
+base.post_audit_extra = post_audit_extra
 
 
 def main() -> None:

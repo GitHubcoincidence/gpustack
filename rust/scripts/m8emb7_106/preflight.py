@@ -120,7 +120,7 @@ def preflight(expected_head: str, evidence_path: Path) -> int:
     return_code = 1
     try:
         failed_step = 'protected_inputs'
-        evidence.log('[1/7] 验证管理员session、registration token和固定模型')
+        evidence.log('[1/8] 验证管理员session、registration token和固定模型')
         base.private_file(config.cookie_file)
         base.private_file(config.cluster_token)
         base.private_file(config.original_identity)
@@ -151,7 +151,7 @@ def preflight(expected_head: str, evidence_path: Path) -> int:
         base.require(verify.returncode == 0, 'fixed model verification failed')
 
         failed_step = 'source_identity'
-        evidence.log('[2/7] 固定源码并离线构建最新Worker')
+        evidence.log('[2/8] 固定源码并离线构建最新Worker')
         base.require(
             run_text(config, ['git', 'branch', '--show-current'])
             == 'codex/rust-worker',
@@ -214,7 +214,7 @@ def preflight(expected_head: str, evidence_path: Path) -> int:
         )
 
         failed_step = 'services'
-        evidence.log('[3/7] 验证Server、原Worker和Qwen健康')
+        evidence.log('[3/8] 验证Server、原Worker和Qwen健康')
         health = {
             'rust_server': http_status(f'{config.rust_server_url}healthz'),
             'worker_health': http_status(
@@ -233,8 +233,50 @@ def preflight(expected_head: str, evidence_path: Path) -> int:
         base.require(all(value == 200 for value in health.values()), 'health failed')
         evidence.json('health.json', health)
 
+        failed_step = 'database_identity'
+        evidence.log('[4/8] 只读固定数据库容器和ModelFile清理边界')
+        database_container = runtime_tool.validate_database_container(config)
+        evidence.json('database-container.json', database_container)
+        path = runtime_tool.sql_literal(config.model_path)
+        database_sql = f"""SELECT current_database();
+SELECT table_name
+  FROM information_schema.tables
+ WHERE table_schema = current_schema()
+   AND table_name IN (
+       'model_files',
+       'modelinstancemodelfilelink',
+       'modelinstancedraftmodelfilelink'
+   )
+ ORDER BY table_name;
+SELECT 'orphan_target_model_files=' || count(*)
+  FROM model_files AS mf
+  LEFT JOIN workers AS w ON w.id = mf.worker_id
+ WHERE mf.local_path = {path}
+   AND w.id IS NULL;
+"""
+        database_result = runtime_tool.run_database_sql(
+            config,
+            evidence,
+            'database-readiness',
+            database_sql,
+        )
+        database_lines = database_result.stdout.decode(
+            'utf-8', errors='replace'
+        ).splitlines()
+        base.require(config.database_name in database_lines, 'database name drifted')
+        for table in (
+            'model_files',
+            'modelinstancemodelfilelink',
+            'modelinstancedraftmodelfilelink',
+        ):
+            base.require(table in database_lines, f'database table missing: {table}')
+        base.require(
+            'orphan_target_model_files=0' in database_lines,
+            'orphan target ModelFile exists before the diagnostic',
+        )
+
         failed_step = 'control_plane'
-        evidence.log('[4/7] 验证session可见性和实验身份隔离')
+        evidence.log('[5/8] 验证session可见性和实验身份隔离')
         status_code, workers = runtime_tool.api_request(
             'GET',
             f'{config.rust_server_url}v2/workers?page=-1',
@@ -269,7 +311,7 @@ def preflight(expected_head: str, evidence_path: Path) -> int:
             base.require(port_is_free(port), f'port is occupied: {port}')
 
         failed_step = 'original_process'
-        evidence.log('[5/7] 固定原Worker进程、资源和同一容器')
+        evidence.log('[6/8] 固定原Worker进程、资源和同一容器')
         pid = find_original_worker_pid(config)
         process_path = evidence.path / 'original-worker-process.txt'
         write_process_identity(process_path, pid)
@@ -372,7 +414,7 @@ def preflight(expected_head: str, evidence_path: Path) -> int:
         )
 
         failed_step = 'gpu'
-        evidence.log('[6/7] 固定唯一GPU和原计算进程基线')
+        evidence.log('[7/8] 固定唯一GPU和原计算进程基线')
         gpu_uuids = run_text(
             config,
             ['nvidia-smi', '--query-gpu=uuid', '--format=csv,noheader'],
@@ -392,7 +434,7 @@ def preflight(expected_head: str, evidence_path: Path) -> int:
         )
 
         failed_step = 'seal'
-        evidence.log('[7/7] 封存只读preflight')
+        evidence.log('[8/8] 封存只读preflight')
         base.require(
             base.process_matches(base.load_json(recovery_path)['process']),
             'original process drifted',
@@ -406,7 +448,7 @@ def preflight(expected_head: str, evidence_path: Path) -> int:
             'result.txt',
             (
                 f'status={status}\n'
-                'stage=M8-EMB.7-cookie-runtime-preflight\n'
+                'stage=M8-EMB.7-worker-embedding-diagnostic-preflight\n'
                 f'failed_step={"none" if status == "PASS" else failed_step}\n'
                 f'governance_head={expected_head}\n'
             ),

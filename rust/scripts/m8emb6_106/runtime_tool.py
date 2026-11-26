@@ -188,6 +188,7 @@ class Evidence:
         command: List[str],
         timeout: int = 120,
         check: bool = True,
+        input_data: Optional[bytes] = None,
     ) -> subprocess.CompletedProcess[bytes]:
         result = subprocess.run(
             command,
@@ -195,6 +196,7 @@ class Evidence:
             env=os.environ.copy(),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            input=input_data,
             timeout=timeout,
             check=False,
         )
@@ -1010,16 +1012,7 @@ def remove_experimental_resources(
                 local_path == config.model_path or config.model_path in resolved,
                 'unexpected ModelFile belongs to experimental Worker',
             )
-            model_file_id = int(model_file['id'])
-            status, _ = api_request(
-                'DELETE',
-                (
-                    f'{config.python_server_url}v2/model-files/'
-                    f'{model_file_id}?cleanup=false'
-                ),
-                config.python_operator_token,
-            )
-            require(status in (200, 204), 'experimental ModelFile delete failed')
+            delete_model_file_metadata(config, evidence, model_file)
 
     if isinstance(worker_uuid, str):
         filters = experimental_container_filters(worker_uuid, instance_id)
@@ -1049,6 +1042,24 @@ def remove_experimental_resources(
         evidence.json('worker-delete.json', response)
     remove_runtime_tree(config.data_dir)
     remove_runtime_tree(config.log_dir)
+
+
+def delete_model_file_metadata(
+    config: Config,
+    _evidence: Evidence,
+    model_file: Dict[str, Any],
+) -> None:
+    """Delete one exact experimental ModelFile through the public API."""
+    model_file_id = int(model_file['id'])
+    status, _ = api_request(
+        'DELETE',
+        (
+            f'{config.python_server_url}v2/model-files/'
+            f'{model_file_id}?cleanup=false'
+        ),
+        config.python_operator_token,
+    )
+    require(status in (200, 204), 'experimental ModelFile delete failed')
 
 
 def restore_original(
@@ -1545,6 +1556,8 @@ def post_audit(args: argparse.Namespace) -> int:
         require(all(value == 200 for value in health.values()), 'health audit failed')
         evidence.json('health.json', health)
 
+        post_audit_extra(config, evidence, plan, args)
+
         evidence.log('[4/4] 封存独立post-audit')
         status = 'PASS'
         return_code = 0
@@ -1567,6 +1580,15 @@ def post_audit(args: argparse.Namespace) -> int:
             print(f'post-audit evidence sealing failed: {error}', file=sys.stderr)
             return_code = 1
     return return_code
+
+
+def post_audit_extra(
+    _config: Config,
+    _evidence: Evidence,
+    _plan: Dict[str, Any],
+    _args: argparse.Namespace,
+) -> None:
+    """Run stage-specific recovery checks before sealing the audit."""
 
 
 def cleanup_command(args: argparse.Namespace) -> int:
@@ -1609,6 +1631,7 @@ def build_parser() -> argparse.ArgumentParser:
     audit_parser.add_argument('--expected-head', required=True)
     audit_parser.add_argument('--evidence', required=True)
     audit_parser.add_argument('--experimental-instance-id', default='none')
+    audit_parser.add_argument('--formal-evidence')
     audit_parser.set_defaults(handler=post_audit)
     return parser
 

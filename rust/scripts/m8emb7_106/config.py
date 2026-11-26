@@ -82,6 +82,13 @@ class Config:
         self.evidence_root = Path(
             '/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8emb7-106'
         )
+        self.database_container = 'rust-server-db-1'
+        self.database_image = 'postgres:17'
+        self.database_compose_project = 'rust-server'
+        self.database_compose_service = 'db'
+        self.database_name = 'gpustack223'
+        self.database_cluster_id = 1
+        self.database_owner_principal_id = 1
         self.json_tool = self.repo / 'rust/scripts/m8emb6_106/json_tool.py'
         self.product_commit = '92184388070f961e8bbc1fbed4a3ec3c84691829'
         self.cargo_lock_sha = (

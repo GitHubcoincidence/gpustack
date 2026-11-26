@@ -13,4 +13,5 @@ python3 "$SCRIPT_DIR/runtime_tool.py" post-audit \
   --preflight "${M8EMB7_PREFLIGHT_EVIDENCE:?preflight evidence is required}" \
   --preflight-sha "${M8EMB7_PREFLIGHT_SHA:?preflight SHA is required}" \
   --evidence "${M8EMB7_AUDIT_EVIDENCE:?audit evidence is required}" \
+  --formal-evidence "${M8EMB7_FORMAL_EVIDENCE:?formal evidence is required}" \
   --experimental-instance-id "${M8EMB7_INSTANCE_ID:-none}"
