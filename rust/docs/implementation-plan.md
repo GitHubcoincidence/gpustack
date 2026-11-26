@@ -1670,3 +1670,8 @@ watchdog、cleanup、post-audit和self-test，并把旧M8-EMB.6-106阶段字符�
 HEAD运行无服务写入的preflight并封存恢复计划；preflight通过后状态最多进入
 `ready_for_cookie_runtime_maintenance_authorization`。未取得绑定该HEAD和manifest的新授权前，
 不得切换maintenance、停止原Worker/容器、创建运行时Model或使用GPU0。
+
+修复Evidence runner仓库绑定后的只读preflight attempt 2已在`d706c32c`通过全部七组门，独立
+manifest复核和运行后外部不变量也通过。因为记录该结果会产生新的仅文档治理HEAD，attempt 2仅作
+有效准备证据，不直接用于一次性授权。下一步在最终HEAD以全新目录重跑同一preflight；若源码、
+cookie、进程、容器、Server资源或GPU任一漂移则失败关闭，只有最终manifest才可进入维护授权门。

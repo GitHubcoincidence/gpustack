@@ -8577,3 +8577,24 @@
   self-test再次全部通过，临时压缩包与目录已清零。
 - 当前停止位置：`retry_preflight_pending`。记录并同步本修复后的最终HEAD后，只允许用全新证据
   目录运行attempt 2；真实maintenance、原Worker/容器停止、Server资源创建和GPU0仍未授权。
+
+### 2026-11-26：M8-EMB.7只读preflight attempt 2通过
+
+- 输入身份：本地、GitHub和106均为治理HEAD`d706c32c1789f568073f3a44e57bba698f7e36ef`，106
+  工作树干净；旧M8-EMB.6-106 7组回归和新M8-EMB.7-106 5组self-test在该HEAD再次全部通过。
+- 七组门：管理员cookie、Cluster token、原Worker持久token和固定BGE验证通过；离线locked workspace
+  build与二进制commit通过；Server、原Worker health/ready/metrics和原Qwen均为200；实验名称、
+  端口和目录未占用；原进程、Worker 17、Model 21、Instance 87、同一容器/镜像和唯一GPU0基线
+  完整封存；恢复计划生成并在封存前再次匹配原进程。
+- 固定身份：最新二进制SHA-256为
+  `5da7548598a3604142db8e0fe0869d3fed3a4cff206031e59c9aba5e0572a36a`；原容器完整ID为
+  `3233adac6f2aea28d94001b74306babb0a031081b6c5206386b1010ce8c0491f`；唯一GPU UUID为
+  `GPU-be80b448-dd25-a523-676f-a279bf5c9c9c`。
+- 证据：`m8emb7-106/preflight-d706c32c-attempt2`状态PASS，manifest SHA-256为
+  `b5c4248bace3550b39834817ca506987c5f7000b3bc0140a63d8cce3a943af7d`。独立`sha256sum --check`
+  通过，源码HEAD/origin/工作树和五个健康端点复核通过，实验进程和数据/日志目录仍不存在。
+- 影响边界：preflight只构建最新二进制、读取现场并写证据；没有切换maintenance、停止进程或
+  容器、创建Server资源、启动vLLM或改变GPU任务。
+- 当前停止位置：本记录会产生仅文档的新治理HEAD，因此attempt 2不能直接绑定一次性维护授权。
+  下一步只允许同步最终HEAD并用全新目录重跑相同只读preflight；通过后才进入
+  `ready_for_cookie_runtime_maintenance_authorization`。
