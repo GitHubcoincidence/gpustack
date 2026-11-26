@@ -97,6 +97,15 @@ classification = runtime_tool.require_diagnostic_state_sequence(known_gap)
 assert classification['worker_sequence_complete'] is True
 assert classification['server_contract_complete'] is False
 assert classification['missing_server_states'] == ['analyzing', 'downloading']
+assert runtime_tool.command_option_values(
+    ['vllm', '--max-model-len', '512'], '--max-model-len'
+) == ['512']
+assert runtime_tool.command_option_values(
+    ['vllm', '--runner=pooling'], '--runner'
+) == ['pooling']
+assert runtime_tool.command_option_values(
+    ['vllm', '--runner=pooling', '--runner', 'pooling'], '--runner'
+) == ['pooling', 'pooling']
 try:
     runtime_tool.require_diagnostic_state_sequence(
         ['pending', 'scheduled', 'starting', 'running']

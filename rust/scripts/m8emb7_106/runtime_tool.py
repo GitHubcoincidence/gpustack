@@ -242,6 +242,23 @@ def require_diagnostic_state_sequence(states: List[str]) -> Dict[str, Any]:
     return classification
 
 
+def command_option_values(command: List[str], option: str) -> List[str]:
+    """Read both ``--option=value`` and ``--option value`` forms."""
+    values: List[str] = []
+    prefix = f'{option}='
+    for index, argument in enumerate(command):
+        if argument.startswith(prefix):
+            value = argument[len(prefix) :]
+            base.require(bool(value), f'empty container option: {option}')
+            values.append(value)
+        elif argument == option:
+            base.require(index + 1 < len(command), f'missing value: {option}')
+            value = command[index + 1]
+            base.require(bool(value), f'empty container option: {option}')
+            values.append(value)
+    return values
+
+
 def sql_literal(value: str) -> str:
     """Quote one frozen text value for a PostgreSQL evidence statement."""
     base.require('\x00' not in value, 'SQL value contains a NUL byte')
@@ -610,13 +627,20 @@ def deploy_and_validate(
     labels = container.get('Config', {}).get('Labels') or {}
     requests = container.get('HostConfig', {}).get('DeviceRequests') or []
     command = container.get('Config', {}).get('Cmd') or []
+    evidence.json('embedding-container-running.json', container)
     base.require(container.get('Image') == config.runner_image_id, 'image mismatch')
     base.require(
         len(requests) == 1 and requests[0].get('DeviceIDs') == [config.gpu0_uuid],
         'container requested an unexpected GPU',
     )
-    base.require('--runner=pooling' in command, 'pooling runner is missing')
-    base.require('--max-model-len=512' in command, 'max model length is missing')
+    base.require(
+        command_option_values(command, '--runner') == ['pooling'],
+        'pooling runner is missing or ambiguous',
+    )
+    base.require(
+        command_option_values(command, '--max-model-len') == ['512'],
+        'max model length is missing or ambiguous',
+    )
     spec_hash = labels.get('io.gpustack.spec-hash')
     base.require(
         isinstance(spec_hash, str) and re.fullmatch(r'[0-9a-f]{64}', spec_hash),
@@ -625,7 +649,6 @@ def deploy_and_validate(
     state['container_id'] = container['Id']
     state['spec_hash'] = spec_hash
     state['restart_count'] = container.get('RestartCount')
-    evidence.json('embedding-container-running.json', container)
     base.write_state(evidence, state)
 
 
