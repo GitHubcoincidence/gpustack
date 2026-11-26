@@ -8533,3 +8533,32 @@
 - 当前停止位置：等待在106执行一次隐藏登录并返回cookie/Bearer兼容结果。该准备不创建Model、
   Instance、容器或GPU任务；M8-EMB.7正式状态仍为
   `waiting_on_rust_server_admin_cluster_authorization`，GPU维护窗口尚未授权。
+
+### 2026-11-26：M8-EMB.7 cookie可见性门与运行时工具检查点
+
+- 鉴权结果：管理员隐藏登录成功；受保护cookie对Model和ModelInstance list均返回200，同session
+  JWT作为Bearer访问两接口均返回401。后续诊断固定为cookie HTTP控制面，不把JWT写入Rust CLI
+  Context，也不把Cluster或Worker SYSTEM token冒充操作员。
+- 无GPU诊断attempt 1：创建Model 26、Instance 113；cookie list计数1、watch收到6个目标事件；
+  数据库快照在异步拒绝边界观察到`scheduled`和GPU0已有计算进程消息。实验Model/Instance清零；
+  证据目录`m8emb7-cookie-visibility-20261126`的manifest SHA-256为
+  `fdc52bfa1e98f4687315a29615294c7c31a9ba3ecab82b1b53a617fd7e41eaea`。
+- 无GPU诊断attempt 2：创建Model 27、Instance 114；cookie list计数1、watch收到5个目标事件；
+  快照到达`error`并带同一GPU0占用消息。实验资源再次清零；证据目录
+  `m8emb7-cookie-visibility-20261126-attempt2`的manifest SHA-256为
+  `328e731fe66d8f82cf78df12d315ee02f0e1e28bdb203fd932418f55b7f6fce4`。
+- 离线裁决：两次结果共同证明cookie create/list/watch可见性；`scheduled+拒绝消息`和随后`error`
+  是同一异步状态变化，不升级为GPU运行时证据。裁决目录
+  `m8emb7-cookie-visibility-20261126-adjudication`的manifest SHA-256为
+  `4e0900c08be267df80ba0ea7a158b574c10eb74d09e4f1a54b5ef8949ba06ca3`。
+- 工具实现：提交`89abc73620cf391977f28cccf2c523cd74eff401`新增cookie版preflight、正式执行、
+  watchdog、精确cleanup、独立post-audit、自测及运行手册；旧M8-EMB.6生命周期只把阶段标签
+  提取为默认值完全相同的模块常量。新工具直接POST与Rust CLI相同的ModelCreate字段，要求完整
+  七状态链、固定容器/GPU/image/spec/pooling身份、Server float/base64、Worker直连和三次幂等。
+- 验证与同步：临时目录中的旧7组回归和新5组self-test均通过；临时包/目录清零。提交已推送
+  GitHub并以校验过的20,117字节增量bundle fast-forward到106，106 HEAD、origin跟踪引用均为
+  `89abc736`且工作树干净；106原位再次通过两套self-test。`output/`保持未跟踪且未改动。
+- 当前停止位置：`tooling_verified / final_preflight_pending`。下一步只允许在记录本检查点后的最终
+  HEAD运行只读preflight；它可离线构建最新二进制并读取现场，但不得切换maintenance、停止进程/
+  容器、创建Server资源或使用GPU。preflight通过仍须用户另行授权cookie运行时维护窗口；D332和
+  API Key正式兼容保持`waiting_on_rust_server_admin_cluster_authorization`。

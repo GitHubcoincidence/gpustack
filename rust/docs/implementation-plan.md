@@ -1657,3 +1657,16 @@ watch和CLI status无GPU门，之后才进入`ready_for_isolated_maintenance_aut
 若Bearer兼容则Rust CLI使用隔离session token Context；否则控制面只使用受保护cookie HTTP工具。
 该绕过不改变D332状态、不直接修改数据库、不使用SYSTEM token冒充管理员；正式GPU窗口仍须另行
 授权，结束后必须删除cookie、token、Context和一次性授权材料。
+
+管理员session探测已完成：cookie读取Model和ModelInstance均返回200，而同session JWT作为Bearer
+访问两接口均返回401。因此D334固定为cookie HTTP控制面，不创建session JWT CLI Context。两次无
+GPU唯一Model诊断已证明cookie能创建Model并通过list/watch看到同一Instance；Instance按当前GPU0
+占用保护在`scheduled/error`边界停止，资源均已精确清理，结果只用于鉴权和可见性，不作为运行时
+评分。
+
+提交`89abc73620cf391977f28cccf2c523cd74eff401`新增M8-EMB.7-106专用preflight、executor、
+watchdog、cleanup、post-audit和self-test，并把旧M8-EMB.6-106阶段字符串抽成默认不变的模块常量，
+供新模块实例安全覆盖。106提交工作树上旧7组回归和新5组自测均通过。下一步只允许在最终治理
+HEAD运行无服务写入的preflight并封存恢复计划；preflight通过后状态最多进入
+`ready_for_cookie_runtime_maintenance_authorization`。未取得绑定该HEAD和manifest的新授权前，
+不得切换maintenance、停止原Worker/容器、创建运行时Model或使用GPU0。
