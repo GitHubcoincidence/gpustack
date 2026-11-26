@@ -1551,3 +1551,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | D337 | 容器命令参数按语义解析 | runtime身份门对有值参数同时接受唯一的`--option=value`与`--option value`表示，但目标值不变：runner必须恰好为`pooling`，max-model-len必须恰好为`512`；缺失、空值、重复或不同值仍失败。容器inspect必须在参数断言前写入证据 | attempt 3的真实容器命令包含`--max-model-len 512`，工具只接受等号形式而产生假失败。Docker argv的两种形式对vLLM语义等价；解析后仍要求唯一精确值不会放宽产品门。提前封存inspect保证未来参数差异可直接归因。 |
 
 | D338 | 每次正式重试使用全新Model名称 | Rust Server保留软删除Model且名称唯一，因此每次正式重试必须在代码中冻结全新名称并由preflight同时验证活动及软删除同名行总数为0；当前attempt 4固定为`m8emb7-bge-small-zh-106-attempt4`。不得复用旧名或硬删除历史软删除行 | attempt 2已证明API不可见不等于数据库名称可复用；attempt 3正常cleanup又产生新的软删除Model 29。逐次固定名称保持历史证据并让授权、源码和资源身份可追踪。 |
+
+## 2026-11-26 M8-EMB.7 Worker诊断正式结果
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D339 | attempt 4双结论裁决 | attempt 4技术结果进入`ready_for_review`：Worker embedding诊断PASS，覆盖核心五状态、固定pooling容器/GPU0、Server float/base64、Worker直连和三次幂等；Rust Server完整七状态契约继续FAIL，明确缺少`analyzing/downloading`。不得把前一结论用于宣称Server状态机、API Key或多租户正式兼容。cleanup、精确数据库兜底和独立post-audit均须作为Worker诊断PASS的组成部分 | D335预先冻结了双结论解释，attempt 4证据满足全部Worker诊断门且完整恢复现场，同时再次稳定复现Server拥有状态缺失。分别报告可以确认Worker能力而不改写已知Server缺陷。用户审阅详细报告并退役管理员session材料后，才把M8-EMB.7诊断标记为`accepted`。 |

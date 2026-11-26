@@ -1714,3 +1714,10 @@ formal attempt 3仍须新的明确授权。
 由于attempt 3正常cleanup保留软删除Model 29，D338要求attempt 4使用全新冻结名称
 `m8emb7-bge-small-zh-106-attempt4`，并继续由数据库preflight证明活动及软删除同名行总计数为0；
 不删除历史Model。名称轮换提交`8aa518b6`通过两套self-test，下一步仍是最终只读preflight。
+
+治理HEAD`297e8fe8`的formal attempt 4最终通过Worker embedding诊断：Worker 421、Model 30、
+Instance 118、ModelFile 25和唯一GPU0 pooling容器完成核心五状态链、Server float/base64、Worker
+直连和三次幂等；cleanup、D335单行数据库兜底和独立post-audit全部PASS，原现场完整恢复。Rust
+Server完整七状态契约仍因缺少`analyzing/downloading`保持FAIL。当前为
+`worker_diagnostic ready_for_review / server_state_contract FAIL`；用户接受报告后先退役管理员
+session材料，再把诊断结论标记为accepted。该结果不授权M8-B或新的真实环境操作。

@@ -8738,3 +8738,35 @@
   六组离线测试均PASS。
 - 当前停止位置：`attempt_4_final_preflight_pending`。同步最终治理HEAD后只允许运行全新八组只读
   preflight；真实维护窗口仍需新的明确授权。
+
+### 2026-11-26：M8-EMB.7 Worker embedding diagnostic formal attempt 4通过
+
+- 最终门与授权：本地、GitHub和106冻结治理HEAD
+  `297e8fe808955f413339990cfb4a7095b127e943`；八组preflight及独立复核PASS，manifest SHA-256为
+  `6b09053357d2dcf882276520b91506726f01f55e212613e95e5a12beda3467ac`。数据库确认attempt 4名称在
+  活动及软删除Model行中总数为0。用户明确授权绑定该HEAD/manifest的一次性窗口。
+- 资源与状态：实验Worker 421、Model 30、Instance 118和ModelFile 25创建；唯一容器完整ID为
+  `13dfa94a70fb47d118637e6cbd26211c8d9de401862caee575ad21334c843d44`，restart count 0，spec hash为
+  `6f1efe57fb43b39f4b3e089241a78d45ec9d67a2e02c70e810abc1f691dac5eb`。固定Runner、唯一GPU0、
+  pooling、max-model-len 512和Worker/Instance ownership全部通过。
+- 双状态结论：watch观察`pending→scheduled→initializing→starting→running`，Worker核心状态契约
+  PASS；Server七状态契约继续FAIL，缺少`analyzing/downloading`。证据同时保存
+  `worker_embedding_diagnostic_passed=true`与`server_managed_state_contract_passed=false`，没有
+  用诊断PASS覆盖Server差异。
+- 推理结果：Server双输入float为2×512维；首次路由请求按异步就绪边界返回404，5秒后重试200；
+  单输入base64为200且解码2048字节，即512个float32；Worker直连为1×512。三次后续Server请求均
+  首次200、每次1×512，容器ID、restart count和spec hash保持不变。
+- 正式与恢复证据：formal状态PASS、smoke和cleanup均为true，manifest SHA-256为
+  `a8db0493c8ca67a4f5639aa554a52db2afa52b335fcff4dbbd10a8798441c4a7`。Rust Server对ModelFile 25
+  DELETE返回405，D335事务再次完成`deleted_count=1`；正常cleanup PASS，manifest SHA-256为
+  `f3f1dc399277ea5e31cd3c9b6861a5fed71facdbb17382e7bc0361b22166e762`，watchdog没有触发二次cleanup。
+  独立post-audit PASS，manifest SHA-256为
+  `b251bccec8648ad9f271145abf8c9bbf610dbd01ab30757352e49336c956d9cb`。
+- 最终外部复核：三份manifest逐文件通过；实验Worker/Model/Instance/ModelFile/容器/进程/目录/
+  端口和数据库残留归零；原Worker 17、Model 21、Instance 87、同一Qwen容器、maintenance=false和
+  五个健康端点全部恢复，恢复进程运行正式HEAD二进制。一次性授权已删除，管理员cookie暂留等待
+  用户验收后退役。
+- 当前停止位置：`M8-EMB.7 worker_diagnostic ready_for_review / server_state_contract FAIL`。下一步
+  只允许向用户交付详细报告；用户接受后精确删除管理员cookie及可选session token，复核旧session
+  不再保留，再把Worker诊断标记为`accepted`。Server状态/API Key缺陷继续独立开放，不自动进入
+  M8-B或容器化阶段。

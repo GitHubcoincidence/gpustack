@@ -146,11 +146,8 @@ Server须按两份独立缺陷报告修复并复测。
 
 ## 9. 当前停止位置
 
-attempt 1已按七状态契约FAIL并完整恢复；attempt 2因历史软删除Model 28占用旧实验名称而在Model
-创建HTTP 409处FAIL。attempt 3已到达实验容器running并通过Worker五状态核心门，但工具把真实
-`--max-model-len 512`拆分形式误判为缺参，在推理前FAIL；D335数据库兜底、cleanup、watchdog和
-独立post-audit全部通过。D337现同时解析唯一等号式和拆分式，目标值仍严格为pooling和512，并在
-断言前封存容器inspect。工具提交`dbfd1d15`、`db8ee543`和`8750a91a`通过旧M8-EMB.6七组回归与
-新M8-EMB.7六组离线自测。下一步在最终治理HEAD运行全新只读preflight；只有其manifest通过独立
-复核后才可请求attempt 4诊断维护窗口授权。当前没有授权切换maintenance、停止原Worker/容器、
-创建模型、执行数据库写入或使用GPU0。
+attempt 4已通过Worker embedding诊断：核心五状态、唯一GPU0 pooling容器、Server float/base64、
+Worker直连、三次幂等、D335数据库兜底、cleanup和独立post-audit全部PASS，原现场完整恢复。Rust
+Server完整七状态契约仍因缺少`analyzing/downloading`为FAIL，API Key及多租户正式兼容也未通过。
+当前为`worker_diagnostic ready_for_review / server_state_contract FAIL`。下一步只允许用户审阅详细
+报告；接受后退役管理员session材料并把Worker诊断标记为accepted，不自动进入M8-B或新的维护窗口。
