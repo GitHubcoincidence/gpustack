@@ -904,6 +904,26 @@ def repeat_gates(
         evidence.json(f'container-repeat-{sample}.json', container)
 
 
+def model_files_for_worker(value: Any, worker_id: int) -> List[Dict[str, Any]]:
+    """Apply the Worker filter locally when a Server ignores the query filter."""
+    return [
+        model_file
+        for model_file in resource_items(value)
+        if model_file.get('worker_id') == worker_id
+    ]
+
+
+def experimental_container_filters(
+    worker_uuid: str,
+    instance_id: Optional[int],
+) -> List[str]:
+    """Keep cleanup possible when failure precedes Instance ID persistence."""
+    filters = [f'label=io.gpustack.worker-uuid={worker_uuid}']
+    if instance_id is not None:
+        filters.append(f'label=io.gpustack.model-instance-id={instance_id}')
+    return filters
+
+
 def stop_experimental_worker(
     config: Config,
     evidence: Evidence,
@@ -981,7 +1001,8 @@ def remove_experimental_resources(
             config.python_operator_token,
         )
         require(status == 200, 'cannot list experimental ModelFiles')
-        model_files = resource_items(files_value)
+        model_files = model_files_for_worker(files_value, worker_id)
+        evidence.json('experimental-model-files.json', model_files)
         for model_file in model_files:
             local_path = model_file.get('local_path')
             resolved = model_file.get('resolved_paths') or []
@@ -1000,11 +1021,8 @@ def remove_experimental_resources(
             )
             require(status in (200, 204), 'experimental ModelFile delete failed')
 
-    if isinstance(worker_uuid, str) and instance_id is not None:
-        filters = [
-            f'label=io.gpustack.worker-uuid={worker_uuid}',
-            f'label=io.gpustack.model-instance-id={instance_id}',
-        ]
+    if isinstance(worker_uuid, str):
+        filters = experimental_container_filters(worker_uuid, instance_id)
         containers = find_containers(filters)
         require(len(containers) <= 1, 'experimental container identity is ambiguous')
         if containers:

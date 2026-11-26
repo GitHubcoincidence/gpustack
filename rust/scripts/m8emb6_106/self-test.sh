@@ -95,6 +95,23 @@ assert module.MAINTENANCE_MESSAGE == 'M8-EMB.6 106 compatibility window'
 assert module.FORMAL_STAGE == 'M8-EMB.6C-106-formal'
 assert module.CLEANUP_STAGE == 'M8-EMB.6C-106-cleanup'
 assert module.AUDIT_STAGE == 'M8-EMB.6D-106-post-audit'
+model_files = {
+    'items': [
+        {'id': 1, 'worker_id': 17},
+        {'id': 2, 'worker_id': 418},
+        {'id': 3, 'worker_id': 24},
+    ]
+}
+assert module.model_files_for_worker(model_files, 418) == [
+    {'id': 2, 'worker_id': 418}
+]
+assert module.experimental_container_filters('worker-uuid', None) == [
+    'label=io.gpustack.worker-uuid=worker-uuid'
+]
+assert module.experimental_container_filters('worker-uuid', 115) == [
+    'label=io.gpustack.worker-uuid=worker-uuid',
+    'label=io.gpustack.model-instance-id=115',
+]
 try:
     module.validate_authorization(Path(sys.argv[2]), '0' * 40, '0' * 64)
 except module.GateError:
