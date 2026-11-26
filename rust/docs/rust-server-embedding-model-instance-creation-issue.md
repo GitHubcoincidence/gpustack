@@ -30,7 +30,7 @@ Model 23已回滚，且缺少当时的数据库快照和Server日志，所以不
 - 归属组件：Rust Server的Model创建归属、ModelInstance继承归属、list/watch租户上下文；
 - 已排除归属：Rust Worker、Worker inference proxy、Docker、vLLM和GPU；
 - 已验证正常：普通Model和embedding Model的副本创建与补偿对账；
-- 当前阶段：`M8-EMB.7 waiting_on_rust_server_visibility_fix_deployment`；
+- 当前阶段：`M8-EMB.7 waiting_on_rust_server_admin_cluster_authorization`；
 - 首次错误归因：2026-11-25；修正时间：2026-11-26，Asia/Shanghai。
 
 ## 3. 环境与固定资源
@@ -182,10 +182,9 @@ Rust Server至少应增加以下测试：
 
 ## 10. M8-EMB.7后续验收
 
-副本创建现已验证，不再等待controller修复。2026-11-26只读检查确认106仍运行
-`lenovo`于2026-11-25 22:56启动的旧Server进程；项目复验的list/watch假阴性也发生在该进程上。
-修复源码必须由Server开发者构建并重启为新进程，再先通过无GPU可见性门。最终链仍须在隔离维护
-窗口中完成，因为原Instance 87
+副本创建现已验证，不再等待controller修复。开发者已经构建并重启修复后的Server，但无GPU复验
+在Model创建阶段返回HTTP 403：`The selected cluster does not belong to the current organization.`
+因此还不能进入list/watch验收。最终链仍须在隔离维护窗口中完成，因为原Instance 87
 占用唯一GPU0，而Worker会正确拒绝并行启动第二个计算工作负载。下一次测试固定为：
 
 1. 对原Worker 17启用maintenance；
@@ -197,8 +196,8 @@ Rust Server至少应增加以下测试：
 7. 启动同一原容器并以最新二进制恢复Worker 17；
 8. 恢复原maintenance值并验证Model 21、Instance 87和端口40000。
 
-该窗口必须使用一次性授权、精确身份封存、watchdog和幂等cleanup；修复后的Server尚未部署或
-未取得明确授权时都不得执行。
+该窗口必须使用一次性授权、精确身份封存、watchdog和幂等cleanup；管理Key尚不能合法创建Default
+Cluster资源或未取得明确授权时都不得执行。
 
 ## 11. 本次复验回滚
 
@@ -210,5 +209,37 @@ Rust Server至少应增加以下测试：
 - Rust Server、Worker health/ready及原Qwen均为HTTP 200；
 - 没有残留实验容器、端口、进程或Server资源。
 
-因此当前可以安全准备隔离维护工具，但必须先由Server开发者部署修复并通过list/watch可见性复验，
-之后才能申请独立维护授权并停止原Worker或模型。
+因此当前可以安全准备隔离维护工具，但必须先修复平台管理员对Default Cluster的组织授权并通过
+list/watch可见性复验，之后才能申请独立维护授权并停止原Worker或模型。
+
+## 12. 修复部署后的复验结果
+
+2026-11-26确认106只有一个新Server进程：PID 1186032，由`lenovo`于11:03:23启动；Server、Worker、
+readiness、metrics和原Qwen均为HTTP 200。项目使用Key 32建立隔离Context，先打开ModelInstance
+watch，再用唯一名称创建固定BGE Model。创建请求在任何Model或Instance落库前返回：
+
+```text
+HTTP 403 Forbidden
+The selected cluster does not belong to the current organization.
+```
+
+只读数据库交叉检查显示：
+
+- Default Cluster owner为ORG principal 1；
+- Key 32 owner为admin USER principal 4，`is_admin=true`、scope为`["*"]`；
+- `principal_memberships`和`cluster_access`均为空；
+- Cluster registration token和Worker SYSTEM token读取Model为200，但读取ModelInstance均为401，
+  不能替代平台操作员执行完整CLI链。
+
+这说明修复后的Server已经不再允许principal 4悄然创建owner 1资源，但尚未定义或实现平台管理员
+访问Default Cluster的有效授权路径。需要在Server端选择并一致实现以下一种语义：
+
+1. `is_admin=true`的平台主体可管理所有组织的Cluster资源；或
+2. 初始化/迁移时把admin主体加入Default ORG，并让API Key继承该membership；或
+3. 通过受控`cluster_access`显式授予管理主体访问Default Cluster的权限。
+
+不得直接修改数据库伪造membership作为正式验收。Server修复后必须先证明同一管理Key能够创建
+Model，并通过list、watch、status看到其Instance，再申请GPU维护窗口。
+
+本次403尝试没有创建Model、Instance、ModelFile、容器、端口或GPU进程。隔离Context和watchdog
+已删除，失败证据秘密扫描和manifest封存通过；原Model 21、Instance 87、容器及Qwen保持健康。

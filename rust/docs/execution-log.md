@@ -8495,3 +8495,24 @@
   Server进程后，先执行不释放GPU的list/watch可见性门；通过后再把M8-EMB.6-106工具参数化为Rust
   Server隔离Worker场景并申请维护授权。实际启用maintenance、停止原Worker或容器必须取得新的
   明确授权，M8-B继续暂停。
+
+### 2026-11-26：M8-EMB.7修复部署后的组织授权403
+
+- 新进程确认：106只有PID 1186032一个Rust Server进程，由`lenovo`于11:03:23启动。Server、Worker
+  health/ready/metrics、原Qwen和Instance 87容器全部健康，证明本次测试使用的是开发者重启后的
+  新进程而不是旧PID 578553。
+- 无GPU门：建立唯一0600 Context和10分钟精确删除watchdog，先打开管理Key的ModelInstance watch，
+  再尝试创建`m8emb7-visibility-fix-20261126`。CLI在POST阶段退出30，Server返回HTTP 403：所选
+  Cluster不属于当前organization。请求未创建Model或Instance，未到达list/watch评分阶段。
+- 归属核对：Default Cluster owner为ORG principal 1；7天平台管理Key 32 owner为admin USER
+  principal 4，`is_admin=true`、scope `[*]`；数据库`principal_memberships`和`cluster_access`均为空。
+  新Server不再允许跨组织错误创建，但尚未让平台admin合法管理Default Cluster。
+- 替代主体检查：Cluster registration token与原Worker SYSTEM token读取Model均为200，但读取
+  ModelInstance均为401，不能用来完成操作员CLI链，也不能把它们的结果冒充管理Key兼容证据。
+- 回滚与证据：目标Model/Instance均为0，Context和watchdog归零，Server/Worker/Qwen保持200。首次
+  回滚遗留的watchdog目标名文件已核对内容后精确删除；证据目录为
+  `/home/wujiaxing/.local/state/gpustack-rust-worker/evidence/m8emb7-visibility-fix-20261126`，秘密扫描
+  PASS，manifest SHA-256为`cfd8cf81fac52d7be0a3e325346ec8b4fbe5461b205aa1897e1c609e5c2d4c3b`。
+- 当前停止位置：`M8-EMB.7 waiting_on_rust_server_admin_cluster_authorization`。不得直接修改数据库
+  membership绕过；Server明确并部署admin/ORG/cluster_access语义后重跑同一无GPU门，通过前不申请
+  GPU0维护窗口，M8-B继续暂停。

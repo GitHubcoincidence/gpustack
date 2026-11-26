@@ -1639,10 +1639,14 @@ Rust Server commit/版本并重新冻结OpenAPI、认证和路由基线；在此
 低显存比例不绕过GPU计算进程排他门。Model 25/Instance 112、Context和watchdog已精确清理，原现场
 全部健康。
 
-106当前仍运行`lenovo`于2026-11-25 22:56启动的旧Server进程，项目账号无权替其安全重启；修复
-源码尚未通过新进程部署。M8-EMB.7现为`waiting_on_rust_server_visibility_fix_deployment`。开发者
-部署后必须先用无GPU控制面门证明同一管理Key的list和watch均能看到新Instance，再进入
-`ready_for_isolated_maintenance_authorization`。最终链须复用M8-EMB.6的精确封存、maintenance、
-实验Worker、watchdog和幂等恢复机制：只停止而不删除原Worker 17及Instance 87容器，使用GPU0完成
-Rust Server托管BGE链后恢复原容器、Worker身份、maintenance和Qwen健康。修复未部署或未取得新的
-明确维护授权时都不得停止原Worker或容器。
+开发者已构建并重启新Server进程PID 1186032。无GPU可见性复验在Model创建阶段返回HTTP 403：
+所选Cluster不属于当前organization。数据库确认Default Cluster属于ORG principal 1，Key 32属于
+admin USER principal 4，且membership和cluster_access均为空。新实现阻止了跨组织错误创建，但尚未
+提供平台管理员管理Default Cluster的授权路径；Cluster registration和Worker SYSTEM token也不能
+替代，它们访问ModelInstance返回401。
+
+M8-EMB.7现为`waiting_on_rust_server_admin_cluster_authorization`。Server须明确采用平台admin覆盖、
+Default ORG membership或显式cluster_access之一，并让同一管理Key通过Model创建、Instance list、
+watch和CLI status无GPU门，之后才进入`ready_for_isolated_maintenance_authorization`。最终链继续
+复用M8-EMB.6的精确封存、maintenance、实验Worker、watchdog和幂等恢复机制；授权语义未闭环或未
+取得新的明确维护授权时都不得停止原Worker或容器。
