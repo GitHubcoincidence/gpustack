@@ -162,7 +162,7 @@ command = config.worker_command()
 assert command[-1] == 'run'
 assert '--worker-name' in command
 assert config.worker_name in command
-assert config.target_model == 'm8emb7-bge-small-zh-106-attempt3'
+assert config.target_model == 'm8emb7-bge-small-zh-106-attempt4'
 preflight_source = (runtime_tool.SCRIPT_DIR / 'preflight.py').read_text(
     encoding='utf-8'
 )

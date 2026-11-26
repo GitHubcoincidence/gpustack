@@ -38,7 +38,7 @@ class Config:
         self.worker_ifname = 'eno8403'
         self.worker_port = '20250'
         self.metrics_port = '20251'
-        self.target_model = 'm8emb7-bge-small-zh-106-attempt3'
+        self.target_model = 'm8emb7-bge-small-zh-106-attempt4'
         self.model_path = (
             '/home/wujiaxing/.local/share/gpustack-rust-worker/models/'
             'bge-small-zh-v1.5-7999e1d'
