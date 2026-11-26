@@ -8662,3 +8662,19 @@
   和106，再用全新目录运行八组只读preflight并封存manifest；尚未授权maintenance、停止原Worker/
   容器、创建实验资源、数据库写入或GPU0使用。preflight通过后仍须用户绑定精确HEAD和manifest
   明确授权新的`M8-EMB.7-worker-embedding-diagnostic-window`。
+
+### 2026-11-26：M8-EMB.7 Worker诊断只读preflight attempt 1通过
+
+- 输入身份：本地、GitHub和106均为`8f4415dca15b94fcabaf8ab395682bb203574537`；106分支及
+  origin跟踪引用一致、工作树干净。旧M8-EMB.6七组与新M8-EMB.7六组正式工作树self-test均PASS。
+- 八组门：受保护cookie/token和固定BGE、locked/offline构建与二进制identity、Server/原Worker/
+  metrics/Qwen健康、PostgreSQL容器/库/三张关联表及零既有孤儿、控制面隔离身份、原进程/容器/
+  Model/Instance恢复计划和唯一GPU0基线全部通过。
+- 证据：目录`m8emb7-106/preflight-8f4415dc-diagnostic-attempt1`，manifest SHA-256为
+  `3a56ac63805e6a9983885bed25fee313e15d7486ace8240fd64a8743832816ca`。独立逐文件校验、HEAD/
+  origin/工作树、五个健康端点、数据库readiness输出和实验进程/目录零残留复核均PASS。
+- 影响边界：本门只读现场并构建最新二进制，没有切换maintenance、停止进程或容器、创建Server
+  资源、执行数据库写入或使用GPU0。
+- 当前停止位置：本检查点会产生新的仅文档治理HEAD，因此attempt 1不直接绑定一次性授权。同步新
+  HEAD后须在全新目录重跑同一八组只读preflight；通过后才进入
+  `ready_for_worker_embedding_diagnostic_authorization`，真实维护窗口仍未授权。

@@ -1688,8 +1688,9 @@ ModelFile `worker_id`过滤、缺少DELETE，并在删除实验Worker后遗留�
 其他状态差异仍阻断。cleanup先走公开ModelFile DELETE，只有精确405时才允许对冻结的PostgreSQL
 容器执行无引用、全identity匹配、单行事务兜底，并由独立post-audit复核API和数据库零残留。
 
-工具提交`dbfd1d15`已在106临时快照通过旧七组与新六组self-test，历史attempt 1及两份Server缺陷
-报告保持不变。当前为`tooling_ready / final_preflight_pending`。下一步先同步最终治理HEAD并运行
-全新八组只读preflight；通过后仅进入`ready_for_worker_embedding_diagnostic_authorization`。真实
-maintenance、原Worker/容器停止、实验Model/Instance/ModelFile、数据库写入和GPU0仍须绑定最终
-HEAD与manifest的全新明确授权。
+工具提交`dbfd1d15`已在106临时快照和正式工作树通过旧七组与新六组self-test，历史attempt 1及
+两份Server缺陷报告保持不变。治理HEAD`8f4415dc`的八组只读preflight attempt 1及独立复核已
+PASS；记录该结果会产生新的仅文档HEAD，因此下一步同步新HEAD并在全新目录重跑同一preflight。
+最终manifest通过后仅进入`ready_for_worker_embedding_diagnostic_authorization`。真实maintenance、
+原Worker/容器停止、实验Model/Instance/ModelFile、数据库写入和GPU0仍须绑定最终HEAD与manifest
+的全新明确授权。
