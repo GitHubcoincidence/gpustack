@@ -1702,3 +1702,11 @@ harness资源身份冲突而非Worker失败。D336把下一次名称固定为
 `m8emb7-bge-small-zh-106-attempt3`，并在preflight增加活动及软删除同名行总数必须为0的只读门。
 修复提交`db8ee543`已通过两套离线self-test。下一步同步最终治理HEAD并重新运行只读preflight；
 formal attempt 3仍须新的明确授权。
+
+治理HEAD`a1ff36ad`的formal attempt 3随后创建Worker 420、Model 29、Instance 117、ModelFile 24和
+唯一GPU0 pooling容器，Worker五状态核心链PASS，Server仍缺`analyzing/downloading`；工具在推理前
+把真实`--max-model-len 512`拆分argv误判为缺少等号形式。D335精确数据库兜底在ModelFile DELETE
+405后成功删除恰好一行，cleanup、watchdog和独立post-audit完整恢复现场。D337固定按语义接受唯一
+`--option=value`或`--option value`，目标值仍严格为pooling和512，并在断言前封存inspect。修复提交
+`8750a91a`已通过两套self-test。下一步同步治理HEAD、运行全新只读preflight并为formal attempt 4
+取得新的明确授权。

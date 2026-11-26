@@ -1543,3 +1543,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D336 | attempt 3使用全新Model名称并扩展preflight | attempt 2保持`FAIL/model_create_http_409`且不计入Worker运行时评分。后续实验Model固定改名为`m8emb7-bge-small-zh-106-attempt3`；preflight除API不可见性外，必须直接只读数据库并要求该名称在活动和软删除Model行中的总计数为0。不得硬删除历史软删除Model 28来迁就测试，也不得把409归因给Worker | 数据库确认Model 28软删除后仍保留原实验名称，API list不可见但唯一约束使同名POST返回409。此次失败发生在新Model持久化、vLLM和推理之前，cleanup与独立post-audit完整通过。使用新名称并让preflight覆盖软删除行可以消除harness身份冲突，同时保留历史证据和Server软删除语义。 |
+
+## 2026-11-26 M8-EMB.7容器参数表示兼容
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D337 | 容器命令参数按语义解析 | runtime身份门对有值参数同时接受唯一的`--option=value`与`--option value`表示，但目标值不变：runner必须恰好为`pooling`，max-model-len必须恰好为`512`；缺失、空值、重复或不同值仍失败。容器inspect必须在参数断言前写入证据 | attempt 3的真实容器命令包含`--max-model-len 512`，工具只接受等号形式而产生假失败。Docker argv的两种形式对vLLM语义等价；解析后仍要求唯一精确值不会放宽产品门。提前封存inspect保证未来参数差异可直接归因。 |

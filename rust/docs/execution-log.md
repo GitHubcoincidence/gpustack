@@ -8704,3 +8704,28 @@
 - 当前停止位置：`failed_before_runtime / fully_restored / retry_tooling_ready`。记录和同步最终HEAD后
   必须运行全新只读preflight；formal attempt 3仍须绑定新HEAD/manifest的明确维护窗口授权，不能
   复用已消费的attempt 2授权。
+
+### 2026-11-26：M8-EMB.7 Worker诊断formal attempt 3参数表示假失败与恢复兜底实证
+
+- 最终门与授权：治理HEAD`a1ff36ad8e3f65b579e4f01426a5e41127b69360`的preflight attempt 3
+  通过，manifest SHA-256为`71e0b4ec2a889bd3c47e13475e32cf6a2898cf8eb3b68fd000f174672c4eae5a`；
+  新增数据库门确认attempt 3名称在活动及软删除Model行中总计数为0。用户明确授权绑定该HEAD和
+  manifest的一次性窗口。
+- 运行结果：实验Worker 420、Model 29、Instance 117和ModelFile 24创建，唯一GPU0 pooling容器到达
+  running。watch完整观察`pending→scheduled→initializing→starting→running`，Worker核心状态门
+  PASS；Rust Server七状态契约因缺少`analyzing/downloading`继续为FAIL。工具随后把容器真实
+  `--max-model-len 512`拆分argv误判为缺少等号形式，在推理前固定FAIL。formal manifest SHA-256为
+  `94126a88575863984a4a117b294e7c47233eee2b244efc1bc97d10c0f8a5188a`。
+- 产品裁决：cleanup保留的容器inspect证明固定Runner镜像、唯一GPU0、`--runner=pooling`和
+  `--max-model-len 512`均存在；失败属于harness字符串表示检查，不是Worker丢参或vLLM启动失败。
+- 恢复与D335实证：Rust Server对ModelFile 24 DELETE返回405，精确数据库事务完成`BEGIN/DO/
+  deleted_count=1/COMMIT`并由API 404复核，首次真实证明D335兜底工作。正常cleanup和watchdog
+  manifest分别为`c0baa9d0c62d8a31d8b8eb2ff013120497fc2883fe66105438620f2e5c09f65c`与
+  `627beaadc77b3813653ad6e6837e92adb501e5fee2a5fef8f0d6199912409645`；独立post-audit manifest为
+  `d5748fe27d911d0d1459a31a761fe70306d7b129906799d21a44cf5a710cb6c6`，原Worker/Qwen/容器、
+  maintenance、健康端点及API/数据库零残留全部通过。一次性授权已删除。
+- 修复：提交`8750a91a`增加有值容器参数语义解析，同时接受唯一等号式和拆分式，仍严格要求
+  pooling与512；容器inspect改为先封存再断言。旧七组和新六组self-test再次PASS。
+- 当前停止位置：`runtime_reached / inference_not_scored / fully_restored / retry_tooling_ready`。
+  同步最终治理HEAD后必须再次运行只读preflight；formal attempt 4仍须绑定新HEAD和manifest的明确
+  授权，不能沿用attempt 3授权。
