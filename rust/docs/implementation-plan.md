@@ -1721,3 +1721,9 @@ Instance 118、ModelFile 25和唯一GPU0 pooling容器完成核心五状态链�
 Server完整七状态契约仍因缺少`analyzing/downloading`保持FAIL。当前为
 `worker_diagnostic ready_for_review / server_state_contract FAIL`；用户接受报告后先退役管理员
 session材料，再把诊断结论标记为accepted。该结果不授权M8-B或新的真实环境操作。
+
+用户已接受attempt 4报告，管理员session通过logout写回cookie jar后从200变401，cookie文件完成
+删除；可选Bearer token不存在，一次性授权已删除。退役证据manifest SHA-256为
+`4ece04c7de27133d6df9e5eeb6cea3e04375acdc01b48cea04792f213affde2f`，独立健康与零残留复核PASS。
+M8-EMB.7现为`worker_diagnostic accepted / server_state_contract FAIL`。下一步只允许讨论并冻结
+Server缺陷复测或后续M8阶段，不自动授权真实操作。

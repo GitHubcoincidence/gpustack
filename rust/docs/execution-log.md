@@ -8770,3 +8770,21 @@
   只允许向用户交付详细报告；用户接受后精确删除管理员cookie及可选session token，复核旧session
   不再保留，再把Worker诊断标记为`accepted`。Server状态/API Key缺陷继续独立开放，不自动进入
   M8-B或容器化阶段。
+
+### 2026-11-26：M8-EMB.7验收与管理员session退役
+
+- 用户验收：用户审阅Worker/Server双结论、推理形状、幂等、D335清理和完整恢复报告后明确回复
+  “没问题”，M8-EMB.7 Worker embedding诊断由`ready_for_review`更新为`accepted`；Server完整
+  七状态契约仍为FAIL，API Key和多租户缺陷仍开放。
+- 退役语义：OpenAPI确认`POST /auth/logout`负责清cookie。首次只发送cookie但未写回响应不会改变
+  stateless本地jar；随后使用同一0600文件作为`--cookie-jar`接收清除响应，logout返回200，同一文件
+  访问Model list从200变为401，再精确删除cookie。该接口行为差异未暴露cookie内容。
+- 文件结果：`m8emb7-admin-session.cookies`已删除；Bearer兼容探测此前为401，所以
+  `m8emb7-admin-session-token`始终不存在；attempt 4一次性授权此前已删除。Cluster registration
+  token、原Worker持久token和其他配置文件均未修改。
+- 证据：受保护目录`m8emb7-106/session-retirement-297e8fe8-attempt4`的manifest SHA-256为
+  `4ece04c7de27133d6df9e5eeb6cea3e04375acdc01b48cea04792f213affde2f`。独立逐文件校验、三个凭据
+  路径零残留、实验进程不存在和五个健康端点200均PASS。
+- 当前停止位置：`M8-EMB.7 worker_diagnostic accepted / server_state_contract FAIL`。本阶段没有活动
+  凭据、授权或实验资源。下一步须先讨论并冻结是推动Rust Server三项缺陷修复复测，还是进入后续
+  M8阶段；本次验收不自动授权任何Server修改、维护窗口、容器或GPU操作。

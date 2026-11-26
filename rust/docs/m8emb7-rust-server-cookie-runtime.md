@@ -146,8 +146,9 @@ Server须按两份独立缺陷报告修复并复测。
 
 ## 9. 当前停止位置
 
-attempt 4已通过Worker embedding诊断：核心五状态、唯一GPU0 pooling容器、Server float/base64、
-Worker直连、三次幂等、D335数据库兜底、cleanup和独立post-audit全部PASS，原现场完整恢复。Rust
-Server完整七状态契约仍因缺少`analyzing/downloading`为FAIL，API Key及多租户正式兼容也未通过。
-当前为`worker_diagnostic ready_for_review / server_state_contract FAIL`。下一步只允许用户审阅详细
-报告；接受后退役管理员session材料并把Worker诊断标记为accepted，不自动进入M8-B或新的维护窗口。
+attempt 4已通过并经用户验收：核心五状态、唯一GPU0 pooling容器、Server float/base64、Worker
+直连、三次幂等、D335数据库兜底、cleanup和独立post-audit全部PASS，原现场完整恢复。管理员
+session已logout、验证401并删除，本阶段凭据和授权归零。当前为
+`worker_diagnostic accepted / server_state_contract FAIL`；Rust Server仍缺少
+`analyzing/downloading`，API Key及多租户正式兼容也未通过。后续须另行讨论和授权，不自动进入
+M8-B或新的维护窗口。

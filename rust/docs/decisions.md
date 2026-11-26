@@ -1557,3 +1557,5 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D339 | attempt 4双结论裁决 | attempt 4技术结果进入`ready_for_review`：Worker embedding诊断PASS，覆盖核心五状态、固定pooling容器/GPU0、Server float/base64、Worker直连和三次幂等；Rust Server完整七状态契约继续FAIL，明确缺少`analyzing/downloading`。不得把前一结论用于宣称Server状态机、API Key或多租户正式兼容。cleanup、精确数据库兜底和独立post-audit均须作为Worker诊断PASS的组成部分 | D335预先冻结了双结论解释，attempt 4证据满足全部Worker诊断门且完整恢复现场，同时再次稳定复现Server拥有状态缺失。分别报告可以确认Worker能力而不改写已知Server缺陷。用户审阅详细报告并退役管理员session材料后，才把M8-EMB.7诊断标记为`accepted`。 |
+
+| D340 | M8-EMB.7 Worker诊断验收与session退役 | 用户审阅attempt 4详细报告后确认没有问题，Worker embedding诊断由`ready_for_review`更新为`accepted`。管理员session先调用`POST /auth/logout`并把清除响应写回受保护cookie jar，同一cookie访问Model list由200变401后删除文件；可选Bearer token和一次性授权均不存在。Rust Server完整状态契约、API Key和多租户兼容仍保持FAIL/开放，不因诊断验收关闭 | logout接口通过响应清除客户端cookie；写回jar后再验证401可证明本地会话材料已失效。凭据退役、独立清单校验和五端点健康复核闭合了诊断生命周期，同时保留双结论边界。 |
