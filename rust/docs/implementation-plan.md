@@ -1675,3 +1675,14 @@ HEAD运行无服务写入的preflight并封存恢复计划；preflight通过后�
 manifest复核和运行后外部不变量也通过。因为记录该结果会产生新的仅文档治理HEAD，attempt 2仅作
 有效准备证据，不直接用于一次性授权。下一步在最终HEAD以全新目录重跑同一preflight；若源码、
 cookie、进程、容器、Server资源或GPU任一漂移则失败关闭，只有最终manifest才可进入维护授权门。
+
+最终preflight attempt 3通过后执行的cookie runtime attempt 1在BGE容器到达running时，因Rust
+Server只产生`pending→scheduled→initializing→starting→running`、缺少Server拥有的`analyzing`
+和`downloading`而按完整状态契约FAIL，未进入embedding推理评分。随后又确认Rust Server忽略
+ModelFile `worker_id`过滤、缺少DELETE，并在删除实验Worker后遗留孤儿ModelFile。原现场已通过
+精确容器/Worker恢复、单行数据库补救和第二次独立post-audit完整恢复。
+
+当前禁止直接重跑。工具先固定客户端二次过滤和Instance ID未持久化时的Worker UUID容器清理，并
+把两类Server问题形成独立报告。下一步需选择：等待Server修复后保持七状态正式门，或明确新增一个
+不改变正式兼容FAIL结论的Worker运行时诊断旁路，只要求Worker相关核心状态后继续推理。任何新GPU
+窗口仍须全新preflight和全新明确授权。

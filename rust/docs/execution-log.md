@@ -8598,3 +8598,42 @@
 - 当前停止位置：本记录会产生仅文档的新治理HEAD，因此attempt 2不能直接绑定一次性维护授权。
   下一步只允许同步最终HEAD并用全新目录重跑相同只读preflight；通过后才进入
   `ready_for_cookie_runtime_maintenance_authorization`。
+
+### 2026-11-26：M8-EMB.7 cookie runtime attempt 1失败与完整恢复
+
+- 最终门：治理HEAD`1393536b7597c8b7693f17ddbfeda3eb812b14d3`的preflight attempt 3通过，
+  manifest SHA-256为`ba3b01df4c8079139f07836f08b2c9495bf37dd35702b2ac54747948c02fc4b5`；
+  用户随后明确授权绑定该HEAD和manifest的一次性维护窗口。
+- 运行：原Worker 17进入maintenance，精确停止原进程和同一Instance 87容器后GPU0归零；隔离
+  Worker 418注册成功，Model 28、Instance 115、ModelFile 23和唯一pooling容器创建，vLLM最终到达
+  running。watch完整事件只有`pending→scheduled→initializing→starting→running`，缺少Server拥有
+  的`analyzing/downloading`，因此在推理前按冻结七状态门FAIL。
+- 正式证据：`formal-1393536b-attempt1` manifest SHA-256为
+  `d1517fc0a8ded72711168f66fb840a3c9d3967e41722cb2b9db9e4ca67be90a1`。该证据证明容器实际运行，
+  但没有Server/Worker embedding响应，不能升级为推理PASS。
+- cleanup安全停止：Rust Server对`model-files?worker_id=418`返回全部可见文件，工具在首个非目标
+  路径处拒绝删除；正式和watchdog cleanup manifest分别为
+  `64c2f0e9a831ad5eb57aed47a587b38b00c3e423834224751461a98918c213f3`和
+  `685db917025762f453ab0aabe0dedf535778b5fa7ed9db2f33f34d362e1a35bf`。客户端二次过滤后又因Rust
+  Server对精确ModelFile DELETE返回405停止，修复验证证据manifest为
+  `08c31c20c2aa0a042b13e5e73766dc7ff3f551ff9b2a05d2198533b440be1581`。
+- 精确恢复：按实验Worker UUID和Instance 115校验后删除唯一实验容器，删除Worker 418和实验目录，
+  启动同一原容器并以最新二进制恢复Worker 17、maintenance=false、Model 21和Instance 87。人工
+  恢复manifest为`097263337a3b1dc56eb31c15d4d380ead1a245ad2ce3dc7a8447435abb97a2c6`，首次独立
+  post-audit manifest为`b9fed82836ae1e18360298efa657ce95f2bd6365aa6071350c8cbc7d778e08d4`。
+- 孤儿元数据：删除Worker 418后ModelFile 23仍由API返回200；DELETE为405，OpenAPI只有GET/PUT，
+  等待30秒也未回收。用户明确授权后，在Rust Server实际数据库`gpustack223`中执行单事务：断言
+  Worker 418和Instance 115不存在、Model 28为唯一软删除行、ModelFile 23全部identity精确匹配，
+  然后只删除该一行。API随后404，本地BGE文件保持完整；数据库补救manifest为
+  `d7088fbc4e96ef6767daaa8dd5100c2f1bb30335bf765ea74012e582f6e19289`。
+- 最终审计：第二次独立post-audit manifest为
+  `f70fbeb9a54bf6b77515eac053b3eb3aa649d3d7512462f9b0d2b4e84a255cc2`。数据库残留计数、实验
+  Worker/Instance/ModelFile/容器/目录均为0；Model 28软删除行保留；固定BGE manifest通过；原
+  Server、Worker health/ready/metrics、Qwen均为200，同一原容器running且restart count 0。已用
+  一次性授权和临时恢复工具全部删除，cookie暂留用于可能的后续诊断。
+- 工具修正：ModelFile响应在客户端按精确worker_id二次过滤；若失败早于Instance ID写入，则只按
+  唯一实验Worker UUID定位容器，避免遗留运行时。两项均增加离线回归，不把Server缺陷变成宽泛
+  删除许可。
+- 当前停止位置：`failed_during_window / fully_restored / server_fix_or_bypass_decision_pending`。
+  未授权重试。下一步先提交工具修正和两份Rust Server缺陷报告，再由用户决定保持七状态门等待
+  Server修复，或把缺失Server状态单独记FAIL后继续一次非正式Worker embedding运行时诊断。
