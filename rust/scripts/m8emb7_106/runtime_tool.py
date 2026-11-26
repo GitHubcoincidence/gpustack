@@ -26,6 +26,8 @@ if SPEC is None or SPEC.loader is None:
 base = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(base)
 
+# The accepted evidence runner resolves every command from this fixed repository.
+os.environ['M8EMB6106_REPO'] = str(Config().repo)
 base.AUTHORIZATION_STAGE = 'M8-EMB.7-cookie-runtime-maintenance-window'
 base.MAINTENANCE_MESSAGE = 'M8-EMB.7 cookie-session runtime window'
 base.FORMAL_STAGE = 'M8-EMB.7-cookie-runtime-formal'

@@ -111,6 +111,7 @@ command = config.worker_command()
 assert command[-1] == 'run'
 assert '--worker-name' in command
 assert config.worker_name in command
+assert runtime_tool.os.environ['M8EMB6106_REPO'] == str(config.repo)
 assert runtime_tool.base.api_request is runtime_tool.api_request
 assert runtime_tool.base.set_maintenance is runtime_tool.set_maintenance
 assert runtime_tool.base.deploy_and_validate is runtime_tool.deploy_and_validate
