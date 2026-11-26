@@ -1537,3 +1537,9 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D335 | 状态链双结论与精确ModelFile数据库兜底 | 用户同意把M8-EMB.7重命名为Worker embedding诊断：Worker门仍强制`pending→scheduled→initializing→starting→running`有序完整；Server完整兼容门继续要求七状态，只允许把已确认缺失的`analyzing/downloading`记录为独立Server FAIL，不能用诊断PASS覆盖。cleanup先调用公开ModelFile DELETE；仅在精确返回405时，才允许对`rust-server-db-1/gpustack223`执行单事务兜底，事务必须同时匹配ModelFile ID、Worker ID、cluster 1、owner 1、固定BGE路径，并证明主模型和draft两个关联表均无引用后只删除一行。preflight只读固定数据库容器/表和零既有孤儿，post-audit同时检查API与数据库零残留。任何新GPU窗口仍须最终HEAD只读preflight和绑定manifest的新明确授权 | attempt 1已经证明Worker和vLLM可到running，但Rust Server省略其拥有的两个状态；继续要求七状态会在推理前重复阻断Worker能力诊断，直接放宽又会伪造Server兼容。双结论保持归因和最终标准不变。Rust Server同时缺少ModelFile DELETE并会留下孤儿元数据；严格API优先、405专用、引用为零和精确单行事务把已授权的数据库补救限制为可审计恢复机制，而不是一般数据库管理接口。 |
+
+## 2026-11-26 M8-EMB.7软删除名称隔离
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D336 | attempt 3使用全新Model名称并扩展preflight | attempt 2保持`FAIL/model_create_http_409`且不计入Worker运行时评分。后续实验Model固定改名为`m8emb7-bge-small-zh-106-attempt3`；preflight除API不可见性外，必须直接只读数据库并要求该名称在活动和软删除Model行中的总计数为0。不得硬删除历史软删除Model 28来迁就测试，也不得把409归因给Worker | 数据库确认Model 28软删除后仍保留原实验名称，API list不可见但唯一约束使同名POST返回409。此次失败发生在新Model持久化、vLLM和推理之前，cleanup与独立post-audit完整通过。使用新名称并让preflight覆盖软删除行可以消除harness身份冲突，同时保留历史证据和Server软删除语义。 |

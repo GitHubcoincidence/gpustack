@@ -1694,3 +1694,11 @@ PASS；记录该结果会产生新的仅文档HEAD，因此下一步同步新HEA
 最终manifest通过后仅进入`ready_for_worker_embedding_diagnostic_authorization`。真实maintenance、
 原Worker/容器停止、实验Model/Instance/ModelFile、数据库写入和GPU0仍须绑定最终HEAD与manifest
 的全新明确授权。
+
+治理HEAD`7d34ecc8`的最终preflight attempt 2通过并获用户授权，但formal attempt 2在实验Worker
+注册后因创建Model返回409停止，未创建Model/Instance/ModelFile/vLLM或进入推理；正常cleanup、
+watchdog和独立post-audit完整恢复原现场。数据库确认历史Model 28软删除后仍占用原实验名称，属于
+harness资源身份冲突而非Worker失败。D336把下一次名称固定为
+`m8emb7-bge-small-zh-106-attempt3`，并在preflight增加活动及软删除同名行总数必须为0的只读门。
+修复提交`db8ee543`已通过两套离线self-test。下一步同步最终治理HEAD并重新运行只读preflight；
+formal attempt 3仍须新的明确授权。

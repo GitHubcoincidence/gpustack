@@ -8678,3 +8678,29 @@
 - 当前停止位置：本检查点会产生新的仅文档治理HEAD，因此attempt 1不直接绑定一次性授权。同步新
   HEAD后须在全新目录重跑同一八组只读preflight；通过后才进入
   `ready_for_worker_embedding_diagnostic_authorization`，真实维护窗口仍未授权。
+
+### 2026-11-26：M8-EMB.7 Worker诊断formal attempt 2名称冲突与完整恢复
+
+- 最终门与授权：治理HEAD`7d34ecc89e75f6742577bbd1972720ec30436615`的preflight attempt 2
+  通过，manifest SHA-256为`23ad88f86708a69e450bd62c7838256aa6fd549aa40ca2c7b765395dae1fdcc1`；
+  独立manifest、HEAD、五端点、数据库和零实验残留复核通过。用户随后接受上一条精确授权范围，
+  一次性0600授权绑定该HEAD和manifest。
+- 运行结果：原Worker 17进入maintenance并精确释放GPU0，实验Worker 419完成注册屏障；创建
+  `m8emb7-bge-small-zh-106`时Server返回HTTP 409，因此formal在`deploy_embedding_model`阶段FAIL。
+  没有创建实验Model/Instance/ModelFile或vLLM容器，没有进入状态链、embedding推理或数据库删除
+  兜底。正式manifest SHA-256为
+  `1600a32ce54240e4bc3b86e9ba49964cdb5be3d2a7c581fe502f05305b38dfa6`。
+- 恢复证据：正常cleanup和watchdog二次cleanup均恢复同一原容器、最新Worker、maintenance=false、
+  Model 21/Instance 87和Qwen健康，manifest SHA-256分别为
+  `a7d7c05b74f931c02a6829acdbb6499a4ba2fb850fffee4509ab449241c6eb20`与
+  `f8fbd64dd101055cfe2e8687157cf1597f7746ece4e5e1625fedc9ed49037d95`。独立post-audit同时证明API/
+  数据库ModelFile、实验Worker/进程/目录/端口零残留，manifest SHA-256为
+  `2ec191a32e0b45a4f344f8a919ffa4c765019e2e3bad1585c0a2571933265173`。一次性授权已删除。
+- 根因：只读数据库查询确认软删除Model 28仍保留同名，API list看不到该行但数据库唯一名称约束
+  拒绝新POST。该问题属于实验资源身份未隔离，不是Worker、GPU或embedding实现失败。
+- 修复：提交`db8ee543`把下一次Model名称固定为`m8emb7-bge-small-zh-106-attempt3`，并让preflight
+  直接要求该名称在活动和软删除Model行中总计数为0；不删除历史Model 28。旧七组和新六组离线
+  self-test再次PASS。
+- 当前停止位置：`failed_before_runtime / fully_restored / retry_tooling_ready`。记录和同步最终HEAD后
+  必须运行全新只读preflight；formal attempt 3仍须绑定新HEAD/manifest的明确维护窗口授权，不能
+  复用已消费的attempt 2授权。

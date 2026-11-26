@@ -17,7 +17,8 @@ API Key、Rust CLI控制面或多租户授权已经兼容。状态结果也分�
 - 原现场：Worker 17 `jiaxingHaoyuNB-106`、Model 21、Instance 87、端口40000；
 - 原模型容器：preflight按标签唯一解析并把完整identity写入恢复计划，不在脚本中依赖短容器ID；
 - 实验Worker：`rust-m8emb7-106`，控制端口20250，指标端口20251；
-- 实验Model：`m8emb7-bge-small-zh-106`；
+- 实验Model：`m8emb7-bge-small-zh-106-attempt3`；preflight必须同时证明API不可见且数据库活动/软
+  删除同名行总数为0；
 - 模型：固定revision的`BAAI/bge-small-zh-v1.5`，11个文件、96,378,336字节、512维；
 - Runner：固定digest的GPUStack Runner；
 - GPU：只允许唯一GPU0 UUID，106没有第二张GPU可供本阶段使用；
@@ -144,7 +145,9 @@ Server须按两份独立缺陷报告修复并复测。
 
 ## 9. 当前停止位置
 
-attempt 1已按七状态契约FAIL并完整恢复；D335已经冻结双结论和精确数据库兜底。工具提交
-`dbfd1d15`通过旧M8-EMB.6七组回归与新M8-EMB.7六组离线自测。下一步在最终治理HEAD运行全新
-只读preflight；只有其manifest通过独立复核后才可请求新的诊断维护窗口授权。当前没有授权切换
-maintenance、停止原Worker/容器、创建模型、执行数据库写入或使用GPU0。
+attempt 1已按七状态契约FAIL并完整恢复；attempt 2因历史软删除Model 28占用旧实验名称而在Model
+创建HTTP 409处FAIL，尚未进入runtime，cleanup与独立post-audit完整恢复。D335已经冻结双结论和
+精确数据库兜底，D336固定attempt 3专用名称与软删除行门。工具提交`dbfd1d15`和`db8ee543`通过旧
+M8-EMB.6七组回归与新M8-EMB.7六组离线自测。下一步在最终治理HEAD运行全新只读preflight；只有
+其manifest通过独立复核后才可请求新的诊断维护窗口授权。当前没有授权切换maintenance、停止原
+Worker/容器、创建模型、执行数据库写入或使用GPU0。
