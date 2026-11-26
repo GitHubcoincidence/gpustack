@@ -1682,7 +1682,14 @@ Server只产生`pending→scheduled→initializing→starting→running`、缺�
 ModelFile `worker_id`过滤、缺少DELETE，并在删除实验Worker后遗留孤儿ModelFile。原现场已通过
 精确容器/Worker恢复、单行数据库补救和第二次独立post-audit完整恢复。
 
-当前禁止直接重跑。工具先固定客户端二次过滤和Instance ID未持久化时的Worker UUID容器清理，并
-把两类Server问题形成独立报告。下一步需选择：等待Server修复后保持七状态正式门，或明确新增一个
-不改变正式兼容FAIL结论的Worker运行时诊断旁路，只要求Worker相关核心状态后继续推理。任何新GPU
-窗口仍须全新preflight和全新明确授权。
+用户已接受D335的Worker运行时诊断旁路，同时保持Server七状态兼容门不变。下一次诊断必须同时输出
+两条结论：Worker核心链`pending→scheduled→initializing→starting→running`完整才可继续推理；若
+仅缺少Server拥有的`analyzing/downloading`，Server契约记FAIL但不阻断Worker embedding评分，任何
+其他状态差异仍阻断。cleanup先走公开ModelFile DELETE，只有精确405时才允许对冻结的PostgreSQL
+容器执行无引用、全identity匹配、单行事务兜底，并由独立post-audit复核API和数据库零残留。
+
+工具提交`dbfd1d15`已在106临时快照通过旧七组与新六组self-test，历史attempt 1及两份Server缺陷
+报告保持不变。当前为`tooling_ready / final_preflight_pending`。下一步先同步最终治理HEAD并运行
+全新八组只读preflight；通过后仅进入`ready_for_worker_embedding_diagnostic_authorization`。真实
+maintenance、原Worker/容器停止、实验Model/Instance/ModelFile、数据库写入和GPU0仍须绑定最终
+HEAD与manifest的全新明确授权。

@@ -6,7 +6,9 @@
 修复的平台管理API Key组织授权问题阻塞Worker运行时诊断。
 
 本阶段是**诊断性、非正式兼容验收**：管理员Web session通过只代表内部admin路径可用，不能证明
-API Key、Rust CLI控制面或多租户授权已经兼容。D332规定的Server缺陷仍须单独修复和复测。
+API Key、Rust CLI控制面或多租户授权已经兼容。状态结果也分成两条：Worker embedding诊断可以在
+核心状态链和推理门全部通过后记PASS；Rust Server完整状态契约仍须包含七状态。D332及Server状态
+缺口均须单独修复和复测。
 
 ## 2. 已冻结输入
 
@@ -37,14 +39,16 @@ API Key、Rust CLI控制面或多租户授权已经兼容。D332规定的Server�
 ## 4. 工具和职责
 
 - `prepare-admin-session.sh`：隐藏登录、保护cookie、分别探测cookie和Bearer；
-- `preflight.py`：离线构建并固定源码、模型、原进程、容器、GPU、控制面和恢复计划；
+- `preflight.py`：离线构建并固定源码、模型、原进程、容器、GPU、控制面、数据库清理边界和恢复
+  计划；
 - `runtime_tool.py`：只替换已验收M8-EMB.6-106生命周期工具的操作员传输、模型创建与embedding
   评分逻辑；
 - `executor.sh`：把一次性授权绑定到精确HEAD和preflight manifest；
 - `watchdog.sh`：将维护窗口限制为30分钟，并在执行异常时重试精确cleanup；
 - `cleanup.sh`：只删除唯一实验Model、Instance、Worker和容器，并恢复原进程、容器和maintenance；
-- `post-audit.sh`：独立证明实验残留归零和原现场完整恢复；
-- `self-test.sh`：验证语法、授权绑定、watch解析、状态链、冻结命令和禁止宽泛清理。
+  ModelFile先调用API，只有HTTP 405才启用D335的精确数据库兜底；
+- `post-audit.sh`：独立证明实验残留、API/数据库ModelFile残留归零和原现场完整恢复；
+- `self-test.sh`：验证语法、授权绑定、双状态门、精确SQL生成、冻结命令和禁止宽泛清理。
 
 M8-EMB.6-106工具的原阶段常量保持默认值；M8-EMB.7只在导入后的模块实例中替换阶段标签，避免
 环境变量改变旧正式协议的授权含义。
@@ -72,15 +76,17 @@ preflight会在原Worker仍运行时离线构建最新二进制并封存恢复�
 - 实验名称、端口、目录均未占用；
 - 原Worker进程、Model、Instance、容器、镜像、GPU UUID和计算进程唯一；
 - 固定BGE manifest、文件数、字节数和维度一致；
+- PostgreSQL容器名、镜像、Compose项目/服务和数据库身份一致，三个ModelFile相关表存在，固定BGE
+  路径没有运行前孤儿元数据；
 - recovery plan和preflight manifest可独立复核。
 
-preflight通过只会进入`ready_for_cookie_runtime_maintenance_authorization`，不会自动开始维护窗口。
+preflight通过只会进入`ready_for_worker_embedding_diagnostic_authorization`，不会自动开始维护窗口。
 
 ### 5.3 一次性维护授权门
 
 真实运行前必须取得用户对当前HEAD和preflight manifest的明确授权，并创建0600单链接JSON：
 
-- `stage=M8-EMB.7-cookie-runtime-maintenance-window`；
+- `stage=M8-EMB.7-worker-embedding-diagnostic-window`；
 - `approved=true`；
 - 精确`expected_head`；
 - 精确`preflight_manifest_sha256`；
@@ -96,8 +102,10 @@ preflight通过只会进入`ready_for_cookie_runtime_maintenance_authorization`�
 4. 启动独立`worker run`，等注册后先置maintenance，固定新Worker ID/UUID，再解除maintenance；
 5. 用cookie创建唯一embedding Model，固定Worker、GPU0、本地模型、Runner digest和
    `--runner=pooling`；
-6. 同时使用ModelInstance watch和list，要求完整
-   `pending → analyzing → scheduled → initializing → downloading → starting → running`状态链；
+6. 同时使用ModelInstance watch和list，分别计算两条结论：Worker诊断必须完整观察
+   `pending → scheduled → initializing → starting → running`；Server契约要求完整
+   `pending → analyzing → scheduled → initializing → downloading → starting → running`。只有已冻结的
+   `analyzing/downloading`同时缺失时允许继续Worker诊断，并把Server契约明确记录为FAIL；
 7. 验证唯一容器的Worker UUID、Instance ID、GPU UUID、镜像、spec hash、pooling和max length；
 8. 通过Rust Server验证双输入float、单输入base64和三次重复embedding；
 9. 通过Rust Worker控制端口和Cluster token验证一次直连embedding；
@@ -105,10 +113,10 @@ preflight通过只会进入`ready_for_cookie_runtime_maintenance_authorization`�
 
 ## 7. 评分和验收
 
-诊断运行只有在以下条件全部满足时才可记为`diagnostic_pass`：
+Worker embedding诊断只有在以下条件全部满足时才可记为`diagnostic_pass`：
 
 - cookie创建、list和watch看到同一Model/Instance；
-- 完整状态链到达`running`；
+- Worker核心状态链有序到达`running`，且不存在除`analyzing/downloading`同时缺失之外的状态差异；
 - 唯一vLLM容器只请求GPU0并使用固定镜像和pooling；
 - Server float为2×512维，base64解码后为512个float32字节；
 - Worker直连为1×512维；
@@ -117,8 +125,10 @@ preflight通过只会进入`ready_for_cookie_runtime_maintenance_authorization`�
 - 原Worker 17、Model 21、Instance 87、同一容器、原maintenance和Qwen健康全部恢复；
 - cookie、一次性授权和其他临时secret按退役步骤删除。
 
-即使全部通过，M8-EMB.7仍不能记为API Key正式兼容；Rust Server须按
-`rust-server-admin-cluster-authorization-issue.md`另行修复并复测。
+证据必须同时保存`worker_embedding_diagnostic_passed`、
+`server_managed_state_contract_passed`和`missing_server_states`。即使Worker诊断全部通过，缺少
+`analyzing/downloading`时Server状态契约仍为FAIL；M8-EMB.7也不能记为API Key正式兼容。Rust
+Server须按两份独立缺陷报告修复并复测。
 
 ## 8. 失败与回滚规则
 
@@ -126,11 +136,15 @@ preflight通过只会进入`ready_for_cookie_runtime_maintenance_authorization`�
 - 不停止或删除非preflight固定的进程、容器、Model或Instance；
 - 不使用模糊容器名、`pkill`、`docker system prune`或递归删除宽泛目录；
 - formal失败仍必须保留证据并执行cleanup；cleanup失败时保留现场身份，先进行精确只读诊断；
+- ModelFile数据库兜底不是常规控制面：API非405时禁止使用；事务必须精确匹配ID、Worker、Cluster、
+  owner和固定路径，两个Instance关联表计数都为0，删除计数必须恰好为1，否则回滚并判cleanup失败；
+- 数据库兜底只删除Server元数据，禁止删除或修改固定BGE本地文件；
 - watchdog只在正式证据目录已经建立且执行异常时重试同一精确cleanup；
 - 原现场未恢复前不得发起下一次尝试。
 
 ## 9. 当前停止位置
 
-管理员cookie门已通过，Bearer兼容门已按401判定不兼容；无GPU create/list/watch诊断已证明cookie
-路径可见。运行时工具正在完成静态、回归和同步门。真实maintenance、进程停止、Docker写入和
-GPU0使用尚未授权。
+attempt 1已按七状态契约FAIL并完整恢复；D335已经冻结双结论和精确数据库兜底。工具提交
+`dbfd1d15`通过旧M8-EMB.6七组回归与新M8-EMB.7六组离线自测。下一步在最终治理HEAD运行全新
+只读preflight；只有其manifest通过独立复核后才可请求新的诊断维护窗口授权。当前没有授权切换
+maintenance、停止原Worker/容器、创建模型、执行数据库写入或使用GPU0。

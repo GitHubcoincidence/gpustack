@@ -8637,3 +8637,28 @@
 - 当前停止位置：`failed_during_window / fully_restored / server_fix_or_bypass_decision_pending`。
   未授权重试。下一步先提交工具修正和两份Rust Server缺陷报告，再由用户决定保持七状态门等待
   Server修复，或把缺失Server状态单独记FAIL后继续一次非正式Worker embedding运行时诊断。
+
+### 2026-11-26：M8-EMB.7 Worker诊断旁路与恢复工具冻结
+
+- 用户决策：接受D335，将Worker embedding诊断和Rust Server完整状态契约拆为两个同时输出的结论。
+  Worker门继续要求`pending→scheduled→initializing→starting→running`完整有序；只有已确认由Server
+  拥有的`analyzing/downloading`同时缺失时才可继续推理，Server七状态契约仍明确为FAIL。任何其他
+  核心状态缺失、乱序或新增差异仍失败关闭。
+- 清理边界：用户允许下一次诊断在公开ModelFile DELETE精确返回405时使用数据库兜底。工具固定
+  `rust-server-db-1`、`postgres:17`、Compose `rust-server/db`和数据库`gpustack223`；事务同时断言
+  ModelFile ID、Worker ID、cluster 1、owner 1、固定BGE路径，以及主模型和draft两个关联表引用数为
+  0，只允许删除恰好一行。API为其他状态、identity不符、仍有引用或删除数不为1时均回滚并失败。
+- 实现：提交`dbfd1d15`给M8-EMB.6接受的runner增加默认不改变行为的ModelFile删除和post-audit扩展
+  钩子；M8-EMB.7单独覆盖双状态分类、405数据库兜底和API/数据库残留审计。Instance ID在状态门
+  判定前写入runtime state，确保后续失败仍有精确容器清理身份。preflight新增只读数据库容器、表和
+  零既有孤儿门；post-audit从已封存formal state读取实验Worker ID并双重核对零残留。
+- 验证：本机`git diff --check`和修改文件88字符行宽检查通过。本机没有可用Python解释器，因此把
+  当前补丁临时叠加到106的`/tmp`源码快照；旧M8-EMB.6七组self-test和新M8-EMB.7六组self-test
+  全部PASS，退出时临时目录清理，106正式工作树和运行服务未改动。新自测覆盖完整七状态、已知五
+  状态旁路、核心状态缺失拒绝、精确SQL及错误路径拒绝、阶段标签和扩展钩子。
+- 漂移裁决：本次是用户明确接受的方法修订，不回写attempt 1结果，也不把诊断PASS提升为Server
+  兼容PASS。数据库兜底只属于本诊断的恢复机制，不进入Worker产品路径或一般运维CLI。
+- 当前停止位置：`tooling_ready / final_preflight_pending`。下一步只能先同步最终治理HEAD到GitHub
+  和106，再用全新目录运行八组只读preflight并封存manifest；尚未授权maintenance、停止原Worker/
+  容器、创建实验资源、数据库写入或GPU0使用。preflight通过后仍须用户绑定精确HEAD和manifest
+  明确授权新的`M8-EMB.7-worker-embedding-diagnostic-window`。
