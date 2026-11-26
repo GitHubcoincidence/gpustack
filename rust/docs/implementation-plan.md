@@ -1628,8 +1628,21 @@ Rust Server commit/版本并重新冻结OpenAPI、认证和路由基线；在此
 均返回2048维；该模型运行在Worker 24，只证明Server新接口的解析、选择和转发能力。
 
 随后以独立0600 Context、30分钟精确删除watchdog和固定BGE模型尝试最终Rust Worker链。Model 23
-正确保存`categories=["embedding"]`、Worker 17/GPU0 selector、pooling和低显存参数，但CLI等待超过
-3分钟且另行观察90秒后，Rust Server仍未创建任何ModelInstance。实验Model已精确删除，Context、
-watchdog和实验runtime归零，原Model 21/Instance 87/容器及全部健康门保持。M8-EMB.7现为
-`waiting_on_rust_server_instance_creation`；不得通过手工创建Instance或Worker直连绕过Server，
-须待Rust Server副本控制器修复后重跑最终链。
+正确保存`categories=["embedding"]`、Worker 17/GPU0 selector、pooling和低显存参数，但管理API Key
+的list和watch均未显示目标ModelInstance。当时缺少数据库快照和Server日志，因此原
+`server_did_not_create_model_instance`归因已撤销；`page=-1`只取消分页，不取消租户过滤。
+
+开发者在隔离环境、现场数据对账和106线上Model 24/Instance 111三条路径验证副本控制器可创建
+普通及embedding实例。项目随后创建Model 25独立复核：数据库约0.96秒后出现Instance 112，而
+同一Key的list仍为0且watch无事件，确认Model/Instance归属owner 1与Key principal 4的查询上下文
+不一致会造成假阴性。Instance 112继续推进至Worker并因原Qwen仍占用GPU0而按预期进入error，说明
+低显存比例不绕过GPU计算进程排他门。Model 25/Instance 112、Context和watchdog已精确清理，原现场
+全部健康。
+
+106当前仍运行`lenovo`于2026-11-25 22:56启动的旧Server进程，项目账号无权替其安全重启；修复
+源码尚未通过新进程部署。M8-EMB.7现为`waiting_on_rust_server_visibility_fix_deployment`。开发者
+部署后必须先用无GPU控制面门证明同一管理Key的list和watch均能看到新Instance，再进入
+`ready_for_isolated_maintenance_authorization`。最终链须复用M8-EMB.6的精确封存、maintenance、
+实验Worker、watchdog和幂等恢复机制：只停止而不删除原Worker 17及Instance 87容器，使用GPU0完成
+Rust Server托管BGE链后恢复原容器、Worker身份、maintenance和Qwen健康。修复未部署或未取得新的
+明确维护授权时都不得停止原Worker或容器。

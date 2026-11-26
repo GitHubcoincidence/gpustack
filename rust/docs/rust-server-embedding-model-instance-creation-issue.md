@@ -1,353 +1,214 @@
-# Rust Server embedding Model不生成ModelInstance缺陷报告
+# Rust Server ModelInstance租户可见性不一致调查报告
 
 ## 1. 摘要
 
-106上的Rust Server已经能够处理`POST /v1/embeddings`，并可把请求转发给现有running实例；但通过
-标准Rust CLI创建一个`replicas=1`的embedding Model后，Server只持久化了Model，没有生成任何
-ModelInstance。由于Server托管链停在Model到Instance的副本同步阶段，目标Rust Worker没有收到
-workload，Docker、vLLM和GPU阶段均未开始。
+本报告修正此前“embedding Model未生成ModelInstance”的归因。2026-11-25的Model 23实验只通过
+管理API Key执行ModelInstance list和watch；这两个接口会继续应用租户权限过滤。`page=-1`只取消
+分页，不取消权限过滤，因此“完整可见列表中为0”不能证明数据库中没有实例。
 
-本问题阻断以下正式链路：
+Rust Server开发者随后完成三组验证：
 
-```text
-Rust CLI -> Rust Server -> 106 Rust Worker -> vLLM /v1/embeddings
-```
+1. 隔离环境中的普通Model和embedding Model均会自动生成ModelInstance；
+2. 使用现场Model、ModelInstance和Worker数据执行副本对账，可为Model 23创建pending实例；
+3. 106线上进程创建诊断embedding Model 24后，约1.2秒生成Instance 111，随后已清理。
 
-本报告只讨论Model副本控制器问题。`/v1/embeddings`未进入OpenAPI以及认证前模型查找顺序不属于
-本次阻断范围。
+2026-11-26项目又创建Model 25进行独立复核。数据库在约0.96秒后出现Instance 112，但同一管理
+API Key的list仍返回0，watch也没有把实例事件交给CLI。这直接证明此前的观测存在租户可见性
+假阴性，不能再归因于副本控制器。
 
-## 2. 严重程度与归属
+当前确认的问题是创建和查询使用了不同的归属规则：管理员创建Model时使用Cluster归属
+`owner_principal_id=1`；ModelInstance继承该归属；管理API Key（包括现场operator Key 32）属于
+个人principal 4，list和watch按API Key主体过滤，因此看不到owner 1的实例。
 
-- 严重程度：P1，阻断Rust Server托管的新Model部署；
-- 归属组件：Rust Server的Model创建事件、副本控制器或ModelInstance创建逻辑；
-- 非归属组件：Rust Worker、Worker inference proxy、Docker runtime、vLLM和GPU；
-- 当前阶段：`M8-EMB.7 waiting_on_rust_server_instance_creation`；
-- 首次确认时间：2026-11-25，Asia/Shanghai。
+Model 23已回滚，且缺少当时的数据库快照和Server日志，所以不能断言租户可见性是历史现象的唯一
+原因。可以确定的是：原报告的“Server没有创建Instance”结论证据不足，副本控制器现已通过真实
+数据库和线上创建实验验证。
 
-## 3. 环境
+## 2. 影响与归属
+
+- 严重程度：P1，管理API Key无法可靠观察或等待自己创建的托管资源；
+- 归属组件：Rust Server的Model创建归属、ModelInstance继承归属、list/watch租户上下文；
+- 已排除归属：Rust Worker、Worker inference proxy、Docker、vLLM和GPU；
+- 已验证正常：普通Model和embedding Model的副本创建与补偿对账；
+- 当前阶段：`M8-EMB.7 waiting_on_rust_server_visibility_fix_deployment`；
+- 首次错误归因：2026-11-25；修正时间：2026-11-26，Asia/Shanghai。
+
+## 3. 环境与固定资源
 
 | 项目 | 值 |
 |---|---|
 | Rust Server | `http://10.213.80.106:18091/` |
-| Server运行方式 | `gpustack-server ... --port 18091 --require-auth` |
-| 数据库 | `postgresql://.../gpustack223` |
-| Server产品版本 | v2.2.3兼容Rust实现，开发构建未以Git commit作为测试门 |
-| Rust Worker | ID 17，`jiaxingHaoyuNB-106`，ready，非maintenance |
-| Worker API | `10.213.80.106:20150` |
-| GPU | index 0，RTX 5090，UUID `GPU-be80b448-dd25-a523-676f-a279bf5c9c9c` |
-| 原运行模型 | Model 21 / Instance 87 / Worker 17 / GPU0 / port 40000 |
+| 数据库 | PostgreSQL，数据库名`gpustack223` |
+| Rust Worker | ID 17，`jiaxingHaoyuNB-106`，端口20150/20151 |
+| GPU | index 0，UUID `GPU-be80b448-dd25-a523-676f-a279bf5c9c9c` |
+| 原运行模型 | Model 21 / Instance 87 / port 40000 |
 | 原容器 | `gpustack-rs-managed-87`，ID前缀`3233adac6f2a` |
-| 实验模型 | Model 23，`m8emb7-bge-small-zh-gpu0` |
+| 历史实验 | Model 23，`m8emb7-bge-small-zh-gpu0` |
+| 修正复验 | Model 25，`m8emb7-bge-small-zh-gpu0-r2` / Instance 112 |
 | 固定模型 | `BAAI/bge-small-zh-v1.5@7999e1d3359715c523056ef9478215996d62a620` |
-| 本地模型目录 | `/home/wujiaxing/.local/share/gpustack-rust-worker/models/bge-small-zh-v1.5-7999e1d` |
-| 模型文件身份 | 11个文件，96,378,336字节，目录0555、文件0444 |
+| 模型文件 | 11个，96,378,336字节，目录0555、文件0444 |
 | Runner | `quay.io/gpustack/runner@sha256:f9c58b163ec7eb537404c7d268f3d96e101cbf19e05acb8df6b7637f9e64c3af` |
-| Worker代码HEAD | `160070df248ec266270dd9aedf592b6f468337af`，运行二进制报告产品commit `668bf92ba353` |
 
-正式写入前连续5个样本均确认Rust Server只有一个进程且`/healthz=200`，排除了双进程部署竞争。
+## 4. 归属不一致
 
-## 4. 前置功能证据
-
-新embedding接口不是本问题的失败点。使用Rust Server上现成的Model 17
-`Qwen3-VL-Embedding-2B-new`、Instance 98和Worker 24完成了以下请求：
-
-- 单输入float：成功，2048维；
-- 单输入base64：成功，按float32解码为2048维；
-- 双输入float：成功，返回两个2048维向量；
-- 三次重复float：全部成功；
-- 请求前后Instance 98保持`running`，`restart_count=1`。
-
-该证据说明Rust Server的新推理路由、模型解析、running目标选择和Worker转发可以工作，但现成模型
-运行在Worker 24，不能替代Worker 17的新部署链。
-
-## 5. 复现步骤
-
-### 5.1 准备受保护Context
-
-使用有效的管理API Key文件。文件必须是0600普通文件，命令中只传文件路径，不输出token：
-
-```bash
-export GPUSTACK_RS_CONTEXTS_FILE="$HOME/.config/gpustack-rust/m8emb7-contexts.json"
-
-gpustack-rs --output json context add m8emb7-rust-server \
-  --server-url http://10.213.80.106:18091/ \
-  --token-file "$HOME/.config/gpustack-rust/<management-token-file>" \
-  --use
-```
-
-### 5.2 确认目标Worker和模型路径
-
-```bash
-gpustack-rs --output json worker get 17
-```
-
-通过条件：Worker 17为`ready`、`maintenance.enabled=false`，并上报唯一GPU0。
-
-### 5.3 使用标准CLI创建Model
-
-```bash
-gpustack-rs --output json model deploy m8emb7-bge-small-zh-gpu0 \
-  --worker jiaxingHaoyuNB-106 \
-  --local-path "$HOME/.local/share/gpustack-rust-worker/models/bge-small-zh-v1.5-7999e1d" \
-  --image 'quay.io/gpustack/runner@sha256:f9c58b163ec7eb537404c7d268f3d96e101cbf19e05acb8df6b7637f9e64c3af' \
-  --gpu 0 \
-  --category embedding \
-  --runner pooling \
-  --tensor-parallel-size 1 \
-  --max-model-len 512 \
-  --gpu-memory-utilization 0.1 \
-  --dtype auto \
-  --enforce-eager \
-  --timeout 840 \
-  --wait
-```
-
-CLI在POST之前会建立ModelInstance watch，然后调用`POST /v2/models`。本次POST成功并返回Model 23，
-但`--wait`持续等待，不产生任何状态转换。
-
-### 5.4 请求JSON
-
-CLI发送的业务body等价于：
-
-```json
-{
-  "cluster_id": 1,
-  "name": "m8emb7-bge-small-zh-gpu0",
-  "source": "local_path",
-  "categories": ["embedding"],
-  "local_path": "/home/wujiaxing/.local/share/gpustack-rust-worker/models/bge-small-zh-v1.5-7999e1d",
-  "replicas": 1,
-  "backend": "vLLM",
-  "image_name": "quay.io/gpustack/runner@sha256:f9c58b163ec7eb537404c7d268f3d96e101cbf19e05acb8df6b7637f9e64c3af",
-  "worker_selector": {
-    "worker-name": "jiaxingHaoyuNB-106"
-  },
-  "gpu_selector": {
-    "gpu_ids": ["jiaxingHaoyuNB-106:cuda:0"],
-    "gpus_per_replica": 1
-  },
-  "backend_parameters": [
-    "--tensor-parallel-size=1",
-    "--runner=pooling",
-    "--max-model-len=512",
-    "--gpu-memory-utilization=0.1",
-    "--dtype=auto",
-    "--enforce-eager"
-  ],
-  "distributed_inference_across_workers": false,
-  "enable_model_route": true
-}
-```
-
-## 6. 实际结果
-
-Server成功持久化Model：
-
-```json
-{
-  "id": 23,
-  "name": "m8emb7-bge-small-zh-gpu0",
-  "categories": ["embedding"],
-  "replicas": 1,
-  "ready_replicas": 0,
-  "cluster_id": 1,
-  "worker_selector": {
-    "worker-name": "jiaxingHaoyuNB-106"
-  },
-  "gpu_selector": {
-    "gpu_ids": ["jiaxingHaoyuNB-106:cuda:0"],
-    "gpus_per_replica": 1
-  },
-  "owner_principal_id": 1,
-  "created_at": "2026-11-25T09:49:49.956879Z",
-  "updated_at": "2026-11-25T09:49:49.956879Z"
-}
-```
-
-观察结果：
-
-1. `model deploy --wait`等待超过3分钟，没有收到ModelInstance状态事件；
-2. 随后对`GET /v2/model-instances?page=-1`执行10次、间隔10秒的全量读取；
-3. 每次在客户端按`model_id == 23`精确过滤，结果均为0；
-4. 没有出现目标容器；
-5. 没有出现新40000段端口；
-6. GPU上没有新增计算进程；
-7. Model 23的`updated_at`仍等于`created_at`。
-
-最终判定：
+当前实现的有效行为如下：
 
 ```text
-STOP/server_did_not_create_model_instance
+管理员API Key创建Model
+  -> 创建分支按Cluster确定owner_principal_id=1
+  -> 副本控制器创建ModelInstance并继承owner_principal_id=1
+
+同一管理API Key执行list/watch
+  -> 查询按API Key自身principal 4建立TenantContext
+  -> 只返回owner_principal_id=4的ModelInstance
+  -> owner_principal_id=1的实例被权限条件过滤
 ```
 
-## 7. 预期结果与Python Server权威行为
+这会导致同一次CLI部署出现互相矛盾的观测：Model POST成功，副本控制器也创建了Instance，但
+`model deploy --wait`使用的watch和后续list都看不到它。
 
-原GPUStack Python Server的Model controller在收到Model事件后执行：
+## 5. 已完成验证
+
+### 5.1 开发者隔离验证
+
+开发者报告的三组结果为：
+
+| 检查 | 结果 |
+|---|---|
+| 隔离环境创建普通Model | 自动生成实例 |
+| 隔离环境创建embedding Model | 自动生成实例 |
+| 现场数据副本对账 | 可为Model 23生成pending实例 |
+| 线上创建诊断Model 24 | 约1.2秒生成Instance 111 |
+
+Model 24和Instance 111已由开发者清理。
+
+### 5.2 等效管理Key可见性验证
+
+开发者使用等效管理Key得到：
+
+| 检查方式 | 结果 |
+|---|---|
+| 数据库直接查询 | 1个实例 |
+| 管理Key查询实例列表 | 0个实例 |
+| 管理Key的watch | 收不到实例事件 |
+| 无租户限制的管理员会话 | 1个实例 |
+
+### 5.3 项目独立复验
+
+项目使用标准CLI创建Model 25，关键定义为：
 
 ```text
-Model CREATED/UPDATED event
-  -> ModelController._reconcile
-  -> sync_replicas(session, model)
-  -> re-fetch Model
-  -> query instances by model_id
-  -> if instance_count < replicas:
-       create ModelInstance(state=pending)
+replicas=1
+categories=["embedding"]
+worker=jiaxingHaoyuNB-106
+gpu=0
+runner=pooling
+local_path=<固定BGE目录>
 ```
 
-本次Model 23满足：
+复验结果：
+
+1. Model 25成功创建，owner 1、Cluster 1、replicas 1；
+2. PostgreSQL约0.96秒后出现Instance 112，owner 1、Cluster 1；
+3. 同一管理API Key的`GET /v2/model-instances?page=-1`仍看不到Instance 112；
+4. CLI watch没有收到该实例事件；
+5. Instance 112随后由Worker推进并进入`error`，证明控制链已越过副本创建阶段；
+6. 错误为`GPU index 0 has active compute processes`，源于原Instance 87仍占用GPU0；
+7. Model 25及Instance 112已精确删除，原现场保持健康。
+
+第6项是Worker的预期排他保护，不是Server副本控制器错误。`gpu-memory-utilization=0.1`限制vLLM
+显存目标，但不会允许两个托管工作负载共享一个已有计算进程的GPU。
+
+## 6. 对历史Model 23证据的重新解释
+
+Model 23实验中以下事实仍成立：
+
+- Model POST成功并保存了embedding、pooling、Worker和GPU selector；
+- 管理Key的list和watch没有显示目标Instance；
+- 没有观察到目标容器、端口或新增GPU进程；
+- 实验资源被完整回滚。
+
+但以下推断不再成立：
 
 ```text
-replicas = 1
-instances(model_id=23) = 0
+list(page=-1)返回0
+  != 数据库中一定没有Instance
+  != 副本控制器一定没有运行
 ```
 
-因此Rust Server应创建恰好一个pending ModelInstance，并继承至少以下字段：
+Model 23缺少当时的数据库快照和Server日志，不能追溯证明它是否已经创建过不可见Instance。因此
+历史结论应记为`inconclusive_due_to_tenant_visibility`，而不是
+`server_did_not_create_model_instance`。
 
-- `model_id=23`；
-- `model_name=m8emb7-bge-small-zh-gpu0`；
-- `cluster_id=1`；
-- `owner_principal_id=1`；
-- `source=local_path`；
-- 固定`local_path`；
-- `backend=vLLM`；
-- `state=pending`。
+## 7. `page=-1`的准确语义
 
-之后scheduler才根据父Model的Worker/GPU selector把它分配给Worker 17和GPU0。即使调度条件不满足，
-ModelInstance也应先存在并保持pending；不应完全没有Instance。
+`page=-1`只取消SQL分页的offset/limit，返回当前主体有权访问的全部条目。它不提升权限、不切换
+主体，也不移除Cluster、Tenant或owner条件。正确表达是“全量可见清单”，不是“数据库全量清单”。
 
-## 8. 已排除原因
+因此任何副本创建验收都必须同时证明：
 
-### 8.1 不是请求校验或持久化失败
+1. 数据库或无租户限制的内部对账确实存在实例；
+2. 发起部署的API主体能够通过list看到实例；
+3. 同一主体能够通过watch收到实例事件；
+4. Worker SYSTEM主体能够看到分配给自己的实例。
 
-`POST /v2/models`成功，Model 23可立即GET，所有关键字段均正确。
+## 8. 修复要求
 
-### 8.2 不是Worker selector错误
+Rust Server需要统一以下四个位置使用的租户上下文：
 
-Worker 17存在、ready、非maintenance，并有规范标签：
+1. Model创建时的`owner_principal_id`决定规则；
+2. ModelInstance从父Model继承owner和Cluster的规则；
+3. ModelInstance list的TenantContext和管理员覆盖规则；
+4. ModelInstance watch的初始快照与后续事件过滤规则。
 
-```json
-{
-  "implementation": "rust",
-  "worker-name": "jiaxingHaoyuNB-106"
-}
-```
+可接受方案必须定义清楚“平台管理API Key创建Cluster资源”究竟归Cluster主体还是个人主体，并让
+创建、读取、watch、更新和删除都使用同一规则。不能只放宽list而保留watch过滤，也不能让管理Key
+无条件看到其他Cluster或Tenant的数据。
 
-即使selector不匹配，也应先得到pending Instance，而不是0个Instance。
+## 9. 建议自动化测试
 
-### 8.3 不是GPU或显存不足
+Rust Server至少应增加以下测试：
 
-原模型占用约17.3 GiB，GPU总显存约32.6 GiB；实验模型显存比例固定为0.1。更重要的是，本次从未
-进入scheduler、Worker或runtime阶段，没有任何Instance可供资源评估。
+1. 个人principal管理Key创建Model后，list和watch都能看到其Instance；
+2. Cluster principal创建Model后，同Cluster管理Key按明确策略可见；
+3. 普通LLM与embedding使用完全相同的归属和副本生命周期；
+4. `page=-1`取消分页但继续执行TenantContext过滤；
+5. watch初始回放与实时事件使用相同权限规则；
+6. 无权限Key不能读取或watch其他Cluster/Tenant的实例；
+7. Model、Instance和ModelFile的owner/cluster字段保持一致；
+8. reconcile重复执行不创建重复Instance；
+9. Server重启后的补偿对账能恢复缺失副本；
+10. 管理会话、管理API Key和Worker SYSTEM token分别覆盖正反权限用例。
 
-### 8.4 不是模型文件问题
+## 10. M8-EMB.7后续验收
 
-固定BGE目录存在、只读、11个文件、96,378,336字节。ModelFile准备只会在Instance分配后由Worker
-执行，本次未到达该阶段。
+副本创建现已验证，不再等待controller修复。2026-11-26只读检查确认106仍运行
+`lenovo`于2026-11-25 22:56启动的旧Server进程；项目复验的list/watch假阴性也发生在该进程上。
+修复源码必须由Server开发者构建并重启为新进程，再先通过无GPU可见性门。最终链仍须在隔离维护
+窗口中完成，因为原Instance 87
+占用唯一GPU0，而Worker会正确拒绝并行启动第二个计算工作负载。下一次测试固定为：
 
-### 8.5 不是Worker或Docker失败
+1. 对原Worker 17启用maintenance；
+2. 精确停止原Worker进程和原Instance 87容器，但不删除Model、Instance或容器；
+3. 启动连接106 Rust Server的隔离Rust Worker；
+4. 部署唯一BGE Model并验证数据库、list和watch可见性；
+5. 验证完整状态链、float/base64、双输入和重复embedding请求；
+6. 删除实验资源；
+7. 启动同一原容器并以最新二进制恢复Worker 17；
+8. 恢复原maintenance值并验证Model 21、Instance 87和端口40000。
 
-Worker health/ready始终为200；原Qwen容器和端口正常；实验容器从未创建。Worker没有收到目标
-ModelInstance，自然不会启动vLLM。
+该窗口必须使用一次性授权、精确身份封存、watchdog和幂等cleanup；修复后的Server尚未部署或
+未取得明确授权时都不得执行。
 
-### 8.6 不是多Server进程竞争
+## 11. 本次复验回滚
 
-之前部署过程中曾出现双进程，正式写入前已由开发方处理。最终尝试前连续5个样本均只有一个Server
-进程且health 200。
-
-### 8.7 不是ModelInstance列表过滤假阴性
-
-Rust Server存在`model_id`列表过滤差异，因此本次没有仅依赖
-`GET /v2/model-instances?model_id=23`。验证使用`page=-1`读取完整可见清单，再在客户端按
-`model_id == 23`过滤，10次结果仍全部为0。
-
-## 9. 建议排查位置
-
-建议按以下顺序检查Rust Server：
-
-1. `POST /v2/models`事务提交后是否发布Model CREATED事件；
-2. Model副本controller是否在当前Server进程中启动并保持运行；
-3. controller是否实际订阅到Model CREATED/UPDATED事件；
-4. leader选举或单实例controller门是否错误地认为当前进程不是leader；
-5. reconcile是否因`categories=["embedding"]`提前过滤或返回；
-6. reconcile是否因`owner_principal_id=1`、`cluster_id=1`或selector反序列化失败；
-7. reconcile异常是否只写日志、未反映到Model `state_message`或API响应；
-8. Model查询得到的`replicas`是否错误为0或空值；
-9. ModelInstance create是否失败但事件被确认或丢弃；
-10. Server重启后是否会补偿扫描`replicas > instance_count`的Model；若没有，单次事件丢失会永久卡住。
-
-请优先查看Model 23创建时间附近的Server日志：
-
-```text
-2026-11-25T09:49:49Z
-```
-
-建议增加结构化日志，至少包含`model_id`、`replicas`、现有Instance数、事件类型、controller身份和
-ModelInstance创建结果，但不得记录API Key或Authorization header。
-
-## 10. 建议修复
-
-最低修复要求：
-
-1. Model创建事务成功后可靠触发一次副本同步；
-2. 对`replicas=1、instances=0`创建恰好一个pending Instance；
-3. embedding category和普通LLM走同一副本生命周期，不为embedding增加第二套controller；
-4. reconcile幂等，重复事件或Server重启不得产生重复Instance；
-5. reconcile失败应有可观测错误，并能重试或由周期性补偿扫描恢复；
-6. Model删除时清理其Instance，且不会影响其他Model。
-
-不建议的绕过方案：
-
-- CLI手工`POST /v2/model-instances`；
-- CLI直接连接Worker或vLLM部署；
-- Worker根据Model列表自行伪造Instance；
-- 仅为embedding增加特殊部署路径。
-
-这些方案会绕过Server的状态所有权、调度、watch和清理语义。
-
-## 11. 建议自动化测试
-
-Rust Server应增加至少以下集成测试：
-
-1. 创建普通LLM Model，`replicas=1`，最终存在恰好一个pending Instance；
-2. 创建embedding Model，`categories=["embedding"]`，结果与普通LLM一致；
-3. Instance继承model、cluster、owner、source、path和backend字段；
-4. 重复reconcile不创建第二个Instance；
-5. Server重启或controller重新订阅后可补偿缺失Instance；
-6. replicas从1改为0后精确删除目标Instance；
-7. 删除Model后无孤儿Instance；
-8. ModelInstance watch能观察到初始pending事件；
-9. controller异常可观察且不会静默吞掉永久状态；
-10. 测试同时覆盖`categories=[]`和`categories=["embedding"]`。
-
-测试不需要真实GPU、Docker或模型文件；可使用测试数据库和fake scheduler边界，只验证控制面副本同步。
-
-## 12. 修复验收标准
-
-修复部署后，项目将使用新的唯一模型名重跑。通过必须同时满足：
-
-1. Server只有一个稳定进程；
-2. `POST /v2/models`成功；
-3. 30秒内出现恰好一个目标ModelInstance；
-4. 初始状态至少可观察到pending，watch不丢失目标事件；
-5. Instance字段与父Model一致；
-6. scheduler将其绑定Worker 17、GPU0和新的40000段端口；
-7. Worker完成ModelFile、容器启动和running状态链；
-8. Rust CLI经Rust Server完成float、base64、双输入和重复embedding请求；
-9. 删除实验Model后Instance、容器、端口、GPU进程和stage文件归零；
-10. 原Model 21 / Instance 87 / 容器和Qwen健康保持不变。
-
-## 13. 本次回滚结果
-
-本次失败没有遗留实验资源：
-
-- Model 23已精确删除；
-- 目标ModelInstance为0；
-- 实验容器、端口和GPU进程为0；
-- 30分钟watchdog已disarm并删除；
+- Model 25和Instance 112已精确删除；
+- 复验watchdog已停止并删除控制目录；
 - 隔离Context已删除；
-- 原管理API Key文件保留且权限仍为0600；
-- 原Instance 87仍为running；
-- 原容器`3233adac6f2a`继续运行；
-- Rust Server、Rust Worker、Worker readiness和原Qwen健康均为HTTP 200。
+- 固定BGE目录和管理Key文件保留；
+- 原Model 21、Instance 87和容器继续运行；
+- Rust Server、Worker health/ready及原Qwen均为HTTP 200；
+- 没有残留实验容器、端口、进程或Server资源。
 
-因此开发者可以只修复Rust Server控制面，无需处理106 Worker现场或恢复GPU资源。
+因此当前可以安全准备隔离维护工具，但必须先由Server开发者部署修复并通过list/watch可见性复验，
+之后才能申请独立维护授权并停止原Worker或模型。

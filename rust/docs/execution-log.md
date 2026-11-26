@@ -8466,3 +8466,32 @@
   Instance 87、同一原容器、Server/Worker/ready/Qwen健康和GPU基线全部恢复或保持。
 - 当前停止位置：`M8-EMB.7 waiting_on_rust_server_instance_creation`。Rust Server修复后应使用新
   模型名重跑同一最终链；M8-B继续暂停，本结果不能标记为accepted。
+
+### 2026-11-26：M8-EMB.7副本归因修正与独立复核
+
+- 开发者复核：隔离环境中的普通Model和embedding Model均能自动生成实例；使用现场数据执行副本
+  对账可为Model 23生成pending实例；106线上创建诊断embedding Model 24后约1.2秒生成Instance
+  111，随后已清理。这三条证据否定“embedding副本控制器未运行”的一般性结论。
+- 租户归属：管理员创建Model时使用Cluster owner principal 1，ModelInstance继承owner 1；现场
+  管理Key（包括operator Key 32）属于个人principal 4，实例list和watch按Key主体过滤。开发者使用
+  等效Key确认数据库有1个实例、Key列表为0、Key watch无事件，而无租户限制的管理员会话可见1个。
+  `page=-1`只取消分页，不取消该权限过滤。
+- 项目复验：使用新名称`m8emb7-bge-small-zh-gpu0-r2`创建Model 25。PostgreSQL约0.96秒后出现
+  owner 1、Cluster 1的Instance 112；同一管理Key的list仍返回0且CLI watch未收到事件。这是本项目
+  对租户可见性假阴性的独立实证，原Model 23的
+  `STOP/server_did_not_create_model_instance`归因撤销并改为
+  `inconclusive_due_to_tenant_visibility`。
+- Worker边界：Instance 112继续被调度到Worker 17/GPU0/port 40001并到达Worker，最终因
+  `GPU index 0 has active compute processes`进入error。原Instance 87的Qwen仍在GPU0运行；
+  `gpu-memory-utilization=0.1`不会绕过Worker的计算进程排他保护。这证明当前剩余阻断不是副本创建，
+  而是最终链需要受控释放唯一GPU0。
+- 回滚：Model 25及Instance 112精确删除；部署等待进程终止；watchdog disarm并删除；隔离Context
+  删除。原Model 21、Instance 87、容器、Rust Server、Worker health/ready和Qwen均保持200，管理
+  Key文件和固定BGE目录保留，没有实验容器、端口、进程或Server资源残留。
+- 部署核验：106只有PID 578553这一个Rust Server进程，owner为`lenovo`，启动时间为
+  2026-11-25 22:56:24；它早于本次修复说明，且项目登录账号`wujiaxing`无权安全替开发者重启。
+  Worker health/ready/metrics、Qwen、原容器和Rust Server均健康，Instance 111/112已清零。
+- 当前停止位置：`M8-EMB.7 waiting_on_rust_server_visibility_fix_deployment`。开发者构建并重启新
+  Server进程后，先执行不释放GPU的list/watch可见性门；通过后再把M8-EMB.6-106工具参数化为Rust
+  Server隔离Worker场景并申请维护授权。实际启用maintenance、停止原Worker或容器必须取得新的
+  明确授权，M8-B继续暂停。

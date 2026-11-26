@@ -1516,3 +1516,10 @@ M8-A.1现有行为特征测试；不得跳到统一入口、CLI删除、Dockerfi
 | ID | 决策项 | 已接受方案 | 理由 |
 |---|---|---|---|
 | D329 | 非阻塞接口差异与最终链停止门 | 按用户决定，不以embedding未进入OpenAPI和无凭据不存在模型返回404阻断本次功能测试；两项仍记录为Rust Server差异。现成Worker 24模型只验证Server新接口功能，最终验收仍必须是Rust CLI→Rust Server→Worker 17→vLLM。唯一Model 23在字段正确但长期没有Instance时判`STOP/server_did_not_create_model_instance`，精确删除并恢复现场；禁止手工创建Instance或Worker直连绕过，等待Rust Server副本控制器修复 | 现成模型的float/base64、双输入和重复请求已证明新路由可用，但不能替代目标Rust Worker链。Model 23在Server持久化后始终没有Instance，失败发生在Worker、Docker和GPU之前；绕过副本控制器会破坏Server托管验收含义。精确cleanup保住原Qwen并给开发方留下单一、可复现的控制面问题。 |
+
+## 2026-11-26 M8-EMB.7租户可见性归因修正
+
+| ID | 决策项 | 已接受方案 | 理由 |
+|---|---|---|---|
+| D330 | 撤销D329的副本控制器归因 | D329的安全停止、禁止绕过和精确cleanup仍有效，但`STOP/server_did_not_create_model_instance`结论由本决策取代。Model 23历史结果改记为`inconclusive_due_to_tenant_visibility`；副本控制器已由隔离普通/embedding测试、现场数据对账、线上Model 24/Instance 111及项目Model 25/Instance 112验证。确认问题是Model/Instance使用Cluster owner 1，而管理Key list/watch使用个人principal 4，导致实例在数据库存在但Key不可见。`page=-1`不取消权限过滤 | Model 23没有保留数据库快照或Server日志，不能用Key的可见列表反推数据库不存在实例。Model 25复验同时观测到数据库Instance 112和Key列表0，直接证明假阴性。归因修正避免继续修改正常副本控制器，也把修复范围收敛为创建、list和watch的统一TenantContext。 |
+| D331 | M8-EMB.7最终运行采用隔离维护窗口 | 最终运行复用M8-EMB.6-106的精确进程/容器封存、maintenance屏障、隔离Worker、一次性授权、watchdog和幂等cleanup；只停止、不删除原Worker 17对应进程和Instance 87容器，实验结束恢复同一Model/Instance/容器、原maintenance和Qwen健康。106当前仍是修复前旧Server进程，阶段先保持`waiting_on_rust_server_visibility_fix_deployment`；新进程通过无GPUlist/watch门后才进入`ready_for_isolated_maintenance_authorization` | Model 25已经到达Worker，真实运行阻断是原Qwen占用GPU0并触发Worker的计算进程排他保护；同时旧进程上的管理Key仍看不到实例。显存比例0.1不是共享GPU授权。先验证新Server权限语义、再申请隔离窗口，能避免为了一个仍不可观察的控制面结果中断原Qwen；任何实际停止操作仍须用户另行明确授权。 |
