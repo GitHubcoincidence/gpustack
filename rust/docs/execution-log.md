@@ -8562,3 +8562,18 @@
   HEAD运行只读preflight；它可离线构建最新二进制并读取现场，但不得切换maintenance、停止进程/
   容器、创建Server资源或使用GPU。preflight通过仍须用户另行授权cookie运行时维护窗口；D332和
   API Key正式兼容保持`waiting_on_rust_server_admin_cluster_authorization`。
+
+### 2026-11-26：M8-EMB.7只读preflight attempt 1安全停止
+
+- attempt 1在治理HEAD`f5b4398abc0cbdced1ae06c97831294246e1ace9`开始，管理员cookie对Model和
+  ModelInstance仍均为200，目标证据路径此前未占用。工具进入第1组`protected_inputs`后，在执行
+  固定模型校验前因复用的`Evidence.run`缺少`M8EMB6106_REPO`键而STOP。
+- 影响边界：失败发生在Cargo构建、服务/控制面现场探测、恢复计划生成和全部维护操作之前；没有
+  切换maintenance、停止进程/容器、创建Model/Instance、执行Docker写入或使用GPU。STOP证据目录
+  为`m8emb7-106/preflight-f5b4398a-attempt1`，manifest SHA-256为
+  `921faacbe1f50367804b306577c2a8c011e75425d1d155ef6bcd97a5cf472736`，保留为无评分失败证据。
+- 修复：提交`dc0d7991`只把新模块的固定repo路径写入旧Evidence runner已接受的环境键，并在
+  M8-EMB.7 self-test中断言该绑定；不重新引入可覆盖授权阶段的环境变量。临时目录中旧7组和新5组
+  self-test再次全部通过，临时压缩包与目录已清零。
+- 当前停止位置：`retry_preflight_pending`。记录并同步本修复后的最终HEAD后，只允许用全新证据
+  目录运行attempt 2；真实maintenance、原Worker/容器停止、Server资源创建和GPU0仍未授权。
