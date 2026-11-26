@@ -264,3 +264,19 @@ cfd8cf81fac52d7be0a3e325346ec8b4fbe5461b205aa1897e1c609e5c2d4c3b
 - 测试结束立即删除session文件。
 
 M8-EMB.7在API Key修复并复测前不得标记为正式通过。
+
+## 15. 临时绕过实测补充
+
+2026-11-26在106使用同一次管理员登录分别探测两种传输：
+
+```text
+cookie_models_http=200
+cookie_instances_http=200
+bearer_models_http=401
+bearer_instances_http=401
+```
+
+这说明当前Rust Server把管理员Web session cookie识别为可访问全量控制面的主体，但不接受从同一
+session提取的JWT作为Bearer凭据。临时诊断因此只能走cookie HTTP工具，不能把JWT写入Rust CLI
+Context。该结果不修复也不弱化本报告的API Key 403问题，反而说明Web admin与API Key授权路径的
+语义差异需要在Server测试中显式覆盖。

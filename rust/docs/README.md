@@ -26,6 +26,7 @@
 - [m7e3-control-connection-recovery.md](m7e3-control-connection-recovery.md)：已冻结的 M7-E.3 Rust Worker专用 Server/Docker代理串行故障、运行时保留、恢复收敛和回滚协议。
 - [m7f-dual-gpu-tp2.md](m7f-dual-gpu-tp2.md)：已冻结的 M7-F 本机双 GPU TP=2产品契约、离线实现门、正式验证和回滚方案。
 - [m8emb6-python-server-compatibility.md](m8emb6-python-server-compatibility.md)：M8-EMB.6 Python Server embedding兼容门、GPU0维护隔离、watchdog与恢复边界。
+- [m8emb7-rust-server-cookie-runtime.md](m8emb7-rust-server-cookie-runtime.md)：M8-EMB.7管理员session诊断链、106隔离维护窗口、评分与恢复边界。
 - [rust-server-embedding-model-instance-creation-issue.md](rust-server-embedding-model-instance-creation-issue.md)：Rust Server创建、查询与watch使用不同租户归属而造成ModelInstance可见性假阴性的调查、修正建议和验收标准。
 - [rust-server-admin-cluster-authorization-issue.md](rust-server-admin-cluster-authorization-issue.md)：租户修复后平台管理员API Key无法选择Default Cluster的403复现、归属证据、安全修复与验收标准。
 

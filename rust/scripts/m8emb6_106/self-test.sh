@@ -90,6 +90,11 @@ from pathlib import Path
 spec = importlib.util.spec_from_file_location('runtime_tool', sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+assert module.AUTHORIZATION_STAGE == 'M8-EMB.6-106-maintenance-window'
+assert module.MAINTENANCE_MESSAGE == 'M8-EMB.6 106 compatibility window'
+assert module.FORMAL_STAGE == 'M8-EMB.6C-106-formal'
+assert module.CLEANUP_STAGE == 'M8-EMB.6C-106-cleanup'
+assert module.AUDIT_STAGE == 'M8-EMB.6D-106-post-audit'
 try:
     module.validate_authorization(Path(sys.argv[2]), '0' * 40, '0' * 64)
 except module.GateError:

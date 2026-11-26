@@ -23,6 +23,13 @@ class GateError(RuntimeError):
     """A fail-closed gate failure with a user-readable reason."""
 
 
+AUTHORIZATION_STAGE = 'M8-EMB.6-106-maintenance-window'
+MAINTENANCE_MESSAGE = 'M8-EMB.6 106 compatibility window'
+FORMAL_STAGE = 'M8-EMB.6C-106-formal'
+CLEANUP_STAGE = 'M8-EMB.6C-106-cleanup'
+AUDIT_STAGE = 'M8-EMB.6D-106-post-audit'
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise GateError(message)
@@ -357,7 +364,7 @@ def set_maintenance(
             'enable',
             str(worker_id),
             '--message',
-            'M8-EMB.6 106 compatibility window',
+            MAINTENANCE_MESSAGE,
         ]
     else:
         arguments = [
@@ -561,7 +568,10 @@ def validate_authorization(path: Path, expected_head: str, preflight_sha: str) -
     private_file(path)
     value = load_json(path)
     require(isinstance(value, dict), 'authorization is not a JSON object')
-    require(value.get('stage') == 'M8-EMB.6-106-maintenance-window', 'stage invalid')
+    require(
+        value.get('stage') == AUTHORIZATION_STAGE,
+        'stage invalid',
+    )
     require(value.get('approved') is True, 'maintenance window is not approved')
     require(value.get('expected_head') == expected_head, 'authorization HEAD drifted')
     require(
@@ -1204,7 +1214,7 @@ def perform_cleanup(
             'result.txt',
             (
                 f'status={status}\n'
-                'stage=M8-EMB.6C-106-cleanup\n'
+                f'stage={CLEANUP_STAGE}\n'
                 f'failed_step={reported_step}\n'
             ),
         )
@@ -1222,7 +1232,7 @@ def perform_cleanup(
                 'result.txt',
                 (
                     'status=FAIL\n'
-                    'stage=M8-EMB.6C-106-cleanup\n'
+                    f'stage={CLEANUP_STAGE}\n'
                     'failed_step=evidence_seal\n'
                 ),
             )
@@ -1378,7 +1388,7 @@ def execute(args: argparse.Namespace) -> int:
             'result.txt',
             (
                 f'status={status}\n'
-                'stage=M8-EMB.6C-106-formal\n'
+                f'stage={FORMAL_STAGE}\n'
                 f'reason={reason}\nphase={phase}\n'
                 f'smoke_passed={str(state["smoke_passed"]).lower()}\n'
                 f'cleanup_ok={str(cleanup_ok).lower()}\n'
@@ -1526,7 +1536,7 @@ def post_audit(args: argparse.Namespace) -> int:
     finally:
         evidence.text(
             'result.txt',
-            f'status={status}\nstage=M8-EMB.6D-106-post-audit\n',
+            f'status={status}\nstage={AUDIT_STAGE}\n',
         )
         try:
             manifest_sha = evidence.seal()
