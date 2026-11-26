@@ -253,6 +253,9 @@ SELECT 'orphan_target_model_files=' || count(*)
   LEFT JOIN workers AS w ON w.id = mf.worker_id
  WHERE mf.local_path = {path}
    AND w.id IS NULL;
+SELECT 'target_model_rows=' || count(*)
+  FROM models
+ WHERE name = {runtime_tool.sql_literal(config.target_model)};
 """
         database_result = runtime_tool.run_database_sql(
             config,
@@ -273,6 +276,10 @@ SELECT 'orphan_target_model_files=' || count(*)
         base.require(
             'orphan_target_model_files=0' in database_lines,
             'orphan target ModelFile exists before the diagnostic',
+        )
+        base.require(
+            'target_model_rows=0' in database_lines,
+            'target Model name exists in active or soft-deleted rows',
         )
 
         failed_step = 'control_plane'

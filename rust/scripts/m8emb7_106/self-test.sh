@@ -153,6 +153,11 @@ command = config.worker_command()
 assert command[-1] == 'run'
 assert '--worker-name' in command
 assert config.worker_name in command
+assert config.target_model == 'm8emb7-bge-small-zh-106-attempt3'
+preflight_source = (runtime_tool.SCRIPT_DIR / 'preflight.py').read_text(
+    encoding='utf-8'
+)
+assert 'target_model_rows=0' in preflight_source
 assert runtime_tool.os.environ['M8EMB6106_REPO'] == str(config.repo)
 assert runtime_tool.base.api_request is runtime_tool.api_request
 assert runtime_tool.base.set_maintenance is runtime_tool.set_maintenance
