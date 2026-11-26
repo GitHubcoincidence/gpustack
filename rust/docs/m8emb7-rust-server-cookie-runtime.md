@@ -17,7 +17,8 @@ API Key、Rust CLI控制面或多租户授权已经兼容。状态结果也分�
 - 原现场：Worker 17 `jiaxingHaoyuNB-106`、Model 21、Instance 87、端口40000；
 - 原模型容器：preflight按标签唯一解析并把完整identity写入恢复计划，不在脚本中依赖短容器ID；
 - 实验Worker：`rust-m8emb7-106`，控制端口20250，指标端口20251；
-- 实验Model：`m8emb7-bge-small-zh-106-attempt3`；preflight必须同时证明API不可见且数据库活动/软
+- 实验Model：每次正式重试使用全新固定名称，当前为`m8emb7-bge-small-zh-106-attempt4`；preflight
+  必须同时证明API不可见且数据库活动/软
   删除同名行总数为0；
 - 模型：固定revision的`BAAI/bge-small-zh-v1.5`，11个文件、96,378,336字节、512维；
 - Runner：固定digest的GPUStack Runner；

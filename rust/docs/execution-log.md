@@ -8729,3 +8729,12 @@
 - 当前停止位置：`runtime_reached / inference_not_scored / fully_restored / retry_tooling_ready`。
   同步最终治理HEAD后必须再次运行只读preflight；formal attempt 4仍须绑定新HEAD和manifest的明确
   授权，不能沿用attempt 3授权。
+
+### 2026-11-26：M8-EMB.7 formal attempt 4名称轮换
+
+- attempt 3的正常cleanup按Server语义保留软删除Model 29，因此D336数据库门会拒绝再次使用
+  attempt 3名称。D338明确每次正式重试都使用源码冻结的新名称，不删除历史行。
+- 提交`8aa518b6`把当前目标固定为`m8emb7-bge-small-zh-106-attempt4`并同步self-test；旧七组和新
+  六组离线测试均PASS。
+- 当前停止位置：`attempt_4_final_preflight_pending`。同步最终治理HEAD后只允许运行全新八组只读
+  preflight；真实维护窗口仍需新的明确授权。

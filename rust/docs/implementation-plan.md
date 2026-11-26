@@ -1710,3 +1710,7 @@ formal attempt 3仍须新的明确授权。
 `--option=value`或`--option value`，目标值仍严格为pooling和512，并在断言前封存inspect。修复提交
 `8750a91a`已通过两套self-test。下一步同步治理HEAD、运行全新只读preflight并为formal attempt 4
 取得新的明确授权。
+
+由于attempt 3正常cleanup保留软删除Model 29，D338要求attempt 4使用全新冻结名称
+`m8emb7-bge-small-zh-106-attempt4`，并继续由数据库preflight证明活动及软删除同名行总计数为0；
+不删除历史Model。名称轮换提交`8aa518b6`通过两套self-test，下一步仍是最终只读preflight。
