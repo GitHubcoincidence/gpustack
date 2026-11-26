@@ -1650,3 +1650,10 @@ Default ORG membership或显式cluster_access之一，并让同一管理Key通�
 watch和CLI status无GPU门，之后才进入`ready_for_isolated_maintenance_authorization`。最终链继续
 复用M8-EMB.6的精确封存、maintenance、实验Worker、watchdog和幂等恢复机制；授权语义未闭环或未
 取得新的明确维护授权时都不得停止原Worker或容器。
+
+用户接受D333临时绕过，允许使用短期管理员Web session继续非计分运行时诊断。先由
+`rust/scripts/m8emb7_106/prepare-admin-session.sh`在106终端隐藏读取用户名和密码，通过
+`POST /auth/login`生成0600 cookie jar，并分别验证cookie与Bearer JWT访问Model和ModelInstance。
+若Bearer兼容则Rust CLI使用隔离session token Context；否则控制面只使用受保护cookie HTTP工具。
+该绕过不改变D332状态、不直接修改数据库、不使用SYSTEM token冒充管理员；正式GPU窗口仍须另行
+授权，结束后必须删除cookie、token、Context和一次性授权材料。

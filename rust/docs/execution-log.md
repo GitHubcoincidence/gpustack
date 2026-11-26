@@ -8516,3 +8516,20 @@
 - 当前停止位置：`M8-EMB.7 waiting_on_rust_server_admin_cluster_authorization`。不得直接修改数据库
   membership绕过；Server明确并部署admin/ORG/cluster_access语义后重跑同一无GPU门，通过前不申请
   GPU0维护窗口，M8-B继续暂停。
+
+### 2026-11-26：M8-EMB.7管理员session绕过获批与缺陷转交准备
+
+- 用户决定：在Rust Server修复平台管理Key的Default Cluster授权前，先使用无租户限制的短期管理员
+  Web session继续Worker/embedding运行时诊断，同时要求交付完整Bug说明给Server开发者。
+- 安全边界：不修改`principal_memberships`或`cluster_access`，不复用Cluster registration或Worker
+  SYSTEM token冒充操作员。session cookie/JWT只保存在106的0600单链接文件，禁止进入命令参数、
+  Git、证据和聊天；实验结束精确删除。
+- 工具：新增`rust/scripts/m8emb7_106/prepare-admin-session.sh`。脚本在终端隐藏读取密码，通过
+  curl配置FD提交登录表单，保存cookie前验证管理员cookie能读取Model和ModelInstance；同时探测
+  Rust Server是否接受session JWT Bearer。只有Bearer两接口均200才生成CLI token文件，否则后续
+  仅使用cookie HTTP控制面。
+- 转交文档：新增`rust-server-admin-cluster-authorization-issue.md`，包含403复现、principal/Cluster
+  数据证据、与旧可见性Bug的关系、三种修复语义、安全要求、自动化测试、验收标准和临时绕过边界。
+- 当前停止位置：等待在106执行一次隐藏登录并返回cookie/Bearer兼容结果。该准备不创建Model、
+  Instance、容器或GPU任务；M8-EMB.7正式状态仍为
+  `waiting_on_rust_server_admin_cluster_authorization`，GPU维护窗口尚未授权。
